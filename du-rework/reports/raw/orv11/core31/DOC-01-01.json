@@ -1,0 +1,37 @@
+{
+  "name": "operations/2313a000-a468-4e6e-8ef2-64e3d3f81389",
+  "done": true,
+  "metadata": {
+    "state": "SUCCEEDED",
+    "pipeline": [],
+    "current_step": 0,
+    "progress_percent": 0,
+    "progress_message": "Queued",
+    "create_time": "2026-10-11T16:35:02.779Z",
+    "update_time": "2026-10-11T16:35:02.891Z",
+    "pipeline_steps": []
+  },
+  "result": {
+    "output_format": "json",
+    "content": "{\"text\":\"Sample document text for ingestion\",\"markdown\":\"Sample document text for ingestion\",\"metadata\":{\"detectedFormat\":\"txt\",\"parser\":\"inline-text\",\"provenance\":\"native_parse\"}}",
+    "extracted_data": {
+      "text": "Sample document text for ingestion",
+      "markdown": "Sample document text for ingestion",
+      "metadata": {
+        "detectedFormat": "txt",
+        "parser": "inline-text",
+        "provenance": "native_parse"
+      }
+    },
+    "pipeline_steps": [],
+    "usage": {
+      "input_tokens": null,
+      "output_tokens": null,
+      "pages_processed": null,
+      "model_used": null,
+      "cost_usd": null,
+      "breakdown": []
+    },
+    "download_url": "/api/v1/operations/2313a000-a468-4e6e-8ef2-64e3d3f81389/download"
+  }
+}

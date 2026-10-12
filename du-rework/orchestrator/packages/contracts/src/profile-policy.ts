@@ -425,6 +425,14 @@ export const ProfileDetailReadSchema = z
       actions: z.array(z.record(z.string(), z.unknown())),
     }),
     capabilities: z.array(z.record(z.string(), z.unknown())),
+    /** Exact non-secret slot pins from the active profile revision. */
+    connectorBindings: z.record(
+      z.string(),
+      z.object({
+        connectorId: z.string().min(1),
+        revision: z.number().int().min(1).max(1_000_000_000),
+      }).strict(),
+    ),
     /**
      * T-API-01 closure (Δ7-A): the write identity of the API key this profile
      * belongs to — the detail read REVEALS it so the client can address the

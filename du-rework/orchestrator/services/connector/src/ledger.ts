@@ -67,6 +67,12 @@ export class InMemoryInvocationLedger implements InvocationLedger {
     return pollLeaseToken;
   }
 
+  public async activateEffect(_invocationId: string, _pollLeaseToken?: string): Promise<boolean> {
+    // The in-memory ledger is used only by isolated unit tests and has no
+    // concurrent maintenance controller or external durable effects.
+    return true;
+  }
+
   public async complete(
     invocationId: string,
     result: NormalizedProviderResult,

@@ -1,5 +1,9 @@
 # Public API — legacy wire parity contract (DUGate cũ → du-rework)
 
+> ORV11 internal cancel completion: HTTP200 có thể trả `CANCEL_REQUESTED` cho worker đang chạy; consumer phải polling tới terminal. Worker nhận cancellation qua heartbeat để dừng provider. Paused/unleased jobs được terminalize và đóng waits; existing recovery timer xử lý tín hiệu mồ côi. Public cancel đã retired theo quyết định người dùng.
+
+> **ORV11 amendment — 2026-10-11:** người dùng chấp thuận thu hẹp operations public về đọc kết quả theo ID (bao gồm download theo phương án hiện tại). Các yêu cầu public list/delete/cancel/resume ở §3.2/3.4/3.5/3.6 và bảng parity lịch sử được thay bằng admin-authenticated internal surface `/api/internal/operations/**`; nội dung các mục đó là reference hành vi, không còn bắt buộc public routing. Canonical `/result` và retry cũng internal. Public `GET /operations/{id}` giữ legacy result envelope và kiểm tra tenant/key. Đây là thay đổi scope đã được người dùng cho phép, không phải dùng tài liệu để hợp thức hóa các mismatch input/output/migration còn lại. Trạng thái và evidence: [ORV11 ledger](../coordination/ORV11-EXECUTION-2026-10-11.md).
+
 > **Trạng thái:** SPEC ĐÃ CHỐT (2026-10-02, yêu cầu user: *"với tất cả api tôi muốn response với spec api giống như luồng cũ"*).
 > **Phạm vi:** mọi public endpoint của hệ cũ phải được dựng lại trên `du-rework` với **wire tương đồng**: method, path, query, form field, status code, header và JSON body (key + value).
 > **Ngoại lệ duy nhất — identity:** shape/status/field giữ nguyên; **cách xác thực được hardening** (mục 6). Không tái hiện IDOR của hệ cũ.
@@ -15,7 +19,7 @@
 |---|---|---|
 | 1 | Mọi public API trả **wire giống hệ cũ** | **CHỐT** (user, 2026-10-02) |
 | 2 | Identity được **hardening**, không copy lỗ hổng hệ cũ | **CHỐT** (user: *"làm theo khuyến nghị"*) |
-| 3 | `billing/balance` cần cột `spending_limit`/`total_used` trên `api_keys` | **Cột đã có** (migration `0024_legacy_parity_columns.sql`); cơ chế cập nhật `total_used` còn OPEN (mục 5.2) |
+| 3 | `billing/balance` cần cột `spending_limit`/`total_used` trên `api_keys` | **Cột đã có**; ORV12 tính effective spend từ imported baseline + new per-key ledger (mục5.2) |
 | 4 | `?sync=true` trả 200 **kể cả khi `done:false`** | **CHỐT** — theo hệ cũ (mục 4.1) |
 
 Câu hỏi `API-COMPAT-DUGATE-2026-09-28.md:108` (yêu cầu 200 chỉ khi hoàn tất, *"đừng làm yếu yêu cầu này để khớp legacy"*) **bị đảo** bởi quyết định #4. Mục 4.1 ghi lý do để không tái tạo mâu thuẫn.
@@ -28,8 +32,8 @@ Câu hỏi `API-COMPAT-DUGATE-2026-09-28.md:108` (yêu cầu 200 chỉ khi hoàn
 | 2 | `/api/v1/docs/workflows` | POST | Facade admission đã implement (WFA); runtime acceptance OPEN | Kiểm chứng ba process thực tế theo WFA matrix |
 | 3 | `/api/v1/docs/workflows/schema` | POST | Facade + encrypted revision catalog đã implement (WFA); runtime acceptance OPEN | Kiểm chứng executor, pin, HITL/resume/cancel theo WFA matrix |
 | 4 | `/api/v1/services` | GET | Route + auth + shape đã implement trong facade; **hiện trả 500** vì catalogue chưa wire (`serviceCatalogue`; pin bởi test rv01) | Wire catalogue rồi so fixture (§5.1, COMP-08 phần còn lại) |
-| 5 | `/api/v1/billing/balance` | GET | Handler đã implement (per-API-key; cột `api_keys` từ migration `0024_legacy_parity_columns.sql`; `billingFor` wired) | OPEN: cơ chế cập nhật `total_used` (mục 5.2) + fixture §8 |
-| 6 | `/api/v1/billing/usage` | GET | Handler đã implement (route legacy riêng; canonical `/api/v1/usage*` giữ nguyên) | Fixture §8 + chốt `total_used` theo §5.2 |
+| 5 | `/api/v1/billing/balance` | GET | Per-key imported baseline + deduplicated priced new ledger, ORV12 verified | Customer/provider reconciliation outside synthetic proof |
+| 6 | `/api/v1/billing/usage` | GET | Legacy wire/date window, ledger-or-history per operation without double count, ORV12 verified | Unknown cost completeness unavailable in frozen billing shape |
 | 7 | `/api/v1/operations/{id}/download` | GET | chỉ có `/artifacts/{id}/download` | Dựng route legacy (COMP-07) |
 | 8 | `/api/v1/operations/{id}` | GET | có, **envelope khác** | Đổi sang legacy envelope |
 | 9 | `/api/v1/operations/{id}` | DELETE | **không có** | Dựng soft-delete 204 |
@@ -322,7 +326,7 @@ Giữ hành vi hardening; shape 500 vẫn là `{type,title,status,detail}` như 
 Điểm dễ sót: `subCases` được **flatten từ registry** — một sub-case bị khoá generic sẽ không xuất hiện,
 không phải trả `enabled:false`.
 
-### 5.2 `GET /api/v1/billing/balance` — cột DB đã có; writer `total_used` còn OPEN
+### 5.2 `GET /api/v1/billing/balance` — effective per-key spend
 
 ```json
 { "object": "billing_balance", "api_key_id": "...", "api_key_name": "...",
@@ -333,7 +337,7 @@ không phải trả `enabled:false`.
 
 Quy tắc tính (`billing/balance/route.ts:35-49`): nếu `spending_limit > 0` thì
 `balance = spending_limit - total_used`, **ngược lại `balance = null`** và `spending_limit = null`.
-Không có ledger, không có bảng usage — đọc thẳng **hai cột trên bảng API key**.
+Bản legacy đọc trực tiếp hai cột API key. ORV12 giữ wire nhưng rework tính effective spend từ baseline lịch sử cộng ledger cho operations mới thành công, dedup theo event; không cộng lại imported history. New admission/retry dùng cùng helper với số tiền BigInt và giữ replay trước kiểm tra limit. Không sửa baseline lịch sử khi nhận usage mới. Unpriced không được coi là measured zero; frozen billing shape chỉ biểu diễn known accrued spend.
 
 **Đối chiếu source (cập nhật 2026-10-07):**
 
@@ -343,10 +347,7 @@ Không có ledger, không có bảng usage — đọc thẳng **hai cột trên 
 | `orchestrator/services/orchestrator/src/compat/legacy-host-adapter.ts:620-664` (`loadLegacyBilling`) | đọc `name`/`spending_limit`/`total_used` từ `api_keys`; aggregate per-key từ `operations` (`state = 'SUCCEEDED' AND deleted_at IS NULL`) |
 | `grep "total_used"` toàn cây | **không có writer** cập nhật cột khi operation `SUCCEEDED` |
 
-=> **Còn OPEN:** cơ chế cập nhật `total_used` khi operation `SUCCEEDED` (grep toàn cây: không có writer).
-Route đã trả đúng shape legacy, nhưng cho tới khi có writer thì `total_used` chỉ phản ánh dữ liệu được
-ghi ngoài đường operation — chưa đủ để coi là parity hoàn chỉnh. `COMP-08:57` cho phép `DEFER` balance
-nếu chưa có ledger — nhưng đó **không phải parity**, nên với quyết định #1 thì lối thoát defer bị loại.
+Đối chiếu trên là lịch sử ngày07/10. Gap effective balance/admission được sửa và kiểm chứng trong [ORV12 usage/spend](../coordination/reports/orv12-usage.md), [independent live receipt](../coordination/reports/orv12-verification.md) và [reviewer](../coordination/reports/orv12-independent-review.md). Provider pricing/reconciliation thiếu provenance vẫn là giới hạn riêng, không suy ra rich COST export hoặc customer invoice hoàn chỉnh.
 
 **Cấm tuyệt đối:** tính `balance` từ tenant usage. Mục Endpoint catalog của `docs/06-public-api.md`
 (hàng billing) đã cảnh báo và `API-COMPAT:57` nói rõ: không được đổi tenant total thành key total.

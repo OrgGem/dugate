@@ -1,3 +1,4 @@
+import { mintLocalTenantCredential } from '../../modules/admin-actions/rbac';
 /**
  * CONV-03: the orchestrator composition root, moved verbatim out of
  * server.ts — one startup/shutdown owner. The route table is an injected
@@ -8,7 +9,8 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { resolve } from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, randomBytes } from 'node:crypto';
+import { createLocalAdminAuth } from '../admin/local-auth-boot';
 import { Queue } from 'bullmq';
 import IORedis from 'ioredis';
 import { S3Client, GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
@@ -30,14 +32,21 @@ import {
 } from '../../modules/runtime/runtime';
 import { validateWorkerIdentityConfig } from '../../modules/runtime/worker-identity';
 import { createUsageService } from '../../modules/usage/usage';
+import { observeVerifiedLogin } from '../../modules/cost-alerts/oidc-recipients';
+import { createComposeOperationsService } from '../../modules/compose-operations/service';
 import { createArtifactService, type ArtifactService } from '../../modules/artifacts/artifacts';
+import { createPostgresArtifactStorageFacade } from '../../modules/artifacts/postgres-storage-facade';
 import { createRuntimeSecretResolver } from '../../modules/secrets/vault-resolver';
+import { createStorageGenerationService, type StorageGenerationConfig, type StorageGenerationService } from '../../modules/artifacts/storage-generations';
+import { resolveManagedSecretVersion, verifyManagedSecretVersion } from '../../modules/secrets/secret-revision-resolver';
 import {
   createMultipartService,
   type MultipartService,
   type MultipartSweepSummary,
 } from '../../modules/artifacts/multipart-service';
 import { createS3ArtifactStorageFacade } from '../../modules/artifacts/s3-storage-facade';
+import type { ArtifactMultipartStorage } from '../../modules/artifacts/multipart-storage';
+import type { ArtifactStorageFacade } from '../../modules/artifacts/storage-facade';
 import { CryptoStorageFacade } from '../../modules/encryption/crypto-storage-facade';
 import { adaptKeyProviderForMetadata } from '../../modules/encryption/metadata-key-adapter';
 import { createMetadataCrypto } from '../../modules/runtime/metadata-crypto';
@@ -56,6 +65,7 @@ import { createGrantService, type GrantService } from '../../modules/grants/gran
 import { createLifecycleService } from '../../modules/lifecycle/lifecycle';
 import { createConnectorProxy, type ConnectorProxy } from '../../modules/connectors/connectors';
 import { createConnectorManagementStore } from '../../modules/connectors/connector-management-store';
+import { createConnectorSecretImportService } from '../../modules/connectors/connector-secret-imports';
 import { createConnectorRevisionHttpAdapter } from '../../modules/connector-credentials/connector-http-store';
 import {
   composeCredentialWorkflow,
@@ -63,6 +73,28 @@ import {
   CredentialWorkflowBootError,
 } from '../../modules/connector-credentials/compose';
 import { createProfileService, type ProfileService } from '../../modules/profiles/profiles';
+import { createProfileSelfServiceService } from '../../modules/profiles/self-service';
+import { createAdminIdentityService } from '../../modules/identity/service';
+import { createGlobalSettingsService } from '../../modules/global-settings/service';
+import { createMaintenanceService } from '../../modules/maintenance/maintenance-service';
+import { createBackupSnapshotWriteGate, PostgresBackupArtifactEffects } from '../../modules/maintenance/backup-effect-fence';
+import { createMaintenanceRecoveryKeyResolver } from '../../modules/maintenance/recovery-key-file';
+import { createRetentionCleanupScheduler } from '../../modules/maintenance/retention-cleanup-scheduler';
+import {
+  readFixedIngressProbeUrlMap,
+  readReplicaRuntimeControlTargets,
+  readWorkerReplicaBusinessMap,
+} from '../../modules/maintenance/trusted-rollout-manifest';
+import { createTrustedManifestRolloutPreviewAdapter } from '../../modules/maintenance/trusted-manifest-rollout-observer';
+import { readTrustedMaintenanceTargetDescriptors } from '../../modules/maintenance/trusted-backup-adapter';
+import { createReplicaRuntimeSafetyPort, createWorkerReplicaSafetySource, type ReplicaRuntimeSafetySource } from '../../modules/maintenance/replica-runtime-safety';
+import { createOrchestratorHttpReplicaSafetySource } from '../../modules/maintenance/orchestrator-runtime-safety';
+import { createConnectorReplicaRuntimeSafetySource, createFixedIngressReplicaProbe } from '../../modules/maintenance/connector-runtime-safety';
+import { createCostControlService } from '../../modules/cost-control/service';
+import { createCostAdjustmentService } from '../../modules/cost-control/adjustments';
+import { createCostAdjustmentEvidenceResolver } from '../../modules/cost-control/evidence-resolver';
+import { runCostAlertDeliveryBatch } from '../../modules/cost-alerts/service';
+import { createServiceRuntime } from '../../modules/service-runtime/service-runtime';
 import { createAuditService, type AuditService } from '../../modules/audit/audit';
 import { resolveAdminActionAuthAsync } from '../../modules/admin-actions/rbac';
 import {
@@ -79,6 +111,8 @@ import { createDispatcher } from '../../modules/queue/dispatcher';
 import { createIngestionConsumer } from '../../modules/operations/ingestion-consumer';
 import { createAcquisitionRefResolver } from '../../modules/operations/acquisition-ref-resolver';
 import {
+  createGenerationAwareS3EncryptedPinnedSourceStorage,
+  createGenerationAwareS3PinnedSourceStorage,
   createS3EncryptedPinnedSourceStorage,
   createS3PinnedSourceStorage,
 } from '../../modules/operations/ingestion-storage-s3';
@@ -140,6 +174,62 @@ const LDBA03_CONTEXT_CALLBACKS = [
   'artifactTokenFor',
   'artifactPurposeFor',
 ] as const;
+
+interface S3ManagedCredentials {
+  accessKeyId: string;
+  secretAccessKey: string;
+  sessionToken?: string;
+}
+
+/** Parse the one server-side, write-only S3 credential representation. */
+export function parseStorageS3Credentials(raw: string): S3ManagedCredentials {
+  let value: unknown;
+  try { value = JSON.parse(raw); } catch { throw new Error('storage credential value is invalid'); }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('storage credential value is invalid');
+  const record = value as Record<string, unknown>;
+  const keys = Object.keys(record).sort();
+  if (keys.some((key) => !['accessKeyId', 'secretAccessKey', 'sessionToken'].includes(key))) {
+    throw new Error('storage credential value is invalid');
+  }
+  const accessKeyId = record['accessKeyId'];
+  const secretAccessKey = record['secretAccessKey'];
+  const sessionToken = record['sessionToken'];
+  if (typeof accessKeyId !== 'string' || accessKeyId.trim() !== accessKeyId || accessKeyId.length < 16 || accessKeyId.length > 128
+      || /[\u0000-\u0020\u007f]/.test(accessKeyId)
+      || typeof secretAccessKey !== 'string' || secretAccessKey.trim() !== secretAccessKey || secretAccessKey.length < 20 || secretAccessKey.length > 256
+      || /[\u0000-\u0020\u007f]/.test(secretAccessKey)
+      || (sessionToken !== undefined && (typeof sessionToken !== 'string' || sessionToken.trim() !== sessionToken || sessionToken.length < 1 || sessionToken.length > 4096 || /[\u0000-\u001f\u007f]/.test(sessionToken)))) {
+    throw new Error('storage credential value is invalid');
+  }
+  return {
+    accessKeyId,
+    secretAccessKey,
+    ...(typeof sessionToken === 'string' ? { sessionToken } : {}),
+  };
+}
+
+function isApprovedStorageEndpoint(url: URL, allowlist: readonly string[]): boolean {
+  if (allowlist.includes(url.origin)) return true;
+  if (url.protocol !== 'https:' || url.port || url.username || url.password || url.search || url.hash) return false;
+  return /^s3(?:\.[a-z0-9-]+)?\.amazonaws\.com(?:\.cn)?$/i.test(url.hostname);
+}
+
+function withStorageGenerationUploadTtl(
+  facade: ArtifactStorageFacade & Partial<ArtifactMultipartStorage>,
+  urlTtlSeconds: number | null,
+): ArtifactStorageFacade & Partial<ArtifactMultipartStorage> {
+  if (urlTtlSeconds === null) return facade;
+  return {
+    ...facade,
+    async createUploadGrant(input) {
+      const requested = Date.parse(input.expiresAt);
+      const expiresAt = Number.isFinite(requested)
+        ? new Date(Math.min(requested, Date.now() + urlTtlSeconds * 1000)).toISOString()
+        : input.expiresAt;
+      return facade.createUploadGrant({ ...input, expiresAt });
+    },
+  };
+}
 
 export interface Ldb03ContextProviderRegistration {
   readonly modulePath: string;
@@ -208,21 +298,25 @@ const sanitizedInternalError = safeInternalErrorProblem;
  */
 function s3StoredObjectReader(client: S3Client, bucket: string): StoredObjectReader {
   return {
-    async head(storageKey: string): Promise<StoredObjectMetadata | null> {
+    async head(storageKey: string, versionId?: string): Promise<StoredObjectMetadata | null> {
       try {
-        const head = (await client.send(new HeadObjectCommand({ Bucket: bucket, Key: storageKey }))) as {
+        const head = (await client.send(new HeadObjectCommand({ Bucket: bucket, Key: storageKey, ...(versionId ? {VersionId:versionId} : {}) }))) as {
           Metadata?: Record<string, string>;
+          VersionId?: string;
         };
+        if(versionId && head.VersionId !== versionId) throw new HttpError(503,'STORAGE_FAILURE','encrypted artifact version mismatch');
         return head.Metadata ?? {};
       } catch (error) {
         if (isNotFoundStorageError(error)) return null;
         throw error;
       }
     },
-    async read(storageKey: string): Promise<Buffer> {
-      const output = (await client.send(new GetObjectCommand({ Bucket: bucket, Key: storageKey }))) as {
+    async read(storageKey: string, versionId?: string): Promise<Buffer> {
+      const output = (await client.send(new GetObjectCommand({ Bucket: bucket, Key: storageKey, ...(versionId ? {VersionId:versionId} : {}) }))) as {
         Body?: unknown;
+        VersionId?: string;
       };
+      if(versionId && output.VersionId !== versionId) throw new HttpError(503,'STORAGE_FAILURE','encrypted artifact version mismatch');
       return await readStreamBounded(output.Body as Readable, MAX_DECRYPT_BYTES);
     },
     async readManifest(manifestKey: string, versionId?: string): Promise<unknown> {
@@ -236,7 +330,9 @@ function s3StoredObjectReader(client: S3Client, bucket: string): StoredObjectRea
         ...(versionId ? { VersionId: versionId } : {}),
       }))) as {
         Body?: unknown;
+        VersionId?: string;
       };
+      if(versionId && output.VersionId !== versionId) throw new HttpError(503,'STORAGE_FAILURE','encrypted manifest version mismatch');
       const raw = await readStreamBounded(output.Body as Readable, MAX_MANIFEST_BYTES);
       try {
         return JSON.parse(raw.toString('utf8')) as unknown;
@@ -309,6 +405,37 @@ function resolveEncryptionRequirement(
 }
 
 export async function assembleApp(config: ServerConfig, deps: AppDeps) {
+  const isolatedRestoreRehearsal = config.isolatedRuntimeMode === 'restore-rehearsal';
+  if (isolatedRestoreRehearsal && (!config.serviceRuntime || config.autoMigrate === true)) {
+    throw new Error('restore rehearsal requires a pinned service runtime identity and a pre-migrated isolated database');
+  }
+  if ((config.maintenanceRecoveryKeyFile || config.maintenanceRecoveryKeyRegistry) && !config.maintenanceBackupManifest) {
+    throw new Error('maintenance recovery key pins require the trusted backup manifest');
+  }
+  const autonomousWorkEnabled = !isolatedRestoreRehearsal && config.autoDispatch !== false;
+  // These flags are set only when the actual local worker/timer is started.
+  // The restore observation reports disabled effects from this live lifecycle
+  // state, rather than echoing restore-plan booleans supplied by the caller.
+  const restoreEffectRuntimeState = {
+    dispatcher: false,
+    ingestionConsumer: false,
+    maintenanceRunner: false,
+    retentionScheduler: false,
+    recoverySweep: false,
+    webhookDelivery: false,
+    alertEmission: false,
+  };
+  if(config.adminLocalAuthEnabled) {
+    if(config.adminOidcFlow) throw new Error('local admin authentication cannot coexist with OIDC');
+    config.adminToken ??= randomBytes(32).toString('base64url');
+    const serviceSecret=config.adminLocalServiceSecret ?? config.adminShellCookieSecret;
+    if(!config.adminShellCookieSecret || !serviceSecret || Buffer.byteLength(serviceSecret,'utf8')<32) throw new Error('local admin authentication requires a shared service or cookie secret of at least32bytes');
+    config.adminLocalServiceSecret=serviceSecret;
+    config.adminTenantCredentialFor = tenantId => {
+      const existing=Object.entries(config.tenantAdminTokens ?? {}).find(([,tenant])=>tenant===tenantId);
+      return existing?.[0] ?? mintLocalTenantCredential(serviceSecret,tenantId);
+    };
+  }
   // W11-C1: reject unsafe credential configuration at boot. Equal
   // admin/runtime tokens would collapse role separation to a single secret
   // while the route table still implies two roles — fail-closed instead.
@@ -341,6 +468,13 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
     config = { ...config, secretResolver: createRuntimeSecretResolver(config.secrets) };
   }
   const db = createDb(config.databaseUrl);
+  const backupSnapshotWriteGate = createBackupSnapshotWriteGate();
+  const backupArtifactEffects = config.serviceRuntime
+    ? new PostgresBackupArtifactEffects(db, {
+        runtimeIdentity: config.serviceRuntime.runtimeIdentity,
+        bootId: randomUUID(),
+      })
+    : undefined;
   const logger = createLogger({ service: 'orchestrator', baseFields: { subsystem: 'api' } });
   const storageConfig = config.artifactStorage ?? { backend: 'postgres' as const };
 
@@ -355,6 +489,13 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
     } else {
       await verifyMigrations(db);
     }
+
+    // A verified OIDC login may enroll an external platform Admin in the
+    // independent Cost Alerts recipient directory. Enrollment pins only that
+    // feature's current authorization version; failure or ineligibility does
+    // not alter ordinary app login or authorization.
+    config.adminOidcFlow?.setVerifiedLoginObserver(async (input) =>
+      observeVerifiedLogin(db, input));
 
     // RFX-10: dev-only fallback rows. A production boot (autoMigrate=false,
     // no DU_SEED_DEV_FALLBACK) writes NEITHER row — see shouldSeedDevFallback.
@@ -385,23 +526,78 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
     throw error;
   }
 
+  // Keep reverse-order ownership for resources acquired during composition.
+  // If a later mandatory factory fails, callers never receive an App handle
+  // with which to close these resources. The OIDC store from config remains
+  // caller-owned and is intentionally absent from this stack.
+  const failedBootCleanups: Array<() => void | Promise<void>> = [];
+  const cleanupFailedBoot = async (bootError: unknown): Promise<never> => {
+    for (const cleanup of failedBootCleanups.reverse()) {
+      try { await cleanup(); } catch { /* preserve the original boot error */ }
+    }
+    try { await db.close(); } catch { /* preserve the original boot error */ }
+    throw bootError;
+  };
+
+  try {
   // Start Redis only after DB readiness. If a DB connection/migration fails,
   // there is no Redis reconnect timer/socket left behind in a failed boot.
   const redis = new IORedis(config.redisUrl, { maxRetriesPerRequest: null });
+  failedBootCleanups.push(() => { redis.disconnect(); });
   const s3Client = storageConfig.backend === 's3'
-    ? new S3Client({
-        region: storageConfig.region,
-        endpoint: storageConfig.endpoint,
-        forcePathStyle: storageConfig.forcePathStyle ?? Boolean(storageConfig.endpoint),
-      })
+    ? await (async () => {
+        const ref = config.artifactStorage?.backend === 's3' ? config.artifactStorage.credentialVersionRef : undefined;
+        const ownerTenantId = config.artifactStorage?.backend === 's3' ? config.artifactStorage.credentialOwnerTenantId : undefined;
+        if (Boolean(ref) !== Boolean(ownerTenantId)) throw new Error('S3 storage credential version and owner UUID must be configured together');
+        if (ref && ownerTenantId) {
+          const credentialValue = await resolveManagedSecretVersion(db, config.secretCatalogKeyring, ref, {
+            tenantId: ownerTenantId,
+            purpose: 'storage.credential',
+            service: 'orchestrator',
+          });
+          const credentials = parseStorageS3Credentials(credentialValue);
+          return new S3Client({
+            region: storageConfig.region,
+            endpoint: storageConfig.endpoint,
+            forcePathStyle: storageConfig.forcePathStyle ?? Boolean(storageConfig.endpoint),
+            credentials,
+          });
+        }
+        // In-process legacy fixtures may still compose the old provider chain.
+        // The standalone main entrypoint requires an exact managed revision.
+        return new S3Client({
+          region: storageConfig.region,
+          endpoint: storageConfig.endpoint,
+          forcePathStyle: storageConfig.forcePathStyle ?? Boolean(storageConfig.endpoint),
+        });
+      })()
     : undefined;
+  if (s3Client) failedBootCleanups.push(() => { s3Client.destroy(); });
 
   const registry = createRegistryService(db);
-  const profiles: ProfileService = createProfileService(db);
+  const profiles: ProfileService = createProfileService(db, config.profileCipherKey
+    ? { cryptoEnv: { ENCRYPTION_KEY: config.profileCipherKey } }
+    : {});
   // W48-C1: admin audit ledger — every admin mutation below appends one
   // immutable row via ctx.audit; GET /api/v1/admin/audit reads via
   // audit.listForTenant (ledger table: migration 0010 admin_audit_events).
   const audit: AuditService = createAuditService(db);
+  const adminIdentity = createAdminIdentityService({
+    db,
+    audit,
+    auth: config.adminIdentityAuth ?? {
+      mode: config.adminLocalAuthEnabled ? 'local' : 'unmanaged',
+      localEnabled: config.adminLocalAuthEnabled === true,
+      oidc: null,
+    },
+  });
+  const profileSelfService = createProfileSelfServiceService({
+    db,
+    profiles,
+    registry,
+    audit,
+    identity: adminIdentity,
+  });
   // ENC-08: use durable tenant settings for a configured application. The helper keeps
   // an in-memory fallback for offline callers that do not supply a database.
   const cryptoConfig = buildCryptoConfigOptions(config, audit, db);
@@ -428,20 +624,6 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
         config.metadataEncryption.keyRef,
       )
     : undefined;
-  const submission = createSubmissionService(db, registry, profiles, {
-    maxBlobBytes: config.maxBlobBytes,
-    // W-INGEST-PG-FAILCLOSED-1: one source of truth for the backend the
-    // ingestion gate can actually materialize into; a postgres deployment
-    // rejects URL submissions at admission (T180-D3).
-    storageBackend: storageConfig.backend,
-    s3SourceRules: config.s3SourceRules,
-    // P745-PRODUCER (step 1): pin non-secret prompt-revision markers at
-    // admission so the claim never re-reads the live overrides table.
-    promptOverrides: createPromptOverrideService(db),
-    // CRX-01: seal operations.input_ref / tasks.payload_ref before the submit
-    // transaction opens, with the same seam the runtime and the gate use.
-    ...(metadataCrypto ? { metadataCrypto } : {}),
-  });
   // CONTROL-PLANE-IMPL-818: ONE plaintext-read policy, built once, plus ONE
   // reader every control-plane consumer shares. main.ts has already refused a
   // real boot that set a HALF-specified mode (buildMetadataReadPolicy inside
@@ -487,8 +669,10 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
     { getQueue: (name) => getQueue(name) },
     metadataCrypto,
     metadataReader,
+    backupSnapshotWriteGate,
   );
-  const usage = createUsageService(db);
+  const usage = createUsageService(db, { backupSnapshotWriteGate });
+  const composeOperations = createComposeOperationsService(db, audit, config.composeRunner);
   // One facade instance serves both upload branches: the single-PUT grants
   // and the multipart lifecycle must pin and verify the same generations.
   const s3StorageFacade = s3Client && storageConfig.backend === 's3'
@@ -514,15 +698,130 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
         required: resolveEncryptionRequirement(config.encryptionPolicy?.dataMode, artifactMigrationWindowOpen),
       }
     : undefined;
+  const generationS3Clients = new Map<string, S3Client>();
+  failedBootCleanups.push(() => {
+    for (const client of generationS3Clients.values()) client.destroy();
+  });
+  const postgresGenerationFacade = createPostgresArtifactStorageFacade({
+    async read(storageKey) {
+      const result = await db.query<{ bytes: Buffer }>('SELECT bytes FROM artifact_blobs WHERE storage_key=$1', [storageKey]);
+      return result.rowCount ? Buffer.from(result.rows[0]!.bytes) : null;
+    },
+    async delete(storageKey) { await db.query('DELETE FROM artifact_blobs WHERE storage_key=$1', [storageKey]); },
+    async write(storageKey, tenantId, bytes) {
+      await db.query(
+        `INSERT INTO artifact_blobs (storage_key, tenant_id, bytes) VALUES ($1,$2,$3)
+         ON CONFLICT (storage_key) DO UPDATE SET bytes=EXCLUDED.bytes, created_at=now()`,
+        [storageKey, tenantId, bytes],
+      );
+    },
+  });
+  const s3VersionConfigured = storageConfig.backend === 's3'
+    && Boolean(config.artifactStorage?.backend === 's3'
+      && config.artifactStorage.credentialVersionRef
+      && config.artifactStorage.credentialOwnerTenantId);
+  let storageGenerations: StorageGenerationService | undefined;
+  if (storageConfig.backend === 'postgres' || s3VersionConfigured) {
+    const trustedOrigins = new Set(config.storageEndpointAllowlist ?? []);
+    if (storageConfig.backend === 's3' && storageConfig.endpoint) {
+      try { trustedOrigins.add(new URL(storageConfig.endpoint).origin); } catch { /* boot env is validated by main */ }
+    }
+    storageGenerations = createStorageGenerationService({
+      db,
+      audit,
+      encryption: workerArtifactEncryption,
+      backupSnapshotWriteGate,
+      ...(backupArtifactEffects ? { backupArtifactEffects } : {}),
+      verifyCredentialVersion: (reference, ownerTenantId) => verifyManagedSecretVersion(db, config.secretCatalogKeyring, reference, {
+        tenantId: ownerTenantId,
+        purpose: 'storage.credential',
+        service: 'orchestrator',
+      }),
+      validateEndpoint: (endpoint) => isApprovedStorageEndpoint(endpoint, [...trustedOrigins]),
+      resolveFacade: async (generation: StorageGenerationConfig) => {
+        if (generation.backend === 'postgres') return postgresGenerationFacade;
+        if (!generation.credentialVersionRef || !generation.credentialOwnerTenantId) {
+          throw new Error('exact S3 credential version and owner are required');
+        }
+        // Resolve every time before returning a cached client so disable/revoke
+        // and key-version removal take effect without waiting for a cache TTL.
+        const credentialValue = await resolveManagedSecretVersion(db, config.secretCatalogKeyring, generation.credentialVersionRef, {
+          tenantId: generation.credentialOwnerTenantId,
+          purpose: 'storage.credential',
+          service: 'orchestrator',
+        });
+        const client = generationS3Clients.get(generation.generationId) ?? (() => {
+          const credentials = parseStorageS3Credentials(credentialValue);
+          const created = new S3Client({
+            region: generation.region,
+            endpoint: generation.endpoint,
+            forcePathStyle: generation.forcePathStyle,
+            credentials,
+          });
+          generationS3Clients.set(generation.generationId, created);
+          return created;
+        })();
+        const facade = createS3ArtifactStorageFacade({ bucket: generation.bucket, client });
+        return withStorageGenerationUploadTtl(facade, generation.urlTtlSeconds);
+      },
+    });
+    const configuredInitial: Omit<StorageGenerationConfig, 'generationId' | 'revision'> = storageConfig.backend === 's3'
+      ? {
+          backend: 's3',
+          endpoint: storageConfig.endpoint ?? '',
+          bucket: storageConfig.bucket,
+          region: storageConfig.region ?? '',
+          forcePathStyle: storageConfig.forcePathStyle ?? Boolean(storageConfig.endpoint),
+          credentialVersionRef: config.artifactStorage?.backend === 's3' ? config.artifactStorage.credentialVersionRef ?? null : null,
+          credentialOwnerTenantId: config.artifactStorage?.backend === 's3' ? config.artifactStorage.credentialOwnerTenantId ?? null : null,
+          urlTtlSeconds: null,
+        }
+      : {
+          backend: 'postgres', endpoint: 'postgres', bucket: '', region: 'postgres', forcePathStyle: false,
+          credentialVersionRef: null, credentialOwnerTenantId: null, urlTtlSeconds: null,
+        };
+    const generationState = await db.query<{ active_generation_id: string }>(
+      'SELECT active_generation_id FROM storage_generation_state WHERE singleton=true',
+    );
+    if (!generationState.rowCount) {
+      const initialized = await storageGenerations.ensureInitial(configuredInitial);
+      await db.query(
+        `UPDATE artifacts SET storage_generation_id=$1
+          WHERE storage_generation_id IS NULL AND storage_backend=$2`,
+        [initialized.generationId, initialized.backend],
+      );
+    } else {
+      await storageGenerations.current();
+    }
+    const retainedGenerationCredentials = await db.query<{
+      credential_version_ref: string;
+      credential_owner_tenant_id: string;
+    }>(
+      `SELECT credential_version_ref,credential_owner_tenant_id
+         FROM storage_generations
+        WHERE backend='s3' AND state IN ('ACTIVE','RETIRED')
+        ORDER BY revision`,
+    );
+    for (const credential of retainedGenerationCredentials.rows) {
+      await verifyManagedSecretVersion(db, config.secretCatalogKeyring, credential.credential_version_ref, {
+        tenantId: credential.credential_owner_tenant_id,
+        purpose: 'storage.credential',
+        service: 'orchestrator',
+      });
+    }
+  }
   const artifacts: ArtifactService = createArtifactService(db, {
     storageBackend: storageConfig.backend,
     migrationWindow: storageConfig.backend === 's3' && storageConfig.migrationWindow,
     maxArtifactBytes: config.maxBlobBytes,
+    ...(storageGenerations ? { storageGenerations } : {}),
+    ...(backupArtifactEffects ? { backupArtifactEffects } : {}),
+    backupSnapshotWriteGate,
     ...(s3StorageFacade ? { storageFacade: s3StorageFacade } : {}),
     ...(workerArtifactEncryption ? { encryption: workerArtifactEncryption } : {}),
   });
   const multipart: MultipartService = createMultipartService(db, {
-    storage: s3StorageFacade,
+    ...(storageGenerations ? { storageGenerations } : { storage: s3StorageFacade }),
     ...config.multipartLimits,
     // SEC-ENC-04: the worker multipart branch presigns client bytes straight at
     // storage, so while encryption is configured it fails closed per-session
@@ -558,28 +857,87 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
     s3Client && storageConfig.backend === 's3' && s3CryptoStorageFacade
       ? {
           reader: s3StoredObjectReader(s3Client, storageConfig.bucket),
+          ...(storageGenerations
+            ? {
+                readerForArtifact: async ({ storageGenerationId }: { storageGenerationId: string }) => {
+                  const target = await resolvePinnedGenerationUploadTarget(storageGenerationId);
+                  return s3StoredObjectReader(target.client, target.bucket);
+                },
+              }
+            : {}),
           facade: s3CryptoStorageFacade,
           encryptionRequired: artifactEncryptionRequired,
         }
       : null;
 
+  async function resolvePinnedGenerationUploadTarget(generationId: string): Promise<{ client: S3Client; bucket: string }> {
+    const selected = await db.query<{
+      generation_id: string; backend: string; endpoint: string; bucket: string; region: string;
+      force_path_style: boolean; credential_version_ref: string | null; credential_owner_tenant_id: string | null;
+    }>(
+      `SELECT generation_id,backend,endpoint,bucket,region,force_path_style,
+              credential_version_ref,credential_owner_tenant_id
+         FROM storage_generations WHERE generation_id=$1`,
+      [generationId],
+    );
+    const generation = selected.rows[0];
+    if (!generation || generation.backend !== 's3' || !generation.bucket
+        || !generation.credential_version_ref || !generation.credential_owner_tenant_id) {
+      throw new Error('PINNED_STORAGE_GENERATION_UNAVAILABLE');
+    }
+    const credentialValue = await resolveManagedSecretVersion(db, config.secretCatalogKeyring, generation.credential_version_ref, {
+      tenantId: generation.credential_owner_tenant_id,
+      purpose: 'storage.credential',
+      service: 'orchestrator',
+    });
+    let client = generationS3Clients.get(generation.generation_id);
+    if (!client) {
+      client = new S3Client({
+        region: generation.region,
+        endpoint: generation.endpoint,
+        forcePathStyle: generation.force_path_style,
+        credentials: parseStorageS3Credentials(credentialValue),
+      });
+      generationS3Clients.set(generation.generation_id, client);
+    }
+    return { client, bucket: generation.bucket };
+  }
+  async function resolvePinnedGenerationSourceTarget(generationId: string) {
+    const target = await resolvePinnedGenerationUploadTarget(generationId);
+    return {
+      generationId,
+      bucket: target.bucket,
+      send: (command: unknown) => target.client.send(command as never) as Promise<{ VersionId?: string; ChecksumSHA256?: string }>,
+    };
+  }
+
   const publicUploadGateway: PublicUploadGateway | null =
-    s3Client && storageConfig.backend === 's3' && config.publicUploadEncryption && artifactCryptoFacade
+    (storageGenerations || (s3Client && storageConfig.backend === 's3'))
+      && config.publicUploadEncryption && artifactCryptoFacade
       ? createPublicUploadGateway({
           db,
-          client: s3Client,
-          bucket: storageConfig.bucket,
+          ...(storageGenerations
+            ? { storageGeneration: {
+                current: async () => {
+                  const active = await storageGenerations!.current();
+                  return { generationId: active.generationId, backend: active.backend };
+                },
+                resolveS3Generation: resolvePinnedGenerationUploadTarget,
+              } }
+            : { client: s3Client!, bucket: storageConfig.backend === 's3' ? storageConfig.bucket : '' }),
           cryptoStorage: artifactCryptoFacade,
           keyRef: config.publicUploadEncryption.keyRef,
           keyVersion: config.publicUploadEncryption.keyVersion,
           maxBytes: config.publicUploadEncryption.maxBytes,
+          backupSnapshotWriteGate,
+          ...(backupArtifactEffects ? { backupArtifactEffects } : {}),
         })
       : null;
   // W-DATA02-PUB-1: the multipart TTL sweep rides the recovery timer, exactly
   // like the MM-05 queue-integrity sweep. A PostgreSQL-only deployment has no
   // multipart sessions at all (the lifecycle answers 409 and creates no
   // rows), so the hook is disabled there rather than querying every tick.
-  const runMultipartSweep = createMultipartSweepHook(multipart, Boolean(s3StorageFacade));
+  const runMultipartSweep = createMultipartSweepHook(multipart, Boolean(s3StorageFacade || storageGenerations));
   const runPublicArtifactCleanup = createPublicArtifactCleanupHook(artifacts);
   const connectorId = config.connectorId ?? 'default-connector';
   const connectorRevision = config.connectorRevision ?? 1;
@@ -588,6 +946,7 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
         connectorId,
         connectorRevision,
         secret: Buffer.from(config.invocationGrantSecret, 'utf8'),
+        ...(metadataCrypto ? { metadataCrypto } : {}),
       })
     : null;
   const lifecycle = createLifecycleService(db, metadataCrypto, metadataReader);
@@ -617,6 +976,37 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
           authorizationForRequest: config.connectorManagementAuthorizationForRequest,
         })
       : undefined;
+  const connectorSecretImports = connectorManagement && metadataCrypto && config.secretCatalogKeyring
+    ? createConnectorSecretImportService({
+        db,
+        audit,
+        metadataCrypto,
+        catalogKeyring: config.secretCatalogKeyring,
+        backupSnapshotWriteGate,
+        connector: {
+          claimRecipeDraft: (input) => connectorManagement.claimRecipeDraft(input),
+          upsertResolvedRecipeDraft: (input) => connectorManagement.upsertResolvedRecipeDraft(input),
+        },
+      })
+    : undefined;
+  let refreshRetentionCleanupSchedule: (() => void) | undefined;
+  const globalSettings = createGlobalSettingsService(db, audit, {
+    ...(metadataCrypto ? { metadataCrypto } : {}),
+    ...(connectorManagement ? { connectorManagement } : {}),
+    backupSnapshotWriteGate,
+    providerTestAvailable: Boolean(config.invocationGrantSecret && connectorManagement && metadataCrypto),
+    onRetentionPolicyChanged: () => refreshRetentionCleanupSchedule?.(),
+  });
+  const submission = createSubmissionService(db, registry, profiles, {
+    maxBlobBytes: config.maxBlobBytes,
+    storageBackend: storageConfig.backend,
+    backupSnapshotWriteGate,
+    s3SourceRules: config.s3SourceRules,
+    promptOverrides: createPromptOverrideService(db, metadataCrypto, metadataReader),
+    ...(metadataCrypto ? { globalSettings } : {}),
+    ...(connectorManagement ? { connectorManagement } : {}),
+    ...(metadataCrypto ? { metadataCrypto } : {}),
+  });
   // CREDWORKFLOW-IMPL (D3): compose the production credential workflow when
   // the operator requested it via env; an explicit `config.credentialWorkflow`
   // injection still wins. Partial env refuses boot (typed) inside compose —
@@ -643,6 +1033,9 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
   }
 
   const queues = new Map<string, Queue>();
+  failedBootCleanups.push(async () => {
+    for (const queue of queues.values()) await queue.close();
+  });
   function getQueue(name: string): Queue {
     let q = queues.get(name);
     if (!q) {
@@ -652,7 +1045,185 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
     return q;
   }
 
-  const dispatcher = createDispatcher({ db, getQueue });  // P2-09 background expired-lease recovery sweep. Default ON with auto-dispatch
+  const serviceRuntime = config.serviceRuntime
+    ? createServiceRuntime({
+        db, redis, config: config.serviceRuntime, isolatedReadOnly: isolatedRestoreRehearsal,
+        restoreExternalEffects: () => {
+          const activeDispatch = restoreEffectRuntimeState.dispatcher || restoreEffectRuntimeState.ingestionConsumer;
+          return {
+            admission: 'UNKNOWN', // Replaced by the actual DRAINING/ACK/DB proof in ServiceRuntime.
+            dispatch: restoreEffectRuntimeState.dispatcher ? 'ENABLED' : 'DISABLED',
+            providerInvocation: activeDispatch ? 'ENABLED' : 'DISABLED',
+            // These are not Orchestrator-owned workers; their real runtime
+            // gates are independently observed from the Connector process.
+            connectorPoll: 'DISABLED',
+            usageDelivery: 'DISABLED',
+            webhookDelivery: restoreEffectRuntimeState.webhookDelivery ? 'ENABLED' : 'DISABLED',
+            alertEmission: restoreEffectRuntimeState.alertEmission ? 'ENABLED' : 'DISABLED',
+            cleanup: restoreEffectRuntimeState.recoverySweep || restoreEffectRuntimeState.retentionScheduler
+              ? 'ENABLED' : 'DISABLED',
+            historicalMaintenance: restoreEffectRuntimeState.maintenanceRunner ? 'ENABLED' : 'DISABLED',
+            migrations: config.autoMigrate === true ? 'ENABLED' : 'DISABLED',
+          };
+        },
+      })
+    : undefined;
+  if (serviceRuntime) failedBootCleanups.push(() => serviceRuntime.close());
+  let rolloutObservationAdapter: Awaited<ReturnType<typeof createTrustedManifestRolloutPreviewAdapter>> | undefined;
+  if (config.maintenanceManifest) {
+    if (!serviceRuntime) throw new Error('MAINTENANCE_SERVICE_RUNTIME_REQUIRED');
+    const manifest = config.maintenanceManifest;
+    const readerInput = { manifestPath: manifest.manifestPath, expectedManifestSha256: manifest.expectedManifestSha256 };
+    const [controlTargets, ingressTargets, workerBusinessByIdentity] = await Promise.all([
+      readReplicaRuntimeControlTargets(readerInput),
+      readFixedIngressProbeUrlMap(readerInput),
+      readWorkerReplicaBusinessMap(readerInput),
+    ]);
+    const orchestratorTargets = controlTargets.orchestrator;
+    if (orchestratorTargets) {
+      const local = orchestratorTargets[serviceRuntime.identity.slot];
+      if (!local || local.runtimeIdentity !== serviceRuntime.identity.runtimeIdentity) {
+        throw new Error('MAINTENANCE_RUNTIME_IDENTITY_NOT_IN_MANIFEST');
+      }
+    }
+    const connectorTargets = controlTargets.connector;
+    if (connectorTargets && !config.connectorManagementAuthorizationForRequest) {
+      throw new Error('MAINTENANCE_CONNECTOR_CONTROL_IDENTITY_REQUIRED');
+    }
+    const missingSource: ReplicaRuntimeSafetySource = {
+      async observe() { return null; },
+      async requestDrain() { throw new Error('REPLICA_RUNTIME_CONTROL_UNAVAILABLE'); },
+      async requestResume() { throw new Error('REPLICA_RUNTIME_CONTROL_UNAVAILABLE'); },
+    };
+    const worker = createWorkerReplicaSafetySource(db, workerBusinessByIdentity);
+    const orchestrator = orchestratorTargets
+      ? createOrchestratorHttpReplicaSafetySource({ targets: orchestratorTargets, controlToken: serviceRuntime.controlToken })
+      : missingSource;
+    const connector = connectorTargets && config.connectorManagementAuthorizationForRequest
+      ? createConnectorReplicaRuntimeSafetySource({ targets: connectorTargets, authorizationForRequest: config.connectorManagementAuthorizationForRequest })
+      : missingSource;
+    const runtimeSafety = createReplicaRuntimeSafetyPort({
+      worker,
+      orchestrator,
+      connector,
+      probeFixedIngress: createFixedIngressReplicaProbe({
+        controlTargets,
+        ingressTargets,
+        orchestratorControlToken: serviceRuntime.controlToken,
+        ...(config.connectorManagementAuthorizationForRequest
+          ? { connectorAuthorizationForRequest: config.connectorManagementAuthorizationForRequest }
+          : {}),
+      }),
+    });
+    rolloutObservationAdapter = await createTrustedManifestRolloutPreviewAdapter({ ...readerInput, runtimeSafety });
+  }
+  const dispatcher = createDispatcher({
+    db,
+    getQueue,
+    backupSnapshotWriteGate,
+    ...(serviceRuntime ? {
+      dispatchAdmission: {
+        serviceRuntimeId: serviceRuntime.identity.serviceRuntimeId,
+        readControl: () => serviceRuntime.readControl(),
+        acquireDispatchPermit: (input) => serviceRuntime.acquireDispatchPermit(input),
+        releaseDispatchPermit: (permitId) => serviceRuntime.releaseDispatchPermit(permitId),
+      },
+    } : {}),
+  });  // P2-09 background expired-lease recovery sweep. Default ON with auto-dispatch
+  const maintenanceService = createMaintenanceService({
+    db,
+    audit,
+    backupSnapshotWriteGate,
+    artifacts,
+    ...(storageGenerations ? { storageGenerations } : {}),
+    getEffectiveRetentionPolicy: () => globalSettings.getEffectiveRetentionPolicy(),
+    getQueue: (name) => getQueue(name),
+    callbackCapabilities: {
+      dispatcherConfigured: autonomousWorkEnabled && Boolean(config.webhookSecret),
+      authResolverConfigured: Boolean(config.resolveCallbackSecret),
+    },
+    recoverExpiredLease: runtime.recoverExpiredLease,
+    ...(rolloutObservationAdapter ? { rolloutObservationAdapter } : {}),
+    ...(config.maintenanceBackupManifest ? {
+      listBackupTargetDescriptors: async () => {
+        const manifest = config.maintenanceBackupManifest!;
+        const projection = await readTrustedMaintenanceTargetDescriptors({
+          manifestPath: manifest.manifestPath,
+          expectedManifestSha256: manifest.expectedManifestSha256,
+        });
+        return projection.backupTargets;
+      },
+    } : {}),
+    // The HTTP composition previews, queues, and reads durable maintenance
+    // work. Only the separately composed host runner may claim it.
+    runnerRuntimeIdentity: null,
+  });
+  // Retention polling only creates durable cleanup jobs; the Host runner owns
+  // every maintenance claim and effect. Keep this scheduler in the serving
+  // process so published cadence changes remain effective, but disable it in
+  // isolated restore rehearsal.
+  const retentionCleanupScheduler = serviceRuntime && !isolatedRestoreRehearsal
+    ? createRetentionCleanupScheduler({
+        db,
+        maintenance: maintenanceService,
+        getEffectiveRetentionPolicy: () => globalSettings.getEffectiveRetentionPolicy(),
+        batchSize: 100,
+        onError: (error) => logger.error('retention cleanup scheduler failed', { errorName: errorNameOf(error) }),
+      })
+    : undefined;
+  refreshRetentionCleanupSchedule = retentionCleanupScheduler
+    ? () => retentionCleanupScheduler.refresh()
+    : undefined;
+  // The trusted adapter is composed below only when all real replica/fence
+  // ports are available. Build the exact-version resolver now so that the
+  // central factory never falls back to the mutable secret catalog.
+  const resolveRecoveryKey = createMaintenanceRecoveryKeyResolver({
+    ...(config.maintenanceRecoveryKeyFile ? { backupBundle: config.maintenanceRecoveryKeyFile } : {}),
+    ...(config.maintenanceRecoveryKeyRegistry ? { secretCatalogRegistry: config.maintenanceRecoveryKeyRegistry } : {}),
+  });
+  const costControl = createCostControlService(db, audit, () => new Date(), {
+    invocationGrantSecret: config.invocationGrantSecret,
+    backupSnapshotWriteGate,
+  });
+  const costAdjustmentEvidence = createCostAdjustmentEvidenceResolver({ db, artifacts });
+  const costAdjustments = createCostAdjustmentService({
+    db,
+    audit,
+    artifacts: costAdjustmentEvidence,
+    backupSnapshotWriteGate,
+    assertWriterCurrent: async (actor, client) => {
+      if (actor.authKind !== 'cookie' || actor.kind !== 'platform' || actor.role !== 'admin'
+          || actor.tenantId !== null || !actor.principalId || !actor.sessionId) {
+        throw new HttpError(403, 'PERMISSION_DENIED', 'a current platform Admin cookie session is required');
+      }
+      const current = await config.adminSessionStore?.get(actor.sessionId);
+      if (!current || current.role !== 'admin' || current.tenantId !== null) {
+        throw new HttpError(401, 'UNAUTHENTICATED', 'the current Admin session is expired or no longer authorized');
+      }
+      if (current.issuer === 'du-local') {
+        if (current.sub !== actor.principalId || actor.issuer !== undefined || actor.sub !== undefined
+            || !Number.isSafeInteger(actor.roleVersion) || (actor.roleVersion ?? 0) < 1
+            || current.roleVersion !== actor.roleVersion) {
+          throw new HttpError(401, 'UNAUTHENTICATED', 'the local Admin session version changed');
+        }
+        const local = await client.query<{ id: string; version: number }>(
+          `SELECT id::text AS id,version FROM admin_local_users
+            WHERE id=$1 AND tenant_id IS NULL AND role='admin' AND is_enabled=true AND is_locked=false
+              AND legacy_password_reset_required=false AND version=$2`,
+          [actor.principalId, actor.roleVersion],
+        );
+        if (local.rowCount !== 1) throw new HttpError(401, 'UNAUTHENTICATED', 'the local Admin account is disabled or changed');
+        return;
+      }
+      if (typeof actor.issuer !== 'string' || typeof actor.sub !== 'string'
+          || current.issuer !== actor.issuer || current.sub !== actor.sub
+          || current.costAlertPrincipalId !== actor.principalId) {
+        throw new HttpError(401, 'UNAUTHENTICATED', 'the verified Admin identity changed');
+      }
+      // Cost Alert directory state/version is deliberately not checked here:
+      // it controls notification delivery, not the application Admin role.
+    },
+  });
 
   // W-DATA03-CONSUMER-JOIN-1: the durable consumer behind gate 'ingestion'.
   // It runs only over the versioned private-S3 backend (the pin port needs
@@ -671,37 +1242,74 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
   // Source clients use AWS's default credential chain (workload IAM role).
   // No caller endpoint, credentials or role ARN can enter this configuration.
   const sourceClients = new Map<string, S3Client>();
+  failedBootCleanups.push(() => {
+    for (const client of sourceClients.values()) client.destroy();
+  });
   const acquireS3FileForTenant = createS3SourceAcquisition(config.s3SourceRules ?? [], rule => {
     let client = sourceClients.get(rule.region);
     if (!client) { client = new S3Client({ region: rule.region }); sourceClients.set(rule.region, client); }
     return client;
   });
   const requireEncryptedSourceWrites = resolveEncryptionRequirement(config.encryptionPolicy?.dataMode, false);
+  const ingestionStorage = storageGenerations
+    ? config.publicUploadEncryption && artifactCryptoFacade
+      ? createGenerationAwareS3EncryptedPinnedSourceStorage({
+          db,
+          resolveTarget: async () => {
+            const active = await storageGenerations!.current();
+            if (active.backend !== 's3') throw new Error('INGESTION_STORAGE_GENERATION_NOT_S3');
+            return resolvePinnedGenerationSourceTarget(active.generationId);
+          },
+          encryption: {
+            facade: artifactCryptoFacade,
+            keyRef: config.publicUploadEncryption.keyRef,
+            ...(config.publicUploadEncryption.keyVersion === undefined
+              ? {}
+              : { keyVersion: config.publicUploadEncryption.keyVersion }),
+          },
+          ...(backupArtifactEffects ? { backupArtifactEffects } : {}),
+        })
+      : createGenerationAwareS3PinnedSourceStorage({
+          db,
+          resolveTarget: async () => {
+            const active = await storageGenerations!.current();
+            if (active.backend !== 's3') throw new Error('INGESTION_STORAGE_GENERATION_NOT_S3');
+            return resolvePinnedGenerationSourceTarget(active.generationId);
+          },
+        })
+    : s3Client && storageConfig.backend === 's3'
+      ? config.publicUploadEncryption && artifactCryptoFacade
+        ? createS3EncryptedPinnedSourceStorage({
+            bucket: storageConfig.bucket,
+            send: (command) =>
+              s3Client.send(command as never) as Promise<{ VersionId?: string; ChecksumSHA256?: string }>,
+            db,
+            encryption: {
+              facade: artifactCryptoFacade,
+              keyRef: config.publicUploadEncryption.keyRef,
+              ...(config.publicUploadEncryption.keyVersion === undefined
+                ? {}
+                : { keyVersion: config.publicUploadEncryption.keyVersion }),
+            },
+          ...(backupArtifactEffects ? { backupArtifactEffects } : {}),
+          })
+        : createS3PinnedSourceStorage({
+            bucket: storageConfig.bucket,
+            send: (command) =>
+              s3Client.send(command as never) as Promise<{ VersionId?: string; ChecksumSHA256?: string }>,
+            db,
+          })
+      : null;
   const ingestionConsumer =
-    s3Client && storageConfig.backend === 's3'
+    !isolatedRestoreRehearsal && ingestionStorage
       ? createIngestionConsumer({
           db,
-          storage: config.publicUploadEncryption && artifactCryptoFacade
-            ? createS3EncryptedPinnedSourceStorage({
-                bucket: storageConfig.bucket,
-                send: (command) =>
-                  s3Client.send(command as never) as Promise<{ VersionId?: string; ChecksumSHA256?: string }>,
-                db,
-                encryption: {
-                  facade: artifactCryptoFacade,
-                  keyRef: config.publicUploadEncryption.keyRef,
-                  ...(config.publicUploadEncryption.keyVersion === undefined
-                    ? {}
-                    : { keyVersion: config.publicUploadEncryption.keyVersion }),
-                },
-              })
-            : createS3PinnedSourceStorage({
-                bucket: storageConfig.bucket,
-                send: (command) =>
-                  s3Client.send(command as never) as Promise<{ VersionId?: string; ChecksumSHA256?: string }>,
-                db,
-              }),
-          storageBackend: 's3',
+          storage: ingestionStorage,
+          ...(backupArtifactEffects ? { backupArtifactEffects } : {}),
+          ...(storageGenerations && 'storageGenerationIdFor' in ingestionStorage
+            ? { storageGenerationIdFor: ingestionStorage.storageGenerationIdFor }
+            : {}),
+          storageBackend: storageGenerations ? 's3' : storageConfig.backend,
           requireEncryptedSourceWrites,
           acquireS3FileForTenant,
           transfer: {
@@ -783,14 +1391,14 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
   }
   // (production); tests drive sweepExpiredLeases() directly by passing 0 or leaving
   // autoDispatch=false to disable the timer.
-  const defaultRecoveryInterval = config.autoDispatch !== false ? 5_000 : 0;
-  const recoveryIntervalMs = config.leaseRecoveryIntervalMs ?? defaultRecoveryInterval;
+  const defaultRecoveryInterval = autonomousWorkEnabled ? 5_000 : 0;
+  const recoveryIntervalMs = isolatedRestoreRehearsal ? 0 : (config.leaseRecoveryIntervalMs ?? defaultRecoveryInterval);
   let recoveryTimer: ReturnType<typeof setInterval> | undefined;
   // P2-08: webhook dispatcher runs at production cadence only when a signing
   // secret is configured; scheduling (durable rows) happens regardless.
   const defaultWebhookInterval =
-    config.autoDispatch !== false && config.webhookSecret ? 5_000 : 0;
-  const webhookIntervalMs = config.webhookDispatchIntervalMs ?? defaultWebhookInterval;
+    autonomousWorkEnabled && config.webhookSecret ? 5_000 : 0;
+  const webhookIntervalMs = isolatedRestoreRehearsal ? 0 : (config.webhookDispatchIntervalMs ?? defaultWebhookInterval);
   let webhookTimer: ReturnType<typeof setInterval> | undefined;
   // PR-Q3-10 (P8-04): graceful-shutdown plumbing for the webhook loop. The abort
   // controller feeds deliverWebhooks' shutdown gate (no NEW claims, bounded drain of
@@ -798,6 +1406,22 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
   const webhookShutdown = new AbortController();
   const webhookDrainTimeoutMs = config.webhookDrainTimeoutMs ?? 5_000;
   let activeWebhookSweep: Promise<number | undefined> | undefined;
+  let costAlertTimer: ReturnType<typeof setInterval> | undefined;
+  let activeCostAlertSweep: Promise<unknown> | undefined;
+  const costAlertWorkerId = `orchestrator-${randomUUID()}`;
+  const runCostAlertBatch = (): Promise<void> => {
+    if (activeCostAlertSweep) return activeCostAlertSweep.then(() => undefined);
+    const sweep = runCostAlertDeliveryBatch(db, { workerId: costAlertWorkerId, limit: 25 })
+      .then(() => undefined)
+      .catch((error: unknown) => {
+        logger.warn('cost alert delivery batch failed', { errorName: errorNameOf(error) });
+      });
+    activeCostAlertSweep = sweep;
+    void sweep.finally(() => {
+      if (activeCostAlertSweep === sweep) activeCostAlertSweep = undefined;
+    });
+    return sweep;
+  };
 
   // Rendered Admin shell (P6-01): mounted BEFORE boot returns so the
   // platform's createApp path is the integration. Fail-closed: null when no
@@ -809,7 +1433,15 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
   // listen() against this process's own bound address. Mounting here with
   // `jsonBaseUrl: undefined` keeps the pre-listen handle valid for callers
   // that never call listen(); listen() remounts with the resolved base URL.
-  const adminShell = await attachAdminShell({ config });
+  const localAdminBoot = config.adminLocalAuthEnabled ? await createLocalAdminAuth({db,redisUrl:config.redisUrl}) : undefined;
+  if (localAdminBoot) failedBootCleanups.push(() => localAdminBoot.close());
+  if(localAdminBoot) { config.adminLocalAuth=localAdminBoot.localAuth; config.adminSessionStore=localAdminBoot.sessions; }
+  const adminShell = await attachAdminShell({
+    config,
+    profileSelfService,
+    ...(serviceRuntime ? { trackHttpRequest: serviceRuntime.trackHttpRequest } : {}),
+  });
+  if (adminShell) failedBootCleanups.push(() => adminShell.handle.close());
 
   // RCR-01: the listener used to be an async callback whose rejection escaped
   // (setHeader/URL parsing ran outside every try); `Host: [` threw
@@ -870,6 +1502,7 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
     // discarded without buffering.
     assertIngressAllowed(audience, url.pathname);
     const method = req.method ?? 'GET';
+    await serviceRuntime?.trackHttpRequest(method, url.pathname, res);
     // FIX-CR-11: bounded ingress. The blob PUT is the only binary route —
     // every other route takes JSON. Body read errors (abort, oversize,
     // truncated stream) resolve INSIDE this try so the route error handler
@@ -877,6 +1510,7 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
     // rejection in the listener).
     const isBlobPut =
       method === 'PUT' && /^\/api\/runtime\/v1\/artifacts\/blob\/[^/]+$/.test(url.pathname);
+    const isAdminUploadStream = method === 'POST' && url.pathname === '/api/internal/operations/uploads';
     const isPublicUploadStream =
       method === 'PUT' && /^\/api\/v1\/uploads\/[^/]+(?:\/content)?$/.test(url.pathname);
     // The legacy facade receives `multipart/form-data` with file bytes inline,
@@ -890,7 +1524,7 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
       (req.headers['content-type'] ?? '').toLowerCase().startsWith('multipart/form-data');
     let ingress: IngressBody;
     try {
-      ingress = isPublicUploadStream || isLegacyCompat
+      ingress = isPublicUploadStream || isAdminUploadStream || isLegacyCompat
         ? { body: undefined, rawBody: Buffer.alloc(0) }
         : await readBoundedBody(req, {
             binary: isBlobPut,
@@ -931,7 +1565,7 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
         headers: req.headers as Record<string, string>,
         body,
         rawBody,
-        ...(isPublicUploadStream || isLegacyCompat ? { bodyStream: req } : {}),
+        ...(isPublicUploadStream || isAdminUploadStream || isLegacyCompat ? { bodyStream: req } : {}),
         correlationId,
         host: (req.headers.host as string) ?? 'localhost',
         db,
@@ -942,6 +1576,15 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
         submission,
         runtime,
         usage,
+        composeOperations,
+        globalSettings,
+        maintenanceService,
+        costControl,
+        costAdjustments,
+        backupSnapshotWriteGate,
+        serviceRuntime,
+        identity: adminIdentity,
+        profileSelfService,
         artifacts,
         multipart,
         publicUploadGateway,
@@ -954,6 +1597,7 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
         queueIntegrity: () => queueIntegrity,
         credentialWorkflow,
         connectorManagement,
+        connectorSecretImports,
         metadataCrypto,
         metadataReader,
         deliveryEncryption,
@@ -982,7 +1626,7 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
       // the request was abandoned part-way. Draining an unread socket would
       // leave the client waiting for a response it already gave up on, so close
       // instead of trying to finish reading it.
-      if ((isPublicUploadStream || isLegacyCompat) && !req.destroyed && !req.complete) {
+      if ((isPublicUploadStream || isAdminUploadStream || isLegacyCompat) && !req.destroyed && !req.complete) {
         res.shouldKeepAlive = false;
         res.setHeader('connection', 'close');
         req.resume();
@@ -1023,6 +1667,9 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
     profiles,
     submission,
     runtime,
+    serviceRuntime,
+    maintenanceService,
+    costControl,
     dispatcher,
     // W-DATA03-CONSUMER-JOIN-1 test seam: undefined unless the s3 backend
     // is wired; runOnce() then drives the whole claim->pin->gate leg.
@@ -1030,6 +1677,7 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
     // CONNECTOR-WIRE-A test seam: the composed management proxy (undefined
     // on deployments without connectorBaseUrls).
     connectorManagement,
+    connectorSecretImports,
     // CREDWORKFLOW-IMPL test seam: composed from env (or the config override).
     credentialWorkflow,
     // WINDOW-METRICS-825: shared read counters and an explicit, audited
@@ -1061,6 +1709,7 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
         // PM-M02-ROUTE: bind BOTH JSON listeners before any loop starts or the
         // shell is remounted. The public listener keeps the existing return
         // shape; the internal one is exposed for fixtures and lifecycle checks.
+        await serviceRuntime?.start();
         await new Promise<void>((resolve, reject) => {
           server.once('error', reject);
           server.listen(config.port, config.host ?? '0.0.0.0', () => resolve());
@@ -1091,6 +1740,8 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
             await adminShell.handle.close().catch(() => undefined);
             const remounted = await attachAdminShell({
               config: { ...config, jsonBaseUrl: base },
+              profileSelfService,
+              ...(serviceRuntime ? { trackHttpRequest: serviceRuntime.trackHttpRequest } : {}),
             });
             (adminShell as { handle: unknown; url: string }).handle = remounted?.handle;
             if (remounted) (adminShell as { url: string }).url = remounted.url;
@@ -1111,20 +1762,33 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
           }
         }
         await adminShell?.handle.close().catch(() => undefined);
+        await serviceRuntime?.close().catch(() => undefined);
+        await localAdminBoot?.close().catch(() => undefined);
         throw startupError;
       }
-      if (config.autoDispatch !== false) dispatcher.start();
+      retentionCleanupScheduler?.start();
+      restoreEffectRuntimeState.retentionScheduler = Boolean(retentionCleanupScheduler);
+      if (autonomousWorkEnabled) {
+        dispatcher.start();
+        restoreEffectRuntimeState.dispatcher = true;
+      }
       // W-DATA03-CONSUMER-JOIN-1: same cadence rule as the dispatcher; the
       // handle exists (for manual runOnce driving) even when no timer is set.
-      if (ingestionConsumer && config.autoDispatch !== false && config.ingestionConsumer?.intervalMs !== 0) {
+      if (ingestionConsumer && autonomousWorkEnabled && config.ingestionConsumer?.intervalMs !== 0) {
         ingestionConsumer.start();
+        restoreEffectRuntimeState.ingestionConsumer = true;
       }
       // P2-09: background expired-lease sweep runs at production cadence so
       // crashed workers are recovered without relying on inbound deliveries.
       // Tests that drive sweepExpiredLeases() directly set this to 0.
       if (recoveryIntervalMs > 0) {
         recoveryTimer = setInterval(() => {
-          runtime.sweepExpiredLeases().catch(() => undefined);
+          // Settle cancelled paused/expired tasks before generic lease recovery
+          // can requeue them or report LEASE_EXPIRED instead of cancellation.
+          void (async () => {
+            await lifecycle.sweepCancellations?.();
+            await runtime.sweepExpiredLeases();
+          })().catch(() => undefined);
           // MM-05 (docs/38 §4): the queue-integrity sweep rides the same
           // production-cadence hook; autoDispatch off => neither runs.
           runQueueIntegritySweep().catch(() => undefined);
@@ -1136,6 +1800,7 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
           runPublicArtifactCleanup().catch(() => undefined);
         }, recoveryIntervalMs);
         recoveryTimer.unref?.();
+        restoreEffectRuntimeState.recoverySweep = true;
       }
       // P2-08: background webhook dispatcher. Delivery failures retry with
       // backoff and never affect the (already terminal) operation.
@@ -1167,14 +1832,33 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
           });
         }, webhookIntervalMs);
         webhookTimer.unref?.();
+        restoreEffectRuntimeState.webhookDelivery = true;
+      }
+      // First-party owner inbox delivery is a bounded durable DB worker. It
+      // shares the autonomous-work boot gate and is always off in a restored
+      // read-only rehearsal.
+      if (autonomousWorkEnabled) {
+        void runCostAlertBatch();
+        costAlertTimer = setInterval(() => { void runCostAlertBatch(); }, 5_000);
+        costAlertTimer.unref?.();
+        restoreEffectRuntimeState.alertEmission = true;
       }
       return server;
     },
     async close(options?: { timeoutMs?: number; pollIntervalMs?: number }) {
       if (recoveryTimer) clearInterval(recoveryTimer);
       if (webhookTimer) clearInterval(webhookTimer);
+      if (costAlertTimer) clearInterval(costAlertTimer);
+      restoreEffectRuntimeState.recoverySweep = false;
+      restoreEffectRuntimeState.webhookDelivery = false;
+      restoreEffectRuntimeState.alertEmission = false;
+      await retentionCleanupScheduler?.stop().catch(() => undefined);
+      restoreEffectRuntimeState.retentionScheduler = false;
+      restoreEffectRuntimeState.maintenanceRunner = false;
       dispatcher.stop();
       ingestionConsumer?.stop();
+      restoreEffectRuntimeState.dispatcher = false;
+      restoreEffectRuntimeState.ingestionConsumer = false;
       // PR-Q3-10 (P8-04): webhook graceful drain BEFORE anything that owns the pool.
       // Signal first (no new claims), then wait for the in-flight sweep — its own
       // shutdownGraceMs already bounds dispatch waits and releases stragglers to
@@ -1190,6 +1874,7 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
           }),
         ]).catch(() => undefined);
       }
+      await activeCostAlertSweep?.catch(() => undefined);
       // P6-01: stop the Admin shell listener (if mounted) alongside the platform.
       await adminShell?.handle.close().catch(() => undefined);
 
@@ -1211,13 +1896,19 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
       if (internalServer.listening) {
         await new Promise<void>((resolve, reject) => internalServer.close((e) => (e ? reject(e) : resolve())));
       }
+      await serviceRuntime?.close().catch(() => undefined);
       for (const q of queues.values()) await q.close().catch(() => undefined);
       redis.disconnect();
       s3Client?.destroy();
+      for (const generationClient of generationS3Clients.values()) generationClient.destroy();
       for (const sourceClient of sourceClients.values()) sourceClient.destroy();
+      await localAdminBoot?.close().catch(() => undefined);
       await db.close();
     },
   };
+  } catch (bootError) {
+    return cleanupFailedBoot(bootError);
+  }
 }
 
 /**

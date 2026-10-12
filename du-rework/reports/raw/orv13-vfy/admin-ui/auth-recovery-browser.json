@@ -1,0 +1,158 @@
+{
+  "test": "VFY-UI13 mounted session expiry, same-scope recovery and changed-scope lock",
+  "initialScope": {
+    "role": "admin",
+    "principal": "platform",
+    "origin": "actual /admin/api/session"
+  },
+  "expiry": {
+    "path": "/admin/api/usage/events",
+    "status": 401,
+    "confirmed401": true,
+    "shellAndNavigationInert": true,
+    "nonsecretDraftPreserved": {
+      "from": "2026-10-11T18:26",
+      "to": "2026-10-11T18:30"
+    }
+  },
+  "protectedRequestCountStableAfterExpiry": true,
+  "sameScopeVerify": {
+    "role": "admin",
+    "scope": "platform",
+    "responseStatus": 200,
+    "recovered": true
+  },
+  "changedScopeVerify": {
+    "role": "operator",
+    "scope": "tenant:3a1e9e7f-0c8e-4e94-a00c-9fb30220ab6a",
+    "responseStatus": 200,
+    "uiResult": "SESSION_CHANGED / reload required",
+    "stillLocked": true
+  },
+  "finalDraftPreserved": {
+    "from": "2026-10-11T18:26",
+    "to": "2026-10-11T18:30"
+  },
+  "responsiveWidths": [
+    {
+      "width": 768,
+      "scrollWidth": 768
+    },
+    {
+      "width": 390,
+      "scrollWidth": 390
+    },
+    {
+      "width": 320,
+      "scrollWidth": 320
+    }
+  ],
+  "relevantRequests": [
+    {
+      "path": "/admin/api/session",
+      "method": "GET"
+    },
+    {
+      "path": "/admin/api/session",
+      "method": "GET"
+    },
+    {
+      "path": "/admin/api/tenants",
+      "method": "GET"
+    },
+    {
+      "path": "/admin/api/usage",
+      "method": "GET"
+    },
+    {
+      "path": "/admin/api/usage/events",
+      "method": "GET"
+    },
+    {
+      "path": "/admin/api/health",
+      "method": "GET"
+    },
+    {
+      "path": "/admin/api/usage",
+      "method": "GET"
+    },
+    {
+      "path": "/admin/api/usage/events",
+      "method": "GET"
+    },
+    {
+      "path": "/admin/api/session",
+      "method": "GET"
+    },
+    {
+      "path": "/admin/api/health",
+      "method": "GET"
+    },
+    {
+      "path": "/admin/api/usage",
+      "method": "GET"
+    },
+    {
+      "path": "/admin/api/usage/events",
+      "method": "GET"
+    },
+    {
+      "path": "/admin/api/session",
+      "method": "GET"
+    }
+  ],
+  "relevantResponses": [
+    {
+      "path": "/admin/api/session",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/session",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/tenants",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/usage",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/usage/events",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/health",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/usage",
+      "status": 401
+    },
+    {
+      "path": "/admin/api/usage/events",
+      "status": 401
+    },
+    {
+      "path": "/admin/api/session",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/health",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/usage",
+      "status": 401
+    },
+    {
+      "path": "/admin/api/usage/events",
+      "status": 401
+    },
+    {
+      "path": "/admin/api/session",
+      "status": 200
+    }
+  ]
+}

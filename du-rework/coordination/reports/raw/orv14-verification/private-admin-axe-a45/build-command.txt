@@ -1,0 +1,5 @@
+Start: 2026-10-12T03:41:44Z
+CWD: /workspace/dugate/du-rework
+Runtime: /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node (v24.21.0)
+Build output: /workspace/scratch/orv14-primary-ui-20261012T0341Z/admin-dist
+No shared dist/build lease used.

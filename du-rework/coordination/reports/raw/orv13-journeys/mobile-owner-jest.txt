@@ -1,0 +1,13 @@
+PASS tests/orv13-journeys-owner.test.ts
+  ORV13 UI13 journeys owner checks
+    ✓ revision editor checks JSON structure and pins a stable workflow slug (3 ms)
+    ✓ connector references include nested branch paths and updates do not mutate the source (7 ms)
+    ✓ workflow diff reports a bounded change while retaining context
+    ✓ operation detail actions wrap on narrow screens without compressing the download link (1 ms)
+    ✓ operator journeys use current tenant detail, safe confirmations, and expected-revision workflow publishing (1 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       5 passed, 5 total
+Snapshots:   0 total
+Time:        1.746 s
+Ran all test suites matching /tests\/orv13-journeys-owner.test.ts/i.

@@ -1,0 +1,13 @@
+{
+  "orchestrator/services/orchestrator/src/app/admin/local-auth-boot.ts": "a6a7040885a1ab9f67f568fa7ff0039503198c24a402226cdc2fd93d4b4032da",
+  "orchestrator/services/orchestrator/src/app/admin/auth-dispatch.ts": "5abd84064ecb40363a1f74ce753c8ed33f17f2f7e6090cd6c60d0f5cbe2c0745",
+  "orchestrator/services/orchestrator/src/app/admin/shell-router.ts": "845c5a6aab8d4ebefdf93f5304f15706653d3eb75a026b15f4497144fddcc74f",
+  "orchestrator/services/orchestrator/src/app/admin/shell-router-shared.ts": "9e757fd92d470f62ddf495412f10d42954c64484799b33f4d39f3ebf11352ce1",
+  "orchestrator/services/orchestrator/src/app/admin/shell-server.ts": "b2e400e2086e6935365b393692aa79ee5f0dfc9d75c5b5c6adea1ce154296893",
+  "orchestrator/services/orchestrator/src/app/admin/shell-render.ts": "6dae188bd1e163ff00b6de8037a7bcc163282be9f1de9c59e02c70f779d5243d",
+  "orchestrator/services/orchestrator/src/app/admin/bff/upstream.ts": "2ce33f1e2f9a9aa27abb1e6cb3b2d9a1ed67695b177cb56bbe9e5bd8c8b550fc",
+  "orchestrator/services/orchestrator/src/server.ts": "dfe55b26329180e72c7442c55317458718a8a4c2905fdc9cb635edf60345d0c6",
+  "orchestrator/services/orchestrator/src/main.ts": "f64f3ba7317b08173af42ebf322060cf1998999ae7cf4ea2ce9de50dea8240c2",
+  "orchestrator/services/orchestrator/src/modules/admin-actions/rbac.ts": "a9d7659aac573528adead28820492b0020ee2f3398b8634e9d112352fbfb28b0",
+  "orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts": "a4b1fa5a963d5723bbaf0d98e27f869e7e8a09b3fd956f6f0a8411e6a47eced3"
+}

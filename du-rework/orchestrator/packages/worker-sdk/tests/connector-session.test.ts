@@ -1,5 +1,11 @@
 import { createHmac, randomUUID } from 'node:crypto';
-import { InvocationResponseSchema, type CheckpointRef, type InvocationResponse } from '@du/contracts';
+import {
+  InvocationResponseSchema,
+  type CheckpointRef,
+  type InvocationResponse,
+  type PinnedProfilePolicy,
+  type TenantDefaultsSnapshot,
+} from '@du/contracts';
 import {
   DEFAULT_PENDING_RETRY_MS,
   DefaultTaskContext,
@@ -251,6 +257,9 @@ interface HarnessOptions {
   checkpointRefs?: CheckpointRef[];
   responses?: InvocationResponse[]; // queued connector responses (FIFO)
   ledger?: GrantLedger;
+  profilePolicy?: PinnedProfilePolicy | null;
+  tenantDefaults?: TenantDefaultsSnapshot | null;
+  connectorBindings?: Record<string, string>;
 }
 
 interface Harness {
@@ -293,7 +302,9 @@ function makeHarness(opts: HarnessOptions = {}): Harness {
       leaseExpiresAt: new Date(Date.now() + 60_000).toISOString(),
       deadlineAt: opts.deadlineAt === undefined ? null : opts.deadlineAt,
       input: {},
-      connectorBindings: { [SLOT]: 'mock-llm@1' },
+      connectorBindings: opts.connectorBindings ?? { [SLOT]: 'mock-llm@1' },
+      profilePolicy: opts.profilePolicy,
+      tenantDefaults: opts.tenantDefaults,
       checkpointRefs: opts.checkpointRefs ?? [],
       cancelRequested: false,
     },
@@ -331,6 +342,72 @@ function pending(id = `inv-${randomUUID()}`, nextPollAt?: string | null, session
     ...(sessionRef === undefined ? {} : { sessionRef }),
   } as InvocationResponse;
 }
+
+describe('tenant AI model defaults', () => {
+  const tenantDefaults: TenantDefaultsSnapshot = {
+    aiRevision: 2,
+    promptRevision: 1,
+    settingsDigest: `sha256:${'a'.repeat(64)}`,
+    ai: {
+      provider: 'openai-compatible',
+      model: 'tenant-model',
+      connectorId: 'tenant-default-connector',
+      connectorRevision: 7,
+    },
+    prompts: { image: null, pdf: null, docx: null, compare: null, generate: null },
+  };
+
+  const profilePolicyForModel = (model: string): PinnedProfilePolicy => ({
+    parameters: { model: { value: model } },
+  } as unknown as PinnedProfilePolicy);
+
+  it('uses the pinned Profile model ahead of the tenant model when the callsite omits one', async () => {
+    const h = makeHarness({
+      tenantDefaults,
+      connectorBindings: { [SLOT]: 'tenant-default-connector@7' },
+      profilePolicy: profilePolicyForModel('profile-model'),
+      responses: [succeeded('model-profile')],
+    });
+
+    await h.ctx.connector.invoke(SLOT, { prompt: 'use the pinned defaults' });
+
+    expect(h.payloads[0]?.options).toEqual({ model: 'profile-model' });
+    expect(h.ledger.issued).toHaveLength(1);
+  });
+
+  it('uses the tenant model when neither the callsite nor Profile pins a model', async () => {
+    const h = makeHarness({
+      tenantDefaults,
+      connectorBindings: { [SLOT]: 'tenant-default-connector@7' },
+      responses: [succeeded('model-tenant')],
+    });
+
+    await h.ctx.connector.invoke(SLOT, { prompt: 'use the tenant default' });
+
+    expect(h.payloads[0]?.options).toEqual({ model: 'tenant-model' });
+  });
+
+  it('keeps an explicit callsite model above both immutable defaults', async () => {
+    const h = makeHarness({
+      tenantDefaults,
+      connectorBindings: { [SLOT]: 'tenant-default-connector@7' },
+      profilePolicy: profilePolicyForModel('profile-model'),
+      responses: [succeeded('model-callsite')],
+    });
+
+    await h.ctx.connector.invoke(SLOT, { prompt: 'explicit model' }, { model: 'callsite-model' });
+
+    expect(h.payloads[0]?.options).toEqual({ model: 'callsite-model' });
+  });
+
+  it('does not apply the tenant model to an explicit Profile Connector pin', async () => {
+    const h = makeHarness({ tenantDefaults, responses: [succeeded('model-profile-connector')] });
+
+    await h.ctx.connector.invoke(SLOT, { prompt: 'preserve profile Connector defaults' });
+
+    expect(h.payloads[0]?.options).toBeUndefined();
+  });
+});
 
 /* -------------------------------------------------------------------- */
 /* classifyInvocation (pure)                                             */

@@ -39,6 +39,7 @@ interface BindingRow {
   allowed_file_extensions: string;
   connections_override: unknown;
   cipher: string | null;
+  connector_bindings?: unknown;
 }
 
 function makeFake(opts: { pointer?: boolean; seedProfile?: boolean } = {}) {
@@ -81,6 +82,7 @@ function makeFake(opts: { pointer?: boolean; seedProfile?: boolean } = {}) {
             allowed_file_extensions: '.pdf',
             connections_override: [],
             cipher: CIPHER,
+            connector_bindings: { 'ext-prompt-wizard': { connectorId: 'prompt-test', revision: 3 } },
           },
         ] as BindingRow[])
       : [],
@@ -121,6 +123,7 @@ function makeFake(opts: { pointer?: boolean; seedProfile?: boolean } = {}) {
             allowed_file_extensions: binding.allowed_file_extensions,
             connections_override: binding.connections_override,
             file_url_auth_cipher: binding.cipher,
+            connector_bindings: binding.connector_bindings ?? {},
           },
         ],
         rowCount: 1,
@@ -317,6 +320,8 @@ describe('T-API-01 closure — profile detail reads REAL data', () => {
     expect(parsed.policy.allowedFileExtensions).toBe('.pdf');
     expect(parsed.policy.fileUrlAuthConfigured).toBe(true);
     expect(parsed.policy.parameters.model).toEqual({ value: 'gemini-2.0', isLocked: true });
+    expect(parsed.connectorBindings).toEqual({ 'ext-prompt-wizard': { connectorId: 'prompt-test', revision: 3 } });
+    expect(JSON.stringify(parsed.connectorBindings)).not.toMatch(/secret|key|endpoint|credential/i);
     const wire = JSON.stringify(res!.body);
     expect(wire).not.toContain(CIPHER);
     expect(wire).not.toContain('fileUrlAuthCipher');

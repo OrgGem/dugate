@@ -1,0 +1,98 @@
+{
+  "finalServedBundle": {
+    "htmlPath": "/workspace/dugate/du-rework/orchestrator/apps/admin-web/dist/index.html",
+    "htmlSha256": "c8deadba1b4b81476d7e295053ca4c300a31196fc99fa638418b14587a1d9184",
+    "jsAsset": "admin/assets/index-BO7-bJEd.js",
+    "jsSha256": "8e55dd6148ae91b2c18e38c4a4176742e574894bbadb36a407ce0f9ddc7c3e6a",
+    "cssAsset": "admin/assets/index-B-iqGBQY.css",
+    "cssSha256": "25ea028bbccf360d53be25daa6a8fc471e85fcda123620d9d9437ada77339d4f"
+  },
+  "browserRequests": [
+    "GET /admin/api/compose/catalog",
+    "GET /admin/api/compose/jobs",
+    "POST /admin/api/compose/previews",
+    "POST /admin/api/compose/jobs",
+    "GET /admin/api/compose/catalog",
+    "GET /admin/api/compose/jobs",
+    "GET /admin/api/compose/jobs/e986a52d-ce1e-42a0-87e0-e8f129510433",
+    "GET /admin/api/compose/catalog",
+    "GET /admin/api/compose/jobs",
+    "GET /admin/api/compose/jobs/e986a52d-ce1e-42a0-87e0-e8f129510433"
+  ],
+  "platformBrowserAction": {
+    "jobId": "e986a52d-ce1e-42a0-87e0-e8f129510433",
+    "state": "SUCCEEDED",
+    "action": "apply_release",
+    "releaseId": "release-a",
+    "confirmationMethod": "Playwright pointer click",
+    "confirmationViewportWidth": 320,
+    "perServiceOutcomes": [
+      {
+        "serviceId": "web",
+        "status": "SUCCEEDED",
+        "errorCode": null
+      },
+      {
+        "serviceId": "worker",
+        "status": "SUCCEEDED",
+        "errorCode": null
+      }
+    ]
+  },
+  "completionLostAck": {
+    "droppedResponseStatus": 200,
+    "alteredReplayStatus": 409,
+    "alteredReplayCode": "RUNNER_REPORT_REJECTED",
+    "exactReplayStatus": 200,
+    "hostActionOutcomeRecords": 1,
+    "journalAckRecordsAfterReplay": 1
+  },
+  "containerVectorAfterApplyA": [
+    {
+      "id": "cc448f20df5e604bba92dad135f82eaa938333616c1fba70c7ba6b430dddf242",
+      "serviceId": "web",
+      "status": "running",
+      "configuredImage": "redis@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499",
+      "imageId": "sha256:f84b0c4678011602b9b98c227a4dcd5468bf8b088b02fdd4165cb7758bad8058"
+    },
+    {
+      "id": "d336b1b5684b95344d16e70bbbb09a40b0463afa1a15e63a28907eedb6e07fb2",
+      "serviceId": "web",
+      "status": "running",
+      "configuredImage": "redis@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499",
+      "imageId": "sha256:f84b0c4678011602b9b98c227a4dcd5468bf8b088b02fdd4165cb7758bad8058"
+    },
+    {
+      "id": "aed533dd293d946c210e45aa05272413796da8d14b4e09443a81ac60395833f3",
+      "serviceId": "worker",
+      "status": "running",
+      "configuredImage": "postgres@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea",
+      "imageId": "sha256:81bd698b4594e751a3269e4dcd3e03a4a0ec0daf7b72e7aa1abd43cce9887542"
+    },
+    {
+      "id": "c7a56d34576d3cf3a351ed4666a491d8870723a662833d37f348ccfeceff8284",
+      "serviceId": "worker",
+      "status": "running",
+      "configuredImage": "postgres@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea",
+      "imageId": "sha256:81bd698b4594e751a3269e4dcd3e03a4a0ec0daf7b72e7aa1abd43cce9887542"
+    }
+  ],
+  "auth": {
+    "noSessionBffStatus": 401,
+    "viewerBffStatus": 403,
+    "localTenantAdminBffStatus": 200,
+    "missingCsrfStatus": 403,
+    "internalPlatformBearerStatus": 200,
+    "internalCookieOnlyStatus": 401,
+    "invalidSessionProofStatus": 401,
+    "runnerCredentialOnAdminRouteStatus": 401,
+    "adminCredentialOnRunnerRouteStatus": 401,
+    "publicRunnerRouteStatus": 404,
+    "crossHostSnapshotStatus": 403,
+    "viewerBrowserComposeRequests": []
+  },
+  "stalePreviewAfterTargetAdvance": {
+    "status": 409,
+    "code": "TARGET_REVISION_CONFLICT"
+  }
+}

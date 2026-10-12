@@ -1,0 +1,88 @@
+{
+  "task": "VFY-ORV14-HOST-CONTINUITY",
+  "stage": "source-independent isolated storage and transit recovery preparation",
+  "outcome": "FAILED",
+  "startedAt": "2026-10-11T23:20:45.298Z",
+  "completedAt": "2026-10-11T23:21:03.921Z",
+  "cwd": "/workspace/dugate/du-rework",
+  "nodeVersion": "v24.21.0",
+  "composeProject": "orv14-vfy-host-mv4g58fn-3e878de278",
+  "composeSha256": "7e18e4f71e1211331bca91af270ef50bdd24f1609876201b593a0afdd9a2f1d0",
+  "imageIds": {
+    "postgres": "sha256:81bd698b4594e751a3269e4dcd3e03a4a0ec0daf7b72e7aa1abd43cce9887542",
+    "redis": "sha256:f84b0c4678011602b9b98c227a4dcd5468bf8b088b02fdd4165cb7758bad8058",
+    "vault": "sha256:20bce4b1fc21ee5ccc659e3a13fd479894cfffcf650d8ca3c0c4ae7eaecc2c81",
+    "minio": "sha256:ff768636ea5c1b7bd295ddae1505506ae91a3beff613b14be377d23734cd2915"
+  },
+  "checks": {
+    "passed": 0,
+    "failed": 1,
+    "skipped": 0,
+    "health": {
+      "postgresClusters": 4,
+      "redis": "PONG",
+      "vaultStatuses": {
+        "vaultSource": 200,
+        "vaultRestore": 200
+      },
+      "minioStatuses": {
+        "s3Source": 200,
+        "s3Restore": 200
+      }
+    },
+    "versionedStorage": {
+      "sourceEndpoint": "isolated-source-minio",
+      "restoreEndpoint": "isolated-restore-minio",
+      "sourceBucket": "orv14-host-9de531bd714d4627bd",
+      "restoreBucket": "orv14-host-433e1d3b3bb942fba8",
+      "objectKey": "synthetic/source-version.txt",
+      "sourceVersionsDistinct": true,
+      "exactOlderVersionRead": true,
+      "latestVersionRead": true,
+      "independentRestoreEndpointRead": true,
+      "sha256": {
+        "older": "f05bb510bcfd1f7eceb13ba5922cf98410e01643a6dbb53e60b7e40ed783784e",
+        "latest": "852c464db46f92bcd36a1a639530307b9bacb42bf39b0f6d92ebbc3f28ee0b22",
+        "restore": "32e1340f3a3b71928a1255112d64f8ec63fb580fccfe92ac74d320e27759b007"
+      }
+    },
+    "transitRecovery": null,
+    "sourceVaultStopped": null
+  },
+  "cleanup": {
+    "projectId": "orv14-vfy-host-mv4g58fn-3e878de278",
+    "removed": {
+      "containers": [
+        "c4162acb09c2",
+        "c8fa6602a8f9",
+        "93949498c0c0",
+        "6742769f86b7",
+        "d793a9a41244",
+        "a32ebf65886d",
+        "9ac21949b91d",
+        "2d3d9153346c",
+        "7bfae1a33a34",
+        "a13c19edeb88"
+      ],
+      "volumes": [
+        "orv14-vfy-host-mv4g58fn-3e878de278_connector-restore-data",
+        "orv14-vfy-host-mv4g58fn-3e878de278_connector-source-data",
+        "orv14-vfy-host-mv4g58fn-3e878de278_minio-data",
+        "orv14-vfy-host-mv4g58fn-3e878de278_minio-restore-data",
+        "orv14-vfy-host-mv4g58fn-3e878de278_orchestrator-restore-data",
+        "orv14-vfy-host-mv4g58fn-3e878de278_orchestrator-source-data"
+      ],
+      "networks": [
+        "fcd9614e76f2"
+      ]
+    },
+    "remaining": {
+      "containers": [],
+      "volumes": [],
+      "networks": []
+    },
+    "temporaryFixtureRemoved": true
+  },
+  "verdict": "Preparation evidence only. The tests used synthetic S3 objects and synthetic Transit keys; no application, source data, customer credentials, backup, restore, workflow, migration, or cutover was executed.",
+  "error": "VAULT_POST_transit_keys_import_HTTP_404_1 error occurred:\n\t* unsupported path\n\n"
+}

@@ -1,0 +1,12 @@
+{
+  "checkedAtUtc": "2026-10-12T01:46:31Z",
+  "namespace": "du_test_wfa_1791769470595_87e62b6caa",
+  "postgresSchemaExists": false,
+  "redisDb": 9,
+  "ownedRedisPrefix": "du:test:wfa_1791769470595_87e62b6caa:",
+  "ownedRedisKeyCount": 0,
+  "ownedArtifactDirectoryExists": false,
+  "ownedConnectorArtifactDirectoryExists": false,
+  "composeProject": "orv14-vfy-20261011-a1",
+  "composeStackAction": "left running"
+}

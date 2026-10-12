@@ -1,0 +1,5 @@
+a8 attempt provenance notes:
+- The a8 pre/post source manifests include adjustments.ts, evidence-resolver.ts, artifacts.ts, internal-cost-adjustments.ts, and create-app.ts; those five matched exactly.
+- The original sha256sum invocation also named a nonexistent cost-control/effective-charges.ts path, so it emitted an error and omitted the remaining cost leaf. The actual file is modules/usage/effective-charges.ts; its hash is ede41c80297bc86c2d1f84839f7511d0c7b0655a4026d03c705e6097733cc8a4 (owner-frozen value, confirmed from the worktree immediately after a8).
+- a8 test and Jest config pre/post hashes matched. The subsequent test fixture correction is in later attempt source, not a8.
+- Initial cleanup utility probe lacked psql/redis-cli, so the first supplementary cleanup file had empty counts. The independent Node pg/ioredis read-only check above confirms zero leftover schema and Redis keys; see cleanup-verified.txt.

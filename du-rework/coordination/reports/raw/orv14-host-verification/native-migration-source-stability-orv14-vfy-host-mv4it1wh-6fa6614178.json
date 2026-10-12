@@ -1,0 +1,46 @@
+{
+  "schema": "orv14-host-native-migration-source-stability/v1",
+  "status": "PASSED",
+  "command": "/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node - <raw-receipt> <<NODE (read-only source/hash comparison)",
+  "cwd": "/workspace/dugate/du-rework",
+  "node": "v24.21.0",
+  "startedAt": "2026-10-12T00:36:24.756Z",
+  "completedAt": "2026-10-12T00:36:24.760Z",
+  "migrationReceipt": {
+    "path": "coordination/reports/raw/orv14-host-verification/native-migrations-orv14-vfy-host-mv4it1wh-6fa6614178.json",
+    "sha256": "6356ac70b5f7c29d76216edd725a72710fda55fb4d75b63af210b6b60bc3f0fd"
+  },
+  "nativeSourceHashesBefore": {
+    "orchestrator/src/db/migrations.ts": "519fd20731acac579acde4f5908844ddf98c4948661e408ad64e1c74852d5eed",
+    "connector/src/db/pg-client.ts": "1046b417be4e0902bffa909142deb8bb57f2a1855d48640803cf12fa13c13227"
+  },
+  "nativeSourceHashesAfter": {
+    "orchestrator/src/db/migrations.ts": "519fd20731acac579acde4f5908844ddf98c4948661e408ad64e1c74852d5eed",
+    "connector/src/db/pg-client.ts": "1046b417be4e0902bffa909142deb8bb57f2a1855d48640803cf12fa13c13227"
+  },
+  "continuitySourceHashesAfter": {
+    "scripts/ldba-continuity-runner.cjs": "2d0124265ea2771e295d6d124ad000af6b86962c048661a900434c7cd975bf38",
+    "scripts/ldba-inventory.cjs": "ce7ea6cbc6b2ec491c18395891d8d2490a12aa58157ba2a1db3ac8edc569cd7c",
+    "scripts/ldba-continuity-mappings.cjs": "e7bcec2d3ff9d565672e4b04ff5e2a77a8610ffe92a7c8e4ea43413a0fa3b306",
+    "scripts/ldba-continuity-source.cjs": "2f7830ee3bf7258604b1c6f6a3b4f49375daa77e2301bb0d0da31ca1f9b348f8",
+    "scripts/ldba-continuity-runtime.cjs": "81055e6e2ad1b5cce3b5c1cb4c39ec084082e35a4202a3d844819a16263831de",
+    "scripts/ldba-continuity-evidence.cjs": "4c71f0c532891f13a774a7da78ea411429481721354277a47d6dc4400421acc0",
+    "scripts/ldba-continuity-plan.cjs": "469f96228377e2db95ed772f25044de31e04559bb3c549cf604a1631cd92b47e",
+    "tests/ldba-continuity.test.cjs": "7586788f3136b50e4063f61f64c155baa168f738f244e0751693c13e29fd5e11",
+    "migrations/0057_legacy_continuity_evidence.sql": "7a57b386925e5421a8c9324907a6d76d48d31f942491aa3ec6695a487baddf36"
+  },
+  "orchestratorSqlFilesNow": 60,
+  "connectorSqlFilesNow": 15,
+  "checks": {
+    "orchestratorMigrationSourceStable": true,
+    "connectorMigrationSourceStable": true,
+    "continuityCheckpointStillExact": true,
+    "orchestratorSqlSnapshotStillExact": true,
+    "connectorSqlSnapshotStillExact": true
+  },
+  "resultCounts": {
+    "passed": 5,
+    "failed": 0,
+    "skipped": 0
+  }
+}

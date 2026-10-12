@@ -1,0 +1,7 @@
+fc116dc12f10cef4bfcfb8117ae029e0c5590c54a028fcc092cfbc54b38c7f9d  coordination/reports/raw/orv14-verification/private-admin-axe-a45/source.pre.files.sha256
+16538f99e7a9d522693cd219c245b08be9af3a889215d39707a70885d3d65f4a  orchestrator/apps/admin-web/src/features/usage/cost-policy-panel.tsx
+4bbf8b3c54c79e6bb07be8501df31166e71aaf24cbd5f9697c20afb0a181338c  tests/workflow-api/orv14-vfy/private-admin-contracts-entry.ts
+e599ac6510639b672f50256a851b4ef9b2d504071bc04b4dd6e1b3ae08ae078d  tests/workflow-api/orv14-vfy/private-admin-ui.vite.config.mjs
+ce8804d9efbe8191026e62b525cc212899da54f4609a3f5ed0c4a01ded94ce57  tests/workflow-api/orv14-vfy/private-admin-web-server.cjs
+1c346a95f8937f8a93dc0c0f3508c83d15750a9c7a3deccff2150e9b88820bd9  tests/workflow-api/orv14-vfy/private-admin-playwright.config.mjs
+a4b433b8b56a8b98d206abe45e08f8a0e077286880b6b8034986c6936acfa52d  tests/browser/admin-web/orv14-cost-adjustment-journey.spec.ts

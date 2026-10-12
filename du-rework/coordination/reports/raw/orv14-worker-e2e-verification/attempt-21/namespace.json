@@ -1,0 +1,15 @@
+{
+  "runId": "wfa_1791774152738_d9e5ee97e0",
+  "postgresSchema": "du_test_wfa_1791774152738_d9e5ee97e0",
+  "connectorPostgresSchema": "du_test_wfa_1791774152738_d9e5ee97e0_connector",
+  "redis": {
+    "host": "127.0.0.1",
+    "port": "26414",
+    "database": "3",
+    "keyPrefix": "du:test:wfa_1791774152738_d9e5ee97e0:",
+    "queuePrefix": "du:q:wfa_1791774152738_d9e5ee97e0:"
+  },
+  "artifactDirectory": "tests/workflow-api/.scratch/artifacts/wfa_1791774152738_d9e5ee97e0",
+  "connectorArtifactDirectory": "tests/workflow-api/orv14-vfy-worker/scratch/connector-artifacts/wfa_1791774152738_d9e5ee97e0_connector",
+  "tenantId": "0247e9b6-95c5-411d-a488-25a0eb0d1f33"
+}

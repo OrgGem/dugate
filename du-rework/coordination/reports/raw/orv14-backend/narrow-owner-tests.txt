@@ -1,0 +1,10 @@
+PASS orchestrator/services/orchestrator/tests/orv14-isolated-runtime-owner.test.ts
+PASS orchestrator/services/orchestrator/tests/orv14-operations-correlation-owner.test.ts
+PASS orchestrator/services/orchestrator/tests/orv14-connector-secret-imports-owner.test.ts
+PASS orchestrator/services/orchestrator/tests/orv14-incident-upsert-alias-owner.test.ts
+
+Test Suites: 4 passed, 4 total
+Tests:       11 passed, 11 total
+Snapshots:   0 total
+Time:        2.697 s, estimated 3 s
+Ran all test suites matching /orchestrator\/services\/orchestrator\/tests\/orv14-isolated-runtime-owner.test.ts|orchestrator\/services\/orchestrator\/tests\/orv14-incident-upsert-alias-owner.test.ts|orchestrator\/services\/orchestrator\/tests\/orv14-operations-correlation-owner.test.ts|orchestrator\/services\/orchestrator\/tests\/orv14-connector-secret-imports-owner.test.ts/i.

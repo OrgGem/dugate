@@ -65,3 +65,14 @@ Docker: `docker compose up -d` starts the app, worker, PostgreSQL, Redis, and mo
 ## Coordinator role boundary (2026-10-08)
 
 Agents acting as coordinator must follow [COORDINATOR-CONTRACT.md](du-rework/coordination/COORDINATOR-CONTRACT.md). Claude Code is the single dispatcher. Coordinator writes plan/coordination metadata only, never product code/tests, including legacy files. Requests to split tasks require actual worker delivery and independent verification. Explicit repo scope/canonical plan required; never implement personally or infer functional success from exit codes.
+
+## User-authorized agent model policy (2026-10-11)
+
+The user explicitly selected models by role. This policy applies to future delegated work throughout this repository and supersedes historical model preferences.
+
+- Implementation, fixes, tests and verification executors MUST use `gpt-6-luna` with `reasoning_effort: "max"`. Create them with `fork_turns: "none"`, because model overrides are incompatible with full-history forks. Supply a concise, self-contained task, scope, file lease, acceptance and required context instead of copying the whole conversation.
+- Review, architecture and planning agents inherit the user-facing coordinator's current Sol/Astra model. Do not select an unrelated model or silently run review on Luna. A Luna worker requests review/architecture/plan delegation from the coordinator rather than spawning an inherited Luna reviewer.
+- Keep implementation/test and review ownership separate. Reuse an agent only when its actual model fits the role. Existing agents with another model must not be reused for new implementation/test packets; spawn a properly configured replacement when there is authorized work.
+- The current collaboration tools expose model choice only at creation, not a model setter for existing agents. Do not claim existing agents were switched or that this policy reduces charges already incurred. Do not create idle agents merely to demonstrate the configuration.
+
+Machine-readable coordination policy: [agent-model-policy.json](du-rework/coordination/agent-model-policy.json). It records delegation instructions, not an application-wide model setting or proof of runtime enforcement.

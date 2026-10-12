@@ -108,7 +108,7 @@
     --shadow-pop: 0 8px 24px -6px rgb(0 0 0 / 0.6);
     --brand-mark-ring: rgb(246 130 31 / 0.28);
     --on-accent: #14100a;
-    --on-action: #ffffff;
+    --on-action: #111827;
   }
 }
 
@@ -154,5 +154,5 @@
   --shadow-pop: 0 8px 24px -6px rgb(0 0 0 / 0.6);
   --brand-mark-ring: rgb(246 130 31 / 0.28);
   --on-accent: #14100a;
-  --on-action: #ffffff;
+  --on-action: #111827;
 }

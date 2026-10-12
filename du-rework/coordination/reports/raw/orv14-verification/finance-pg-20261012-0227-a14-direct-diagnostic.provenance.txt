@@ -1,0 +1,10 @@
+Attempt: finance-pg-20261012-0227-a14-direct-diagnostic
+CWD: /workspace/dugate/du-rework
+Node: /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node, v24.21.0
+Command: /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node orchestrator/services/orchestrator/node_modules/jest/bin/jest.js --runInBand --config tests/workflow-api/orv14-vfy/jest.config.cjs tests/workflow-api/orv14-vfy/cost-adjustments.test.ts --testNamePattern='diagnoses the valid cookie-authenticated internal adjustment response'
+Scope: diagnostic only; one test passed, 7 skipped by the filter, exit 0. The direct internal request supplied `expectedAdjustmentRevision:999` and received the expected `COST_ADJUSTMENT_CAS_CONFLICT`. Source ordering checks the head revision before evidence verification, so this does not prove the evidence resolver or a valid financial write. Do not count it as a finance behavior pass.
+The fixture again used 62 normal migrations, the real encrypted public-upload path and OIDC cookie/CSRF. Namespace: schema `du_test_orv14_vfy_finance_1791771954558_0dab4dff`; Redis DB 3 prefix `du:test:orv14_vfy_finance_1791771954558_0dab4dff:`; temporary MinIO container `orv14-vfy-finance-minio-a39c9fe48118`; versioned bucket `orv14-fin-a5dc2d8cb67046ef9c5bd07a`.
+The helper emitted `plaintextSha256Matches:false` because that diagnostic compares logical decrypted plaintext against the database `sha256`, which is the gateway ciphertext digest. This helper flag is not the new evidence resolver's acceptance result and must not be read as a failure of its separate logical/object-pin validation.
+Raw: `finance-pg-20261012-0227-a14-direct-diagnostic.log` (sha256 75fee369a85e2b2313d445400b7515ec2f6c192ab6964f308fe2e727fd3d5ae7).
+Cleanup: Jest reported schema/bucket/container absent. An independent follow-up after the run found this exact schema absent, Redis prefix empty, exact temporary container absent from `docker ps -a`, and artifact directory absent. The separate verification command's exact UTC was not captured. Shared synthetic Compose services remain intact.
+

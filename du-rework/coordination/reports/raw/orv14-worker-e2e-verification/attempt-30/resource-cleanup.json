@@ -1,0 +1,47 @@
+{
+  "postgresOwnedSchemas": {
+    "checked": true,
+    "exitCode": 0,
+    "remainingOwnedSchemas": [],
+    "safeError": ""
+  },
+  "artifactDirectories": {
+    "artifactDirectory": {
+      "path": "tests/workflow-api/.scratch/artifacts/wfa_1791780561367_336c2cae06",
+      "existedAfterTest": false,
+      "removed": false,
+      "existsAfterCleanup": false
+    },
+    "connectorArtifactDirectory": {
+      "path": "tests/workflow-api/.scratch/connector-artifacts/wfa_1791780561367_336c2cae06_connector",
+      "existedAfterTest": false,
+      "removed": false,
+      "existsAfterCleanup": false
+    }
+  },
+  "redis": {
+    "preRunDbSize": 0,
+    "beforeCleanup": {
+      "patterns": {
+        "du:test:wfa_1791780561367_336c2cae06_connector:quota:*": 0,
+        "du:test:wfa_1791780561367_336c2cae06:*": 0,
+        "bull:du-business-document-core-1.1.0:*": 0,
+        "bull:du-business-lc-checker-1.1.0:*": 0
+      },
+      "totalDbSize": 0
+    },
+    "ownedKeyCount": 0,
+    "unlinkCalls": [],
+    "afterCleanup": {
+      "patterns": {
+        "du:test:wfa_1791780561367_336c2cae06_connector:quota:*": 0,
+        "du:test:wfa_1791780561367_336c2cae06:*": 0,
+        "bull:du-business-document-core-1.1.0:*": 0,
+        "bull:du-business-lc-checker-1.1.0:*": 0
+      },
+      "totalDbSize": 0
+    },
+    "ownedPatternsClear": true
+  },
+  "historicalOtherPublicFootprint": "not inspected or modified by this attempt"
+}

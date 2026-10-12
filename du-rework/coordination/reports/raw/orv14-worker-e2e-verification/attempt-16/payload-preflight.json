@@ -1,0 +1,62 @@
+{
+  "command": "/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node coordination/reports/raw/orv14-worker-e2e-verification/attempt-16/payload-preflight.cjs",
+  "cwd": "/workspace/dugate/du-rework",
+  "nodeVersion": "v24.21.0",
+  "contractsDistManifest": {
+    "path": "coordination/reports/raw/orv14-worker-e2e-verification/attempt-16/backend-service-runtime-bootid-contracts-dist-after.sha256",
+    "sha256": "27cb417f246da2c9b31820af54d310163aaf8d657532c6cacb21b6c9a722c91a",
+    "entries": 184
+  },
+  "scope": "schema-only payload preflight; no HTTP, database, provider, or Worker call",
+  "passed": 12,
+  "cases": [
+    {
+      "name": "TenantAiDraftRequestSchema/openai-compatible",
+      "success": true
+    },
+    {
+      "name": "GlobalSettingsPublishRequestSchema/openai-compatible",
+      "success": true
+    },
+    {
+      "name": "TenantAiTestRequestSchema/openai-compatible",
+      "success": true
+    },
+    {
+      "name": "ProfileEndpointPolicySchema/openai-compatible",
+      "success": true
+    },
+    {
+      "name": "ProfileUpsertCommandSchema/openai-compatible",
+      "success": true
+    },
+    {
+      "name": "TenantAiDraftRequestSchema/gemini",
+      "success": true
+    },
+    {
+      "name": "GlobalSettingsPublishRequestSchema/gemini",
+      "success": true
+    },
+    {
+      "name": "TenantAiTestRequestSchema/gemini",
+      "success": true
+    },
+    {
+      "name": "ProfileEndpointPolicySchema/gemini",
+      "success": true
+    },
+    {
+      "name": "ProfileUpsertCommandSchema/gemini",
+      "success": true
+    },
+    {
+      "name": "AdminWorkbenchEndpointTestRequestSchema",
+      "success": true
+    },
+    {
+      "name": "AdminWorkbenchPromptWizardRequestSchema",
+      "success": true
+    }
+  ]
+}

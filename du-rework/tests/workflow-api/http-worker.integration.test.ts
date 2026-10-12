@@ -1,5 +1,9 @@
 import { createHash, createHmac, randomBytes, randomUUID } from 'node:crypto';
-import { createServer, type Server } from 'node:http';
+import { createServer } from 'node:http';
+import { createServer as createHttpsServer, type Server as HttpsServer } from 'node:https';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import type { TLSSocket } from 'node:tls';
 import type { AddressInfo } from 'node:net';
 import { documentCoreManifest } from '../../businesses/document-core/src/manifest/document-core.manifest';
 import { documentCoreHandlers, startDocumentCoreWorker, type WorkerHandle } from '../../businesses/document-core/src/worker';
@@ -15,6 +19,7 @@ import { provisionLegacyWorkflowSchema } from '../../orchestrator/services/orche
 import {
   AesCredentialCipher,
   ContractSignedGrantVerifier,
+  ContractSignedProviderTestGrantVerifier,
   createConnectorComposition,
   FetchProviderTransport,
   HmacServiceIdentityVerifier,
@@ -25,14 +30,38 @@ import {
   createLocalInvocationKekProvider,
   parseLocalInvocationKekConfig,
 } from '../../orchestrator/services/connector/src/db/invocation-crypto';
+import { createConnectorManagementAuthorizationProvider } from '../../orchestrator/services/orchestrator/src/modules/connectors/management-service-identity';
 import { createTestIsolationContext } from '../isolation/namespace';
 import { createWorkflowApiIsolation, syntheticMetadataKeyProvider } from './isolation';
+import { PRIVATE_HTTPS_TARGETS } from './orv14-vfy-worker/private-https-fixture';
+import { ConnectorRecipeSchema } from '@du/contracts';
 
 const isolation = createWorkflowApiIsolation();
+const isolationRedisUrl = (() => {
+  const redisUrl = new URL(isolation.redisUrl);
+  const requestedDatabase = process.env.ORV14_WORKER_E2E_REDIS_DB;
+  if (requestedDatabase !== undefined) {
+    const configuredRedisUrl = process.env.WFA_REDIS_URL;
+    if (requestedDatabase !== '8' || !configuredRedisUrl) {
+      throw new Error('This owned Worker verification requires its explicitly reserved Redis DB 8');
+    }
+    const configuredRedis = new URL(configuredRedisUrl);
+    if (!['127.0.0.1', 'localhost'].includes(configuredRedis.hostname)
+      || configuredRedis.port !== '26414' || configuredRedis.pathname !== '/8') {
+      throw new Error('Owned Worker Redis must use the reserved loopback Redis host port and DB 8');
+    }
+    redisUrl.pathname = `/${requestedDatabase}`;
+    Object.assign(isolation.context, { redisDbIndex: Number(requestedDatabase) });
+  }
+  return redisUrl.toString();
+})();
 const connectorIsolationContext = createTestIsolationContext({
   runId: `${isolation.id}_connector`,
   baseArtifactPath: 'tests/workflow-api/.scratch/connector-artifacts',
 });
+const connectorDatabaseUrlBuilder = new URL(isolation.baseDatabaseUrl);
+connectorDatabaseUrlBuilder.searchParams.set('options', `-csearch_path=${connectorIsolationContext.dbSchema}`);
+const connectorDatabaseUrl = connectorDatabaseUrlBuilder.toString();
 const keyProvider = syntheticMetadataKeyProvider();
 const metadataCrypto = createMetadataCrypto(
   adaptKeyProviderForMetadata(keyProvider),
@@ -59,22 +88,59 @@ const lcWorkerIdentityToken = `wfa-worker-lc-checker-${randomUUID()}`;
 const adminToken = `wfa-worker-admin-${randomUUID()}`;
 const invocationGrantSecret = `wfa-invocation-grant-${randomUUID()}`;
 const connectorServiceSecret = randomBytes(32);
+const costControlToken = randomBytes(32).toString('base64url');
+const connectorRuntimeControl = {
+  slot: 'blue' as const,
+  runtimeIdentity: `wfa-connector-runtime-${randomUUID()}`,
+  replicaId: `wfa-connector-replica-${randomUUID()}`,
+  revision: 'wfa-vfy-1',
+  imageDigest: `orv14-vfy-connector@sha256:${createHash('sha256').update(randomUUID()).digest('hex')}`,
+};
 const connectorProviderCalls: Array<{ task: string; prompt: string; artifacts: Array<Record<string, unknown>> }> = [];
+const connectorProviderTlsObservations: Array<{ host: string | null; sni: string | null; path: string; task: string; bodyBytes: number; bodySha256: string }> = [];
 const providerAbortedCalls: string[] = [];
+const connectorBoundaryObservations: Array<{
+  handler: string;
+  taskKey: string;
+  outcome: 'resolved' | 'rejected';
+  responseState?: string;
+  errorName?: string;
+  errorCode?: string;
+  status?: number;
+  retryable?: boolean;
+  retryAfterMs?: number;
+  sourceFrames?: string[];
+}> = [];
 let providerDelayMs = 0;
 let app: App | undefined;
 let worker: WorkerHandle | undefined;
 let lcWorker: WorkerHandle | undefined;
-let connectorProviderServer: Server | undefined;
+let connectorProviderServer: HttpsServer | undefined;
 let connectorComposition: ReturnType<typeof createConnectorComposition> | undefined;
+let connectorProbeDb: ReturnType<typeof createDb> | undefined;
 let baseUrl = '';
 let internalUrl = '';
 let connectorBaseUrl = '';
 let connectorProviderUrl = '';
+let reservedInternalPortForCostControl: number | undefined;
 let isolatedSchemaCreated = false;
 let connectorSchemaCreated = false;
 let namedConnectorId = '';
+const namedConnectorIds: Record<string, string> = Object.create(null) as Record<string, string>;
 const workerErrorFrames: Array<{ handler: string; taskKey: string; errorName: string; frames: string[] }> = [];
+
+// ORV11: operator controls moved off the public API; preserve the same answer
+// payload while supplying the internal wait identity and CAS version.
+async function internalResume(operationId: string, input: Record<string, unknown>): Promise<Response> {
+  const state = await stateOf(operationId);
+  const wait = await app!.db.query<{ wait_id: string }>(
+    "SELECT wait_id FROM human_waits WHERE operation_id=$1 AND status='OPEN' ORDER BY created_at DESC LIMIT 1", [operationId],
+  );
+  return fetch(`${internalUrl}/api/internal/operations/${operationId}/resume`, {
+    method: 'POST', headers: { authorization: `Bearer ${adminToken}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ waitId: wait.rows[0]?.wait_id, expectedStateVersion: state.state_version, input }),
+  });
+}
 
 interface OperationStateRow {
   state: string;
@@ -234,7 +300,16 @@ function providerEnvelope(task: string, prompt: string, artifacts: Array<Record<
 
 async function startNamedConnectorFixture(): Promise<void> {
   if (connectorComposition && connectorProviderServer) return;
-  const providerServer = createServer((request, response) => {
+  if (reservedInternalPortForCostControl === undefined) {
+    throw new Error('the Orchestrator internal listener port must be reserved before starting the real Connector cost-control client');
+  }
+  const providerHost = PRIVATE_HTTPS_TARGETS.sanMatch.host;
+  const providerAddress = PRIVATE_HTTPS_TARGETS.sanMatch.bindAddress;
+  const fixtureDirectory = resolve(__dirname, 'orv14-vfy-worker', 'https-fixture');
+  const providerServer = createHttpsServer({
+    key: readFileSync(resolve(fixtureDirectory, 'server-key.pem')),
+    cert: readFileSync(resolve(fixtureDirectory, 'server-cert.pem')),
+  }, (request, response) => {
     const chunks: Buffer[] = [];
     request.on('data', (chunk: Buffer | string) => {
       chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
@@ -262,7 +337,20 @@ async function startNamedConnectorFixture(): Promise<void> {
         : [];
       const task = typeof payload.task === 'string' ? payload.task : '';
       const prompt = typeof payload.prompt === 'string' ? payload.prompt : '';
-      connectorProviderCalls.push({ task, prompt, artifacts });
+      const safeArtifacts = artifacts.map((artifact) => ({
+        ...(typeof artifact.fileName === 'string' ? { fileName: artifact.fileName } : {}),
+        ...(typeof artifact.mimeType === 'string' ? { mimeType: artifact.mimeType } : {}),
+        ...(typeof artifact.sizeBytes === 'number' ? { sizeBytes: artifact.sizeBytes } : {}),
+      }));
+      connectorProviderCalls.push({ task, prompt, artifacts: safeArtifacts });
+      connectorProviderTlsObservations.push({
+        host: typeof request.headers.host === 'string' ? request.headers.host : null,
+        sni: (request.socket as TLSSocket).servername ?? null,
+        path: request.url ?? '/',
+        task,
+        bodyBytes: Buffer.concat(chunks).byteLength,
+        bodySha256: createHash('sha256').update(Buffer.concat(chunks)).digest('hex'),
+      });
       response.on('close', () => {
         if (!response.writableEnded) providerAbortedCalls.push(task);
       });
@@ -277,11 +365,11 @@ async function startNamedConnectorFixture(): Promise<void> {
   connectorProviderServer = providerServer;
   await new Promise<void>((resolve, reject) => {
     providerServer.once('error', reject);
-    providerServer.listen(0, '127.0.0.1', () => resolve());
+    providerServer.listen(0, providerAddress, () => resolve());
   });
-  const providerAddress = providerServer.address();
-  if (!providerAddress || typeof providerAddress === 'string') throw new Error('synthetic provider did not bind');
-  connectorProviderUrl = `http://127.0.0.1:${providerAddress.port}`;
+  const providerSocketAddress = providerServer.address();
+  if (!providerSocketAddress || typeof providerSocketAddress === 'string') throw new Error('synthetic provider did not bind');
+  connectorProviderUrl = `https://${providerHost}:${providerSocketAddress.port}`;
 
   const parsedStorageKeys = parseLocalInvocationKekConfig(JSON.stringify({
     keyRef: 'wfa-connector-invocation-v1',
@@ -292,54 +380,166 @@ async function startNamedConnectorFixture(): Promise<void> {
   connectorComposition = createConnectorComposition({
     port: 0,
     host: '127.0.0.1',
-    databaseUrl: connectorIsolationContext.getDatabaseUrlWithSchema(isolation.baseDatabaseUrl),
-    redisUrl: isolation.redisUrl,
+    databaseUrl: connectorDatabaseUrl,
+    redisUrl: isolationRedisUrl,
     redisKeyPrefix: `${connectorIsolationContext.redisPrefix}quota:`,
     serviceIdentityVerifier: new HmacServiceIdentityVerifier(connectorServiceSecret),
     grantVerifier: new ContractSignedGrantVerifier(
       new HmacSignedGrantSource(Buffer.from(invocationGrantSecret, 'utf8')),
     ),
+    providerTestGrantVerifier: new ContractSignedProviderTestGrantVerifier(
+      new HmacSignedGrantSource(Buffer.from(invocationGrantSecret, 'utf8')),
+    ),
+    costControl: {
+      baseUrl: `http://127.0.0.1:${reservedInternalPortForCostControl}`,
+      token: costControlToken,
+    },
     credentialCipher: new AesCredentialCipher(randomBytes(32)),
-    providerTransport: new FetchProviderTransport({ allowHosts: ['127.0.0.1'], allowPrivateNetworks: true }),
+    providerTransport: new FetchProviderTransport({ allowHosts: [providerHost], allowPrivateNetworks: true }),
     invocationStorageCrypto: {
       fieldCrypto: createInvocationFieldCrypto(
         createLocalInvocationKekProvider(parsedStorageKeys),
         parsedStorageKeys.keyRef,
       ),
     },
+    runtimeControl: connectorRuntimeControl,
   });
   await connectorComposition.start();
   const connectorAddress = connectorComposition.address();
   if (!connectorAddress || typeof connectorAddress === 'string') throw new Error('synthetic Connector service did not bind');
   connectorBaseUrl = `http://127.0.0.1:${connectorAddress.port}`;
-
-  const connectorId = `wfa-${randomUUID()}`;
-  const credentialRef = `wfa-${randomUUID()}`;
-  const createRevision = await fetch(`${connectorBaseUrl}/connectors`, {
+  const runtimeObservationResponse = await fetch(`${connectorBaseUrl}/internal/admin/runtime-control/observe`, {
     method: 'POST',
-    headers: { authorization: `Bearer ${serviceIdentityToken(['connector:manage'])}`, 'content-type': 'application/json' },
-    body: JSON.stringify({
-      connectorId,
+    headers: {
+      authorization: `Bearer ${serviceIdentityToken(['connector:runtime-control'])}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(connectorRuntimeControl),
+  });
+  if (runtimeObservationResponse.status !== 200) {
+    throw new Error(`owned Connector runtime-control observation returned ${runtimeObservationResponse.status}`);
+  }
+  if (!connectorProbeDb) throw new Error('owned Connector schema probe is unavailable');
+  const searchPath = await connectorProbeDb.query<{ search_path: string }>('SHOW search_path');
+  const migrationRows = await connectorProbeDb.query<{ version: string }>(
+    `SELECT version FROM connector_schema_migrations
+      WHERE version = ANY($1::text[]) ORDER BY version`,
+    [['012_replica_runtime_controls', '013_connector_recipe_revisions', '015_backup_effect_fences', '016_replica_runtime_boot_ack']],
+  );
+  const runtimeRows = await connectorProbeDb.query<{
+    slot: string; runtime_identity: string; replica_id: string; revision: string; image_digest: string;
+    control_state: string; acknowledged_at: string | Date; process_boot_id: string; acknowledged_boot_id: string;
+  }>(
+    `SELECT slot,runtime_identity,replica_id,revision,image_digest,control_state,
+            acknowledged_at,process_boot_id,acknowledged_boot_id
+       FROM connector_replica_runtime_controls WHERE replica_id=$1`,
+    [connectorRuntimeControl.replicaId],
+  );
+  const backupGateRows = await connectorProbeDb.query<{
+    singleton_id: number; state: string; fence_revision: number | string;
+  }>('SELECT singleton_id,state,fence_revision FROM connector_backup_effect_gate');
+  const control = runtimeRows.rows[0];
+  const backupGate = backupGateRows.rows[0];
+  const searchPathComponents = (searchPath.rows[0]?.search_path ?? '')
+    .split(',').map((part) => part.trim().replaceAll('"', '')).filter(Boolean);
+  if (searchPathComponents.length !== 1 || searchPathComponents[0] !== connectorIsolationContext.dbSchema
+      || migrationRows.rows.length !== 4
+      || control?.slot !== connectorRuntimeControl.slot
+      || control.runtime_identity !== connectorRuntimeControl.runtimeIdentity
+      || control.replica_id !== connectorRuntimeControl.replicaId
+      || control.revision !== connectorRuntimeControl.revision
+      || control.image_digest !== connectorRuntimeControl.imageDigest
+      || control.control_state !== 'OPEN'
+      || !control.acknowledged_at
+      || !control.process_boot_id
+      || control.acknowledged_boot_id !== control.process_boot_id
+      || backupGate?.singleton_id !== 1
+      || backupGate.state !== 'OPEN'
+      || Number(backupGate.fence_revision) !== 0) {
+    throw new Error('owned Connector schema did not register its exact process identity and open backup effect fence');
+  }
+  const requiredTasks = [
+    'classify_document', 'extract_document_data', 'crosscheck_disbursement_documents', 'generate_disbursement_report',
+    'extract_document_text', 'extract_document_toc', 'compare_document_sections', 'generate_document_comparison_report',
+    'lc_compliance', 'lc_report',
+  ];
+  for (const task of requiredTasks) {
+    const connectorId = `wfa-${task.replaceAll('_', '-')}-${randomUUID()}`;
+    const idempotencyKey = `wfa-typed-recipe-${randomUUID()}`;
+    const headers = {
+      authorization: `Bearer ${serviceIdentityToken(['connector:management'])}`,
+      'content-type': 'application/json',
+    };
+    const route = `${connectorBaseUrl}/internal/admin/connector-revisions/${encodeURIComponent(connectorId)}`;
+    const claim = await fetch(`${route}/claim`, {
+      method: 'POST', headers,
+      body: JSON.stringify({ tenantId, expectedHeadRevision: 0, idempotencyKey }),
+    });
+    if (claim.status !== 200) throw new Error(`synthetic typed Connector claim returned ${claim.status}`);
+    const recipe = {
       adapter: 'json-http',
-      config: { baseUrl: connectorProviderUrl, path: '/provider', timeoutMs: 30_000 },
-      credentialRef,
-      state: 'ACTIVE',
-    }),
-  });
-  if (createRevision.status !== 201) {
-    throw new Error(`synthetic Connector revision returned ${createRevision.status}: ${await createRevision.text()}`);
+      method: 'POST',
+      endpointUrl: `${connectorProviderUrl}/provider`,
+      auth: { kind: 'none' },
+      headers: [],
+      request: {
+        promptField: 'prompt',
+        fileField: 'artifacts',
+        fields: [{ name: 'task', source: 'static', value: task }],
+      },
+      response: {
+        contentPath: 'content',
+        inputTokensPath: 'usage.inputTokens',
+        outputTokensPath: 'usage.outputTokens',
+      },
+      session: { capture: [], inject: [] },
+      timeoutMs: 30_000,
+      responseBytes: 2_000_000,
+    };
+    const parsedRecipe = ConnectorRecipeSchema.safeParse(recipe);
+    if (!parsedRecipe.success) {
+      throw new Error(`synthetic typed Connector recipe failed the compiled contract (${parsedRecipe.error.issues.map((issue) => issue.path.join('.')).join(',')})`);
+    }
+    const draft = await fetch(`${route}/draft`, {
+      method: 'PUT', headers,
+      body: JSON.stringify({
+        tenantId,
+        expectedHeadRevision: 0,
+        recipe: parsedRecipe.data,
+        credentialChange: { action: 'clear', confirm: true },
+        idempotencyKey,
+      }),
+    });
+    const draftBody = await draft.json() as { revision?: { revision?: unknown } };
+    if (draft.status !== 201 || draftBody.revision?.revision !== 1) {
+      throw new Error(`synthetic typed Connector draft returned ${draft.status}`);
+    }
+    const activate = await fetch(`${route}/1/activate`, {
+      method: 'POST', headers,
+      body: JSON.stringify({ tenantId, expectedCurrentRevision: 0 }),
+    });
+    if (activate.status !== 200) throw new Error(`synthetic typed Connector activation returned ${activate.status}`);
+    namedConnectorIds[task] = connectorId;
   }
-  const revisionBody = await createRevision.json() as { revision?: unknown };
-  if (revisionBody.revision !== 1) throw new Error('synthetic Connector did not create revision 1');
-  const rotateCredential = await fetch(`${connectorBaseUrl}/connectors/${connectorId}/credentials/rotate`, {
-    method: 'POST',
-    headers: { authorization: `Bearer ${serviceIdentityToken(['connector:manage'])}`, 'content-type': 'application/json' },
-    body: JSON.stringify({ secret: `wfa-synthetic-provider-${randomUUID()}` }),
-  });
-  if (rotateCredential.status !== 204) {
-    throw new Error(`synthetic Connector credential setup returned ${rotateCredential.status}`);
+  namedConnectorId = namedConnectorIds['generate_document_comparison_report']!;
+}
+
+function connectorBindingForTask(task: string): { connectorId: string; revision: 1 } {
+  const connectorId = namedConnectorIds[task];
+  if (!connectorId) throw new Error(`synthetic typed Connector task ${task} is not published`);
+  return { connectorId, revision: 1 };
+}
+
+function expectHttpsProviderObservations(expectedTasks: readonly string[]): void {
+  const expectedHost = new URL(connectorProviderUrl).host;
+  expect(connectorProviderTlsObservations.map((observation) => observation.task).sort()).toEqual([...expectedTasks].sort());
+  for (const observation of connectorProviderTlsObservations) {
+    expect(observation.host).toBe(expectedHost);
+    expect(observation.sni).toBe(PRIVATE_HTTPS_TARGETS.sanMatch.host);
+    expect(observation.path).toBe('/provider');
+    expect(observation.bodyBytes).toBeGreaterThan(0);
+    expect(observation.bodySha256).toMatch(/^[a-f0-9]{64}$/);
   }
-  namedConnectorId = connectorId;
 }
 
 function controlSchema(slug: string, humans: number) {
@@ -626,10 +826,57 @@ async function dispatchUntilState(
 }
 
 function captureHandlerExceptionFrames(): void {
-  for (const kind of ['schema-workflow', 'legacy-workflow-branch'] as const) {
+  for (const kind of ['schema-workflow', 'legacy-workflow-branch', 'disbursement', 'doc-compare'] as const) {
     const original = documentCoreHandlers[kind];
     if (!original) throw new Error(`WFA production handler ${kind} is not registered`);
     documentCoreHandlers[kind] = async (context, payload) => {
+      const taskKey = String((context as unknown as { taskKey?: unknown }).taskKey ?? 'unknown');
+      const connector = (context as unknown as {
+        connector?: { invoke: (...args: unknown[]) => Promise<unknown> };
+      }).connector;
+      const originalInvoke = connector?.invoke;
+      if (connector && originalInvoke) {
+        connector.invoke = async (...args: unknown[]): Promise<unknown> => {
+          try {
+            const response = await Reflect.apply(originalInvoke, connector, args) as unknown;
+            const responseRecord = typeof response === 'object' && response !== null
+              ? response as { state?: unknown; error?: { code?: unknown } }
+              : undefined;
+            const rawCode = responseRecord?.error?.code;
+            connectorBoundaryObservations.push({
+              handler: kind,
+              taskKey,
+              outcome: 'resolved',
+              ...(typeof responseRecord?.state === 'string' ? { responseState: responseRecord.state } : {}),
+              ...(typeof rawCode === 'string' && /^[A-Z][A-Z0-9_]{1,79}$/.test(rawCode) ? { errorCode: rawCode } : {}),
+            });
+            return response;
+          } catch (error: unknown) {
+            const candidate = error as {
+              name?: unknown; code?: unknown; status?: unknown; retryable?: unknown; retryAfterMs?: unknown; stack?: unknown;
+            };
+            const rawCode = candidate?.code;
+            const stack = typeof candidate?.stack === 'string' ? candidate.stack : '';
+            const sourceFrames = stack.split(/\r?\n/).slice(1, 9).flatMap((frame) => {
+              const match = frame.match(/([A-Za-z0-9_.-]+\.ts:\d+:\d+)/);
+              return match ? [match[1]!] : [];
+            });
+            connectorBoundaryObservations.push({
+              handler: kind,
+              taskKey,
+              outcome: 'rejected',
+              ...(typeof candidate?.name === 'string' ? { errorName: candidate.name.slice(0, 80) } : {}),
+              ...(typeof rawCode === 'string' && /^[A-Z][A-Z0-9_]{1,79}$/.test(rawCode) ? { errorCode: rawCode } : {}),
+              ...(typeof candidate?.status === 'number' && Number.isInteger(candidate.status) ? { status: candidate.status } : {}),
+              ...(typeof candidate?.retryable === 'boolean' ? { retryable: candidate.retryable } : {}),
+              ...(typeof candidate?.retryAfterMs === 'number' && Number.isFinite(candidate.retryAfterMs)
+                ? { retryAfterMs: candidate.retryAfterMs } : {}),
+              ...(sourceFrames.length > 0 ? { sourceFrames } : {}),
+            });
+            throw error;
+          }
+        };
+      }
       try {
         return await original(context, payload);
       } catch (error: unknown) {
@@ -637,19 +884,27 @@ function captureHandlerExceptionFrames(): void {
           // A parser message can quote payload bytes, so this temporary
           // verifier trace retains stack frames only, never the message.
           const frames = (error.stack ?? '').split(/\r?\n/).slice(1, 13).map((frame) => frame.trim());
-          const taskKey = String((context as unknown as { taskKey?: unknown }).taskKey ?? 'unknown');
           workerErrorFrames.push({ handler: kind, taskKey, errorName: error.name, frames });
         }
         throw error;
+      } finally {
+        if (connector && originalInvoke) connector.invoke = originalInvoke;
       }
     };
   }
 }
 
 function recentWorkerErrorFrames(): string {
-  return workerErrorFrames.slice(-4)
+  const workerFrames = workerErrorFrames.slice(-4)
     .map((entry) => `${entry.handler} task=${entry.taskKey} ${entry.errorName}\n${entry.frames.join('\n')}`)
     .join('\n');
+  const connectorFrames = connectorBoundaryObservations.slice(-12)
+    .map((entry) => JSON.stringify(entry))
+    .join('\n');
+  return [
+    workerFrames,
+    connectorFrames ? `Connector boundary (payloads and credentials omitted):\n${connectorFrames}` : '',
+  ].filter(Boolean).join('\n');
 }
 
 async function poll(operationId: string, key = apiKey): Promise<{ response: Response; body: Record<string, unknown> }> {
@@ -661,10 +916,51 @@ async function poll(operationId: string, key = apiKey): Promise<{ response: Resp
 
 describe('WFA real schema HTTP → PostgreSQL outbox → Redis worker → legacy poll/result', () => {
   beforeAll(async () => {
+    const rawDirectory = process.env.ORV14_WORKER_E2E_RAW_DIR;
+    if (rawDirectory) {
+      const redactedRedisUrl = new URL(isolationRedisUrl);
+      redactedRedisUrl.username = '';
+      redactedRedisUrl.password = '';
+      mkdirSync(rawDirectory, { recursive: true });
+      writeFileSync(resolve(rawDirectory, 'namespace.json'), `${JSON.stringify({
+        runId: isolation.id,
+        postgresSchema: isolation.context.dbSchema,
+        connectorPostgresSchema: connectorIsolationContext.dbSchema,
+        redis: {
+          host: redactedRedisUrl.hostname,
+          port: redactedRedisUrl.port,
+          database: redactedRedisUrl.pathname.replace(/^\//, ''),
+          keyPrefix: isolation.context.redisPrefix,
+          connectorQuotaKeyPrefix: `${connectorIsolationContext.redisPrefix}quota:`,
+          businessQueueNames: [
+            `du-business-${documentCoreManifest.businessId}-${documentCoreManifest.version}`,
+            `du-business-${lcCheckerManifest.businessId}-${lcCheckerManifest.version}`,
+          ],
+        },
+        artifactDirectory: isolation.context.artifactDir,
+        connectorArtifactDirectory: connectorIsolationContext.artifactDir,
+        tenantId,
+      }, null, 2)}\n`);
+    }
     await baseDb.query(`CREATE SCHEMA "${isolation.context.dbSchema}"`);
     isolatedSchemaCreated = true;
+    await baseDb.query(`CREATE SCHEMA "${connectorIsolationContext.dbSchema}"`);
+    connectorSchemaCreated = true;
+    connectorProbeDb = createDb(connectorDatabaseUrl);
+    reservedInternalPortForCostControl = await (async () => {
+      const reservation = createServer();
+      await new Promise<void>((resolveListen, rejectListen) => {
+        reservation.once('error', rejectListen);
+        reservation.listen(0, '127.0.0.1', () => resolveListen());
+      });
+      const address = reservation.address();
+      if (!address || typeof address === 'string') throw new Error('could not reserve Orchestrator internal port');
+      const port = address.port;
+      await new Promise<void>((resolveClose, rejectClose) => reservation.close((error) => error ? rejectClose(error) : resolveClose()));
+      return port;
+    })();
     // Named disbursement/lc-checker/document-core connector stages run against
-    // this loopback Connector + provider pair, so the app must be wired to it.
+    // this real Connector + private HTTPS provider pair, so the app must be wired to it.
     await startNamedConnectorFixture();
     const priorSeed = process.env.DU_SEED_DEV_FALLBACK;
     process.env.DU_SEED_DEV_FALLBACK = 'false';
@@ -673,18 +969,20 @@ describe('WFA real schema HTTP → PostgreSQL outbox → Redis worker → legacy
         host: '127.0.0.1',
         port: 0,
         internalHost: '127.0.0.1',
-        internalPort: 0,
+        internalPort: reservedInternalPortForCostControl,
         databaseUrl: isolation.databaseUrl,
-        redisUrl: isolation.redisUrl,
+        redisUrl: isolationRedisUrl,
         runtimeToken,
         workerIdentityTokensByBusiness: {
           'document-core': workerIdentityToken,
           'lc-checker': lcWorkerIdentityToken,
         },
-        connectorBaseUrls: { [namedConnectorId]: connectorBaseUrl },
+        connectorBaseUrls: Object.fromEntries(Object.values(namedConnectorIds).map((connectorId) => [connectorId, connectorBaseUrl])),
         connectorId: namedConnectorId,
         connectorRevision: 1,
+        connectorManagementAuthorizationForRequest: createConnectorManagementAuthorizationProvider(connectorServiceSecret),
         invocationGrantSecret,
+        costControlToken,
         adminToken,
         autoMigrate: true,
         autoDispatch: false,
@@ -702,6 +1000,9 @@ describe('WFA real schema HTTP → PostgreSQL outbox → Redis worker → legacy
     baseUrl = `http://127.0.0.1:${(address as AddressInfo).port}`;
     const internalAddress = app.internalServer.address();
     if (!internalAddress || typeof internalAddress === 'string') throw new Error('Orchestrator internal listener did not bind a TCP port');
+    if ((internalAddress as AddressInfo).port !== reservedInternalPortForCostControl) {
+      throw new Error('Orchestrator internal listener did not bind the exact port reserved for the real Connector cost-control client');
+    }
     internalUrl = `http://127.0.0.1:${(internalAddress as AddressInfo).port}`;
     await registerAndActivateDocumentCore();
     await registerAndActivateLcChecker();
@@ -725,10 +1026,10 @@ describe('WFA real schema HTTP → PostgreSQL outbox → Redis worker → legacy
       businessVersion: documentCoreManifest.version,
       action: 'doc-compare',
       connectorBindings: {
-        'legacy-ocr': { connectorId: namedConnectorId, revision: 1 },
-        'legacy-toc': { connectorId: namedConnectorId, revision: 1 },
-        'legacy-compare': { connectorId: namedConnectorId, revision: 1 },
-        'legacy-report': { connectorId: namedConnectorId, revision: 1 },
+        'legacy-ocr': connectorBindingForTask('extract_document_text'),
+        'legacy-toc': connectorBindingForTask('extract_document_toc'),
+        'legacy-compare': connectorBindingForTask('compare_document_sections'),
+        'legacy-report': connectorBindingForTask('generate_document_comparison_report'),
       },
     });
     await createProfileService(app.db).createRevision({
@@ -737,10 +1038,10 @@ describe('WFA real schema HTTP → PostgreSQL outbox → Redis worker → legacy
       businessVersion: documentCoreManifest.version,
       action: 'disbursement',
       connectorBindings: {
-        classify: { connectorId: namedConnectorId, revision: 1 },
-        extract: { connectorId: namedConnectorId, revision: 1 },
-        crosscheck: { connectorId: namedConnectorId, revision: 1 },
-        report: { connectorId: namedConnectorId, revision: 1 },
+        classify: connectorBindingForTask('classify_document'),
+        extract: connectorBindingForTask('extract_document_data'),
+        crosscheck: connectorBindingForTask('crosscheck_disbursement_documents'),
+        report: connectorBindingForTask('generate_disbursement_report'),
       },
     });
     await createProfileService(app.db).createRevision({
@@ -749,9 +1050,9 @@ describe('WFA real schema HTTP → PostgreSQL outbox → Redis worker → legacy
       businessVersion: lcCheckerManifest.version,
       action: 'lc-checker',
       connectorBindings: {
-        'legacy-ocr': { connectorId: namedConnectorId, revision: 1 },
-        'legacy-compliance': { connectorId: namedConnectorId, revision: 1 },
-        'legacy-report': { connectorId: namedConnectorId, revision: 1 },
+        'legacy-ocr': connectorBindingForTask('extract_document_text'),
+        'legacy-compliance': connectorBindingForTask('lc_compliance'),
+        'legacy-report': connectorBindingForTask('lc_report'),
       },
     });
     await provisionLegacyWorkflowSchema(app.db, {
@@ -786,7 +1087,7 @@ describe('WFA real schema HTTP → PostgreSQL outbox → Redis worker → legacy
       await provisionLegacyWorkflowSchema(app.db, {
         tenantId,
         schema: egressDeniedSchema(`wfa-leaf-egress-${nodeType}`, nodeType),
-        approvedEgressOrigins: ['https://approved.wfa.test'],
+        approvedEgressOrigins: [connectorProviderUrl],
       }, metadataCrypto);
     }
     const leafConnectorSlot = leafLocalPin.connectorSlotMap?.['wfa-local-mock'];
@@ -799,7 +1100,7 @@ describe('WFA real schema HTTP → PostgreSQL outbox → Redis worker → legacy
       businessVersion: documentCoreManifest.version,
       action: 'schema-workflow',
       connectorBindings: {
-        [leafConnectorSlot]: { connectorId: namedConnectorId, revision: 1 },
+        [leafConnectorSlot]: connectorBindingForTask('generate_disbursement_report'),
       },
     });
     await provisionLegacyWorkflowSchema(app.db, {
@@ -813,7 +1114,7 @@ describe('WFA real schema HTTP → PostgreSQL outbox → Redis worker → legacy
       runtimeToken: workerIdentityToken,
       connectorUrl: connectorBaseUrl,
       connectorServiceToken: () => serviceIdentityToken(['connector:invoke']),
-      redis: { url: isolation.redisUrl },
+      redis: { url: isolationRedisUrl },
       crypto: {
         facade: new CryptoStorageFacade(keyProvider),
         keyRef: 'du-wfa-synthetic-artifacts-v1',
@@ -828,7 +1129,7 @@ describe('WFA real schema HTTP → PostgreSQL outbox → Redis worker → legacy
       runtimeToken: lcWorkerIdentityToken,
       connectorUrl: connectorBaseUrl,
       connectorServiceToken: () => serviceIdentityToken(['connector:invoke']),
-      redis: { url: isolation.redisUrl },
+      redis: { url: isolationRedisUrl },
       crypto: {
         facade: new CryptoStorageFacade(keyProvider),
         keyRef: 'du-wfa-synthetic-artifacts-v1',
@@ -840,15 +1141,23 @@ describe('WFA real schema HTTP → PostgreSQL outbox → Redis worker → legacy
     });
   }, 120_000);
 
+  beforeEach(() => {
+    workerErrorFrames.length = 0;
+    connectorBoundaryObservations.length = 0;
+  });
+
   afterAll(async () => {
     if (lcWorker) await lcWorker.stop(5_000);
     if (worker) await worker.stop(5_000);
     if (connectorComposition) await connectorComposition.shutdown();
     if (connectorProviderServer) await new Promise<void>((resolve) => connectorProviderServer.close(() => resolve()));
     if (app) await app.close();
+    if (connectorProbeDb) await connectorProbeDb.close();
     if (isolatedSchemaCreated) await baseDb.query(`DROP SCHEMA "${isolation.context.dbSchema}" CASCADE`);
+    if (connectorSchemaCreated) await baseDb.query(`DROP SCHEMA "${connectorIsolationContext.dbSchema}" CASCADE`);
     await baseDb.close();
     isolation.context.cleanupArtifactDir();
+    connectorIsolationContext.cleanupArtifactDir();
   }, 60_000);
 
   test('executes the pinned input node and projects a terminal versioned result through the legacy poll/download routes', async () => {
@@ -1020,6 +1329,7 @@ describe('WFA real schema HTTP → PostgreSQL outbox → Redis worker → legacy
 
   test('executes a two-file named doc-compare to a completed legacy result (WFA-T03)', async () => {
     connectorProviderCalls.length = 0;
+    connectorProviderTlsObservations.length = 0;
     const form = new FormData();
     form.append('process', 'doc-compare');
     form.append('source_file', new File([Buffer.from('left document content for comparison')], 'doc-left.pdf', { type: 'application/pdf' }));
@@ -1115,10 +1425,15 @@ describe('WFA real schema HTTP → PostgreSQL outbox → Redis worker → legacy
       'compare_document_sections',
       'generate_document_comparison_report',
     ]));
+    expectHttpsProviderObservations([
+      'extract_document_text', 'extract_document_text', 'extract_document_toc',
+      'compare_document_sections', 'generate_document_comparison_report',
+    ]);
   }, 120_000);
 
   test('executes file_parse, connector, archive_compress and archive_extract through the real worker (WFA-T15/T18/T19/T22)', async () => {
     connectorProviderCalls.length = 0;
+    connectorProviderTlsObservations.length = 0;
     const { operationId, response } = await submitSchemaWithFile(
       'wfa-leaf-local',
       { reference: 'leaf node reference' },
@@ -1155,6 +1470,7 @@ describe('WFA real schema HTTP → PostgreSQL outbox → Redis worker → legacy
     const rendered = JSON.stringify(completed.body.result ?? {});
     expect(rendered).toContain('wfa-extracted');
     expect(connectorProviderCalls.map((call) => call.task)).toEqual(['generate_disbursement_report']);
+    expectHttpsProviderObservations(['generate_disbursement_report']);
     const download = await fetch(`${baseUrl}/api/v1/operations/${operationId}/download`, {
       headers: { 'x-api-key': leafApiKey },
     });
@@ -1186,6 +1502,7 @@ describe('WFA real schema HTTP → PostgreSQL outbox → Redis worker → legacy
 
   test('recovers an expired lease without repeating the completed provider stage (WFA-T26)', async () => {
     connectorProviderCalls.length = 0;
+    connectorProviderTlsObservations.length = 0;
     providerAbortedCalls.length = 0;
     providerDelayMs = 1_500;
     try {
@@ -1214,6 +1531,7 @@ describe('WFA real schema HTTP → PostgreSQL outbox → Redis worker → legacy
       // The redelivered task must reuse the stable invocation identity: the
       // Connector ledger dedupes, so the provider is still called exactly once.
       expect(connectorProviderCalls.map((call) => call.task)).toEqual(['generate_disbursement_report']);
+      expectHttpsProviderObservations(['generate_disbursement_report']);
       const { body } = await poll(operationId, leafApiKey);
       expect(body).toMatchObject({ done: true, metadata: { state: 'SUCCEEDED' } });
     } finally {
@@ -1223,6 +1541,7 @@ describe('WFA real schema HTTP → PostgreSQL outbox → Redis worker → legacy
 
   test('cancels an operation while a provider stage is in flight and aborts that stage (WFA-T27)', async () => {
     connectorProviderCalls.length = 0;
+    connectorProviderTlsObservations.length = 0;
     providerAbortedCalls.length = 0;
     providerDelayMs = 20_000;
     try {
@@ -1234,13 +1553,14 @@ describe('WFA real schema HTTP → PostgreSQL outbox → Redis worker → legacy
       expect(response.status).toBe(202);
       await app!.dispatcher.dispatchOnce();
       await waitForCondition(() => connectorProviderCalls.length >= 1, 20_000, 'the connector stage to start');
-      const cancel = await fetch(`${baseUrl}/api/v1/operations/${operationId}/cancel`, {
+      const cancel = await fetch(`${internalUrl}/api/internal/operations/${operationId}/cancel`, {
         method: 'POST',
-        headers: { 'x-api-key': leafApiKey },
+        headers: { authorization: `Bearer ${adminToken}` },
       });
       expect(cancel.status).toBe(200);
       // Cancellation must reach the in-flight provider work, not only the row.
       await waitForCondition(() => providerAbortedCalls.length >= 1, 30_000, 'the in-flight provider request to be aborted');
+      expectHttpsProviderObservations(['generate_disbursement_report']);
       const terminal = await waitForState(operationId, ['CANCELLED']);
       expect(terminal.state).toBe('CANCELLED');
       const tasks = await app!.db.query<{ state: string }>('SELECT state FROM tasks WHERE operation_id=$1', [operationId]);
@@ -1255,6 +1575,7 @@ describe('WFA real schema HTTP → PostgreSQL outbox → Redis worker → legacy
 
   test('runs named disbursement end to end through admission, HITL approval and connector stages to a legacy result (WFA-T01)', async () => {
     connectorProviderCalls.length = 0;
+    connectorProviderTlsObservations.length = 0;
     const { operationId, response, body: initialBody } = await submitNamed(
       'disbursement',
       [{ name: 'invoice.pdf', content: 'synthetic disbursement source document' }],
@@ -1302,7 +1623,7 @@ describe('WFA real schema HTTP → PostgreSQL outbox → Redis worker → legacy
     await app!.dispatcher.dispatchOnce();
     const waiting = await waitForState(operationId, ['WAITING_INPUT']);
     if (waiting.state !== 'WAITING_INPUT') {
-      throw new Error(`named disbursement reached ${waiting.state} (error_code=${waiting.error_code}); provider calls=${JSON.stringify(connectorProviderCalls.map((call) => ({ task: call.task, prompt: call.prompt.slice(0, 80) })))}; worker frames (messages redacted):\n${recentWorkerErrorFrames()}`);
+      throw new Error(`named disbursement reached ${waiting.state} (error_code=${waiting.error_code}); provider tasks=${JSON.stringify(connectorProviderCalls.map((call) => call.task))}; worker frames (messages redacted):\n${recentWorkerErrorFrames()}`);
     }
     const waitingPoll = await poll(operationId, disbursementApiKey);
     expect(waitingPoll.response.status).toBe(200);
@@ -1311,16 +1632,12 @@ describe('WFA real schema HTTP → PostgreSQL outbox → Redis worker → legacy
       metadata: { state: 'WAITING_USER_INPUT', workflow: 'disbursement' },
     });
 
-    const resume = await fetch(`${baseUrl}/api/v1/operations/${operationId}/resume`, {
-      method: 'POST',
-      headers: { 'x-api-key': disbursementApiKey, 'content-type': 'application/json' },
-      body: JSON.stringify({ step: 1, approved: true }),
-    });
+    const resume = await internalResume(operationId, {});
     const resumeBody = await resume.json() as Record<string, unknown>;
     if (resume.status !== 200) {
       throw new Error(`legacy disbursement resume failed with HTTP ${resume.status}: ${JSON.stringify(resumeBody)}\n${recentWorkerErrorFrames()}`);
     }
-    expect(resumeBody).toEqual({ success: true, message: 'Resumed successfully' });
+    expect(resumeBody).toMatchObject({ operationId, replayed: false });
 
     await app!.dispatcher.dispatchOnce();
     const terminal = await waitForState(operationId, ['SUCCEEDED']);
@@ -1367,10 +1684,12 @@ describe('WFA real schema HTTP → PostgreSQL outbox → Redis worker → legacy
       'crosscheck_disbursement_documents',
       'generate_disbursement_report',
     ]);
+    expectHttpsProviderObservations(providerTasks);
   }, 120_000);
 
   test('runs named lc-checker end to end through admission and connector stages to a legacy result (WFA-T02)', async () => {
     connectorProviderCalls.length = 0;
+    connectorProviderTlsObservations.length = 0;
     const { operationId, response, body: initialBody } = await submitNamed(
       'lc-checker',
       [{ name: 'lc-document.pdf', content: 'synthetic letter of credit document' }],
@@ -1454,6 +1773,7 @@ describe('WFA real schema HTTP → PostgreSQL outbox → Redis worker → legacy
     expect(prompts).toHaveLength(3);
     expect(prompts.filter((prompt) => prompt.includes('high-precision Document OCR Engine'))).toHaveLength(1);
     expect(prompts.filter((prompt) => prompt.includes('senior Documentary Credit'))).toHaveLength(1);
+    expectHttpsProviderObservations(['extract_document_text', 'lc_compliance', 'lc_report']);
   }, 120_000);
 
   test('records legacy HITL state/resume parity while proving a canonical resume completes the real worker', async () => {
@@ -1471,33 +1791,14 @@ describe('WFA real schema HTTP → PostgreSQL outbox → Redis worker → legacy
     expect(metadata.progress_percent).toBeGreaterThan(0);
     expect(metadata.progress_message).not.toContain('review this input');
 
-    const legacyResume = await fetch(`${baseUrl}/api/v1/operations/${operationId}/resume`, {
-      method: 'POST',
-      headers: { 'x-api-key': apiKey, 'content-type': 'application/json' },
-      body: JSON.stringify({ step: 1, extracted_data: { decision: 'approved' } }),
+    const retiredResume = await fetch(`${baseUrl}/api/v1/operations/${operationId}/resume`, {
+      method: 'POST', headers: { 'x-api-key': apiKey, 'content-type': 'application/json' }, body: JSON.stringify({ step: 1 }),
     });
+    expect(retiredResume.status).toBe(404);
+    const legacyResume = await internalResume(operationId, { step: 1, extracted_data: { decision: 'approved' } });
     const legacyResumeBody = await legacyResume.json() as Record<string, unknown>;
-    expect(legacyResume.status).not.toBe(500);
-
-    if (legacyResume.status !== 200) {
-      // A canonical wait envelope is a verifier-only recovery path. It
-      // demonstrates the worker lifecycle even when the old public body fails.
-      const answered = await app!.db.query<{ wait_id: string }>(
-        'SELECT wait_id FROM human_waits WHERE operation_id=$1 AND status=$2', [operationId, 'OPEN'],
-      );
-      const canonicalResume = await fetch(`${baseUrl}/api/v1/operations/${operationId}/resume`, {
-        method: 'POST',
-        headers: { 'x-api-key': apiKey, 'content-type': 'application/json' },
-        body: JSON.stringify({
-          waitId: answered.rows[0]?.wait_id,
-          input: { step: 1, extracted_data: { decision: 'approved' } },
-          expectedStateVersion: waiting.state_version,
-        }),
-      });
-      expect(canonicalResume.status).toBe(200);
-    } else {
-      expect(legacyResumeBody).toEqual({ success: true, message: 'Resumed successfully' });
-    }
+    expect(legacyResume.status).toBe(200);
+    expect(legacyResumeBody).toMatchObject({ operationId, replayed: false });
     await app!.dispatcher.dispatchOnce();
     const complete = await waitForState(operationId, ['SUCCEEDED']);
     if (complete.state !== 'SUCCEEDED') {
@@ -1514,10 +1815,10 @@ describe('WFA real schema HTTP → PostgreSQL outbox → Redis worker → legacy
       'SELECT status FROM human_waits WHERE operation_id=$1', [operationId],
     );
     expect(waits.rows.map((row) => row.status)).toEqual(['ANSWERED']);
-    expect({ legacyPollState: metadata.state, legacyResumeStatus: legacyResume.status, legacyResumeBody }).toEqual({
+    expect({ legacyPollState: metadata.state, legacyResumeStatus: legacyResume.status, legacyResumeBody }).toMatchObject({
       legacyPollState: 'WAITING_USER_INPUT',
       legacyResumeStatus: 200,
-      legacyResumeBody: { success: true, message: 'Resumed successfully' },
+      legacyResumeBody: { operationId, replayed: false },
     });
   }, 90_000);
 
@@ -1570,23 +1871,8 @@ describe('WFA real schema HTTP → PostgreSQL outbox → Redis worker → legacy
     expect(firstWait.rowCount).toBe(1);
     const stateBeforeResume = await stateOf(operationId);
 
-    const legacyFirstResume = await fetch(`${baseUrl}/api/v1/operations/${operationId}/resume`, {
-      method: 'POST',
-      headers: { 'x-api-key': apiKey, 'content-type': 'application/json' },
-      body: JSON.stringify({ step: 1, extracted_data: { decision: 'first checkpoint' } }),
-    });
-    if (legacyFirstResume.status !== 200) {
-      const canonicalFirstResume = await fetch(`${baseUrl}/api/v1/operations/${operationId}/resume`, {
-        method: 'POST',
-        headers: { 'x-api-key': apiKey, 'content-type': 'application/json' },
-        body: JSON.stringify({
-          waitId: firstWait.rows[0]?.wait_id,
-          input: { step: 1, extracted_data: { decision: 'first checkpoint' } },
-          expectedStateVersion: stateBeforeResume.state_version,
-        }),
-      });
-      expect(canonicalFirstResume.status).toBe(200);
-    }
+    const legacyFirstResume = await internalResume(operationId, { step: 1, extracted_data: { decision: 'first checkpoint' } });
+    expect(legacyFirstResume.status).toBe(200);
     await app!.dispatcher.dispatchOnce();
 
     const secondState = await waitForState(operationId, ['WAITING_INPUT', 'SUCCEEDED']);
@@ -1594,23 +1880,8 @@ describe('WFA real schema HTTP → PostgreSQL outbox → Redis worker → legacy
       'SELECT wait_id, wait_key, status FROM human_waits WHERE operation_id=$1 ORDER BY created_at, wait_id', [operationId],
     );
     if (secondState.state === 'WAITING_INPUT' && allWaits.rowCount === 2 && allWaits.rows[1]?.status === 'OPEN') {
-      const secondResume = await fetch(`${baseUrl}/api/v1/operations/${operationId}/resume`, {
-        method: 'POST',
-        headers: { 'x-api-key': apiKey, 'content-type': 'application/json' },
-        body: JSON.stringify({ step: 2, extracted_data: { decision: 'second checkpoint' } }),
-      });
-      if (secondResume.status !== 200) {
-        const canonicalSecondResume = await fetch(`${baseUrl}/api/v1/operations/${operationId}/resume`, {
-          method: 'POST',
-          headers: { 'x-api-key': apiKey, 'content-type': 'application/json' },
-          body: JSON.stringify({
-            waitId: allWaits.rows[1]?.wait_id,
-            input: { step: 2, extracted_data: { decision: 'second checkpoint' } },
-            expectedStateVersion: secondState.state_version,
-          }),
-        });
-        expect(canonicalSecondResume.status).toBe(200);
-      }
+      const secondResume = await internalResume(operationId, { step: 2, extracted_data: { decision: 'second checkpoint' } });
+      expect(secondResume.status).toBe(200);
       await app!.dispatcher.dispatchOnce();
       await waitForState(operationId, ['SUCCEEDED']);
     }
@@ -1674,7 +1945,7 @@ describe('WFA real schema HTTP → PostgreSQL outbox → Redis worker → legacy
       internalHost: '127.0.0.1',
       internalPort: 0,
       databaseUrl: isolation.databaseUrl,
-      redisUrl: isolation.redisUrl,
+      redisUrl: isolationRedisUrl,
       runtimeToken,
       adminToken,
       autoMigrate: true,
@@ -1735,13 +2006,13 @@ describe('WFA real schema HTTP → PostgreSQL outbox → Redis worker → legacy
     expect(sameTenantCancel.status).toBe(404);
     expect((await stateOf(operationId)).state).toBe('WAITING_INPUT');
 
-    const cancel = await fetch(`${baseUrl}/api/v1/operations/${operationId}/cancel`, {
+    const cancel = await fetch(`${internalUrl}/api/internal/operations/${operationId}/cancel`, {
       method: 'POST',
-      headers: { 'x-api-key': apiKey },
+      headers: { authorization: `Bearer ${adminToken}` },
     });
     expect(cancel.status).toBe(200);
     const cancelBody = await cancel.json() as Record<string, unknown>;
-    expect(cancelBody).toMatchObject({ name: `operations/${operationId}`, done: true, metadata: { state: 'CANCELLED' } });
+    expect(cancelBody).toMatchObject({ operationId, state: 'CANCELLED' });
 
     const foreignCancel = await fetch(`${baseUrl}/api/v1/operations/${operationId}/cancel`, {
       method: 'POST',

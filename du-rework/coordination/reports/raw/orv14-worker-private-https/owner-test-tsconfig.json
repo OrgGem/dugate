@@ -1,0 +1,18 @@
+{
+  "extends": "/workspace/dugate/du-rework/businesses/document-core/tsconfig.test.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": "/workspace/dugate/du-rework",
+    "baseUrl": "/workspace/dugate/du-rework",
+    "typeRoots": ["/workspace/dugate/du-rework/businesses/document-core/node_modules/@types"],
+    "paths": {
+      "@du/contracts": ["orchestrator/packages/contracts/src/index.ts"],
+      "@du/worker-sdk": ["orchestrator/packages/worker-sdk/src/index.ts"],
+      "@du/document-kit": ["orchestrator/packages/document-kit/src/index.ts"],
+      "@du/egress": ["orchestrator/packages/egress/src/index.ts"],
+      "@du/orchestrator": ["orchestrator/services/orchestrator/dist/index.d.ts"],
+      "@du/connector": ["orchestrator/services/connector/dist/index.d.ts"]
+    }
+  },
+  "include": ["/workspace/dugate/du-rework/businesses/document-core/tests/orv14-worker-private-https-owner.test.ts"]
+}

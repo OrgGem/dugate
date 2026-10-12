@@ -19,14 +19,8 @@ const {
 } = require('../scripts/ldba-03-backfill.cjs');
 
 async function runBackfill(adapter, options = {}) {
-  const previous = process.env.LDBA_ALLOW_UNVERIFIED_TIMEZONE;
-  process.env.LDBA_ALLOW_UNVERIFIED_TIMEZONE = '1';
-  try {
-    return await runBackfillCore(adapter, options);
-  } finally {
-    if (previous === undefined) delete process.env.LDBA_ALLOW_UNVERIFIED_TIMEZONE;
-    else process.env.LDBA_ALLOW_UNVERIFIED_TIMEZONE = previous;
-  }
+  adapter.timezoneEvidence = { verified: true, sourceVersion: adapter.sourceVersion, timezone: 'UTC', sha256: 'a'.repeat(64) };
+  return runBackfillCore(adapter, options);
 }
 
 const API_KEY_ID = '4b302d31-9408-4e26-8cd5-f09bc7c74aa1';
@@ -61,8 +55,8 @@ function validOperation(overrides = {}) {
     apiKeyId: API_KEY_ID,
     createdByUserId: null,
     idempotencyKey: null,
-    done: false,
-    state: 'RUNNING',
+    done: true,
+    state: 'SUCCEEDED',
     progressPercent: 15,
     progressMessage: 'running',
     endpointSlug: 'analyze',
@@ -190,7 +184,7 @@ test('uses UTC for naive timestamps and rejects offset or Z input', () => {
   }
 });
 
-test('blocks real A2 without timezone evidence before reading or writing rows', async () => {
+test('blocks real A2 without timezone evidence after source scan and before writing rows', async () => {
   const previous = process.env.LDBA_ALLOW_UNVERIFIED_TIMEZONE;
   delete process.env.LDBA_ALLOW_UNVERIFIED_TIMEZONE;
   try {
@@ -205,7 +199,7 @@ test('blocks real A2 without timezone evidence before reading or writing rows', 
     const report = await runBackfillCore(fixture.adapter, { apply: true, skipPolicy: 'report' });
     assert.equal(report.status, 'BLOCKED_TIMEZONE_UNVERIFIED');
     assert.equal(report.failures[0].code, 'LEGACY_TIMEZONE_UNVERIFIED');
-    assert.equal(scans, 0);
+    assert.equal(scans, LEGACY_TABLES.length);
     assert.deepEqual(fixture.getTenantSeedCalls(), []);
     assert.equal(fixture.getApplyCalls(), 0);
 
@@ -221,8 +215,7 @@ test('blocks real A2 without timezone evidence before reading or writing rows', 
       '--execute',
     ], { encoding: 'utf8', env });
     assert.equal(cli.status, 2);
-    assert.match(cli.stderr, /LDBA_ALLOW_UNVERIFIED_TIMEZONE=1/);
-    assert.doesNotMatch(cli.stderr, /LDBA03_ADAPTER_MODULE is required/);
+    assert.match(cli.stderr, /LDBA03_ADAPTER_MODULE is required/);
   } finally {
     if (previous === undefined) delete process.env.LDBA_ALLOW_UNVERIFIED_TIMEZONE;
     else process.env.LDBA_ALLOW_UNVERIFIED_TIMEZONE = previous;
@@ -300,6 +293,29 @@ test('preflight reports projected writes and never writes', async () => {
   assert.deepEqual(fixture.getTenantSeedCalls(), []);
 });
 
+test('A2 reports Orchestrator provenance failure after Connector commit as an explicit partial hold', async () => {
+  const fixture = createAdapter(tables({ ApiKey: [validApiKey()] }), {}, { tenantId: 'a107ae7b-4a2b-40ee-a9a8-9b89b7ff79a2' });
+  fixture.adapter.sink.applyImmutableBatch = async () => {
+    const error = new Error('Orchestrator source provenance conflict');
+    error.code = 'CROSS_PLANE_PARTIAL';
+    error.phaseFailureCode = 'IMPORT_PROVENANCE_CONFLICT';
+    error.connectorRowsCommitted = 1;
+    error.replayRequired = false;
+    throw error;
+  };
+
+  const report = await runBackfill(fixture.adapter, { apply: true, skipPolicy: 'report' });
+
+  assert.equal(report.status, 'PARTIAL_CROSS_PLANE_HOLD');
+  assert.equal(report.cutoverReady, false);
+  assert.equal(report.crossPlane.state, 'PARTIAL_HOLD');
+  assert.equal(report.crossPlane.committedPlane, 'connector');
+  assert.equal(report.crossPlane.pendingPlane, 'orchestrator');
+  assert.equal(report.crossPlane.phaseFailureCode, 'IMPORT_PROVENANCE_CONFLICT');
+  assert.equal(report.crossPlane.replayRequired, false);
+  assert.match(report.cutoverGate, /provenance conflicts/);
+});
+
 test('read-only preflight blocks without a tenant and never seeds', async () => {
   const fixture = createAdapter(tables({ ApiKey: [validApiKey()] }));
   const report = await runBackfill(fixture.adapter, { apply: false });
@@ -360,6 +376,8 @@ test('profile transform preserves CSV and cipher text and orders pointer after b
   assert.equal(report.preflight.findIndex((item) => item.entity === 'profile_active_revisions') >
     report.preflight.findIndex((item) => item.entity === 'profile_bindings'), true);
   assert.equal(fixture.target.has(pointerKey), true);
+  assert.equal(fixture.target.get(bindingKey).endpoint_slug, profile.endpointSlug);
+  assert.equal(fixture.target.get('profile_api_keys|' + PROFILE_ID + '|' + API_KEY_ID).state, 'ACTIVE');
   assert.equal(report.omissions.some((item) => item.field === 'rateLimitPerMin'), true);
 });
 
@@ -396,16 +414,15 @@ test('bad JSON, UUID, and state are row failures and prevent all writes', async 
   }
 });
 
-test('non-empty callback history stops the operation row under unresolved L3', async () => {
+test('terminal callback history is preserved without scheduling delivery', async () => {
   const fixture = createAdapter(tables({
     ApiKey: [validApiKey()],
     Operation: [validOperation({ webhookUrl: 'https://callback.example.test' })],
   }));
   const report = await runBackfill(fixture.adapter);
-  assert.equal(report.status, 'BLOCKED_TRANSFORM');
-  assert.equal(report.failures[0].code, 'CALLBACK_POLICY_UNRESOLVED');
-  assert.equal(report.failures[0].sourceKey, OPERATION_ID);
-  assert.equal(fixture.target.size, 0);
+  assert.equal(report.status, 'APPLIED');
+  assert.equal(fixture.target.get('operations|' + OPERATION_ID).legacy_history.webhookUrl, 'https://callback.example.test');
+  assert.equal(report.omissions.some((item) => item.field === 'webhookUrl'), true);
 });
 
 test('connector adapter preserves opaque text identifiers and rejects plaintext secrets', async (t) => {
@@ -509,7 +526,7 @@ test('artifact transform copies verified external bytes into postgres blob stora
     createdAt: '2026-01-02 03:04:05.006',
     lastAccessedAt: '2026-01-03 03:04:05.006',
   };
-  const fixture = createAdapter(tables({ FileCache: [row] }), {
+  const fixture = createAdapter(tables({ FileCache: [row], Operation: [validOperation({ filesJson: JSON.stringify([{ fileCacheId: row.id, path: row.s3Key }]), outputFilePath: row.s3Key })] }), {
     async readFileCacheBytes(key) {
       assert.equal(key, row.s3Key);
       return bytes;
@@ -523,6 +540,8 @@ test('artifact transform copies verified external bytes into postgres blob stora
   });
   const report = await runBackfill(fixture.adapter);
   assert.equal(report.status, 'APPLIED');
+  assert.equal(fixture.target.get('operations|' + OPERATION_ID).output_file_path, 'legacy-filecache/' + row.id);
+  assert.deepEqual(fixture.target.get('operations|' + OPERATION_ID).submit_artifacts, [{ artifactId: row.id, role: 'input' }]);
   assert.equal(fixture.target.has('artifacts|' + row.id), true);
   assert.equal(fixture.target.get('artifacts|' + row.id).storage_backend, 'postgres');
   assert.equal(fixture.target.get('artifacts|' + row.id).file_name, 'fixture.pdf');
@@ -561,5 +580,69 @@ test('missing A1 evidence for the exact source version stops before reading', as
   assert.equal(report.status, 'BLOCKED_A1');
   assert.equal(report.failures[0].code, 'A1_NOT_PASSED_FOR_SOURCE_VERSION');
   assert.equal(readCalls, 0);
+  assert.equal(fixture.getApplyCalls(), 0);
+});
+
+test('ORV11 refuses active and actual legacy HITL state without manufacturing tasks', async () => {
+  for (const state of ['RUNNING', 'WAITING_USER_INPUT', 'PENDING']) {
+    const fixture = createAdapter(tables({ Operation: [validOperation({ state, done: false })] }));
+    const report = await runBackfill(fixture.adapter);
+    assert.equal(report.status, 'BLOCKED_TRANSFORM');
+    assert.equal(report.failures[0].code, 'DRAIN_REQUIRED');
+    assert.equal(fixture.getApplyCalls(), 0);
+  }
+});
+
+test('ORV11 bypass environment cannot authorize execution', async () => {
+  const fixture = createAdapter(tables());
+  process.env.LDBA_ALLOW_UNVERIFIED_TIMEZONE = '1';
+  try {
+    const report = await runBackfillCore(fixture.adapter);
+    assert.equal(report.status, 'BLOCKED_TIMEZONE_UNVERIFIED');
+    assert.equal(fixture.getApplyCalls(), 0);
+  } finally { delete process.env.LDBA_ALLOW_UNVERIFIED_TIMEZONE; }
+});
+
+test('ORV11 preserves disabled local identity and assignments with runtime roles', async () => {
+  const provider = require('../scripts/ldba-context-provider.cjs');
+  const userId = '319bbafa-2e55-4f2a-9ecb-fdb8af98d6cc';
+  const fixture = createAdapter(tables({
+    ApiKey: [validApiKey()],
+    User: [{ id: userId, username: 'Operator', role: 'USER', createdAt: '2026-01-02 03:04:05.006', updatedAt: '2026-01-02 03:04:05.006' }],
+    UserProfileAssignment: [{ id: PROFILE_ID, userId, apiKeyId: API_KEY_ID, createdAt: '2026-01-02 03:04:05.006' }],
+  }), { prepareAdminLocalUser: provider.prepareAdminLocalUser });
+  const report = await runBackfill(fixture.adapter);
+  assert.equal(report.status, 'APPLIED');
+  const user = fixture.target.get('admin_local_users|' + userId);
+  assert.equal(user.role, 'operator');
+  assert.equal(user.is_enabled, false);
+  assert.equal(user.is_locked, true);
+  assert.equal(user.legacy_password_reset_required, true);
+  assert.ok(fixture.target.has('user_profile_assignments|' + userId + '|' + API_KEY_ID));
+});
+
+test('ORV11 retains non-workflow settings as non-effective archive with reconciliation notice', async () => {
+  const fixture = createAdapter(tables({ AppSetting: [{ key: 'ai_model', value: 'legacy-model', updatedAt: '2026-01-02 03:04:05.006' }] }));
+  const report = await runBackfill(fixture.adapter);
+  assert.equal(report.status, 'APPLIED');
+  assert.ok([...fixture.target.keys()].some((key) => key.startsWith('legacy_app_settings|')));
+  assert.ok(report.omissions.some((item) => item.table === 'AppSetting'));
+  assert.equal(report.cutoverReady, false);
+});
+
+test('ORV11 deleted-file history imports without phantom output bytes', async () => {
+  const fixture = createAdapter(tables({ Operation: [validOperation({ filesDeleted: true, filesJson: '[{"path":"missing.pdf"}]', outputFilePath: 'gone.pdf' })] }));
+  const report = await runBackfill(fixture.adapter);
+  assert.equal(report.status, 'APPLIED');
+  const operation = fixture.target.get('operations|' + OPERATION_ID);
+  assert.equal(operation.output_file_path, null);
+  assert.equal(operation.legacy_history.filesDeleted, true);
+  assert.deepEqual(operation.submit_artifacts, []);
+});
+
+test('ORV11 refuses plaintext known secret settings before archive writes', async () => {
+  const fixture = createAdapter(tables({ AppSetting: [{ key: 'ai_api_key', value: 'not-encrypted', updatedAt: '2026-01-02 03:04:05.006' }] }));
+  const report = await runBackfill(fixture.adapter);
+  assert.equal(report.status, 'BLOCKED_TRANSFORM');
   assert.equal(fixture.getApplyCalls(), 0);
 });

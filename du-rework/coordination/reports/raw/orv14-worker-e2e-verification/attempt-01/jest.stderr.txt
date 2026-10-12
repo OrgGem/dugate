@@ -1,0 +1,71 @@
+FAIL tests/workflow-api/orv14-vfy-core31.test.ts (14.246 s)
+  ORV14 independent public HTTP compatibility with real outbox, worker, and Connector
+    ✓ legacy multipart ingest parses exact bytes, projects/downloads result and replays without duplicate blobs (387 ms)
+    ✓ sync submit waits for real worker and returns terminal result within its budget (135 ms)
+    ✕ browser uploads a document and submits workflow.test to real worker, then polls success (1898 ms)
+    31 public multipart variants through production outbox/Redis/worker/Connector
+      ✓ DOC-01-01 ingest/parse (143 ms)
+      ✓ DOC-01-02 ingest/ocr (277 ms)
+      ✓ DOC-01-03 ingest/digitize (268 ms)
+      ✓ DOC-01-04 ingest/split (280 ms)
+      ✓ DOC-02-01 extract/invoice (131 ms)
+      ✓ DOC-02-02 extract/contract (134 ms)
+      ✓ DOC-02-03 extract/receipt (236 ms)
+      ✓ DOC-02-04 extract/table (136 ms)
+      ✓ DOC-02-05 extract/custom (133 ms)
+      ✓ DOC-02-06 extract/id-card (135 ms)
+      ✓ DOC-03-01 analyze/classify (140 ms)
+      ✓ DOC-03-02 analyze/sentiment (132 ms)
+      ✓ DOC-03-03 analyze/compliance (130 ms)
+      ✓ DOC-03-04 analyze/quality (128 ms)
+      ✓ DOC-03-05 analyze/risk (132 ms)
+      ✓ DOC-03-06 analyze/fact-check (234 ms)
+      ✓ DOC-03-07 analyze/summarize-eval (135 ms)
+      ✓ DOC-04-01 transform/convert (141 ms)
+      ✓ DOC-04-02 transform/translate (131 ms)
+      ✓ DOC-04-03 transform/rewrite (133 ms)
+      ✓ DOC-04-04 transform/redact (134 ms)
+      ✓ DOC-04-05 transform/template (131 ms)
+      ✓ DOC-05-01 generate/summary (134 ms)
+      ✓ DOC-05-02 generate/outline (129 ms)
+      ✓ DOC-05-03 generate/report (133 ms)
+      ✓ DOC-05-04 generate/email (130 ms)
+      ✓ DOC-05-05 generate/minutes (137 ms)
+      ✓ DOC-05-06 generate/qa (132 ms)
+      ✓ DOC-06-01 compare/diff (131 ms)
+      ✓ DOC-06-02 compare/semantic (133 ms)
+      ✓ DOC-06-03 compare/version (133 ms)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › browser uploads a document and submits workflow.test to real worker, then polls success
+
+    page.waitForResponse: Target page, context or browser has been closed
+
+       997 |       await page.getByLabel('Test documents',{exact:true}).setInputFiles({name:'orv11-browser.txt',mimeType:'text/plain',buffer:Buffer.from('ORV11 uploaded from browser')});
+       998 |       const uploaded=page.waitForResponse(r=>r.url().includes('/operations/uploads')&&r.request().method()==='POST');
+    >  999 |       const submitted=page.waitForResponse(r=>r.url().includes('/admin/api/actions')&&r.request().method()==='POST');
+           |                            ^
+      1000 |       await page.getByRole('button',{name:'Start Test Execution',exact:true}).click();
+      1001 |       const upload=await uploaded; const uploadBody=await upload.text();
+      1002 |       if(upload.status()!==201)throw new Error(`browser upload ${upload.status()}: ${uploadBody}`);
+
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:999:28)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › browser uploads a document and submits workflow.test to real worker, then polls success
+
+    browser upload 409: {"type":"urn:du:error:storage_unavailable","title":"The admin API rejected the request","status":409,"code":"STORAGE_UNAVAILABLE","correlationId":"f1fe8d1e-4412-4440-8b4b-4d1d90a1c735"}
+
+      1000 |       await page.getByRole('button',{name:'Start Test Execution',exact:true}).click();
+      1001 |       const upload=await uploaded; const uploadBody=await upload.text();
+    > 1002 |       if(upload.status()!==201)throw new Error(`browser upload ${upload.status()}: ${uploadBody}`);
+           |                                      ^
+      1003 |       const submission=await submitted;const wire=await submission.json() as {data?:{operationId?:string};operationId?:string};
+      1004 |       if(submission.status()!==202)throw new Error(`workflow.test ${submission.status()}: ${JSON.stringify(wire)}`);
+      1005 |       const id=wire.data?.operationId??wire.operationId;
+
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:1002:38)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 33 passed, 34 total
+Snapshots:   0 total
+Time:        14.442 s
+Ran all test suites within paths "tests/workflow-api/orv14-vfy-core31.test.ts".

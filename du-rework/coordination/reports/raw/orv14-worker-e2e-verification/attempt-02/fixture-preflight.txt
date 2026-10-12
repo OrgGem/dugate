@@ -1,0 +1,11 @@
+v24.21.0
+172.26.91.253   STREAM 172-26-91-253.sslip.io
+172.31.10.238   STREAM 172-31-10-238.sslip.io
+2: eth0    inet 172.26.91.253/22 brd 172.26.91.255 scope global eth0\       valid_lft forever preferred_lft forever
+3: eth1    inet 172.31.10.238/28 brd 172.31.10.239 scope global eth1\       valid_lft forever preferred_lft forever
+tests/workflow-api/orv14-vfy-worker/https-fixture/server-cert.pem: OK
+subject=CN=172-26-91-253.sslip.io
+notBefore=Oct 12 00:32:00 2026 GMT
+notAfter=Oct 19 00:32:00 2026 GMT
+X509v3 Subject Alternative Name: 
+    DNS:172-26-91-253.sslip.io

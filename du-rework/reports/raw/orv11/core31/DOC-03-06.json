@@ -1,0 +1,39 @@
+{
+  "name": "operations/42ffd143-ca1f-48f3-a5c7-86866f148276",
+  "done": true,
+  "metadata": {
+    "state": "SUCCEEDED",
+    "pipeline": [],
+    "current_step": 0,
+    "progress_percent": 0,
+    "progress_message": "Queued",
+    "create_time": "2026-10-11T16:35:05.470Z",
+    "update_time": "2026-10-11T16:35:05.580Z",
+    "pipeline_steps": []
+  },
+  "result": {
+    "output_format": "json",
+    "content": "{\"verdict\":\"PASS\",\"summary\":\"The reported growth matches the supplied annual-report reference.\",\"checks\":[{\"claim\":\"Revenue grew by 12% in 2025.\",\"status\":\"PASS\",\"reference\":\"Annual report: 12% growth.\"}]}",
+    "extracted_data": {
+      "verdict": "PASS",
+      "summary": "The reported growth matches the supplied annual-report reference.",
+      "checks": [
+        {
+          "claim": "Revenue grew by 12% in 2025.",
+          "status": "PASS",
+          "reference": "Annual report: 12% growth."
+        }
+      ]
+    },
+    "pipeline_steps": [],
+    "usage": {
+      "input_tokens": null,
+      "output_tokens": null,
+      "pages_processed": null,
+      "model_used": null,
+      "cost_usd": null,
+      "breakdown": []
+    },
+    "download_url": "/api/v1/operations/42ffd143-ca1f-48f3-a5c7-86866f148276/download"
+  }
+}

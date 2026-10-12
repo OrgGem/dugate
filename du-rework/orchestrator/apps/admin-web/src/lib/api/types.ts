@@ -6,6 +6,131 @@
  * no server view model, no DB shape.
  */
 
+import type { ProviderReportedCost, TenantActiveConnectorCatalogQuery } from '@du/contracts';
+
+// ORV14 leaf contracts are authored in `@du/contracts`; the shared browser
+// API barrel re-exports their data types without runtime validators.
+export type {
+  AdminWorkbenchEndpointTestRequest,
+  AdminWorkbenchOperationAccepted,
+  AdminWorkbenchPromptWizardRequest,
+  ApiKeyIssue,
+  ApiKeyLifecyclePage,
+  ApiKeyLifecycleRow,
+  ApiKeyMutationResult,
+  ApiKeyNote,
+  ApiKeyRotate,
+  ConnectorCredentialStage,
+  ConnectorDraftUpsert,
+  ConnectorParityActivationResult,
+  ConnectorParityDraftResult,
+  ConnectorParityRevision,
+  ConnectorRecipe,
+  IdentityAssignableUserPage,
+  IdentityAssignmentReplace,
+  IdentityAssignmentSet,
+  IdentityMutationResponse,
+  IdentityPasswordReset,
+  IdentitySnapshot,
+  IdentityUser,
+  IdentityUserPage,
+  CreateIdentityUserParams,
+  UpdateIdentityUserParams,
+  ParityIdentityUserResponse,
+  ProviderTestRequest,
+  ProviderTestResult,
+  ProfileSelfServiceAssignedApiKeyPage,
+  ProfileSelfServiceAssignedApiKeyQuery,
+  ProfileSelfServiceAssignedPage,
+  ProfileSelfServiceAssignedQuery,
+  ProfileSelfServiceEditRequest,
+  ProfileSelfServiceEditResponse,
+  WorkflowImportPreviewRequest,
+  WorkflowImportPreviewResponse,
+  TenantAiDraftRequest,
+  TenantAiRevision,
+  TenantAiTestRequest,
+  TenantAiTestResult,
+  TenantGlobalSettingsRead,
+  TenantAiDefaults,
+  TenantPromptDefaults,
+  TenantDefaultsSnapshot,
+  TenantPromptDraftRequest,
+  TenantPromptRevision,
+  PlatformRetentionDraftRequest,
+  PlatformRetentionRead,
+  GlobalSettingsPublishRequest,
+  GlobalSettingsRollbackRequest,
+  GlobalSettingsMutationResult,
+  Incident,
+  IncidentAcknowledgeRequest,
+  IncidentAssignRequest,
+  IncidentDetail,
+  IncidentListPage,
+  IncidentListQuery,
+  IncidentResolveRequest,
+  MaintenanceSuppression,
+  MaintenanceSuppressionCreate,
+  MaintenanceSuppressionList,
+  ServiceInventory,
+  QueueInventory,
+  QueueActionPreviewRequest,
+  QueueActionPreview,
+  ConfirmQueueAction,
+  QueueActionJob,
+  MaintenancePreviewRequest,
+  MaintenancePreview,
+  StartMaintenanceJob,
+  MaintenanceJob,
+  ReplicaRolloutPreviewRequest,
+  ReplicaRolloutPreview,
+  ExecuteReplicaRollout,
+  ReplicaRolloutJob,
+  PreviewReplicaRollback,
+  ReplicaRollbackPreview,
+  ExecuteReplicaRollback,
+  StorageGenerationStageRequest,
+  StorageGenerationRead,
+  StorageGenerationTestRequest,
+  StorageGenerationTestResult,
+  StorageGenerationActionRequest,
+  StorageGenerationMutationResult,
+  CostControlBudgetList,
+  CostControlBudgetDetail,
+  CostControlPriceList,
+  PersistedBudgetRevision,
+  PersistedPriceRevision,
+  BudgetDraftWrite,
+  PriceDraftWrite,
+  CostPolicyTransitionRequest,
+  CostPolicyRollbackRequest,
+  CostAlertChannelList,
+  CostPolicyScopeCatalog,
+  CostPolicyScopeCatalogQuery,
+  CostBudgetAlertBinding,
+  CostBudgetAlertBindingWrite,
+  CostAlertList,
+  CostAlertListQuery,
+  CostAlertInboxPage,
+  CostAlertInboxQuery,
+  CostAlertInboxReadAck,
+  CostAlertRecipient,
+  CostAlertRecipientCatalog,
+  CostAlertRecipientCatalogQuery,
+  CostAlertRecipientLifecycleWrite,
+  CostAlertRecipientLifecycleResult,
+  CostAdjustmentCommand,
+  CostAdjustmentCommandResult,
+  CostAdjustmentEvidencePage,
+  CostAdjustmentEvidenceQuery,
+  CostAdjustmentHistoryPage,
+  CostAdjustmentQuery,
+  TenantActiveConnectorCatalogItem,
+  TenantActiveConnectorCatalogPage,
+  TenantActiveConnectorCatalogQuery,
+  ProviderReportedCost,
+} from '@du/contracts';
+
 export interface AdminWebSession {
   schemaVersion: string;
   plane: 'oidc' | 'legacy';
@@ -16,8 +141,32 @@ export interface AdminWebSession {
   };
   scope: { kind: 'platform' } | { kind: 'tenant'; tenantId: string } | null;
   displayName: string;
+  /** True only for a validated local USER session; identity material stays server-side. */
+  localUser: boolean;
   /** Server-side CSRF proof; echo it in `X-CSRF-Token` on mutations. */
   csrfToken: string;
+}
+
+/** Server-side tenant triage filters exposed by the shared operations client. */
+export interface AdminOperationsQuery {
+  limit?: string;
+  cursor?: string;
+  state?: string;
+  tenant?: string;
+  id?: string;
+  sort?: string;
+  from?: string;
+  to?: string;
+  business?: string;
+  action?: string;
+  apiKey?: string;
+  profile?: string;
+  correlation?: string;
+  provider?: string;
+  model?: string;
+  usage?: 'has-recorded-usage' | 'no-recorded-usage';
+  reservation?: 'unknown';
+  attention?: 'waiting-input';
 }
 
 /** problem+json shape shared with the platform JSON API (@du/contracts). */
@@ -338,6 +487,8 @@ export interface ProfileDetail {
   policy: ProfilePolicyRead;
   manifest: { actions: { name?: string; action?: string }[] };
   capabilities: ProfileCapability[];
+  /** Exact safe connector revision pins on the active profile revision. */
+  connectorBindings: Record<string, { connectorId: string; revision: number }>;
   /**
    * T-API-01 closure: the opaque API-key row id this profile belongs to. The
    * detail read reveals it (never the hash) so the profile.* commands can
@@ -358,6 +509,8 @@ export interface ApiKeyIdRef {
 }
 
 export interface PolicyUpsertBody {
+  endpointSlug?: string;
+  connectorBindings?: Record<string, { connectorId: string; revision: number }>;
   expectedRevision?: number;
   policy: Record<string, unknown>;
   apiKey?: ApiKeyIdRef;
@@ -420,7 +573,215 @@ export interface OperationDetail {
   raw: Record<string, unknown>;
 }
 
-export type UsageSummary = Record<string, unknown>;
+export interface UsageSummaryRow {
+  provider: string;
+  model: string;
+  operations: number;
+  inputTokens: number;
+  outputTokens: number;
+  pages: number;
+  costMicrousd: number;
+  measurement: 'measured' | 'estimated' | 'mixed' | 'pending';
+  costStatus?: 'measured' | 'estimated' | 'unpriced' | 'pending';
+}
+
+/** Exact tenant-scoped projection returned by GET /admin/api/usage. */
+export type UsageSummary = Record<string, unknown> & {
+  tenantId: string;
+  from: string;
+  to: string;
+  rows: UsageSummaryRow[];
+  totals: {
+    operations: number;
+    inputTokens: number;
+    outputTokens: number;
+    pages: number;
+    costMicrousd: number;
+    costStatus?: 'measured' | 'estimated' | 'unpriced' | 'pending';
+  };
+};
+
+/** BASIC_ADMIN_USAGE_V1 filters accepted by the tenant-scoped Admin event view. */
+export interface UsageEventQuery {
+  tenantId: string;
+  from: string;
+  to: string;
+  timeField?: 'receivedAt';
+  limit?: number;
+  cursor?: string;
+  operationId?: string;
+  provider?: string;
+  model?: string;
+}
+
+/** Persisted runtime UsageEvent facts; null keeps missing cost attribution explicit. */
+export interface AdminUsageEventRecord {
+  eventId: string;
+  operationId: string;
+  taskId: string;
+  invocationId: string;
+  provider: string | null;
+  model: string | null;
+  units: { inputTokens: number; outputTokens: number; cachedInputTokens?: number; pages?: number };
+  costMicrousd: number | null;
+  costStatus: 'measured' | 'estimated' | 'unpriced' | 'pending' | null;
+  /** Diagnostic-only provider figure; trusted costMicrousd remains authoritative. */
+  providerReportedCost?: ProviderReportedCost;
+  /** Append-only adjustment projection; costMicrousd above remains the original charge. */
+  financialAccounting: {
+    rootEventId: string;
+    initialChargeMicrousd: number | null;
+    grossChargeMicrousd: number | null;
+    refundedMicrousd: number | null;
+    netChargeMicrousd: number | null;
+    adjustmentRevision: number;
+    headAdjustmentEventId: string | null;
+    semantics: 'initial-charge-plus-direct-root-adjustments-v1';
+  };
+  measurement: 'measured' | 'estimated';
+  occurredAt: string;
+  receivedAt: string;
+}
+
+export interface AdminUsageEventPage {
+  tenantId: string;
+  events: AdminUsageEventRecord[];
+  limit: number;
+  hasMore: boolean;
+  nextCursor?: string;
+  skippedInvalidEvents: number;
+  timeSemantics: { field: 'receivedAt'; order: 'asc'; timezone: 'UTC' };
+}
+
+// COMPOSE-OPS-01 browser-safe mirror of the bounded admin/host DTOs.
+export type ComposeAction = 'apply_release' | 'rollback_release' | 'restart_service';
+export type ComposeJobState = 'QUEUED' | 'CLAIMED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'PARTIAL' | 'UNKNOWN' | 'RECONCILED';
+export type ComposeAvailability = 'FRESH' | 'STALE' | 'UNAVAILABLE';
+export type ComposeSafeErrorCode =
+  | 'RUNNER_NOT_CONFIGURED' | 'SNAPSHOT_NOT_RECEIVED' | 'SNAPSHOT_INVALID' | 'MANIFEST_DIGEST_MISMATCH'
+  | 'DOCKER_UNAVAILABLE' | 'INVENTORY_UNAVAILABLE' | 'HEALTHCHECK_FAILED' | 'COMMAND_FAILED' | 'COMMAND_TIMEOUT'
+  | 'OUTPUT_LIMIT' | 'TARGET_BUSY' | 'STALE_SAMPLE' | 'STALE_PREVIEW' | 'TARGET_REVISION_CONFLICT'
+  | 'IDEMPOTENCY_CONFLICT' | 'EXECUTION_UNCERTAIN' | 'RUNNER_REPORT_REJECTED';
+export type ComposeServiceState = 'CREATED' | 'RUNNING' | 'PAUSED' | 'RESTARTING' | 'EXITED' | 'DEAD' | 'REMOVING' | 'UNKNOWN';
+export type ComposeHealth = 'HEALTHY' | 'UNHEALTHY' | 'STARTING' | 'NONE' | 'UNKNOWN' | null;
+export interface ComposeObservedService {
+  serviceId: string;
+  containerId: string | null;
+  imageId: string | null;
+  imageDigest: string | null;
+  state: ComposeServiceState;
+  health: ComposeHealth;
+  startedAt: string | null;
+  finishedAt: string | null;
+  observedReleaseId: string | null;
+}
+export interface ComposeCatalogService { serviceId: string; displayName: string; restartAllowed: boolean }
+export interface ComposeCatalogRelease {
+  releaseId: string;
+  displayName: string;
+  releaseDigest: string;
+  targetServices: string[];
+  images: Array<{ serviceId: string; imageDigest: string }>;
+  migrationCompatibility: 'acknowledged' | 'not_acknowledged';
+  rollbackAllowedFrom: string[];
+}
+export interface ComposeActiveJob { jobId: string; state: 'QUEUED' | 'CLAIMED' | 'RUNNING' | 'UNKNOWN' }
+export interface ComposeCatalogProject {
+  projectId: string;
+  displayName: string;
+  catalogRevision: string | null;
+  manifestDigest: string | null;
+  availability: ComposeAvailability;
+  sampledAt: string | null;
+  receivedAt: string | null;
+  lastErrorCode: ComposeSafeErrorCode | null;
+  observedDigest: string | null;
+  targetRevision: number;
+  desiredReleaseId: string | null;
+  activeJob: ComposeActiveJob | null;
+  services: ComposeCatalogService[];
+  releases: ComposeCatalogRelease[];
+  observedServices: ComposeObservedService[];
+}
+export interface ComposeCatalog {
+  configured: boolean;
+  hostId: string | null;
+  manifestDigest: string | null;
+  availability: ComposeAvailability;
+  receivedAt: string | null;
+  lastErrorCode: ComposeSafeErrorCode | null;
+  projects: ComposeCatalogProject[];
+}
+export interface ComposePreviewRequest {
+  hostId: string;
+  projectId: string;
+  action: ComposeAction;
+  releaseId?: string;
+  serviceId?: string;
+  reason: string;
+}
+export interface ComposePreview {
+  previewId: string;
+  hostId: string;
+  projectId: string;
+  action: ComposeAction;
+  releaseId: string | null;
+  serviceId: string | null;
+  reason: string;
+  createdAt: string;
+  expiresAt: string;
+  manifestDigest: string;
+  observedDigest: string;
+  expectedTargetRevision: number;
+  targetServices: string[];
+  targetReleaseDigest: string | null;
+  impact: { affectedServices: string[]; downtime: 'possible' | 'likely'; statefulServicesExcluded: true };
+  warnings: Array<'POSSIBLE_SERVICE_INTERRUPTION' | 'MIGRATION_COMPATIBILITY_ACKNOWLEDGED'>;
+}
+export interface ComposeSubmitJobRequest { previewId: string; expectedTargetRevision: number }
+export interface ComposePerServiceOutcome {
+  serviceId: string;
+  status: 'SUCCEEDED' | 'FAILED' | 'SKIPPED' | 'UNKNOWN';
+  errorCode: ComposeSafeErrorCode | null;
+}
+export type ComposeUncertainReason = 'CLAIM_EXPIRED' | 'START_ACK_LOST' | 'RUNNER_LOST' | 'REPORT_LOST' | 'EXECUTOR_TIMEOUT' | 'EXECUTION_UNCERTAIN' | null;
+export interface ComposeJob {
+  jobId: string;
+  previewId: string;
+  hostId: string;
+  projectId: string;
+  action: ComposeAction;
+  releaseId: string | null;
+  serviceId: string | null;
+  targetReleaseDigest: string | null;
+  targetServices: string[];
+  reason: string;
+  actorLabel: string;
+  state: ComposeJobState;
+  stateVersion: number;
+  expectedTargetRevision: number;
+  targetRevision: number;
+  createdAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  claimExpiresAt: string | null;
+  observedBeforeDigest: string;
+  startExpectedObservedDigest: string;
+  observedBefore: ComposeObservedService[];
+  observedAfter: ComposeObservedService[] | null;
+  observedAfterDigest: string | null;
+  perServiceOutcomes: ComposePerServiceOutcome[];
+  uncertainReason: ComposeUncertainReason;
+}
+export interface ComposeJobListQuery {
+  hostId?: string;
+  projectId?: string;
+  state?: ComposeJobState;
+  limit?: number;
+  cursor?: string;
+}
+export interface ComposeJobPage { items: ComposeJob[]; limit: number; hasMore: boolean; nextCursor?: string }
+export interface ComposeJobSubmission { job: ComposeJob; replayed: boolean }
 
 export interface BusinessRow {
   businessId: string;
@@ -498,6 +859,7 @@ export interface CryptoConfigView {
 export const SECRET_PURPOSES = [
   'connector.credential',
   'connector.provider_header',
+  'storage.credential',
   'profile.callback_header',
   'profile.callback_oauth2_client_secret',
   'oidc.client_secret',
@@ -560,6 +922,24 @@ export interface SecretCatalogListPage {
   items: SecretCatalogEntryRead[];
   nextCursor: string | null;
 }
+
+/** Bounded metadata-only Secret Catalog query. Tenant scope is checked by the BFF. */
+export interface SecretCatalogListQuery {
+  /** Selected owner tenant for platform Admin; BFF pins operator sessions. */
+  tenantId?: string;
+  q?: string;
+  cursor?: string;
+  limit?: string;
+  state?: SecretState;
+  purpose?: SecretPurpose;
+  service?: SecretService;
+  /** Accepted for compatibility; the server still uses its fixed newest-first order. */
+  sort?: string;
+}
+
+/** Tenant comes from the validated session unless a platform Admin selects one. */
+export type TenantActiveConnectorCatalogClientQuery =
+  Omit<TenantActiveConnectorCatalogQuery, 'tenantId'> & { tenantId?: string };
 
 export interface SecretCatalogCreateBody {
   tenantId: string;
@@ -671,4 +1051,12 @@ export interface WorkflowCatalogPage {
 export interface WorkflowDetailResponse {
   active: WorkflowCatalogItem | null;
   revisions: WorkflowCatalogItem[];
+}
+
+export interface MigrationReadinessRun {
+  sourceVersion: string; sourceSha256: string; planSha256: string; importedAt: string;
+  sourceCounts: Record<string, number>; destinationCounts: Record<string, number>;
+  latestInventory: null | { recordedAt: string; inventorySha256: string; targetCounts: Record<string, number>; issueCounts: Record<string, number>; totalIssues: number; verifiedBlobCount: number; failedBlobCount: number; externalGates: string[] };
+  status: 'INVENTORY_REQUIRED' | 'RECONCILIATION_REQUIRED' | 'EXTERNAL_VERIFICATION_REQUIRED';
+  cutoverReady: false;
 }

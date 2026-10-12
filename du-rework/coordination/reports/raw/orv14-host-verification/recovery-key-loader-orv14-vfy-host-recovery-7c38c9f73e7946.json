@@ -1,0 +1,193 @@
+{
+  "schema": "orv14-host-protected-recovery-key-loader/v1",
+  "disposition": "PARTIAL_PROTECTED_LOADER_PASS",
+  "command": "/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node tests/workflow-api/orv14-vfy-host/verify-recovery-key-loader.mjs",
+  "cwd": "/workspace/dugate/du-rework",
+  "node": "v24.21.0",
+  "startedAt": "2026-10-11T23:49:50.283Z",
+  "completedAt": "2026-10-11T23:49:56.739Z",
+  "uid": 1000,
+  "gid": 1000,
+  "sourceHash": "2c8f8ccb6926475e7702e51118c1e2e3cfc08382e5f6ff8e81ff88933d72423f",
+  "helperHashes": {
+    "infrastructure": "b1541e6d71fa68c5679afb3fa44a89c96a34808c9dd4b7abbdb81de4522ccf44",
+    "verifier": "4f296f0ce5b83fb58e2866ea192f8af2942f5aaa1231c934a96e4c44a8e99c27"
+  },
+  "scratchBuild": {
+    "command": "/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node /workspace/dugate/du-rework/orchestrator/node_modules/.pnpm/typescript@5.9.3/node_modules/typescript/bin/tsc /workspace/dugate/du-rework/orchestrator/services/orchestrator/src/modules/maintenance/recovery-key-file.ts --target ES2022 --module commonjs --moduleResolution node --strict --esModuleInterop --skipLibCheck --rootDir /workspace/dugate/du-rework/orchestrator/services/orchestrator/src/modules/maintenance --typeRoots /workspace/dugate/du-rework/orchestrator/services/orchestrator/node_modules/@types --outDir /tmp/orv14-vfy-host-recovery-7c38c9f73e7946-m620DF/work/recovery-key-loader-build",
+    "exitCode": 0,
+    "output": "",
+    "outputDirectory": "/tmp/orv14-vfy-host-recovery-7c38c9f73e7946-m620DF/work/recovery-key-loader-build",
+    "outputUnderUniqueFixtureTemp": true,
+    "sharedDistModified": false
+  },
+  "rootFixtureImage": {
+    "reference": "postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea",
+    "imageId": "sha256:81bd698b4594e751a3269e4dcd3e03a4a0ec0daf7b72e7aa1abd43cce9887542"
+  },
+  "namespace": "orv14-vfy-host-recovery-7c38c9f73e7946",
+  "tests": {
+    "passed": 16,
+    "failed": 0,
+    "skipped": 0,
+    "cases": [
+      {
+        "name": "nonroot process reads the exact root-owned group-readable backup key",
+        "status": "passed",
+        "uid": 1000,
+        "fileMode": "0440",
+        "keyByteCount": 32
+      },
+      {
+        "name": "exact four-field backup recovery pin parses from environment",
+        "status": "passed",
+        "allPinsPresent": true
+      },
+      {
+        "name": "the registry pin parser accepts the exact root-owned registry digest",
+        "status": "passed",
+        "digestPinned": true
+      },
+      {
+        "name": "pinned purpose registry resolves the exact archived Secret Catalog key version v4",
+        "status": "passed",
+        "purpose": "secret_catalog",
+        "version": "v4",
+        "keyByteCount": 32
+      },
+      {
+        "name": "pinned purpose registry resolves the exact current Secret Catalog key version v5",
+        "status": "passed",
+        "purpose": "secret_catalog",
+        "version": "v5",
+        "keyByteCount": 32
+      },
+      {
+        "name": "pinned purpose registry independently returns the Connector invocation key",
+        "status": "passed",
+        "purpose": "connector_invocation",
+        "version": "3",
+        "keyByteCount": 32
+      },
+      {
+        "name": "pinned purpose registry returns the base64-config legacy Connector credential key",
+        "status": "passed",
+        "purpose": "connector_credential",
+        "version": "legacy-v1",
+        "materialFormat": "base64-config"
+      },
+      {
+        "name": "symlink alias to an otherwise valid key is refused",
+        "status": "passed",
+        "genericDenial": true
+      },
+      {
+        "name": "wrong backup-key fingerprint is refused",
+        "status": "passed",
+        "genericDenial": true
+      },
+      {
+        "name": "world-readable key file is refused even when its fingerprint matches",
+        "status": "passed",
+        "genericDenial": true
+      },
+      {
+        "name": "archived Secret Catalog key version does not silently resolve to v6",
+        "status": "passed",
+        "genericDenial": true
+      },
+      {
+        "name": "wrong connector invocation key version is refused",
+        "status": "passed",
+        "genericDenial": true
+      },
+      {
+        "name": "recovery key cannot cross between invocation and secret-catalog purposes",
+        "status": "passed",
+        "genericDenial": true
+      },
+      {
+        "name": "wrong digest pin for the root-owned registry is refused",
+        "status": "passed",
+        "genericDenial": true
+      },
+      {
+        "name": "the synthetic symlink is root-owned and points only within its isolated fixture",
+        "status": "passed",
+        "uid": 0,
+        "symlink": true
+      },
+      {
+        "name": "trusted files and parents are root-owned and non-writable; readable fixture files use verifier group",
+        "status": "passed",
+        "files": [
+          {
+            "relativePath": "trusted/bundles/backup-v1.bin",
+            "uid": 0,
+            "gid": 1000,
+            "mode": 288,
+            "bytes": 32
+          },
+          {
+            "relativePath": "trusted/bundles/catalog-v4.bin",
+            "uid": 0,
+            "gid": 1000,
+            "mode": 288,
+            "bytes": 32
+          },
+          {
+            "relativePath": "trusted/bundles/catalog-v5.bin",
+            "uid": 0,
+            "gid": 1000,
+            "mode": 288,
+            "bytes": 32
+          },
+          {
+            "relativePath": "trusted/bundles/invocation-v3.bin",
+            "uid": 0,
+            "gid": 1000,
+            "mode": 288,
+            "bytes": 32
+          },
+          {
+            "relativePath": "trusted/bundles/credential-legacy-v1.txt",
+            "uid": 0,
+            "gid": 1000,
+            "mode": 288,
+            "bytes": 44
+          },
+          {
+            "relativePath": "trusted/bundles/world-readable.bin",
+            "uid": 0,
+            "gid": 1000,
+            "mode": 292,
+            "bytes": 32
+          },
+          {
+            "relativePath": "trusted/config/recovery-registry.json",
+            "uid": 0,
+            "gid": 1000,
+            "mode": 288,
+            "bytes": 1165
+          }
+        ]
+      }
+    ]
+  },
+  "cleanup": {
+    "projectId": "orv14-vfy-host-recovery-7c38c9f73e7946",
+    "removed": {
+      "containers": [],
+      "volumes": [],
+      "networks": []
+    },
+    "remaining": {
+      "containers": [],
+      "volumes": [],
+      "networks": []
+    },
+    "temporaryFixtureRemoved": true
+  },
+  "keyMaterialLogged": false,
+  "acceptance": "protected recovery-key loader slice only; no encrypted backup restore or full host continuity acceptance is claimed"
+}

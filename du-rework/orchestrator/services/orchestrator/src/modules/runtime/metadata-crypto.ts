@@ -63,6 +63,16 @@ export const METADATA_SLOTS = [
   // definitions may contain inline connector auth values and are sealed with
   // their tenant/slug/revision identity before any durable write.
   'legacy_workflow_schemas.schema_ref',
+  'settings_revisions.payload_ref',
+  'connector_prompt_overrides.prompt_override',
+  // ORV14-SETTINGS: tenant-global AI/prompt revision payloads and the
+  // operation-bound resolved defaults carrier use independent AAD slots.
+  'global_settings.tenant_revision',
+  'operations.tenant_defaults_ref',
+  'operations.connector_recipe_pins_ref',
+  // ORV14 secret-import journal. The resolved credential payload contains a
+  // short-lived write-only value and is bound to its tenant + journal row.
+  'connector_secret_imports.resolved_payload',
 ] as const;
 
 export type MetadataSlot = (typeof METADATA_SLOTS)[number];

@@ -106,12 +106,23 @@ describe('AWEB-11C worker instance read model', () => {
 });
 
 describe('AWEB-11C persisted runtime worker heartbeat', () => {
-  test('upserts authenticated instance data and active task leases before acknowledging health', async () => {
+  test('upserts authenticated instance data and safely joins text scope IDs to UUID tenants', async () => {
     const lastSeenAt = new Date('2026-10-10T11:59:59.000Z');
-    const query = jest.fn(async (_sql: string, _params: unknown[] = []) =>
-      queryResult([{ state: 'ONLINE', last_seen_at: lastSeenAt }]),
-    );
-    const db = { query } as unknown as Db;
+    const query = jest.fn(async (sql: string, _params: unknown[] = []) => {
+      if (sql.includes('SELECT scope_kind,scope_id,desired_state,revision')) {
+        return queryResult([
+          { scope_kind: 'platform', scope_id: 'all', desired_state: 'OPEN', revision: 3 },
+          { scope_kind: 'business', scope_id: BUSINESS_ID, desired_state: 'OPEN', revision: 4 },
+        ]);
+      }
+      if (sql.includes('SELECT r.scope_id,r.revision,r.desired_state')) return queryResult([]);
+      if (sql.includes('SELECT desired_control_revision,desired_control_state')) return queryResult([]);
+      if (sql.includes('WITH lease_count')) return queryResult([{
+        state: 'ONLINE', last_seen_at: lastSeenAt, control_revision: 4, control_state: 'OPEN',
+      }]);
+      return queryResult([]);
+    });
+    const db = { tx: jest.fn(async (work: (client: never) => Promise<unknown>) => work({ query } as never)) } as unknown as Db;
     const heartbeat = {
       businessId: BUSINESS_ID,
       businessVersion: '3.2.1',
@@ -121,19 +132,39 @@ describe('AWEB-11C persisted runtime worker heartbeat', () => {
 
     const result = await recordWorkerHeartbeat(db, 'worker-1', heartbeat);
 
-    expect(result).toEqual({ state: 'ONLINE', lastSeenAt: lastSeenAt.toISOString() });
-    expect(query).toHaveBeenCalledTimes(1);
-    const [sql, params] = query.mock.calls[0]!;
+    expect(result).toEqual({ state: 'ONLINE', lastSeenAt: lastSeenAt.toISOString(), controlRevision: 4, controlState: 'OPEN' });
+    const write = query.mock.calls.find(([sql]) => sql.includes('WITH lease_count'));
+    expect(write).toBeDefined();
+    const [sql, params] = write!;
     expect(sql).toContain('INSERT INTO worker_instances');
     expect(sql).toContain('ON CONFLICT (business_id, instance_id) DO UPDATE');
     expect(sql).toContain("t.state = 'RUNNING'");
     expect(sql).toContain('t.lease_expires_at > statement_timestamp()');
     expect(sql).toContain('o.business_id = $1');
-    expect(params).toEqual([BUSINESS_ID, 'worker-1', '3.2.1', 8]);
+    expect(params).toEqual([BUSINESS_ID, 'worker-1', '3.2.1', 8, 'ONLINE', 4, 'OPEN', 'sha256:abc123', null, null]);
+    const tenantScopeQuery = query.mock.calls.find(([statement]) => statement.includes('SELECT r.scope_id,r.revision,r.desired_state'))?.[0];
+    expect(tenantScopeQuery).toContain('o.tenant_id::text=r.scope_id');
+    expect(tenantScopeQuery).not.toContain('r.scope_id::uuid');
+    expect(query).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO worker_control_scope_acks'), expect.any(Array));
   });
 
   test('runtime route enforces the token business and rejects invalid heartbeat payloads', async () => {
-    const query = jest.fn(async () => queryResult([{ state: 'ONLINE', last_seen_at: new Date() }]));
+    const lastSeenAt = new Date();
+    const query = jest.fn(async (sql: string) => {
+      if (sql.includes('SELECT scope_kind,scope_id,desired_state,revision')) {
+        return queryResult([
+          { scope_kind: 'platform', scope_id: 'all', desired_state: 'OPEN', revision: 3 },
+          { scope_kind: 'business', scope_id: BUSINESS_ID, desired_state: 'OPEN', revision: 4 },
+        ]);
+      }
+      if (sql.includes('SELECT r.scope_id,r.revision,r.desired_state')) return queryResult([]);
+      if (sql.includes('SELECT desired_control_revision,desired_control_state')) return queryResult([]);
+      if (sql.includes('WITH lease_count')) return queryResult([{
+        state: 'ONLINE', last_seen_at: lastSeenAt, control_revision: 4, control_state: 'OPEN',
+      }]);
+      return queryResult([]);
+    });
+    const tx = jest.fn(async (work: (client: never) => Promise<unknown>) => work({ query } as never));
     const heartbeatBody = {
       businessId: BUSINESS_ID,
       businessVersion: '3.2.1',
@@ -146,7 +177,7 @@ describe('AWEB-11C persisted runtime worker heartbeat', () => {
       searchParams: new URLSearchParams(),
       headers: { authorization: `Bearer ${WORKER_TOKEN}` },
       body: heartbeatBody,
-      db: { query },
+      db: { query, tx },
       config: { workerIdentityTokensByBusiness: { [BUSINESS_ID]: WORKER_TOKEN } },
     } as unknown as RouteContext;
 
@@ -154,7 +185,7 @@ describe('AWEB-11C persisted runtime worker heartbeat', () => {
     expect(response?.status).toBe(200);
     expect(HeartbeatAckSchema.safeParse(response?.body).success).toBe(true);
     expect(response?.body).toMatchObject({ health: 'HEALTHY', capacity: 8 });
-    expect(query).toHaveBeenCalledTimes(1);
+    expect(tx).toHaveBeenCalledTimes(1);
 
     const mismatched = {
       ...base,

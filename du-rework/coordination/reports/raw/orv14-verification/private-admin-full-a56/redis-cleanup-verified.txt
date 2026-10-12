@@ -1,0 +1,7 @@
+container_name=orv14-vfy-primary-browser-redis-20261012-a
+image=redis:7-alpine
+loopback_port=26415
+all candidate DBs 0-15 were queried immediately before stop; each dbsize=0
+docker ps -a exact-name after stop:
+listener 26415 after stop:
+State Recv-Q Send-Q Local Address:Port Peer Address:Port

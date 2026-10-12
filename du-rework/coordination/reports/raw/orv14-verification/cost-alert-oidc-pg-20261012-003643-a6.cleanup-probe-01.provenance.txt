@@ -1,0 +1,6 @@
+attempt=cost-alert-oidc-pg-20261012-003643-a6 extra cleanup probe 01
+started_utc=2026-10-12 00:37 UTC
+cwd=/workspace/dugate/du-rework
+command=Node 24.21 read-only pg schema check followed by ioredis SCAN for the owned OIDC prefix; stdout/stderr captured at cost-alert-oidc-pg-20261012-003643-a6.cleanup.txt
+result=The PostgreSQL schema query completed, but the Redis client was constructed with enableOfflineQueue=false and SCAN was issued before its ready event. ioredis rejected the command with `Stream isn't writeable and enableOfflineQueue options is false`; no Redis mutation command was issued. The owned probe was interrupted (exit 130) after the client did not exit promptly. This is a verifier cleanup-probe setup error, not a fixture/test failure.
+followup=Ready-gated read-only cleanup check `cost-alert-oidc-pg-20261012-003643-a6.cleanup-check-02.txt` passed: schema absent, Redis DB14 owned prefix has zero keys, recorded ports closed, artifact directory absent.

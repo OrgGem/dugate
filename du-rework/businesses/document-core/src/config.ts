@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
+import { createWorkflowPrivateHttpsEgressPolicy, parseWorkflowPrivateHttpsOrigins } from './workflow-private-https-policy';
 
 export const WorkerEnvSchema = z.object({
   RUNTIME_URL: z.string().url({ message: 'RUNTIME_URL must be a valid URL' }),
@@ -21,6 +22,17 @@ export const WorkerEnvSchema = z.object({
     .pipe(z.number().int().min(100, { message: 'HEARTBEAT_INTERVAL_MS must be at least 100ms' })),
   WORKER_INSTANCE_ID: z.string().optional(),
   IMAGE_DIGEST: z.string().optional(),
+  WORKFLOW_PRIVATE_HTTPS_ORIGINS: z.string().optional().transform((value, context) => {
+    try {
+      return parseWorkflowPrivateHttpsOrigins(value);
+    } catch (error) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: error instanceof Error ? error.message : 'WORKFLOW_PRIVATE_HTTPS_ORIGINS is invalid',
+      });
+      return z.NEVER;
+    }
+  }),
   SHUTDOWN_GRACE_MS: z
     .string()
     .optional()
@@ -49,6 +61,7 @@ export interface DocumentCoreServiceConfig {
   workerInstanceId: string;
   imageDigest: string;
   shutdownGraceMs: number;
+  workflowPrivateHttpsOrigins: readonly string[];
 }
 
 /**
@@ -78,6 +91,7 @@ export function parseWorkerConfig(env: Record<string, string | undefined> = proc
     workerInstanceId: data.WORKER_INSTANCE_ID || `worker-document-core-${randomUUID()}`,
     imageDigest: data.IMAGE_DIGEST || 'sha256:placeholder-document-core-v1',
     shutdownGraceMs: data.SHUTDOWN_GRACE_MS,
+    workflowPrivateHttpsOrigins: data.WORKFLOW_PRIVATE_HTTPS_ORIGINS,
   };
 }
 
@@ -96,5 +110,6 @@ export function getRedactedConfig(config: DocumentCoreServiceConfig): Record<str
     workerInstanceId: config.workerInstanceId,
     imageDigest: config.imageDigest,
     shutdownGraceMs: config.shutdownGraceMs,
+    workflowPrivateHttpsPolicyDigest: createWorkflowPrivateHttpsEgressPolicy(config.workflowPrivateHttpsOrigins).digest,
   };
 }

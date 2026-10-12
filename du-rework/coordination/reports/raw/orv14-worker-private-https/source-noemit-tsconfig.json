@@ -1,0 +1,16 @@
+{
+  "extends": "/workspace/dugate/du-rework/businesses/document-core/tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": "/workspace/dugate/du-rework",
+    "baseUrl": "/workspace/dugate/du-rework",
+    "paths": {
+      "@du/contracts": ["orchestrator/packages/contracts/src/index.ts"],
+      "@du/worker-sdk": ["orchestrator/packages/worker-sdk/src/index.ts"],
+      "@du/document-kit": ["orchestrator/packages/document-kit/src/index.ts"],
+      "@du/egress": ["orchestrator/packages/egress/src/index.ts"],
+      "@du/orchestrator": ["orchestrator/services/orchestrator/dist/index.d.ts"],
+      "@du/connector": ["orchestrator/services/connector/dist/index.d.ts"]
+    }
+  }
+}

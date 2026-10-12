@@ -1,0 +1,20 @@
+{
+  "operationId": "3afe7d97-8eeb-469f-9d47-b5b28e9af76d",
+  "state": "CANCELLED",
+  "cancelStatus": 200,
+  "listenerEvents": [
+    {
+      "kind": "request",
+      "listener": "san-match",
+      "method": "GET",
+      "path": "/slow",
+      "host": "172-26-91-253.sslip.io:33657",
+      "sni": "172-26-91-253.sslip.io"
+    },
+    {
+      "kind": "client-close",
+      "listener": "san-match",
+      "path": "/slow"
+    }
+  ]
+}

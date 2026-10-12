@@ -56,6 +56,14 @@ export interface RedisSessionGateway {
     lastSeenAt: number,
     ttlSeconds: number,
   ): Promise<string | null>;
+  /** Atomic one-time pin of a verified external platform Admin session. */
+  pinCostAlertRecipient?(
+    sessionKey: string,
+    expected: SessionRecord,
+    principalId: string,
+    authorizationVersion: number,
+    ttlSeconds: number,
+  ): Promise<string | null>;
   /** DEL: returns the number of keys actually removed. */
   del(...keys: string[]): Promise<number>;
   sadd(key: string, member: string): Promise<void>;
@@ -127,6 +135,16 @@ function parseSessionRecord(raw: string, expectedSessionId: string): SessionReco
   if (!ROLES.includes(o.role as SessionRole)) return null;
   if (!isValidSessionId(o.csrfToken)) return null;
   if (!isFiniteNumber(o.createdAt) || !isFiniteNumber(o.lastSeenAt) || !isFiniteNumber(o.expiresAt)) return null;
+  const hasAlertPrincipal = o.costAlertPrincipalId !== undefined;
+  const hasAlertVersion = o.costAlertAuthorizationVersion !== undefined;
+  if (hasAlertPrincipal !== hasAlertVersion || (hasAlertPrincipal && (
+    !isNonEmptyString(o.costAlertPrincipalId)
+    || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(o.costAlertPrincipalId)
+    || !Number.isSafeInteger(o.costAlertAuthorizationVersion)
+    || Number(o.costAlertAuthorizationVersion) < 1
+    || o.role !== 'admin'
+    || o.tenantId !== null
+  ))) return null;
   return {
     sessionId: o.sessionId,
     issuer: o.issuer,
@@ -137,6 +155,10 @@ function parseSessionRecord(raw: string, expectedSessionId: string): SessionReco
     createdAt: o.createdAt,
     lastSeenAt: o.lastSeenAt,
     expiresAt: o.expiresAt,
+    ...(hasAlertPrincipal ? {
+      costAlertPrincipalId: o.costAlertPrincipalId as string,
+      costAlertAuthorizationVersion: o.costAlertAuthorizationVersion as number,
+    } : {}),
   };
 }
 
@@ -147,6 +169,8 @@ function sameSessionGeneration(current: SessionRecord | null, expected: SessionR
     current.sub === expected.sub &&
     current.tenantId === expected.tenantId &&
     current.role === expected.role &&
+    current.costAlertPrincipalId === expected.costAlertPrincipalId &&
+    current.costAlertAuthorizationVersion === expected.costAlertAuthorizationVersion &&
     current.csrfToken === expected.csrfToken &&
     current.createdAt === expected.createdAt &&
     current.expiresAt === expected.expiresAt;
@@ -217,6 +241,25 @@ export function createRedisSessionRepository(
     };
   }
 
+  const atomicAlertPin = redis.pinCostAlertRecipient?.bind(redis);
+  if (atomicAlertPin) {
+    repository.pinCostAlertRecipient = async (expected, principalId, authorizationVersion) => {
+      if (!isValidSessionId(expected.sessionId)
+        || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(principalId)
+        || !Number.isSafeInteger(authorizationVersion) || authorizationVersion < 1
+        || expected.role !== 'admin' || expected.tenantId !== null || expected.issuer === 'du-local'
+        || expected.costAlertPrincipalId !== undefined || expected.costAlertAuthorizationVersion !== undefined) return null;
+      const key = sessionKey(expected.sessionId);
+      const ttlSec = Math.max(1, Math.ceil((expected.expiresAt - now()) / 1000));
+      const raw = await atomicAlertPin(key, expected, principalId, authorizationVersion, ttlSec);
+      const pinned = raw === null ? null : parseSessionRecord(raw, expected.sessionId);
+      if (!pinned || pinned.costAlertPrincipalId !== principalId
+        || pinned.costAlertAuthorizationVersion !== authorizationVersion
+        || !sameSessionGeneration({ ...pinned, costAlertPrincipalId: undefined, costAlertAuthorizationVersion: undefined }, expected)) return null;
+      return { ...pinned };
+    };
+  }
+
   return repository;
 }
 
@@ -266,6 +309,15 @@ if ARGV[9] == '1' then
 elseif current.tenantId ~= ARGV[8] then
   return nil
 end
+local hasAlertPrincipal = current.costAlertPrincipalId ~= nil
+local hasAlertVersion = current.costAlertAuthorizationVersion ~= nil
+if hasAlertPrincipal ~= hasAlertVersion then return nil end
+if ARGV[12] == '1' then
+  if current.costAlertPrincipalId ~= ARGV[13]
+    or current.costAlertAuthorizationVersion ~= tonumber(ARGV[14]) then return nil end
+elseif hasAlertPrincipal or hasAlertVersion then
+  return nil
+end
 local requested = tonumber(ARGV[10])
 local prior = tonumber(current.lastSeenAt) or 0
 if requested > prior then current.lastSeenAt = requested end
@@ -287,6 +339,47 @@ return updated`,
         expected.tenantId ?? '',
         expected.tenantId === null ? '1' : '0',
         String(lastSeenAt),
+        String(ttlSeconds),
+        expected.costAlertPrincipalId === undefined ? '0' : '1',
+        expected.costAlertPrincipalId ?? '',
+        expected.costAlertAuthorizationVersion === undefined ? '' : String(expected.costAlertAuthorizationVersion),
+      );
+      return typeof result === 'string' ? result : null;
+    },
+    async pinCostAlertRecipient(sessionKey, expected, principalId, authorizationVersion, ttlSeconds) {
+      if (!isValidSessionId(expected.sessionId)
+        || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(principalId)
+        || !Number.isSafeInteger(authorizationVersion) || authorizationVersion < 1
+        || expected.role !== 'admin' || expected.tenantId !== null || expected.issuer === 'du-local'
+        || expected.costAlertPrincipalId !== undefined || expected.costAlertAuthorizationVersion !== undefined) return null;
+      const result = await client.eval(
+        `local raw = redis.call('GET', KEYS[1])
+if not raw then return nil end
+local current = cjson.decode(raw)
+if current.sessionId ~= ARGV[1]
+  or current.issuer ~= ARGV[2]
+  or current.sub ~= ARGV[3]
+  or current.createdAt ~= tonumber(ARGV[4])
+  or current.expiresAt ~= tonumber(ARGV[5])
+  or current.csrfToken ~= ARGV[6]
+  or current.role ~= 'admin'
+  or current.tenantId ~= cjson.null then return nil end
+if current.costAlertPrincipalId ~= nil or current.costAlertAuthorizationVersion ~= nil then return nil end
+current.costAlertPrincipalId = ARGV[7]
+current.costAlertAuthorizationVersion = tonumber(ARGV[8])
+local updated = cjson.encode(current)
+redis.call('SET', KEYS[1], updated, 'EX', tonumber(ARGV[9]))
+return updated`,
+        1,
+        sessionKey,
+        expected.sessionId,
+        expected.issuer,
+        expected.sub,
+        String(expected.createdAt),
+        String(expected.expiresAt),
+        expected.csrfToken,
+        principalId,
+        String(authorizationVersion),
         String(ttlSeconds),
       );
       return typeof result === 'string' ? result : null;

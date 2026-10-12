@@ -1,0 +1,10 @@
+{
+  "postgresSchemaAbsent": true,
+  "connectorPostgresSchemaAbsent": true,
+  "artifactDirectoryAbsent": true,
+  "connectorArtifactDirectoryAbsent": true,
+  "ownedMinioCleanup": null,
+  "cleanupFailures": [
+    "owned-minio"
+  ]
+}

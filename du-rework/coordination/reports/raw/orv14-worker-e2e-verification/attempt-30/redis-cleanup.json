@@ -1,0 +1,24 @@
+{
+  "preRunDbSize": 0,
+  "beforeCleanup": {
+    "patterns": {
+      "du:test:wfa_1791780561367_336c2cae06_connector:quota:*": 0,
+      "du:test:wfa_1791780561367_336c2cae06:*": 0,
+      "bull:du-business-document-core-1.1.0:*": 0,
+      "bull:du-business-lc-checker-1.1.0:*": 0
+    },
+    "totalDbSize": 0
+  },
+  "ownedKeyCount": 0,
+  "unlinkCalls": [],
+  "afterCleanup": {
+    "patterns": {
+      "du:test:wfa_1791780561367_336c2cae06_connector:quota:*": 0,
+      "du:test:wfa_1791780561367_336c2cae06:*": 0,
+      "bull:du-business-document-core-1.1.0:*": 0,
+      "bull:du-business-lc-checker-1.1.0:*": 0
+    },
+    "totalDbSize": 0
+  },
+  "ownedPatternsClear": true
+}

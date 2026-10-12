@@ -1,0 +1,11 @@
+{
+  "orchestrator/services/orchestrator/src/modules/operations/submission.ts": "eb70df532eb405a09f0b8c5cdb0ffe8265136643c72371646a1777642eeb62b5",
+  "orchestrator/services/orchestrator/src/compat/legacy-host-adapter.ts": "6261b20a0f2f47d27d0b3fe32f222569111f4b59364ce95e5688a8a7c88ee551",
+  "orchestrator/services/orchestrator/src/compat/legacy-url-input.ts": "434ca29e7e0f2edea3f28421b67b60f4e43867a581b9a92bfb8aeff42d8070aa",
+  "businesses/document-core/src/manifest/document-core.manifest.ts": "fe694f7bd81c3bf7c55e731b1b570687053b48170407510ac0d5c294d5d19067",
+  "businesses/document-core/src/validation/input-normalizer.ts": "c7160e01c6e06de949c8b56d950684f4977acf5c7bfd689a4b77b9f31b0b57a6",
+  "orchestrator/services/orchestrator/tests/orv11-api-boundaries.test.ts": "92746bb931b57bc7dd1bb8ad6b7da9fd017de677f7a1db442b4f8f14b3c95f21",
+  "orchestrator/services/orchestrator/tests/orv11-api-url.test.ts": "230ad644f6879070073a22ebc6417691b3ad461c7e32bb0125e056a701dc6cb1",
+  "orchestrator/services/orchestrator/tests/artifact-submit-guards.test.ts": "994fa9036f423824ed87fbde6d496d47a33fc69b35f721567c0ae7e7e2da3b33",
+  "businesses/document-core/tests/bounded-input.test.ts": "7ce41d2f7ab1f172d2d5056b493316dfe9aafdb9d00a4eb2f87614e69cda068c"
+}

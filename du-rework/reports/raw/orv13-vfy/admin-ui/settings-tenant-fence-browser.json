@@ -1,0 +1,13 @@
+{
+  "test": "VFY-UI13 SETTINGS tenant change while a real upstream scope read is in flight",
+  "delayedBffResponse": {
+    "path": "/admin/api/settings",
+    "tenantId": "3a1e9e7f-0c8e-4e94-a00c-9fb30220ab6a",
+    "responseOrigin": "actual mounted Admin BFF and settings service",
+    "releasedAfterTenantBSelected": true
+  },
+  "currentTenant": "c39e8cb8-827e-4857-8109-0bc033e776cb",
+  "staleApiKeyAbsent": true,
+  "staleProfileAbsent": true,
+  "shellUrl": "http://127.0.0.1:34269"
+}

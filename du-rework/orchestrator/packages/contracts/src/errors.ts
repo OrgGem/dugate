@@ -75,6 +75,7 @@ export const ConnectorErrorCodes = [
   'INVOCATION_UNKNOWN',
   'INPUT_HASH_MISMATCH',
   'QUOTA_EXHAUSTED',
+  'BUDGET_LIMIT_EXCEEDED',
   'CANCELLED',
 ] as const;
 export type ConnectorErrorCode = (typeof ConnectorErrorCodes)[number];

@@ -1,0 +1,11 @@
+▶ ORV14 cost alert Admin client
+  ✔ uses the same-origin BFF, session CSRF and idempotency transport for owner routing (76.91272ms)
+✔ ORV14 cost alert Admin client (79.67448ms)
+ℹ tests 1
+ℹ suites 1
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 253.756436

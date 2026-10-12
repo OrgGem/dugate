@@ -1,0 +1,17 @@
+{
+  "scripts": [
+    "/admin/assets/index-DYRIRIfm.js"
+  ],
+  "operationId": "d27d3c32-35af-4556-b7f9-8c8080f5fabc",
+  "state": "SUCCEEDED",
+  "resumeStatus": 200,
+  "typedInput": {
+    "extracted_data": {
+      "approved": true,
+      "amount": 125.5,
+      "comment": "Approved after independent review"
+    },
+    "step": 1
+  },
+  "schemaSource": "synthetic persisted business schema fixture; legacy generic fallback separately verified"
+}

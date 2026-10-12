@@ -1,0 +1,34 @@
+{
+  "schema": "du_test_wfa_1791774593423_9107267157_connector",
+  "searchPath": "du_test_wfa_1791774593423_9107267157_connector",
+  "searchPathComponents": [
+    "du_test_wfa_1791774593423_9107267157_connector"
+  ],
+  "appliedRequiredMigrations": [
+    "012_replica_runtime_controls",
+    "013_connector_recipe_revisions",
+    "015_backup_effect_fences"
+  ],
+  "runtimeControlIdentity": {
+    "slot": "blue",
+    "runtimeIdentity": "wfa-connector-runtime-72bd6ac0-c18d-4a54-b69f-fea3bdfb143d",
+    "replicaId": "wfa-connector-replica-c69b5c65-6780-4cf4-80e9-b7db91b134aa",
+    "revision": "wfa-vfy-1",
+    "imageDigest": "orv14-vfy-connector@sha256:9ec71e62d694812135db43d7d1a088bc186a68e3c3c72d09e0c3425ee7931b4e"
+  },
+  "registeredRuntimeControl": {
+    "slot": "blue",
+    "runtimeIdentity": "wfa-connector-runtime-72bd6ac0-c18d-4a54-b69f-fea3bdfb143d",
+    "replicaId": "wfa-connector-replica-c69b5c65-6780-4cf4-80e9-b7db91b134aa",
+    "revision": "wfa-vfy-1",
+    "imageDigest": "orv14-vfy-connector@sha256:9ec71e62d694812135db43d7d1a088bc186a68e3c3c72d09e0c3425ee7931b4e",
+    "controlRevision": 1,
+    "controlState": "OPEN",
+    "acknowledged": true
+  },
+  "backupEffectGate": {
+    "singletonId": 1,
+    "state": "OPEN",
+    "fenceRevision": 0
+  }
+}

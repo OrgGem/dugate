@@ -1,0 +1,1 @@
+Harness preparation blocked before any test or resource setup: runner referenced unchanged 46/184 contract manifests that had not been copied into attempt-23. Copied the exact attempt-21 manifests after verifying all rows against current dist/source; no test process or database resource was started.

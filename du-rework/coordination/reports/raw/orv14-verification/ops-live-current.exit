@@ -1,0 +1,2 @@
+exit_code=1
+interpretation=two independent tests failed in the unfiltered verifier command; one was an incorrect verifier DTO assertion, one was an actual PostgreSQL incident SQL failure

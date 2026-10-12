@@ -1,0 +1,20 @@
+{
+  "route": "POST /admin/api/compose/previews",
+  "status": 502,
+  "body": {
+    "type": "urn:du:error:upstream_error",
+    "title": "The admin API failed to complete the request",
+    "status": 502,
+    "code": "UPSTREAM_ERROR",
+    "correlationId": "e326d6a9-7ccc-4c89-a786-bef6c01992d6"
+  },
+  "directInternalStatus": 500,
+  "directInternalBody": {
+    "type": "urn:du:error:temporary_unavailable",
+    "title": "internal error",
+    "status": 500,
+    "code": "TEMPORARY_UNAVAILABLE",
+    "detail": "internal error (correlationId 0476eafd-1082-4acc-a099-6f40938e1e4a)",
+    "correlationId": "0476eafd-1082-4acc-a099-6f40938e1e4a"
+  }
+}

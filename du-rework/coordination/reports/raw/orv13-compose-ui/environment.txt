@@ -1,0 +1,8 @@
+Task: UI13-COMPOSE-UI
+Recorded: 2026-10-11 17:41:53 UTC
+Working directory: /workspace/dugate/du-rework
+HEAD: 7e36a1e4460d88661a2a74b4ad39296c9d5f68f3
+Node: v24.19.0 (workspace engine requests >=24.21.0 <25)
+pnpm: 11.25.0 (workspace packageManager requests pnpm@10.18.3)
+Build artifact: none
+Mounted browser proof: pending independent tester

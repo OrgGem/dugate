@@ -1,0 +1,60 @@
+--- coordination/reports/raw/orv14-worker-e2e-verification/attempt-01/dependency-sources.before.sha256	2026-10-12 00:36:45.359686369 +0000
++++ coordination/reports/raw/orv14-worker-e2e-verification/attempt-01/dependency-sources.after.sha256	2026-10-12 00:42:48.020257048 +0000
+@@ -271,7 +271,7 @@
+ 35e7eb3aeea4dd43a902c218c75b55eb6c25dd0d6b2b46e5204e0826a6eac4b0  orchestrator/services/orchestrator/src/http/errors.ts
+ 73994b66bc9516e70c6e92c4f97e93d8c8e4368308bcd1670a3063f0c9301d81  orchestrator/services/orchestrator/src/http/ingress-guard.ts
+ 25454f2e300ef4e16b22ac530e97312e33cca6859c15537af387ace7f379e26a  orchestrator/services/orchestrator/src/http/ingress.ts
+-96eeb470f086fe72fc6ef073d26f171742eb3e7f7ed84231e855d8e6233c6413  orchestrator/services/orchestrator/src/http/route-context.ts
++22b9196da7c21fbbb31dfc02fb25b8b205f2ff06f07d0f93bdd9205ec52029b7  orchestrator/services/orchestrator/src/http/route-context.ts
+ e8e2599da16f02a32ab610ed8ad4aa9b3ba6a65dbc6aa38e5d091d9d0da8c3b3  orchestrator/services/orchestrator/src/http/routes/admin-operation-upload.ts
+ d6fa739408bc6d82ff6eabb4c7a577fd619b3eba026ab3cc637739bb4288a098  orchestrator/services/orchestrator/src/http/routes/admin.ts
+ 2fef2f8d4244feaf15892d612e3f996f35744bf002e97fe1f476acbb5424f079  orchestrator/services/orchestrator/src/http/routes/api-key-auth.ts
+@@ -358,10 +358,11 @@
+ 42af5c1bfe6a6e0143e3751c1b7c8ebeaef9a81f18b21186e76f7ad2c3b37bfa  orchestrator/services/orchestrator/src/modules/cost-alerts/enqueue.ts
+ 1d6e75a2e51bfd85d6eda9e0f7e3e90f95f3fce20631bc78d98a75206a9863df  orchestrator/services/orchestrator/src/modules/cost-alerts/oidc-recipients.ts
+ 4a594dc7632d5608ef58bd66312b024ce8dc0684ebc96d07538636bd9f656203  orchestrator/services/orchestrator/src/modules/cost-alerts/service.ts
++7d7449f89ba235830b749e52bcc765477884e1737be45afd1ffa6e40f66d57f8  orchestrator/services/orchestrator/src/modules/cost-control/adjustments.ts
+ ef7af99182346f9ce4b683ee309cf805848f03f9424fed9b795dea01c96d0c47  orchestrator/services/orchestrator/src/modules/cost-control/cost-context.ts
+ 6c62b595990d7646f8cec6904a67fd8972305e565ba967bab098f3bd280e50c4  orchestrator/services/orchestrator/src/modules/cost-control/evidence-resolver.ts
+ 63716e464e10dcd8391e78bb127cf1e20ed4c61dd4a0201b8c3e8e13246858f1  orchestrator/services/orchestrator/src/modules/cost-control/reservation-groups.ts
+-f753e78dfdf875629b9238b41d8cbb1febe063615495fa42273227955afa9084  orchestrator/services/orchestrator/src/modules/cost-control/service.ts
++925ffcc6f2b46fe698b43852308355042001b9337cd772d422bee57f8c1f2253  orchestrator/services/orchestrator/src/modules/cost-control/service.ts
+ 18eb5f78e1db1d7edf0b82ecaaa52f3e85b9b8a8312c6d45da38d18c310786c2  orchestrator/services/orchestrator/src/modules/encryption/artifact-read-decrypt.ts
+ f84386b3c5fea459c0aa569304b500157f987e69e425eaaf2158bd5cc84ecc33  orchestrator/services/orchestrator/src/modules/encryption/backfill-metadata-cli.ts
+ 49d7b941ae6e1c63abb692f6bd20e510617818e835c9a017629c84d8ae970bb3  orchestrator/services/orchestrator/src/modules/encryption/boot-options.ts
+@@ -375,7 +376,7 @@
+ d44a7e417f8cf9c21ecdff60ca4f1cf8d1f22f66c080cb931b1dbe700468016c  orchestrator/services/orchestrator/src/modules/encryption/recipient-key-registry.ts
+ 2449f9226ed38d9629189cf0f9371910cf91a0dacf12573b270ddd51dd27ab99  orchestrator/services/orchestrator/src/modules/encryption/vault-transit-provider.ts
+ b001afe2eff17b29117922956f0fdcb2ca6edaea00c7e9d582b9d6f3aed96f81  orchestrator/services/orchestrator/src/modules/global-settings/defaults.ts
+-15cc28d05c4a7d0568642c16ec9376c69766cdaad3172c6dd7ed69c298fd18c0  orchestrator/services/orchestrator/src/modules/global-settings/service.ts
++6ab465dcf617557dd383efd24d5347b86aaf40beb1846712742b5a60d3495285  orchestrator/services/orchestrator/src/modules/global-settings/service.ts
+ 5b0b264c7fc6ec30c70be8d2227a402a8421cec0a787161ae3ef6e055cb82e49  orchestrator/services/orchestrator/src/modules/global-settings/snapshot.ts
+ 45561c34b80cd8496c9a975bead4e4a48cbf374f0472a326dcb82ebfd864e7fe  orchestrator/services/orchestrator/src/modules/global-settings/workflow-recipe-pins.ts
+ 2c71ce41fad040142035fb98c941153eecd38b2b3fb9afb57142bac58e0d05bd  orchestrator/services/orchestrator/src/modules/grants/grants.ts
+@@ -389,7 +390,7 @@
+ 49866b884652564a859b627d23814495492e30c0aa34573324f3feed44388c3b  orchestrator/services/orchestrator/src/modules/incidents/service.ts
+ d7e8f396d974667ccca1e9c696b651542c224b239e0d6a88529c4c78dd162df6  orchestrator/services/orchestrator/src/modules/legacy-migration/readiness.ts
+ c8e3bdf4a39b20e897ddf69c75e918aa8da803723c347bf3b9fadd01a85eaee9  orchestrator/services/orchestrator/src/modules/lifecycle/lifecycle.ts
+-c86a517c3d7fb74e4bf9a25edbed164a409bf1775094158ec1d0b7f7ededc315  orchestrator/services/orchestrator/src/modules/maintenance/backup-effect-fence.ts
++2695994ce1c5a8e97c8d61a0b4f6920e8c97acff61368e9ced7e412800463efa  orchestrator/services/orchestrator/src/modules/maintenance/backup-effect-fence.ts
+ d617bd021b621e460d4586069c49b96c49bd87794c2dad34dd892848b2f2d11b  orchestrator/services/orchestrator/src/modules/maintenance/connector-runtime-safety.ts
+ e27a248ad2682d700bbca673876b65814ad4b8405a15a02baf5b8689031d5569  orchestrator/services/orchestrator/src/modules/maintenance/job-runner.ts
+ f0a1eefec57d7e3a72524082ebdf904258318f21664a304ab19739eb0dbec5fe  orchestrator/services/orchestrator/src/modules/maintenance/maintenance-service.ts
+@@ -397,7 +398,7 @@
+ 2c8f8ccb6926475e7702e51118c1e2e3cfc08382e5f6ff8e81ff88933d72423f  orchestrator/services/orchestrator/src/modules/maintenance/recovery-key-file.ts
+ 5f1512caa08c726fc09a591e51aedb2ec26e8cddbcde2d02cae021883e910db7  orchestrator/services/orchestrator/src/modules/maintenance/replica-runtime-safety.ts
+ 074abff0bad0462d42425b2da10de314dfd771f79d982144836ffbf94d83f01f  orchestrator/services/orchestrator/src/modules/maintenance/rollouts.ts
+-6424461a29ace989171dd3bc81c8492b9c9208720a10e252968bf50751f4ce4a  orchestrator/services/orchestrator/src/modules/maintenance/trusted-backup-adapter.ts
++196af4ff5f275f8f2456778fd0a47930f8aebbc513012e3cced6f1c416579985  orchestrator/services/orchestrator/src/modules/maintenance/trusted-backup-adapter.ts
+ 027c64c82351613cda46e51369923872b44c8b77a11039eb7ea564fa775fb45a  orchestrator/services/orchestrator/src/modules/maintenance/trusted-manifest-rollout-adapter.ts
+ 9007760595e103158985512220315a322a64bcffbc5b09b12e35a7a15b935f45  orchestrator/services/orchestrator/src/modules/operations/acquisition-ref-resolver.ts
+ 6201d499472896f07e49472f8f8759b9ba8d4d35c7eeb772759325fc78f7dbfd  orchestrator/services/orchestrator/src/modules/operations/facade.ts
+@@ -426,7 +427,7 @@
+ c8454e066cb988f90cc6341d1502fe9e2f75b63685d78658ccf9d6b5be385c95  orchestrator/services/orchestrator/src/modules/runtime/runtime.ts
+ d8f830e0dc77955e0c22ed8d4f1baa695cb6da70177f54d0131b8b68cdae1350  orchestrator/services/orchestrator/src/modules/runtime/worker-identity.ts
+ a720365fabb69fdf3ed87beb3f20ad1b4aeae2155a8a9c29b6c7a72c9e2f720a  orchestrator/services/orchestrator/src/modules/runtime/worker-instances.ts
+-4ce2c0c55822dd0f667b6edd16c0715f73a3add974cc4a418b586c385ab02bc7  orchestrator/services/orchestrator/src/modules/secrets/secret-catalog-store.ts
++0df1da185962e51ccaac4f05a4a213650b3806775a1938eea91d75e138112ddb  orchestrator/services/orchestrator/src/modules/secrets/secret-catalog-store.ts
+ 124422bdca5c04e36b6c84d960d8ca05ea46b1357f2c30e2bdd4e251d0ece599  orchestrator/services/orchestrator/src/modules/secrets/secret-revision-resolver.ts
+ 2383329f5cc5349070be83ab8d95daa3b04acbeca52470dc2cc26039069ca395  orchestrator/services/orchestrator/src/modules/secrets/vault-resolver.ts
+ cc110c6924f2a6d9f5aba000652254803c52aed97ac78528e3bf2d403c78b6d9  orchestrator/services/orchestrator/src/modules/service-runtime/connector-replica-safety-source.ts

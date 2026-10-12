@@ -50,6 +50,7 @@ export const INVOCATION_CRYPTO_SLOTS = [
   'connector_invocations.request',
   'connector_invocations.result',
   'connector_invocations.session_ref',
+  'connector_parity_revisions.recipe',
 ] as const;
 
 export type InvocationCryptoSlot = (typeof INVOCATION_CRYPTO_SLOTS)[number];

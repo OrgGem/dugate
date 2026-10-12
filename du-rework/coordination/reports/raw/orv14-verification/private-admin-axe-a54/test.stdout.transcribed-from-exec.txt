@@ -1,0 +1,20 @@
+This file transcribes the stdout returned by functions.exec_command for the exact command in test-command.txt. It is not a rerendered or reconstructed run; process exit code was 0.
+ORV14_PRIVATE_UI_NAMESPACE runId=orv14_vfy_admin_ui_1791779659386_c06c7bb3 postgresSchema=du_test_orv14_vfy_admin_ui_1791779659386_c06c7bb3 redisDb=12 redisPrefix=du:test:orv14_vfy_admin_ui_1791779659386_c06c7bb3: redisDbEmptyBefore=true
+ORV14_PRIVATE_UI_S3 endpoint=127.0.0.1:33097 bucket=orv14-ui-19948ba97e784fa9bc9e isolatedContainer=orv14-vfy-admin-ui-minio-161e2bda68 versioning=Enabled
+ORV14_PRIVATE_UI_MIGRATIONS appliedThisRun=62 recorded=62
+{"subsystem":"admin-shell","timestamp":"2026-10-12T04:34:20.978Z","level":"info","service":"orchestrator","version":"unknown","environment":"dev","correlationId":"aa55504f-9e8e-468f-a3a9-90f58f2fbc87","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled"}
+{"subsystem":"admin-shell","timestamp":"2026-10-12T04:34:20.986Z","level":"info","service":"orchestrator","version":"unknown","environment":"dev","correlationId":"970475c9-e400-411c-a26a-82f47fb47484","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled"}
+ORV14_PRIVATE_UI_SERVER shell=http://127.0.0.1:33067 internalPort=43153 migrations=62 adminBundle=private-hash-recorded
+ORV14_PRIVATE_UI_HTTP_PROBE path=/admin status=302 location=/admin/login contentType=text/html; charset=utf-8 bodyBytes=0
+ORV14_PRIVATE_UI_HTTP_PROBE path=/admin/login status=200 location=none contentType=text/html; charset=utf-8 bodyBytes=31897
+
+Running 1 test using 1 worker
+
+(node:1756490) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env variable being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ORV14_FINANCE_UI_MATRIX [{"width":1440,"theme":"light","overflow":false,"scrollWidth":1440,"clientWidth":1440,"criticalOrSerious":[]},{"width":1440,"theme":"dark","overflow":false,"scrollWidth":1440,"clientWidth":1440,"criticalOrSerious":[]},{"width":768,"theme":"light","overflow":false,"scrollWidth":768,"clientWidth":768,"criticalOrSerious":[]},{"width":768,"theme":"dark","overflow":false,"scrollWidth":768,"clientWidth":768,"criticalOrSerious":[]},{"width":390,"theme":"light","overflow":false,"scrollWidth":390,"clientWidth":390,"criticalOrSerious":[]},{"width":390,"theme":"dark","overflow":false,"scrollWidth":390,"clientWidth":390,"criticalOrSerious":[]},{"width":320,"theme":"light","overflow":false,"scrollWidth":320,"clientWidth":320,"criticalOrSerious":[]},{"width":320,"theme":"dark","overflow":false,"scrollWidth":320,"clientWidth":320,"criticalOrSerious":[]}]
+ORV14_FINANCE_SERVED_ASSETS [{"url":"http://127.0.0.1:33067/admin/assets/index-Bh6sfPdC.css","sha256":"92006febb16bbac37d0f3342e6c4338f0eb25be38f1d2cc010b912aaead00eeb"},{"url":"http://127.0.0.1:33067/admin/assets/index-B79cz1bW.js","sha256":"225a33304c1627f213f99734bcc975e57c6e9b4c7cb0ac248226a950234a0711"}]
+  ✓  1 tests/browser/admin-web/orv14-cost-adjustment-journey.spec.ts:521:7 › ORV14 served Admin financial adjustment journey › final journey is keyboard accessible and has no critical/serious axe violations at required viewports/themes (15.3s)
+
+  1 passed (16.2s)
+ORV14_PRIVATE_UI_CLEANUP schemaAbsent=true redisEmptyAfter=true redisKeysAfter=0 ownedBucketAbsent=true ownedContainerAbsent=true

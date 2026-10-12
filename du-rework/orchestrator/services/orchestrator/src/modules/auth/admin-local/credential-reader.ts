@@ -37,7 +37,8 @@ export function createAdminLocalCredentialReader(db: Db): LocalCredentialReader 
       const result = await db.query<CredentialRow>(
         `SELECT id, password_hash, role, tenant_id
          FROM admin_local_users
-         WHERE username_normalized = $1 AND is_enabled = true AND is_locked = false`,
+         WHERE username_normalized = $1 AND is_enabled = true AND is_locked = false
+           AND legacy_password_reset_required = false`,
         [normalized]
       );
       if (result.rows.length !== 1) return null;

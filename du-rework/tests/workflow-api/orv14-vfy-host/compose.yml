@@ -1,0 +1,138 @@
+services:
+  orchestrator-source:
+    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
+    environment:
+      POSTGRES_USER: orv14_host
+      POSTGRES_PASSWORD: ${ORV14_VFY_HOST_PG_PASSWORD}
+      POSTGRES_DB: du_orchestrator
+    command: ["postgres", "-c", "cluster_name=orv14-host-orchestrator-source"]
+    ports:
+      - "127.0.0.1::5432"
+    volumes:
+      - orchestrator-source-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orv14_host -d du_orchestrator"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  connector-source:
+    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
+    environment:
+      POSTGRES_USER: orv14_host
+      POSTGRES_PASSWORD: ${ORV14_VFY_HOST_PG_PASSWORD}
+      POSTGRES_DB: du_connector
+    command: ["postgres", "-c", "cluster_name=orv14-host-connector-source"]
+    ports:
+      - "127.0.0.1::5432"
+    volumes:
+      - connector-source-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orv14_host -d du_connector"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  orchestrator-restore:
+    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
+    environment:
+      POSTGRES_USER: orv14_host
+      POSTGRES_PASSWORD: ${ORV14_VFY_HOST_PG_PASSWORD}
+      POSTGRES_DB: du_orchestrator
+    command: ["postgres", "-c", "cluster_name=orv14-host-orchestrator-restore"]
+    ports:
+      - "127.0.0.1::5432"
+    volumes:
+      - orchestrator-restore-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orv14_host -d du_orchestrator"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  connector-restore:
+    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
+    environment:
+      POSTGRES_USER: orv14_host
+      POSTGRES_PASSWORD: ${ORV14_VFY_HOST_PG_PASSWORD}
+      POSTGRES_DB: du_connector
+    command: ["postgres", "-c", "cluster_name=orv14-host-connector-restore"]
+    ports:
+      - "127.0.0.1::5432"
+    volumes:
+      - connector-restore-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orv14_host -d du_connector"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  pg-tools:
+    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
+    user: "${ORV14_VFY_HOST_UID}:${ORV14_VFY_HOST_GID}"
+    command: ["sh", "-c", "sleep 2147483647"]
+    environment:
+      PGSERVICEFILE: /orv14-vfy-host/trusted/config/pg_service.conf
+      PGPASSFILE: /orv14-vfy-host/trusted/config/pgpass
+    volumes:
+      - "${ORV14_VFY_HOST_ROOT}:/orv14-vfy-host"
+
+  redis:
+    image: redis:7-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499
+    ports:
+      - "127.0.0.1::6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  vault:
+    image: hashicorp/vault:1.18.5@sha256:750bb37c1638fa194ab37053a81618c61bb0491ddec6fccac87c07a8e6cd8166
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: ${ORV14_VFY_HOST_VAULT_TOKEN}
+    command: ["server", "-dev", "-dev-listen-address=0.0.0.0:8200"]
+    cap_add:
+      - IPC_LOCK
+    ports:
+      - "127.0.0.1::8200"
+
+  vault-restore:
+    image: hashicorp/vault:1.18.5@sha256:750bb37c1638fa194ab37053a81618c61bb0491ddec6fccac87c07a8e6cd8166
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: ${ORV14_VFY_HOST_VAULT_TOKEN}
+    command: ["server", "-dev", "-dev-listen-address=0.0.0.0:8200"]
+    cap_add:
+      - IPC_LOCK
+    ports:
+      - "127.0.0.1::8200"
+
+  minio:
+    image: orv14-vfy/minio:RELEASE-2025-09-07
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${ORV14_VFY_HOST_S3_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${ORV14_VFY_HOST_S3_SECRET_KEY}
+    ports:
+      - "127.0.0.1::9000"
+    volumes:
+      - minio-data:/data
+
+  minio-restore:
+    image: orv14-vfy/minio:RELEASE-2025-09-07
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${ORV14_VFY_HOST_S3_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${ORV14_VFY_HOST_S3_SECRET_KEY}
+    ports:
+      - "127.0.0.1::9000"
+    volumes:
+      - minio-restore-data:/data
+
+volumes:
+  orchestrator-source-data:
+  connector-source-data:
+  orchestrator-restore-data:
+  connector-restore-data:
+  minio-data:
+  minio-restore-data:

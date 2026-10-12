@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { CallbackApprovedOriginSchema } from './profile-callback';
+import { ConnectorWorkflowOverridesSchema } from './connector';
 
 /**
  * Bounded wire contracts for the legacy Workflow Builder document format.
@@ -202,7 +203,33 @@ export const LegacyWorkflowSchemaPinSchema = z.object({
   schema: LegacyWorkflowSchemaSchema,
   connectorSlotMap: LegacyWorkflowConnectorSlotMapSchema.optional(),
   approvedEgressOrigins: z.array(CallbackApprovedOriginSchema).max(16).optional(),
-}).strict();
+  /** Per-operation compiled Connector recipe overrides. These are absent in
+   * the tenant catalog row and appear only after admission has resolved the
+   * exact immutable Profile connector revisions. */
+  connectorRecipePins: z.record(
+    z.string().regex(/^[A-Za-z_][A-Za-z0-9_]{0,63}$/),
+    ConnectorWorkflowOverridesSchema,
+  ).superRefine((pins, context) => {
+    if (Object.keys(pins).length > LEGACY_WORKFLOW_MAX_NODES) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: 'Workflow has too many connector recipe pins' });
+    }
+  }).optional(),
+}).strict().superRefine((pin, context) => {
+  if (!pin.connectorRecipePins) return;
+  const nodeIds = new Set<string>();
+  const visit = (nodes: readonly LegacyWorkflowNode[]) => {
+    for (const node of nodes) {
+      if (node.type === 'connector') nodeIds.add(node.id);
+      if (node.type === 'parallel') for (const branch of node.branches ?? []) visit(branch);
+    }
+  };
+  visit(pin.schema.nodes);
+  for (const nodeId of Object.keys(pin.connectorRecipePins)) {
+    if (!nodeIds.has(nodeId)) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['connectorRecipePins', nodeId], message: 'recipe pin must target a connector node in the immutable schema' });
+    }
+  }
+});
 export type LegacyWorkflowSchemaPin = z.infer<typeof LegacyWorkflowSchemaPinSchema>;
 
 export const LegacyWorkflowTaskInputSchema = z.object({
@@ -321,8 +348,14 @@ export function canonicalLegacyWorkflowPinBytes(
   schema: LegacyWorkflowSchema,
   connectorSlotMap: Record<string, string>,
   approvedEgressOrigins: readonly string[] = [],
+  connectorRecipePins?: Readonly<Record<string, z.infer<typeof ConnectorWorkflowOverridesSchema>>>,
 ): Buffer {
-  return canonicalLegacyWorkflowJsonBytes({ schema, connectorSlotMap, approvedEgressOrigins: [...approvedEgressOrigins].sort() });
+  return canonicalLegacyWorkflowJsonBytes({
+    schema,
+    connectorSlotMap,
+    approvedEgressOrigins: [...approvedEgressOrigins].sort(),
+    ...(connectorRecipePins === undefined ? {} : { connectorRecipePins }),
+  });
 }
 
 /** Validate immutable exact-origin policy for every legacy outbound node. */

@@ -42,6 +42,14 @@ export interface ProviderTransport {
   send(request: ReturnType<ProviderAdapter['buildRequest']>, signal?: AbortSignal): Promise<ProviderResponse>;
 }
 
+export interface PreparedProviderDispatch {
+  request: ProviderRequest;
+  /** Enrich the durable provider result with the exact frozen pricing/policy snapshot. */
+  completeResult?(result: NormalizedProviderResult): NormalizedProviderResult;
+  /** Ambiguous or non-attributable provider outcomes retain the monetary hold. */
+  markUnknown?(reasonCode: string): Promise<void>;
+}
+
 export interface InvokeAdapterOptions {
   ledger: InvocationLedger;
   quota: QuotaStore;
@@ -55,6 +63,11 @@ export interface InvokeAdapterOptions {
   random?: () => number;
   credential?: CredentialGuard;
   providerTimeoutMs?: number;
+  /** Runs after the final request is rendered and immediately before send. */
+  prepareProviderDispatch?: (providerRequest: ProviderRequest, retryCount: number) => Promise<PreparedProviderDispatch>;
+  /** Applies trusted admin-test-only redaction before any provider result is
+   * committed to the invocation ledger. */
+  sanitizeResult?: (result: NormalizedProviderResult) => NormalizedProviderResult;
 }
 
 /**
@@ -272,6 +285,7 @@ export async function invokeAdapter(
     Math.min(quotaLeaseWindowMs, deadline - quotaAcquiredAt),
   );
   let lease: QuotaLease | undefined;
+  let preparedDispatch: PreparedProviderDispatch | undefined;
   let retainQuotaLease = Boolean(carriedQuotaLease);
   lease = carriedQuotaLease && carriedQuotaLease.expiresAt > quotaAcquiredAt ? carriedQuotaLease : undefined;
   try {
@@ -376,13 +390,39 @@ export async function invokeAdapter(
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
     let response: ProviderResponse;
     try {
-      const providerRequest = withInvocationIdempotencyKey(
-        options.adapter.buildRequest(providerInput, options.config),
-        request.invocationId,
-      );
+      let providerRequest: ProviderRequest;
+      try {
+        providerRequest = withInvocationIdempotencyKey(
+          options.adapter.buildRequest(providerInput, options.config),
+          request.invocationId,
+        );
+      } catch (error) {
+        await options.ledger.fail(request.invocationId, error instanceof ConnectorError ? error.code : 'INVALID_INPUT', pollLeaseToken);
+        retainQuotaLease = false;
+        throw error;
+      }
+      const effectActivated = await (options.ledger.activateEffect?.(request.invocationId, pollLeaseToken) ?? true);
+      if (!effectActivated) {
+        // The durable backup gate won the race. The ledger has already made
+        // the unsent invocation terminal or restored this poll to PENDING; no
+        // cost preflight or provider transport is allowed to run.
+        if (!pollLeaseToken) retainQuotaLease = false;
+        throw new ConnectorError('CONNECTOR_DISABLED', 'Connector effects are held for a maintenance backup.');
+      }
+      if (options.prepareProviderDispatch) {
+        try {
+          preparedDispatch = await options.prepareProviderDispatch(providerRequest, providerPollAttempts);
+          providerRequest = preparedDispatch.request;
+        } catch (error) {
+          await options.ledger.fail(request.invocationId, error instanceof ConnectorError ? error.code : 'PROVIDER_UNAVAILABLE', pollLeaseToken);
+          retainQuotaLease = false;
+          throw error;
+        }
+      }
       response = await options.transport.send(providerRequest, controller.signal);
       if (controller.signal.aborted || now() >= deadline) {
         retainQuotaLease = Boolean(renewal.getLease());
+        await preparedDispatch?.markUnknown?.('PROVIDER_DEADLINE_AMBIGUOUS');
         await options.ledger.markUnknown(request.invocationId, pollLeaseToken);
         throw new ConnectorError(
           quotaRenewalFailed ? 'INVOCATION_UNKNOWN' : 'PROVIDER_TIMEOUT',
@@ -392,6 +432,12 @@ export async function invokeAdapter(
         );
       }
     } catch (error) {
+      if (preparedDispatch?.markUnknown) {
+        retainQuotaLease = Boolean(renewal.getLease());
+        await preparedDispatch.markUnknown(error instanceof ConnectorError ? error.code : 'PROVIDER_TRANSPORT_AMBIGUOUS');
+        await options.ledger.markUnknown(request.invocationId, pollLeaseToken);
+        throw new ConnectorError('INVOCATION_UNKNOWN', 'Provider outcome is unknown; reconciliation is required.');
+      }
       if (error instanceof ConnectorError) throw error;
       if (controller.signal.aborted) {
         retainQuotaLease = Boolean(renewal.getLease());
@@ -423,6 +469,16 @@ export async function invokeAdapter(
       );
     }
     if (response.status === 202) {
+      if (preparedDispatch?.markUnknown) {
+        // Cost-controlled requests do not have an approved provider-poll
+        // capability yet. A 202 proves the provider accepted a call, but it
+        // does not deliver final billable usage; retain the group as UNKNOWN
+        // and prohibit automatic replay/polling.
+        retainQuotaLease = Boolean(lease);
+        await preparedDispatch.markUnknown('ASYNC_RESPONSE_USAGE_UNAVAILABLE');
+        await options.ledger.markUnknown(request.invocationId, pollLeaseToken);
+        throw new ConnectorError('INVOCATION_UNKNOWN', 'Provider accepted an asynchronous call; reconciliation is required.');
+      }
       if (
         options.adapter.asyncPollingMode !== 'idempotency-key-replay'
         || options.config.asyncPollingMode !== 'idempotency-key-replay'
@@ -500,6 +556,7 @@ export async function invokeAdapter(
     }
     if (response.status < 200 || response.status >= 300) {
       const code = options.adapter.classifyFailure(response);
+      await preparedDispatch?.markUnknown?.('PROVIDER_RESPONSE_WITHOUT_USAGE');
       await options.ledger.fail(request.invocationId, code, pollLeaseToken);
       retainQuotaLease = false;
       throw new ConnectorError(code, describeNonSuccessResponse(request, response.status), {
@@ -509,9 +566,15 @@ export async function invokeAdapter(
     }
     let result: NormalizedProviderResult;
     try {
-      result = options.adapter.normalizeResponse(response, options.config);
+      result = {
+        ...options.adapter.normalizeResponse(response, options.config),
+        providerStatusCode: response.status,
+        providerLatencyMs: Math.max(0, now() - sendTime),
+      };
+      if (preparedDispatch?.completeResult) result = preparedDispatch.completeResult(result);
     } catch (error) {
       if (error instanceof ConnectorError) {
+        await preparedDispatch?.markUnknown?.('PROVIDER_RESULT_UNATTRIBUTABLE');
         await options.ledger.fail(request.invocationId, error.code, pollLeaseToken);
         retainQuotaLease = false;
       }
@@ -525,12 +588,14 @@ export async function invokeAdapter(
     if (result.sessionRef === undefined && storedSessionRef !== undefined) {
       result = { ...result, sessionRef: storedSessionRef };
     }
+    if (options.sanitizeResult) result = options.sanitizeResult(result);
     await options.ledger.complete(request.invocationId, result, pollLeaseToken);
     retainQuotaLease = false;
     return { state: 'completed', result };
   } catch (error) {
     if (error instanceof ConnectorError) throw error;
     retainQuotaLease = Boolean(lease);
+    await preparedDispatch?.markUnknown?.('PROVIDER_OUTCOME_AMBIGUOUS');
     await options.ledger.markUnknown(request.invocationId, pollLeaseToken);
     throw new ConnectorError('INVOCATION_UNKNOWN', 'Provider outcome is unknown; reconciliation is required.');
   } finally {

@@ -1,3 +1,15 @@
+import { createHash } from 'node:crypto';
+import {
+  canonicalize,
+  UsageEventSchema,
+  ConnectorSignalSnapshotSchema,
+  type ConnectorProviderTestEvidence,
+  type ConnectorProviderTestEvidenceQuery,
+  type ConnectorSignalSnapshot,
+  type ConnectorSignalSnapshotQuery,
+} from '@du/contracts';
+import { toContractUsageEvent, type UsageEvent } from '../usage';
+import { PostgresUsageOutbox } from './usage-outbox';
 import { ConnectorError } from '../errors';
 import {
   ConnectorRevisionBindingSchema,
@@ -23,6 +35,11 @@ import type {
   QuotaLease,
 } from '../types';
 import type { SqlClient } from './sql';
+import {
+  assertConnectorBackupEffectGateOpen,
+  insertConnectorEffectPermit,
+  lockConnectorBackupEffectGate,
+} from './backup-effect-fences';
 
 interface InvocationRow {
   invocation_id: string;
@@ -44,6 +61,9 @@ interface InvocationRow {
   quota_lease_id: string | null;
   quota_lease_expires_at: string | Date | null;
   provider_poll_attempts: number;
+  state_version?: number | string;
+  provider_effect_id?: string | null;
+  poll_effect_id?: string | null;
   updated_at: string;
 }
 
@@ -63,11 +83,21 @@ export interface PostgresInvocationLedgerOptions {
    * always sealed or refused.
    */
   readonly legacyPlaintextReads?: boolean;
+  /** Boot-pinned owner used by the Connector replica drain fence. Absent for
+   * pre-rollout-compatible deployments; when present, first claims lock and
+   * verify this replica's durable OPEN control row in the same transaction. */
+  readonly replicaId?: string;
+  /** Process identity and boot nonce bind durable effect ownership. */
+  readonly runtimeIdentity?: string;
+  readonly bootId?: string;
 }
 
 export class PostgresInvocationLedger implements InvocationLedger {
   private readonly fieldCrypto?: InvocationFieldCrypto;
   private readonly legacyPlaintextReads: boolean;
+  private readonly replicaId?: string;
+  private readonly runtimeIdentity?: string;
+  private readonly bootId?: string;
 
   public constructor(
     private readonly db: SqlClient,
@@ -75,6 +105,9 @@ export class PostgresInvocationLedger implements InvocationLedger {
   ) {
     this.fieldCrypto = options.fieldCrypto;
     this.legacyPlaintextReads = options.legacyPlaintextReads === true;
+    this.replicaId = options.replicaId;
+    this.runtimeIdentity = options.runtimeIdentity;
+    this.bootId = options.bootId;
   }
 
   private requireCrypto(): InvocationFieldCrypto {
@@ -191,6 +224,249 @@ export class PostgresInvocationLedger implements InvocationLedger {
     return result.rows[0] ? this.toRecord(result.rows[0]) : undefined;
   }
 
+  /**
+   * Read-only, tenant-pinned source proof for the admin provider-test recovery
+   * path. It returns only rows whose encrypted request records the dedicated
+   * test purpose and the exact operation/task/connector revision supplied by
+   * the authenticated caller. A positive recovery requires both the durable
+   * mapped result and its exact usage-outbox event.
+   */
+  public async getProviderTestEvidence(
+    query: ConnectorProviderTestEvidenceQuery,
+  ): Promise<ConnectorProviderTestEvidence | undefined> {
+    const result = await this.db.query<InvocationRow>(
+      `SELECT * FROM connector_invocations
+       WHERE invocation_id = $1 AND tenant_id = $2 AND operation_id = $3 AND task_id = $4`,
+      [query.invocationId, query.tenantId, query.operationId, query.taskId],
+    );
+    const row = result.rows[0];
+    if (!row) return undefined;
+    const record = await this.toRecord(row);
+    if (
+      record.request.adminPurpose !== 'admin-provider-test'
+      || record.request.connectorId !== query.connectorId
+      || record.request.connectorRevision !== query.revision
+      || record.request.operationId !== query.operationId
+      || record.request.taskId !== query.taskId
+      || record.request.tenantId !== query.tenantId
+    ) return undefined;
+
+    const storedResult = record.state === 'SUCCEEDED' ? record.result : undefined;
+    let resultView: ConnectorProviderTestEvidence['result'] = null;
+    let resultDigest: string | null = null;
+    if (storedResult) {
+      resultDigest = sha256(canonicalize(storedResult));
+      const content = storedResult.providerTestContentSanitized === true && typeof storedResult.content === 'string'
+        ? storedResult.content
+        : null;
+      resultView = {
+        content: content === null ? null : content.slice(0, 16_384),
+        ...(storedResult.providerTestContentSanitized === true ? { contentSanitized: true as const } : {}),
+        contentTruncated: storedResult.providerTestContentTruncated === true || (content !== null && content.length > 16_384),
+        statusCode: Number.isInteger(storedResult.providerStatusCode)
+          ? storedResult.providerStatusCode!
+          : null,
+        latencyMs: Number.isSafeInteger(storedResult.providerLatencyMs)
+          && storedResult.providerLatencyMs! >= 0
+          ? storedResult.providerLatencyMs!
+          : null,
+        providerRequestId: typeof storedResult.providerRequestId === 'string'
+          ? storedResult.providerRequestId.slice(0, 512)
+          : null,
+        resultDigest,
+      };
+    }
+
+    let usageEvent: ConnectorProviderTestEvidence['usageEvent'] = null;
+    if (storedResult) {
+      const expectedEventId = `${query.invocationId}:1`;
+      const outbox = await this.db.query<{
+        event_id: string;
+        invocation_id: string;
+        payload: unknown;
+        delivered_at: string | Date | null;
+      }>(
+        `SELECT event_id, invocation_id, payload, delivered_at FROM connector_usage_outbox
+         WHERE event_id = $1 AND invocation_id = $2`,
+        [expectedEventId, query.invocationId],
+      );
+      const eventRow = outbox.rows[0];
+      let parsedEvent: ReturnType<typeof UsageEventSchema.safeParse> | undefined;
+      if (eventRow && typeof eventRow.payload === 'object' && eventRow.payload !== null && !Array.isArray(eventRow.payload)) {
+        try {
+          parsedEvent = UsageEventSchema.safeParse(toContractUsageEvent(eventRow.payload as UsageEvent));
+        } catch {
+          parsedEvent = undefined;
+        }
+      }
+      if (
+        eventRow
+        && parsedEvent?.success
+        && parsedEvent.data.eventId === expectedEventId
+        && parsedEvent.data.invocationId === query.invocationId
+        && parsedEvent.data.operationId === query.operationId
+        && parsedEvent.data.taskId === query.taskId
+        && Number.isFinite(Date.parse(parsedEvent.data.occurredAt))
+      ) {
+        const event = parsedEvent.data;
+        usageEvent = {
+          eventId: event.eventId,
+          payloadDigest: sha256(canonicalize(event)),
+          inputTokens: Number.isSafeInteger(event.units.inputTokens) ? event.units.inputTokens : null,
+          outputTokens: Number.isSafeInteger(event.units.outputTokens) ? event.units.outputTokens : null,
+          costMicrousd: Number.isSafeInteger(event.costMicrousd) ? event.costMicrousd : null,
+          measurement: event.measurement ?? null,
+          costStatus: event.costStatus ?? null,
+          occurredAt: new Date(event.occurredAt).toISOString(),
+          deliveredAt: eventRow.delivered_at === null ? null : normalizeTimestamp(eventRow.delivered_at),
+        };
+      }
+    }
+
+    const stateVersion = Number(row.state_version ?? 1);
+    if (!Number.isSafeInteger(stateVersion) || stateVersion < 1) {
+      throw new ConnectorError('INVOCATION_UNKNOWN', 'Stored invocation source version is invalid.');
+    }
+    if (record.state === 'NEW') {
+      throw new ConnectorError('INVOCATION_UNKNOWN', 'Stored invocation source state is invalid.');
+    }
+    const evidenceCore = {
+      tenantId: query.tenantId,
+      operationId: query.operationId,
+      taskId: query.taskId,
+      invocationId: query.invocationId,
+      connectorId: query.connectorId,
+      revision: query.revision,
+      state: record.state,
+      stateVersion,
+      updatedAt: normalizeTimestamp(row.updated_at),
+      errorCode: record.errorCode ?? null,
+      result: resultView,
+      usageEvent,
+      recoveryReady: record.state === 'SUCCEEDED' && resultView !== null && usageEvent !== null,
+    };
+    return {
+      ...evidenceCore,
+      evidenceDigest: sha256(canonicalize({
+        tenantId: query.tenantId,
+        operationId: query.operationId,
+        taskId: query.taskId,
+        invocationId: query.invocationId,
+        connectorId: query.connectorId,
+        revision: query.revision,
+        state: record.state,
+        stateVersion,
+        resultDigest,
+        usagePayloadDigest: usageEvent?.payloadDigest ?? null,
+      })),
+    };
+  }
+
+  /** Tenant-fenced projection of persisted invocation and outbox evidence. */
+  public async getSignalSnapshot(query: ConnectorSignalSnapshotQuery): Promise<ConnectorSignalSnapshot> {
+    const sampledAt = new Date();
+    const from = new Date(query.from).toISOString();
+    const to = new Date(query.to).toISOString();
+    const countRows = await this.db.query<{ state: string; count: string | number }>(
+      `SELECT state,count(*)::text AS count FROM connector_invocations
+       WHERE tenant_id=$1 AND updated_at >= $2 AND updated_at < $3 GROUP BY state`, [query.tenantId, from, to]);
+    const invocationCounts: Record<string, number> = {
+      NEW: 0, IN_FLIGHT: 0, PENDING: 0, POLLING: 0, SUCCEEDED: 0, FAILED: 0, UNKNOWN: 0, CANCELLED: 0,
+    };
+    for (const row of countRows.rows) {
+      if (!Object.hasOwn(invocationCounts, row.state)) continue;
+      const count = Number(row.count);
+      if (!Number.isSafeInteger(count) || count < 0) throw new ConnectorError('INVOCATION_UNKNOWN', 'Stored connector state count is invalid.');
+      invocationCounts[row.state] = count;
+    }
+    const failedRows = await this.db.query<{ error_code: string; count: string | number }>(
+      `SELECT error_code,count(*)::text AS count FROM connector_invocations
+       WHERE tenant_id=$1 AND state='FAILED' AND error_code IS NOT NULL AND updated_at >= $2 AND updated_at < $3
+       GROUP BY error_code ORDER BY count(*) DESC,error_code LIMIT 65`, [query.tenantId, from, to]);
+    const failedByCode = failedRows.rows.slice(0, 64).map((row) => ({ errorCode: row.error_code, count: Number(row.count) }));
+
+    // Include invocations referenced by outbox events in the window even when
+    // their latest state change occurred earlier; this keeps every returned
+    // event reference joinable without widening the tenant fence.
+    const invocationRows = await this.db.query<InvocationRow>(
+      `SELECT i.* FROM connector_invocations i
+       WHERE i.tenant_id=$1 AND (
+         (i.updated_at >= $2 AND i.updated_at < $3)
+         OR EXISTS (SELECT 1 FROM connector_usage_outbox u WHERE u.invocation_id=i.invocation_id AND u.created_at >= $2 AND u.created_at < $3)
+       ) ORDER BY i.updated_at DESC,i.invocation_id DESC LIMIT 100`, [query.tenantId, from, to]);
+    const records = await Promise.all(invocationRows.rows.map((row) => this.toRecord(row)));
+    const affectedInvocations = records.map((record) => ({
+      tenantId: query.tenantId,
+      operationId: record.request.operationId,
+      taskId: record.request.taskId,
+      invocationId: record.request.invocationId,
+      stepKey: record.request.stepKey,
+      connectorId: typeof record.request.connectorId === 'string' ? record.request.connectorId : null,
+      connectorRevision: Number.isSafeInteger(record.request.connectorRevision) && (record.request.connectorRevision ?? 0) > 0 ? record.request.connectorRevision! : null,
+      state: record.state,
+      errorCode: record.errorCode ?? null,
+      updatedAt: record.updatedAt,
+    }));
+    const availableInvocations = new Set(affectedInvocations.map((row) => row.invocationId));
+
+    const totalRows = await this.db.query<{
+      pending: string | number;
+      failed_delivery_attempts: string | number;
+      oldest_pending_at: Date | string | null;
+      max_attempts: string | number;
+    }>(
+      `SELECT count(*) FILTER (WHERE u.delivered_at IS NULL)::text AS pending,
+              COALESCE(sum(u.failed_attempts),0)::text AS failed_delivery_attempts,
+              min(u.created_at) FILTER (WHERE u.delivered_at IS NULL) AS oldest_pending_at,
+              COALESCE(max(u.attempts),0)::text AS max_attempts
+       FROM connector_usage_outbox u JOIN connector_invocations i ON i.invocation_id=u.invocation_id
+       WHERE i.tenant_id=$1 AND u.created_at >= $2 AND u.created_at < $3`, [query.tenantId, from, to]);
+    const total = totalRows.rows[0];
+    const pending = Number(total?.pending ?? 0);
+    const failedDeliveryAttempts = Number(total?.failed_delivery_attempts ?? 0);
+    const maxAttempts = Number(total?.max_attempts ?? 0);
+    if (![pending, failedDeliveryAttempts, maxAttempts].every((value) => Number.isSafeInteger(value) && value >= 0)) {
+      throw new ConnectorError('INVOCATION_UNKNOWN', 'Stored usage outbox counts are invalid.');
+    }
+    const oldestPendingAt = total?.oldest_pending_at == null
+      ? null
+      : total.oldest_pending_at instanceof Date ? total.oldest_pending_at.toISOString() : new Date(total.oldest_pending_at).toISOString();
+    const oldestPendingLagMs = oldestPendingAt === null ? null : Math.max(0, sampledAt.getTime() - Date.parse(oldestPendingAt));
+    const outboxRows = await this.db.query<{
+      event_id: string; operation_id: string; task_id: string; invocation_id: string;
+      attempts: number; failed_attempts: number; created_at: Date | string; delivered_at: Date | string | null;
+    }>(
+      `SELECT u.event_id,i.operation_id,i.task_id,u.invocation_id,u.attempts,u.failed_attempts,u.created_at,u.delivered_at
+       FROM connector_usage_outbox u JOIN connector_invocations i ON i.invocation_id=u.invocation_id
+       WHERE i.tenant_id=$1 AND u.created_at >= $2 AND u.created_at < $3
+       ORDER BY u.created_at DESC,u.event_id DESC LIMIT 100`, [query.tenantId, from, to]);
+    const affected = outboxRows.rows.filter((row) => availableInvocations.has(row.invocation_id)).map((row) => ({
+      eventId: row.event_id,
+      operationId: row.operation_id,
+      taskId: row.task_id,
+      invocationId: row.invocation_id,
+      state: row.delivered_at === null ? 'PENDING' as const : 'DELIVERED' as const,
+      attempts: Number(row.attempts),
+      failedAttempts: Number(row.failed_attempts),
+      createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
+      deliveredAt: row.delivered_at === null ? null : row.delivered_at instanceof Date ? row.delivered_at.toISOString() : new Date(row.delivered_at).toISOString(),
+    }));
+
+    return ConnectorSignalSnapshotSchema.parse({
+      snapshotId: randomUUID(),
+      sourceRef: `connector-ledger:${query.tenantId}`,
+      tenantId: query.tenantId,
+      from,
+      to,
+      sampledAt: sampledAt.toISOString(),
+      freshness: 'fresh',
+      invocationCounts,
+      failedByCode,
+      affectedInvocations,
+      usageOutbox: { pending, failedDeliveryAttempts, oldestPendingAt, oldestPendingLagMs, maxAttempts, affected },
+    });
+  }
+
   public async claim(
     request: LocalInvocationRequest,
     inputHash: string,
@@ -200,6 +476,23 @@ export class PostgresInvocationLedger implements InvocationLedger {
     | { kind: 'conflict'; record: InvocationRecord }
   > {
     return this.db.transaction(async (tx) => {
+      // Lock the backup gate before the ordinary replica drain row. This is
+      // the shared transaction boundary with hold/activate, so a first claim
+      // cannot pass a concurrent backup-fence transition.
+      const backupGate = this.bootId ? await lockConnectorBackupEffectGate(tx) : undefined;
+      let replicaControlState: 'OPEN' | 'DRAINING' | undefined;
+      if (this.replicaId) {
+        // This row is the shared mutex with drain/resume. Holding its lock
+        // through the invocation insert closes the zero-count → new-work race.
+        const control = await tx.query<{ control_state: 'OPEN' | 'DRAINING' }>(
+          'SELECT control_state FROM connector_replica_runtime_controls WHERE replica_id=$1 FOR UPDATE',
+          [this.replicaId],
+        );
+        replicaControlState = control.rows[0]?.control_state;
+        if (!replicaControlState) {
+          throw new ConnectorError('PROVIDER_UNAVAILABLE', 'Connector replica control is not registered.');
+        }
+      }
       // Existence pre-check: a replay opens the stored row (the caller must see
       // the original request anyway) and never needs a fresh DEK wrap. A key
       // provider outage therefore surfaces before any write is attempted.
@@ -214,6 +507,11 @@ export class PostgresInvocationLedger implements InvocationLedger {
           : { kind: 'conflict' as const, record };
       }
 
+      if (replicaControlState !== undefined && replicaControlState !== 'OPEN') {
+        throw new ConnectorError('CONNECTOR_DISABLED', 'Connector replica is durably draining.');
+      }
+      if (backupGate) assertConnectorBackupEffectGateOpen(backupGate);
+
       // SEC-ENC-02: the request row never reaches SQL unsealed. The envelope is
       // bound to (tenant, request slot, invocationId); the sealed value is the
       // only copy written to the JSONB column.
@@ -221,10 +519,11 @@ export class PostgresInvocationLedger implements InvocationLedger {
         { tenantId: request.tenantId, slot: 'connector_invocations.request', refId: request.invocationId },
         request,
       );
+      const providerEffectId = this.bootId ? randomUUID() : null;
       const inserted = await tx.query<InvocationRow>(
         `INSERT INTO connector_invocations
-          (invocation_id, tenant_id, operation_id, task_id, step_key, input_hash, request, state)
-         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, 'IN_FLIGHT')
+          (invocation_id, tenant_id, operation_id, task_id, step_key, input_hash, request, state, owner_replica_id,provider_effect_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, 'IN_FLIGHT', $8,$9)
          ON CONFLICT (invocation_id) DO NOTHING
          RETURNING *`,
         [
@@ -235,9 +534,23 @@ export class PostgresInvocationLedger implements InvocationLedger {
           request.stepKey,
           inputHash,
           JSON.stringify(sealedRequest),
+          this.replicaId ?? null,
+          providerEffectId,
         ],
       );
       if (inserted.rows[0]) {
+        if (providerEffectId && backupGate && this.bootId) {
+          await insertConnectorEffectPermit(tx, {
+            effectId: providerEffectId,
+            domain: 'provider',
+            operationId: request.operationId,
+            invocationId: request.invocationId,
+            replicaId: this.replicaId ?? 'unconfigured',
+            runtimeIdentity: this.runtimeIdentity ?? 'unconfigured',
+            bootId: this.bootId,
+            fenceRevision: Number(backupGate.fence_revision),
+          });
+        }
         // The claimed record is built from the in-memory request rather than
         // unwrapping the envelope just written; behavior is identical and no
         // extra key operation is spent on the write path.
@@ -268,19 +581,90 @@ export class PostgresInvocationLedger implements InvocationLedger {
     leaseMs: number,
   ): Promise<string | undefined> {
     const token = randomUUID();
-    const updated = await this.db.query<Pick<InvocationRow, 'poll_lease_token'>>(
-      `UPDATE connector_invocations
-       SET state = 'POLLING', poll_lease_token = $4,
-           poll_lease_expires_at = $3::timestamptz + ($5 * interval '1 millisecond'),
-           updated_at = now()
-       WHERE invocation_id = $1 AND input_hash = $2 AND (
-         (state = 'PENDING' AND next_poll_at IS NOT NULL AND next_poll_at <= $3)
-         OR (state = 'POLLING' AND poll_lease_token IS NOT NULL AND poll_lease_expires_at <= $3)
-       )
-       RETURNING poll_lease_token`,
-      [invocationId, inputHash, new Date(now).toISOString(), token, leaseMs],
-    );
-    return updated.rows[0]?.poll_lease_token ?? undefined;
+    const effectId = this.bootId ? randomUUID() : null;
+    const claim = async (tx: SqlClient): Promise<string | undefined> => {
+      const gate = this.bootId ? await lockConnectorBackupEffectGate(tx) : undefined;
+      if (gate && gate.state !== 'OPEN') return undefined;
+      const updated = await tx.query<Pick<InvocationRow, 'poll_lease_token'> & { operation_id: string }>(
+        `UPDATE connector_invocations
+         SET state = 'POLLING', poll_lease_token = $4,
+             poll_lease_expires_at = $3::timestamptz + ($5 * interval '1 millisecond'),
+             poll_effect_id=$6,updated_at = now()
+         WHERE invocation_id = $1 AND input_hash = $2 AND state = 'PENDING'
+           AND next_poll_at IS NOT NULL AND next_poll_at <= $3
+         RETURNING poll_lease_token,operation_id`,
+        [invocationId, inputHash, new Date(now).toISOString(), token, leaseMs, effectId],
+      );
+      const row = updated.rows[0];
+      if (!row) return undefined;
+      if (effectId && gate && this.bootId) {
+        await insertConnectorEffectPermit(tx, {
+          effectId,
+          domain: 'poll',
+          operationId: row.operation_id,
+          invocationId,
+          replicaId: this.replicaId ?? 'unconfigured',
+          runtimeIdentity: this.runtimeIdentity ?? 'unconfigured',
+          bootId: this.bootId,
+          ownerToken: token,
+          fenceRevision: Number(gate.fence_revision),
+        });
+      }
+      return row.poll_lease_token ?? undefined;
+    };
+    return this.bootId ? this.db.transaction(claim) : claim(this.db);
+  }
+
+  public async activateEffect(invocationId: string, pollLeaseToken?: string): Promise<boolean> {
+    if (!this.bootId || !this.replicaId) return true;
+    return this.db.transaction(async (tx) => {
+      const gate = await lockConnectorBackupEffectGate(tx);
+      const invocation = await tx.query<Pick<InvocationRow, 'provider_effect_id' | 'poll_effect_id' | 'state'>>(
+        `SELECT provider_effect_id,poll_effect_id,state FROM connector_invocations WHERE invocation_id=$1 FOR UPDATE`,
+        [invocationId],
+      );
+      const current = invocation.rows[0];
+      if (!current) return false;
+      const isPoll = pollLeaseToken !== undefined;
+      const effectId = isPoll ? current.poll_effect_id : current.provider_effect_id;
+      if (!effectId) return false;
+      const permit = await tx.query<{ state: string; fence_revision: number | string }>(
+        `SELECT state,fence_revision FROM connector_backup_effect_permits
+          WHERE effect_id=$1 AND owner_replica_id=$2 AND owner_boot_id=$3 AND domain=$4
+            AND ($5::uuid IS NULL OR owner_token=$5::uuid) FOR UPDATE`,
+        [effectId, this.replicaId, this.bootId, isPoll ? 'poll' : 'provider', pollLeaseToken ?? null],
+      );
+      const row = permit.rows[0];
+      if (!row || row.state !== 'PREPARED') return false;
+      if (gate.state !== 'OPEN' || Number(row.fence_revision) !== Number(gate.fence_revision)) {
+        const timestamp = new Date().toISOString();
+        await tx.query(
+          `UPDATE connector_backup_effect_permits SET state='CANCELLED',reason_code='BACKUP_FENCE_ACTIVE',settled_at=$2,updated_at=$2
+            WHERE effect_id=$1 AND state='PREPARED'`, [effectId, timestamp],
+        );
+        if (isPoll) {
+          await tx.query(
+            `UPDATE connector_invocations SET state='PENDING',poll_lease_token=NULL,poll_lease_expires_at=NULL,
+                poll_effect_id=NULL,updated_at=$3
+              WHERE invocation_id=$1 AND state='POLLING' AND poll_lease_token=$2 AND poll_effect_id=$4`,
+            [invocationId, pollLeaseToken, timestamp, effectId],
+          );
+        } else {
+          await tx.query(
+            `UPDATE connector_invocations SET state='FAILED',error_code='PROVIDER_UNAVAILABLE',provider_effect_id=NULL,updated_at=$2
+              WHERE invocation_id=$1 AND state='IN_FLIGHT' AND provider_effect_id=$3`,
+            [invocationId, timestamp, effectId],
+          );
+        }
+        return false;
+      }
+      const updated = await tx.query(
+        `UPDATE connector_backup_effect_permits SET state='ACTIVE',activated_at=$2,updated_at=$2
+          WHERE effect_id=$1 AND state='PREPARED' AND fence_revision=$3`,
+        [effectId, new Date().toISOString(), Number(gate.fence_revision)],
+      );
+      return updated.rowCount === 1;
+    });
   }
 
   public async complete(
@@ -300,7 +684,8 @@ export class PostgresInvocationLedger implements InvocationLedger {
     const claimPredicate = pollLeaseToken === undefined
       ? "state = 'IN_FLIGHT'"
       : "state = 'POLLING' AND poll_lease_token = $4";
-    const updated = await this.db.query<InvocationRow>(
+    const record = await this.db.transaction(async (tx) => {
+    const updated = await tx.query<InvocationRow>(
       `UPDATE connector_invocations
        SET state = 'SUCCEEDED', result = $2::jsonb, provider_request_id = $3,
            poll_lease_token = NULL, poll_lease_expires_at = NULL,
@@ -312,7 +697,16 @@ export class PostgresInvocationLedger implements InvocationLedger {
         ? [invocationId, JSON.stringify(sealedResult), result.providerRequestId ?? null]
         : [invocationId, JSON.stringify(sealedResult), result.providerRequestId ?? null, pollLeaseToken],
     );
-    return this.requireUpdated(updated.rows[0], invocationId);
+    const row = updated.rows[0];
+    if (row && result.usage) {
+      const event: UsageEvent = { eventId: `${invocationId}:1`, invocationId, operationId: row.operation_id, taskId: row.task_id, usage: result.usage, createdAt: new Date(row.updated_at).toISOString() };
+      // Reject unusable provider usage before committing either completion or delivery.
+      await new PostgresUsageOutbox(tx).append(event);
+    }
+    return this.requireUpdated(row, invocationId);
+    });
+    await this.settleEffect(invocationId, pollLeaseToken, 'COMPLETED');
+    return record;
   }
 
   public async failPending(
@@ -350,7 +744,9 @@ export class PostgresInvocationLedger implements InvocationLedger {
        RETURNING *`,
       pollLeaseToken === undefined ? [invocationId, errorCode] : [invocationId, errorCode, pollLeaseToken],
     );
-    return this.requireUpdated(updated.rows[0], invocationId);
+    const record = await this.requireUpdated(updated.rows[0], invocationId);
+    await this.settleEffect(invocationId, pollLeaseToken, 'COMPLETED');
+    return record;
   }
 
   public async cancel(invocationId: string): Promise<InvocationRecord> {
@@ -362,11 +758,15 @@ export class PostgresInvocationLedger implements InvocationLedger {
        WHERE invocation_id = $1 AND state IN ('IN_FLIGHT', 'PENDING', 'POLLING') RETURNING *`,
       [invocationId],
     );
-    return this.requireUpdated(updated.rows[0], invocationId);
+    const record = await this.requireUpdated(updated.rows[0], invocationId);
+    await this.settleEffect(invocationId, undefined, 'CANCELLED');
+    return record;
   }
 
   public async markUnknown(invocationId: string, pollLeaseToken?: string): Promise<InvocationRecord> {
-    return this.updateState(invocationId, 'UNKNOWN', 'INVOCATION_UNKNOWN', pollLeaseToken);
+    const record = await this.updateState(invocationId, 'UNKNOWN', 'INVOCATION_UNKNOWN', pollLeaseToken);
+    await this.settleEffect(invocationId, pollLeaseToken, 'UNKNOWN');
+    return record;
   }
 
   public async markPending(
@@ -420,7 +820,54 @@ export class PostgresInvocationLedger implements InvocationLedger {
         sealedSessionRef,
       ],
     );
-    return this.requireUpdated(updated.rows[0], invocationId);
+    const record = await this.requireUpdated(updated.rows[0], invocationId);
+    await this.settleEffect(invocationId, pollLeaseToken, 'COMPLETED');
+    return record;
+  }
+
+  private async settleEffect(
+    invocationId: string,
+    pollLeaseToken: string | undefined,
+    outcome: 'COMPLETED' | 'CANCELLED' | 'UNKNOWN',
+  ): Promise<void> {
+    if (!this.bootId || !this.replicaId) return;
+    await this.db.transaction(async (tx) => {
+      // Keep the same fence → invocation → permit order as claim/activation.
+      // Settlement still proceeds while HELD; the lock lets the backup
+      // observer distinguish in-flight settlement from a closed effect.
+      await lockConnectorBackupEffectGate(tx);
+      const invocation = await tx.query<Pick<InvocationRow, 'provider_effect_id' | 'poll_effect_id'>>(
+        `SELECT provider_effect_id,poll_effect_id FROM connector_invocations WHERE invocation_id=$1 FOR UPDATE`,
+        [invocationId],
+      );
+      const effectId = pollLeaseToken !== undefined
+        ? invocation.rows[0]?.poll_effect_id
+        : invocation.rows[0]?.provider_effect_id;
+      if (!effectId) return;
+      if (outcome === 'UNKNOWN') {
+        await tx.query(
+          `UPDATE connector_backup_effect_permits SET state='UNKNOWN',reason_code='INVOCATION_UNKNOWN',updated_at=$4
+            WHERE effect_id=$1 AND owner_replica_id=$2 AND owner_boot_id=$3
+              AND state IN ('PREPARED','ACTIVE','SETTLING')`,
+          [effectId, this.replicaId, this.bootId, new Date().toISOString()],
+        );
+        return;
+      }
+      await tx.query(
+        `UPDATE connector_backup_effect_permits
+            SET state=CASE WHEN state='PREPARED' THEN 'CANCELLED' WHEN $4='CANCELLED' THEN 'UNKNOWN' ELSE 'COMPLETED' END,
+                settled_at=$5,updated_at=$5
+          WHERE effect_id=$1 AND owner_replica_id=$2 AND owner_boot_id=$3
+            AND state IN ('PREPARED','ACTIVE','SETTLING')`,
+        [effectId, this.replicaId, this.bootId, outcome, new Date().toISOString()],
+      );
+      await tx.query(
+        `UPDATE connector_invocations SET
+            provider_effect_id=CASE WHEN $2::uuid IS NULL THEN NULL ELSE provider_effect_id END,
+            poll_effect_id=CASE WHEN $2::uuid IS NOT NULL THEN NULL ELSE poll_effect_id END
+          WHERE invocation_id=$1`, [invocationId, pollLeaseToken ?? null],
+      );
+    });
   }
 
   private async updateState(
@@ -694,10 +1141,14 @@ export class PostgresConnectorConfigRepository implements ConnectorConfigReposit
 
   public async put(credentialRef: string, encryptedValue: Uint8Array): Promise<string> {
     const id = credentialRef + ':' + String(Date.now());
-    await this.db.query(
-      'INSERT INTO secret_versions (id, credential_ref, encrypted_value) VALUES ($1, $2, $3)',
-      [id, credentialRef, Buffer.from(encryptedValue)],
-    );
+    await this.db.transaction(async (tx) => {
+      const gate = await lockConnectorBackupEffectGate(tx);
+      assertConnectorBackupEffectGateOpen(gate);
+      await tx.query(
+        'INSERT INTO secret_versions (id, credential_ref, encrypted_value) VALUES ($1, $2, $3)',
+        [id, credentialRef, Buffer.from(encryptedValue)],
+      );
+    });
     return id;
   }
 
@@ -727,6 +1178,11 @@ export class PostgresConnectorConfigRepository implements ConnectorConfigReposit
       throw new ConnectorError('INVALID_INPUT', 'Connector revision config is invalid or contains credential material.');
     }
     return this.db.transaction(async (tx) => {
+      // The backup singleton is the first lock in every mutable config path.
+      // This makes legacy revision and credential writes share the same
+      // snapshot boundary as typed recipe publication.
+      const backupGate = await lockConnectorBackupEffectGate(tx);
+      assertConnectorBackupEffectGateOpen(backupGate);
       const latest = await tx.query<{ revision: number }>(
         'SELECT revision FROM connector_revisions WHERE connector_id = $1 AND tenant_id = $2 ORDER BY revision DESC LIMIT 1 FOR UPDATE',
         [input.connectorId, binding.tenantId],
@@ -772,6 +1228,8 @@ export class PostgresConnectorConfigRepository implements ConnectorConfigReposit
     });
     const want = parseCredentialSource(input.credentialSource);
     return this.db.transaction(async (tx) => {
+      const backupGate = await lockConnectorBackupEffectGate(tx);
+      assertConnectorBackupEffectGateOpen(backupGate);
       // Serialize against concurrent bootstrap/activation of the TARGET
       // chain first: an already-open bound chain replays instead of
       // colliding with the migration 008 chain guard.
@@ -843,6 +1301,8 @@ export class PostgresConnectorConfigRepository implements ConnectorConfigReposit
   ): Promise<boolean> {
     const tenantId = scopeParam(scope);
     return this.db.transaction(async (tx) => {
+      const backupGate = await lockConnectorBackupEffectGate(tx);
+      assertConnectorBackupEffectGateOpen(backupGate);
       const current = await tx.query<{ revision: number }>(
         'SELECT revision FROM connector_revisions'
           + " WHERE connector_id = $1 AND tenant_id = $2 AND state = 'ACTIVE' FOR UPDATE",
@@ -869,18 +1329,26 @@ export class PostgresConnectorConfigRepository implements ConnectorConfigReposit
   }
 
   public async retireRevision(connectorId: string, revision: number, scope?: RevisionScope): Promise<void> {
-    await this.db.query(
-      'UPDATE connector_revisions SET state = $3'
-        + " WHERE connector_id = $1 AND revision = $2 AND tenant_id = $4 AND state = 'PENDING'",
-      [connectorId, revision, 'RETIRED', scopeParam(scope)],
-    );
+    await this.db.transaction(async (tx) => {
+      const backupGate = await lockConnectorBackupEffectGate(tx);
+      assertConnectorBackupEffectGateOpen(backupGate);
+      await tx.query(
+        'UPDATE connector_revisions SET state = $3'
+          + " WHERE connector_id = $1 AND revision = $2 AND tenant_id = $4 AND state = 'PENDING'",
+        [connectorId, revision, 'RETIRED', scopeParam(scope)],
+      );
+    });
   }
 
   public async disable(connectorId: string, scope?: RevisionScope): Promise<void> {
-    await this.db.query(
-      'UPDATE connector_revisions SET state = $2 WHERE connector_id = $1 AND tenant_id = $3',
-      [connectorId, 'RETIRED', scopeParam(scope)],
-    );
+    await this.db.transaction(async (tx) => {
+      const backupGate = await lockConnectorBackupEffectGate(tx);
+      assertConnectorBackupEffectGateOpen(backupGate);
+      await tx.query(
+        'UPDATE connector_revisions SET state = $2 WHERE connector_id = $1 AND tenant_id = $3',
+        [connectorId, 'RETIRED', scopeParam(scope)],
+      );
+    });
   }
 
   public async getActiveCredential(credentialRef: string, scope?: RevisionScope): Promise<Uint8Array | undefined> {
@@ -900,12 +1368,16 @@ export class PostgresConnectorConfigRepository implements ConnectorConfigReposit
   }
 
   public async revoke(credentialRef: string, scope?: RevisionScope): Promise<void> {
-    await this.db.query(
-      'UPDATE secret_versions s SET revoked_at = now() WHERE s.credential_ref = $1 AND s.revoked_at IS NULL'
-        + ' AND EXISTS (SELECT 1 FROM connector_revisions r'
-        + " WHERE r.credential_ref = s.credential_ref AND (r.tenant_id = $2 OR r.tenant_id = ''))",
-      [credentialRef, scopeParam(scope)],
-    );
+    await this.db.transaction(async (tx) => {
+      const backupGate = await lockConnectorBackupEffectGate(tx);
+      assertConnectorBackupEffectGateOpen(backupGate);
+      await tx.query(
+        'UPDATE secret_versions s SET revoked_at = now() WHERE s.credential_ref = $1 AND s.revoked_at IS NULL'
+          + ' AND EXISTS (SELECT 1 FROM connector_revisions r'
+          + " WHERE r.credential_ref = s.credential_ref AND (r.tenant_id = $2 OR r.tenant_id = ''))",
+        [credentialRef, scopeParam(scope)],
+      );
+    });
   }
 
 }
@@ -939,4 +1411,16 @@ function toRevision(row: RevisionRowShape): ConnectorRevision {
     tenantId,
     ...(accountId === undefined ? {} : { accountId }),
   };
+}
+
+function sha256(value: string): string {
+  return `sha256:${createHash('sha256').update(value, 'utf8').digest('hex')}`;
+}
+
+function normalizeTimestamp(value: string | Date): string {
+  const timestamp = value instanceof Date ? value : new Date(value);
+  if (!Number.isFinite(timestamp.getTime())) {
+    throw new ConnectorError('INVOCATION_UNKNOWN', 'Stored invocation timestamp is invalid.');
+  }
+  return timestamp.toISOString();
 }

@@ -19,7 +19,7 @@ export async function loadTenantProfileDetail(
     `SELECT n.profile_id, a.revision, n.api_key_id,
             p.enabled, p.parameters, p.job_priority, p.allowed_file_extensions,
             p.connections_override, p.file_url_auth_cipher, p.request_redaction, p.callback_policy,
-            p.allowed_origins
+            p.allowed_origins, p.connector_bindings
        FROM profile_names n
        JOIN profile_active_revisions a ON a.profile_id = n.profile_id
        JOIN profile_bindings p

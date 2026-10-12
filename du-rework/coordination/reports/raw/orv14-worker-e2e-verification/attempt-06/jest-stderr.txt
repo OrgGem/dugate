@@ -1,0 +1,116 @@
+FAIL tests/workflow-api/orv14-vfy-core31.test.ts (66.785 s)
+  ORV14 independent public HTTP compatibility with real outbox, worker, and Connector
+    ○ skipped legacy multipart ingest parses exact bytes, projects/downloads result and replays without duplicate blobs
+    ○ skipped sync submit waits for real worker and returns terminal result within its budget
+    ○ skipped browser uploads a document and submits workflow.test to real worker, then polls success
+    31 public multipart variants through production outbox/Redis/worker/Connector
+      ○ skipped DOC-01-01 ingest/parse
+      ○ skipped DOC-01-02 ingest/ocr
+      ○ skipped DOC-01-03 ingest/digitize
+      ○ skipped DOC-01-04 ingest/split
+      ○ skipped DOC-02-01 extract/invoice
+      ○ skipped DOC-02-02 extract/contract
+      ○ skipped DOC-02-03 extract/receipt
+      ○ skipped DOC-02-04 extract/table
+      ○ skipped DOC-02-05 extract/custom
+      ○ skipped DOC-02-06 extract/id-card
+      ○ skipped DOC-03-01 analyze/classify
+      ○ skipped DOC-03-02 analyze/sentiment
+      ○ skipped DOC-03-03 analyze/compliance
+      ○ skipped DOC-03-04 analyze/quality
+      ○ skipped DOC-03-05 analyze/risk
+      ○ skipped DOC-03-06 analyze/fact-check
+      ○ skipped DOC-03-07 analyze/summarize-eval
+      ○ skipped DOC-04-01 transform/convert
+      ○ skipped DOC-04-02 transform/translate
+      ○ skipped DOC-04-03 transform/rewrite
+      ○ skipped DOC-04-04 transform/redact
+      ○ skipped DOC-04-05 transform/template
+      ○ skipped DOC-05-01 generate/summary
+      ○ skipped DOC-05-02 generate/outline
+      ○ skipped DOC-05-03 generate/report
+      ○ skipped DOC-05-04 generate/email
+      ○ skipped DOC-05-05 generate/minutes
+      ○ skipped DOC-05-06 generate/qa
+      ○ skipped DOC-06-01 compare/diff
+      ○ skipped DOC-06-02 compare/semantic
+      ○ skipped DOC-06-03 compare/version
+    ORV14 native tenant prompt and AI defaults observed by real Connector calls
+      ○ skipped published tenant prompt revisions reach real PNG/PDF/DOCX, compare, and generate provider calls with old/new operation pins
+      ○ skipped Gemini and OpenAI-compatible AI model defaults reach native provider tests and real Worker calls, with immutable old/new pins and Profile precedence
+    configured Worker private HTTPS
+      ✕ configured Worker receives exact private HTTPS policy, validates DNS/SNI/CA, executes callback and download, and exposes public result (10754 ms)
+      ✕ parallel branch children share the configured private HTTPS policy (586 ms)
+      ✕ a resumed HITL workflow keeps the Worker policy for its later HTTPS callback (45184 ms)
+      ✓ an explicit operation retry reuses the admitted schema pin and reaches HTTPS on the next attempt (5914 ms)
+      ✓ operator list and tenant pin intersect; operator-only origin cannot be reached (419 ms)
+      ✓ operation cancellation aborts the active pinned HTTPS request (1120 ms)
+      ○ skipped worker default deny rejects a tenant-approved private origin when the operator list is empty
+      ○ skipped tenant schema approval blocks an origin absent from that immutable pin
+      ○ skipped verified TLS rejects a SAN mismatch while preserving the requested SNI
+      ○ skipped redirects are not followed and oversized file responses fail at the worker byte limit
+      ○ skipped metadata, link-local, CGNAT, multicast, and reserved IP literals stay blocked with private opt-in
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › configured Worker private HTTPS › configured Worker receives exact private HTTPS policy, validates DNS/SNI/CA, executes callback and download, and exposes public result
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+        "bodyBytes": 54,
+    -   "bodySha256": "50d38b1812e4fb3f6b66c0490c59bcf67c7cc51dcc7fa082ae680cc9dbfc635c",
+    +   "bodySha256": "cd800c744bb1fb3294ee9db655508b40c9e9375fd9fc84f85e0b0fd1868b3df7",
+        "host": "172-26-91-253.sslip.io:33657",
+        "listener": "san-match",
+        "sni": "172-26-91-253.sslip.io",
+      }
+
+      1695 |         sni: PRIVATE_HTTPS_TARGETS.sanMatch.host,
+      1696 |       });
+    > 1697 |       expect(callbackEvent).toMatchObject({
+           |                             ^
+      1698 |         listener: 'san-match',
+      1699 |         host: new URL(origin).host,
+      1700 |         sni: PRIVATE_HTTPS_TARGETS.sanMatch.host,
+
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:1697:29)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › configured Worker private HTTPS › parallel branch children share the configured private HTTPS policy
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      1732 |       expect(run.terminal.state).toBe('SUCCEEDED');
+      1733 |       expect(events.some((event) => event.kind === 'request' && event.path === '/file.txt' && event.sni === PRIVATE_HTTPS_TARGETS.sanMatch.host)).toBe(true);
+    > 1734 |       expect(events.some((event) => event.kind === 'request' && event.path === '/callback' && event.bodySha256 === payloadSha256)).toBe(true);
+           |                                                                                                                                    ^
+      1735 |       savePrivateHttpsCase('parallel-branches', { operationId: run.operationId, state: run.terminal.state, listenerEvents: events });
+      1736 |     }, 60_000);
+      1737 |
+
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:1734:132)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › configured Worker private HTTPS › a resumed HITL workflow keeps the Worker policy for its later HTTPS callback
+
+    timed out waiting for WAITING_INPUT; last state was ACCEPTED
+
+      623 |     await new Promise((resolve) => setTimeout(resolve, 100));
+      624 |   }
+    > 625 |   throw new Error(`timed out waiting for ${expected.join('|')}; last state was ${last?.state ?? 'unknown'}`);
+          |         ^
+      626 | }
+      627 |
+      628 | async function waitForCondition(
+
+      at waitForState (tests/workflow-api/orv14-vfy-core31.test.ts:625:9)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:1751:23)
+
+Test Suites: 1 failed, 1 total
+Tests:       3 failed, 41 skipped, 3 passed, 47 total
+Snapshots:   0 total
+Time:        66.968 s, estimated 96 s
+Ran all test suites within paths "tests/workflow-api/orv14-vfy-core31.test.ts".

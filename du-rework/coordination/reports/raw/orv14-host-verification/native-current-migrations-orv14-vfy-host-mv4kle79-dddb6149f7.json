@@ -1,0 +1,142 @@
+{
+  "schema": "orv14-host-current-migrations/v1",
+  "command": "/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node tests/workflow-api/orv14-vfy-host/verify-native-current-migrations.mjs /tmp/orv14-vfy-host-native-mv4kecuu-c0811e6e73",
+  "cwd": "/workspace/dugate/du-rework",
+  "node": "v24.21.0",
+  "verifierUid": 1000,
+  "startedAt": "2026-10-12T01:25:17.732Z",
+  "fixtureNamespace": "orv14-vfy-host-mv4kle79-dddb6149f7",
+  "sourceHashesBefore": {
+    "orchestrator/src/db/migrations.ts": "519fd20731acac579acde4f5908844ddf98c4948661e408ad64e1c74852d5eed",
+    "connector/src/db/pg-client.ts": "1046b417be4e0902bffa909142deb8bb57f2a1855d48640803cf12fa13c13227",
+    "orchestrator/migrations/0064_cost_financial_adjustments.sql": "7e0e33aff73afd019bcfabc57e8833bdbc9ca91a939e3c9f57d3f9bb76230070",
+    "orchestrator/migrations/0065_cost_adjustment_object_pins.sql": "d1b02bfed455ebb6fb508b0cb307159c89d024192d1f8c88cba148d50bd4b0b4",
+    "connector/src/db/migrations/015_backup_effect_fences.sql": "186d3400831302fc6d1ec311cc5f0897faae7080ce6365a9da0e934e59ef2d86"
+  },
+  "sourceHashesAfter": {
+    "orchestrator/src/db/migrations.ts": "519fd20731acac579acde4f5908844ddf98c4948661e408ad64e1c74852d5eed",
+    "connector/src/db/pg-client.ts": "1046b417be4e0902bffa909142deb8bb57f2a1855d48640803cf12fa13c13227",
+    "orchestrator/migrations/0064_cost_financial_adjustments.sql": "7e0e33aff73afd019bcfabc57e8833bdbc9ca91a939e3c9f57d3f9bb76230070",
+    "orchestrator/migrations/0065_cost_adjustment_object_pins.sql": "d1b02bfed455ebb6fb508b0cb307159c89d024192d1f8c88cba148d50bd4b0b4",
+    "connector/src/db/migrations/015_backup_effect_fences.sql": "186d3400831302fc6d1ec311cc5f0897faae7080ce6365a9da0e934e59ef2d86"
+  },
+  "assertions": [
+    {
+      "name": "current Orchestrator 0064/0065 applied by the normal migration module, ledger verified, and replay is empty",
+      "status": "passed",
+      "clusterName": "orv14-host-orchestrator-restore",
+      "ledgerRows": 62,
+      "appliedCurrent": [
+        "0064_cost_financial_adjustments.sql",
+        "0065_cost_adjustment_object_pins.sql"
+      ],
+      "replayApplied": 0,
+      "newObjects": {
+        "heads": true,
+        "adjustments": true,
+        "commands": true,
+        "object_size_pin": true,
+        "object_digest_pin": true,
+        "immutable_trigger": true
+      }
+    },
+    {
+      "name": "current Connector 015 backup-effect fence applied through the normal Connector migration client and replay preserves its ledger",
+      "status": "passed",
+      "clusterName": "orv14-host-connector-restore",
+      "ledgerRows": 15,
+      "migration015Present": true,
+      "replayLedgerRows": 15,
+      "newObjects": {
+        "gate": true,
+        "acknowledgements": true,
+        "permits": true,
+        "outbox_claim_state": true
+      }
+    },
+    {
+      "name": "all five exact migration/module inputs remained hash-stable for this isolated migration run",
+      "status": "passed"
+    }
+  ],
+  "sharedDistWritten": false,
+  "productSourceWritten": false,
+  "databaseScope": "only unique synthetic orchestrator-restore and connector-restore databases",
+  "externalEffects": {
+    "legacySourceRead": false,
+    "providerRequests": 0,
+    "customerCredentials": false
+  },
+  "cleanup": {
+    "projectId": "orv14-vfy-host-mv4kle79-dddb6149f7",
+    "removed": {
+      "containers": [
+        "19e88eba4819",
+        "af3a8a624b13",
+        "12acf2cc417a",
+        "54fd964224c6",
+        "4be9ae98aeae",
+        "00afbc1a59dc",
+        "92f74e38665a",
+        "e921c8710c8e",
+        "dcb90c8b589b",
+        "95f941a6d5ca"
+      ],
+      "volumes": [
+        "orv14-vfy-host-mv4kle79-dddb6149f7_connector-restore-data",
+        "orv14-vfy-host-mv4kle79-dddb6149f7_connector-source-data",
+        "orv14-vfy-host-mv4kle79-dddb6149f7_minio-data",
+        "orv14-vfy-host-mv4kle79-dddb6149f7_minio-restore-data",
+        "orv14-vfy-host-mv4kle79-dddb6149f7_orchestrator-restore-data",
+        "orv14-vfy-host-mv4kle79-dddb6149f7_orchestrator-source-data"
+      ],
+      "networks": [
+        "f7d7cb39f2cb"
+      ]
+    },
+    "remaining": {
+      "containers": [],
+      "volumes": [],
+      "networks": []
+    },
+    "temporaryFixtureRemoved": true
+  },
+  "status": "PASSED",
+  "composeFileSha256": "7e18e4f71e1211331bca91af270ef50bdd24f1609876201b593a0afdd9a2f1d0",
+  "imageIds": {
+    "postgres": "sha256:81bd698b4594e751a3269e4dcd3e03a4a0ec0daf7b72e7aa1abd43cce9887542",
+    "redis": "sha256:f84b0c4678011602b9b98c227a4dcd5468bf8b088b02fdd4165cb7758bad8058",
+    "vault": "sha256:20bce4b1fc21ee5ccc659e3a13fd479894cfffcf650d8ca3c0c4ae7eaecc2c81",
+    "minio": "sha256:ff768636ea5c1b7bd295ddae1505506ae91a3beff613b14be377d23734cd2915"
+  },
+  "migrationFiles": {
+    "orchestratorFileCount": 62,
+    "connectorFileCount": 15,
+    "currentOrchestratorMigrations": [
+      {
+        "filename": "0063_backup_effect_fences.sql",
+        "sha256": "6d7c285fbe4ccf697baf62ad6835949615924e1e182d2757333c89d21ac7749a"
+      },
+      {
+        "filename": "0064_cost_financial_adjustments.sql",
+        "sha256": "7e0e33aff73afd019bcfabc57e8833bdbc9ca91a939e3c9f57d3f9bb76230070"
+      },
+      {
+        "filename": "0065_cost_adjustment_object_pins.sql",
+        "sha256": "d1b02bfed455ebb6fb508b0cb307159c89d024192d1f8c88cba148d50bd4b0b4"
+      }
+    ],
+    "currentConnectorBackupFence": [
+      {
+        "filename": "015_backup_effect_fences.sql",
+        "sha256": "186d3400831302fc6d1ec311cc5f0897faae7080ce6365a9da0e934e59ef2d86"
+      }
+    ]
+  },
+  "completedAt": "2026-10-12T01:25:41.239Z",
+  "checks": {
+    "passed": 3,
+    "failed": 0,
+    "skipped": 0
+  }
+}

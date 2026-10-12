@@ -226,6 +226,7 @@ export function renderLoginPage(opts: {
   error?: string;
   csrfMarker: string;
   mode?: AdminAuthMode;
+  tokenFallback?: boolean;
 }): string {
   const errNode = opts.error
     ? h('p', { class: 'form-error', role: 'alert' }, opts.error)
@@ -255,6 +256,7 @@ export function renderLoginPage(opts: {
       'data-csrf': opts.csrfMarker,
     }),
     hiddenRedirect,
+    opts.mode === 'local' ? h('input', { type: 'hidden', name: 'csrf', value: opts.csrfMarker }) : undefined,
     submit,
   );
 
@@ -287,6 +289,7 @@ export function renderLoginPage(opts: {
       'data-csrf': opts.csrfMarker,
     }),
     hiddenRedirect,
+    opts.mode === 'local' ? h('input', { type: 'hidden', name: 'csrf', value: opts.csrfMarker }) : undefined,
     submit,
   );
 
@@ -310,7 +313,7 @@ export function renderLoginPage(opts: {
 
   let loginSection;
   if (opts.mode === 'local') {
-    loginSection = h('section', { class: 'admin-shell__login' }, localForm, localNote);
+    loginSection = h('section', { class: 'admin-shell__login' }, localForm, localNote, opts.tokenFallback ? h('details', undefined, h('summary', undefined, 'Use an admin token'), legacyForm) : undefined);
   } else if (opts.mode === 'both') {
     loginSection = h('section', { class: 'admin-shell__login' },
       localForm,

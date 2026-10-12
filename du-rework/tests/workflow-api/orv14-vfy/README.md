@@ -1,0 +1,9 @@
+# ORV14 isolated verification fixture
+
+This directory is owned by the independent VFY-ORV14 executor. It defines only synthetic infrastructure and mock-provider behavior. It does not include a product build; the final application image and two-replica serving test are added only after the shared build lease is transferred.
+
+Start this fixture with a new Compose project name, for example `orv14-vfy-20261011-a1`, after checking that no container, network, or volume already carries that exact project label. Published host ports are loopback-only: PostgreSQL 25414, Redis 26414, MinIO 29000/29001, Vault 28200, and mock provider 28081. The PostgreSQL schema and Redis database used by tests must be unique per run. The dev Vault and fixed object-store credentials are synthetic test-only credentials. Postgres, Redis, Node, and Vault use immutable image digests recorded in `compose.yml`. MinIO uses the official `RELEASE.2025-09-07T16-13-09Z` linux-amd64 binary from the MinIO GitHub release, verified against its published SHA-256 asset before the local scratch image is built; Docker Hub and Quay no longer supplied an accessible MinIO image in this environment.
+
+The mock provider caps request bodies at 2 MiB and retains only request metadata, content length, and SHA-256 digests. It never stores or returns request bodies or authorization values. Fault modes are selected by `?fault=429`, `?fault=auth`, `?fault=timeout`, or `?fault=unknown`; `/__control/requests` returns the sanitized capture and `/__control/reset` clears only this in-memory fixture state.
+
+Cleanup is allowed only after inspecting the Compose project label and confirming every matching container, network, and volume belongs to the current run. Use the same exact project name for all Compose commands. Do not use broad Docker prune or host-wide cleanup commands.

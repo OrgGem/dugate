@@ -40,22 +40,28 @@ import type { OperationsMetricsSnapshot } from './state';
 
 interface OperationsMonitorDashboardProps {
   operations: OperationWire[];
+  operationsFailed: boolean;
+  operationsLoading: boolean;
   operationMetrics: OperationsMetricsSnapshot | null;
   operationMetricsFailed: boolean;
   workerInstances: WorkerInstanceList | null;
   workerInventoryFailed: boolean;
   health: AdminHealthSnapshot | null;
+  healthFailed: boolean;
   onRefresh: () => void;
   isLoading?: boolean;
 }
 
 export function OperationsMonitorDashboard({
   operations,
+  operationsFailed,
+  operationsLoading,
   operationMetrics,
   operationMetricsFailed,
   workerInstances,
   workerInventoryFailed,
   health,
+  healthFailed,
   onRefresh,
   isLoading,
 }: OperationsMonitorDashboardProps) {
@@ -77,6 +83,9 @@ export function OperationsMonitorDashboard({
   };
   const metricCount = (value: number): string => operationMetrics ? value.toLocaleString() : '—';
   const workerList = computeWorkerTelemetry(workerInstances?.items ?? []);
+  const healthStale = health !== null && (
+    healthFailed || !Number.isFinite(Date.parse(health.sampledAt)) || Date.now() - Date.parse(health.sampledAt) > 60_000
+  );
   const queueIntegrityState = health?.queueIntegrity?.state ?? null;
   const queueIntegrityDotClass = queueIntegrityState === 'OK'
     ? 'bg-emerald-500'
@@ -188,18 +197,18 @@ export function OperationsMonitorDashboard({
             </div>
             <div className="mt-2 flex items-baseline justify-between">
               <span className="text-2xl font-bold text-[var(--text-main)]">
-                {workerList.length} Workers
+                {workerInstances === null ? 'Unknown' : `${workerList.length} recorded`}
               </span>
-              <Badge variant={health?.status === 'ok' ? 'success' : 'warning'} className="text-xs">
-                {health?.status === 'ok' ? 'Cluster OK' : 'Degraded'}
+              <Badge variant={health === null ? 'neutral' : healthStale ? 'warning' : health.status === 'ok' ? 'success' : health.status === 'degraded' ? 'danger' : 'neutral'} className="text-xs">
+                {health === null ? 'Health unknown' : healthStale ? `Stale · last ${health.status}` : health.status}
               </Badge>
             </div>
             <div className="mt-2 flex items-center gap-2 text-xs text-[var(--text-sub)]">
-              <span className={health?.db ? 'text-green-600' : 'text-red-500'}>DB: {health?.db ? 'OK' : 'Error'}</span>
+              <span>DB: {health === null || health.db === null ? 'Unknown' : healthStale ? `Stale · last ${health.db ? 'OK' : 'Error'}` : health.db ? 'OK' : 'Error'}</span>
               <span>·</span>
-              <span className={health?.redis ? 'text-green-600' : 'text-red-500'}>Redis: {health?.redis ? 'OK' : 'Error'}</span>
+              <span>Redis: {health === null || health.redis === null ? 'Unknown' : healthStale ? `Stale · last ${health.redis ? 'OK' : 'Error'}` : health.redis ? 'OK' : 'Error'}</span>
               <span>·</span>
-              <span>Queue: {queueIntegrityState ?? 'Unavailable'}</span>
+              <span>Queue: {health === null || queueIntegrityState === null ? 'Unknown' : healthStale ? `Stale · last ${queueIntegrityState}` : queueIntegrityState}</span>
             </div>
           </CardContent>
         </Card>
@@ -213,7 +222,7 @@ export function OperationsMonitorDashboard({
               <CardTitle className="text-sm font-semibold">Operations Status Distribution</CardTitle>
               <CardDescription className="text-xs">
                 {operationMetrics
-                  ? `${telemetry.total.toLocaleString()} operations in the selected UTC window; chart uses the latest ${operations.length} list rows. Sampled ${operationMetrics.sampledAt}${operationMetrics.stale || operationMetricsFailed ? ' · stale' : ''}.`
+                  ? `${telemetry.total.toLocaleString()} operations in the selected UTC window; this is not an all-time total. The chart uses the latest ${operations.length} list rows. Sampled ${operationMetrics.sampledAt}${operationMetrics.stale || operationMetricsFailed ? ' · stale' : ''}.`
                   : 'The full-window server aggregate is unavailable; no sampled counts are shown.'}
               </CardDescription>
             </div>
@@ -339,7 +348,8 @@ export function OperationsMonitorDashboard({
                 <CardTitle className="text-sm font-semibold">Request Throughput & Processing Time</CardTitle>
               </div>
               <CardDescription className="text-xs">
-                {timeframeLabels[timeframe].desc} · Track throughput and latency for reporting
+                {timeframeLabels[timeframe].desc}. Bars distribute up to the latest 100 operations list rows into time buckets; this sample is not full-history throughput, and an empty bucket does not prove no system activity.
+                {operationsFailed ? ' The latest list refresh failed; the visible sample is from an earlier successful read.' : ''}
               </CardDescription>
             </div>
 
@@ -366,19 +376,27 @@ export function OperationsMonitorDashboard({
           {/* SVG Bar Chart */}
           <div className="relative border border-[var(--border-subtle)] bg-[var(--surface-muted)] rounded-lg p-4">
             <div className="h-44 w-full flex items-end gap-1.5 sm:gap-2 pt-6">
+              {operationsLoading && operations.length === 0 ? <p role="status" className="absolute inset-0 flex items-center justify-center text-sm text-[var(--text-sub)]">Loading recent operation sample…</p> : null}
+              {operationsFailed && operations.length === 0 ? <p role="alert" className="absolute inset-0 flex items-center justify-center px-4 text-center text-sm text-[var(--badge-danger-text)]">The recent operations sample is unavailable. No zero counts are shown.</p> : null}
+              {!operationsLoading && !operationsFailed && operations.length === 0 ? <p className="absolute inset-0 flex items-center justify-center px-4 text-center text-sm text-[var(--text-sub)]">No rows appeared in the returned recent operations sample.</p> : null}
               {buckets.map((bucket) => {
-                const heightPercent =
-                  maxRequestsInBuckets > 0
-                    ? Math.max(8, (bucket.totalRequests / maxRequestsInBuckets) * 100)
-                    : 8;
+                const heightPercent = bucket.totalRequests === 0
+                  ? 0
+                  : Math.max(8, (bucket.totalRequests / maxRequestsInBuckets) * 100);
                 const isHovered = hoveredBucket?.key === bucket.key;
 
                 return (
-                  <div
+                  <button
+                    type="button"
                     key={bucket.key}
                     onMouseEnter={() => setHoveredBucket(bucket)}
-                    onMouseLeave={() => setHoveredBucket(null)}
-                    className="flex-1 flex flex-col items-center h-full justify-end group cursor-pointer"
+                    onMouseLeave={(event) => {
+                      if (document.activeElement !== event.currentTarget) setHoveredBucket(null);
+                    }}
+                    onFocus={() => setHoveredBucket(bucket)}
+                    onBlur={() => setHoveredBucket(null)}
+                    aria-label={`${bucket.label} ${bucket.subLabel ?? ''}: ${bucket.totalRequests} rows in the latest operations sample, ${bucket.succeeded} succeeded, ${bucket.failed} failed`}
+                    className="flex-1 min-w-0 appearance-none border-0 bg-transparent p-0 text-left flex flex-col items-center h-full justify-end group cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
                   >
                     {/* Bar Column */}
                     <div className="w-full relative flex items-end justify-center h-full">
@@ -405,26 +423,26 @@ export function OperationsMonitorDashboard({
                     <span className="text-[10px] text-[var(--text-sub)] mt-2 truncate max-w-full font-mono text-center">
                       {bucket.label}
                     </span>
-                  </div>
+                  </button>
                 );
               })}
             </div>
 
             {/* Hover Tooltip display at bottom */}
-            <div className="mt-3 pt-2 border-t border-[var(--border-subtle)] flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--text-sub)] min-h-[24px]">
+            <div role="status" aria-live="polite" className="mt-3 pt-2 border-t border-[var(--border-subtle)] flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--text-sub)] min-h-[24px]">
               {hoveredBucket ? (
                 <>
                   <span className="font-semibold text-[var(--text-main)]">
                     Bucket: {hoveredBucket.label} ({hoveredBucket.subLabel})
                   </span>
-                  <span>Total: <strong className="text-[var(--text-main)]">{hoveredBucket.totalRequests}</strong> reqs</span>
+                  <span>Sample rows: <strong className="text-[var(--text-main)]">{hoveredBucket.totalRequests}</strong></span>
                   <span className="text-green-600">Succeeded: <strong>{hoveredBucket.succeeded}</strong></span>
                   <span className="text-red-500">Failed: <strong>{hoveredBucket.failed}</strong></span>
                   <span>Avg processing time: <strong className="text-[var(--text-main)]">{formatDurationMs(hoveredBucket.avgDurationMs)}</strong></span>
                 </>
               ) : (
-                <span className="italic">
-                  Hover a column to see the throughput and processing time for that time bucket.
+                  <span className="italic">
+                  Focus or point to a column to inspect rows in the loaded sample.
                 </span>
               )}
             </div>
@@ -433,14 +451,14 @@ export function OperationsMonitorDashboard({
           {/* Table representation of Timeframe Buckets */}
           <div className="space-y-2">
             <h4 className="text-xs font-semibold uppercase tracking-wider text-[var(--text-sub)]">
-              Throughput & Processing Time table ({timeframeLabels[timeframe].label})
+              Loaded sample by time bucket ({timeframeLabels[timeframe].label})
             </h4>
             <TableContainer className="border border-[var(--border-subtle)] rounded-md max-h-56 overflow-y-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-[var(--surface-muted)]">
                     <TableHead className="text-xs">Time bucket</TableHead>
-                    <TableHead className="text-xs text-right">Total requests</TableHead>
+                    <TableHead className="text-xs text-right">Sample rows</TableHead>
                     <TableHead className="text-xs text-right">Succeeded</TableHead>
                     <TableHead className="text-xs text-right">Failed</TableHead>
                     <TableHead className="text-xs text-right">Cancelled / Timeout</TableHead>
@@ -519,7 +537,7 @@ export function OperationsMonitorDashboard({
             </div>
           </CardHeader>
           <CardContent>
-            {workerInventoryFailed ? (
+            {workerInventoryFailed && workerInstances === null ? (
               <div role="status" className="text-center p-6 border border-dashed border-[var(--border-subtle)] rounded-lg text-xs text-[var(--text-sub)]">
                 Worker heartbeat inventory is unavailable for this admin scope.
               </div>
@@ -529,7 +547,7 @@ export function OperationsMonitorDashboard({
               </div>
             ) : workerList.length === 0 ? (
               <div className="text-center p-6 border border-dashed border-[var(--border-subtle)] rounded-lg text-xs text-[var(--text-sub)]">
-                No worker heartbeat instances are currently recorded.
+                No worker heartbeat instances are recorded in this response. Businesses without heartbeats are not represented as offline rows.
               </div>
             ) : (
               <TableContainer className="border border-[var(--border-subtle)] rounded-md">
@@ -582,6 +600,7 @@ export function OperationsMonitorDashboard({
                 </Table>
               </TableContainer>
             )}
+            {workerInventoryFailed && workerInstances !== null ? <p role="status" className="mt-2 text-xs text-[var(--badge-warning-text)]">The latest inventory refresh failed; showing the last successful sample from {new Date(workerInstances.sampledAt).toLocaleString()}.</p> : null}
             {workerInstances?.truncated ? (
               <p className="mt-2 text-[10px] text-[var(--text-sub)]">
                 Showing the latest 500 worker instances; the inventory response is truncated.
@@ -598,7 +617,7 @@ export function OperationsMonitorDashboard({
               Connectivity & Infrastructure Status
             </CardTitle>
             <CardDescription className="text-xs">
-              Live connection status for PostgreSQL, Redis and BullMQ
+              Platform health probe for PostgreSQL and Redis; queue integrity is a separate consistency signal.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -607,9 +626,9 @@ export function OperationsMonitorDashboard({
               <div className="p-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] flex flex-col justify-between">
                 <span className="text-[var(--text-sub)]">PostgreSQL DB</span>
                 <div className="flex items-center gap-1.5 mt-2">
-                  <span className={`w-2 h-2 rounded-full ${health?.db ? 'bg-green-500' : 'bg-red-500'}`} />
+                  <span className={`w-2 h-2 rounded-full ${health?.db === true && !healthStale ? 'bg-green-500' : health?.db === false && !healthStale ? 'bg-red-500' : 'bg-gray-400'}`} />
                   <span className="font-semibold text-[var(--text-main)]">
-                    {health?.db ? 'Connected' : 'Disconnected'}
+                    {health === null || health.db === null ? 'Unknown' : healthStale ? `Stale · last ${health.db ? 'connected' : 'disconnected'}` : health.db ? 'Connected' : 'Disconnected'}
                   </span>
                 </div>
               </div>
@@ -618,9 +637,9 @@ export function OperationsMonitorDashboard({
               <div className="p-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] flex flex-col justify-between">
                 <span className="text-[var(--text-sub)]">Redis Queue</span>
                 <div className="flex items-center gap-1.5 mt-2">
-                  <span className={`w-2 h-2 rounded-full ${health?.redis ? 'bg-green-500' : 'bg-red-500'}`} />
+                  <span className={`w-2 h-2 rounded-full ${health?.redis === true && !healthStale ? 'bg-green-500' : health?.redis === false && !healthStale ? 'bg-red-500' : 'bg-gray-400'}`} />
                   <span className="font-semibold text-[var(--text-main)]">
-                    {health?.redis ? 'Connected' : 'Disconnected'}
+                    {health === null || health.redis === null ? 'Unknown' : healthStale ? `Stale · last ${health.redis ? 'connected' : 'disconnected'}` : health.redis ? 'Connected' : 'Disconnected'}
                   </span>
                 </div>
               </div>
@@ -631,7 +650,7 @@ export function OperationsMonitorDashboard({
                 <div className="flex items-center gap-1.5 mt-2">
                   <span className={`w-2 h-2 rounded-full ${queueIntegrityDotClass}`} />
                   <span className="font-semibold text-[var(--text-main)]">
-                    {queueIntegrityState ?? 'Unavailable'}
+                    {queueIntegrityState === null ? 'Unknown' : healthStale ? `Stale · last ${queueIntegrityState}` : queueIntegrityState}
                   </span>
                 </div>
               </div>
@@ -642,7 +661,7 @@ export function OperationsMonitorDashboard({
                 <div className="flex items-center gap-1.5 mt-2">
                   <Zap className="w-3.5 h-3.5 text-amber-500" />
                   <span className="font-semibold text-[var(--text-main)]">
-                    {health?.activeLeases ?? 0} leases
+                    {health === null || health.activeLeases === null ? 'Unknown' : healthStale ? `Stale · last ${health.activeLeases.toLocaleString()}` : `${health.activeLeases.toLocaleString()} leases`}
                   </span>
                 </div>
               </div>
@@ -651,15 +670,15 @@ export function OperationsMonitorDashboard({
             <div className="p-2.5 rounded border border-[var(--border-subtle)] bg-[var(--surface-base)] text-[11px] text-[var(--text-sub)] space-y-1">
               <div className="flex justify-between">
                 <span>Orphan tasks checked:</span>
-                <strong className="text-[var(--text-main)]">{health?.queueIntegrity?.orphansLast ?? 0}</strong>
+                <strong className="text-[var(--text-main)]">{health === null || healthStale || health.queueIntegrity?.orphansLast == null ? 'Unknown' : health.queueIntegrity.orphansLast.toLocaleString()}</strong>
               </div>
               <div className="flex justify-between">
                 <span>Stalled Jobs:</span>
-                <strong className="text-[var(--text-main)]">{health?.queueIntegrity?.stalled ?? 0}</strong>
+                <strong className="text-[var(--text-main)]">{health === null || healthStale || health.queueIntegrity?.stalled == null ? 'Unknown' : health.queueIntegrity.stalled.toLocaleString()}</strong>
               </div>
               <div className="flex justify-between">
                 <span>Outbox Backlog:</span>
-                <strong className="text-[var(--text-main)]">{health?.outboxBacklog ?? 0}</strong>
+                <strong className="text-[var(--text-main)]">{health === null || healthStale || health.outboxBacklog === null ? 'Unknown' : health.outboxBacklog.toLocaleString()}</strong>
               </div>
             </div>
           </CardContent>
@@ -687,11 +706,18 @@ export function OperationsMonitorDashboard({
           </div>
         </CardHeader>
         <CardContent>
-          {telemetry.recentItems.length === 0 ? (
+          {operationsLoading && operations.length === 0 ? (
+            <div role="status" className="text-center p-6 border border-dashed border-[var(--border-subtle)] rounded-lg text-xs text-[var(--text-sub)]">Loading the latest operations page…</div>
+          ) : operationsFailed && operations.length === 0 ? (
+            <div role="alert" className="text-center p-6 border border-dashed border-[var(--border-subtle)] rounded-lg text-xs text-[var(--badge-danger-text)]">The operations page could not be loaded. The system total is unknown here.</div>
+          ) : telemetry.recentItems.length === 0 ? (
             <div className="text-center p-6 border border-dashed border-[var(--border-subtle)] rounded-lg text-xs text-[var(--text-sub)]">
-              No operations have been executed in the system yet.
+              No rows appeared in the latest operations page.
             </div>
           ) : (
+            <>
+            {operationsFailed ? <p role="status" className="mb-2 text-xs text-[var(--badge-warning-text)]">The latest refresh failed; showing the previous page sample.</p> : null}
+            <p className="mb-2 text-xs text-[var(--text-sub)]">Showing up to the latest 100 operations. This table is not an all-history list.</p>
             <TableContainer className="border border-[var(--border-subtle)] rounded-md">
               <Table>
                 <TableHeader>
@@ -715,7 +741,7 @@ export function OperationsMonitorDashboard({
                       <TableRow key={op.id}>
                         <TableCell className="text-xs font-mono">
                           <Link
-                            to={`/operations`}
+                            to={`/operations?${new URLSearchParams({ operation: op.id }).toString()}`}
                             className="text-[var(--cf-blue)] hover:underline font-semibold"
                             title={op.id}
                           >
@@ -754,6 +780,7 @@ export function OperationsMonitorDashboard({
                 </TableBody>
               </Table>
             </TableContainer>
+            </>
           )}
         </CardContent>
       </Card>

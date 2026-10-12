@@ -57,6 +57,13 @@ export class PgSqlClient implements SqlClient {
       '007_connector_credential_source',
       '008_connector_revision_binding',
       '009_connector_invocation_session_ref',
+      '010_connector_invocation_state_version',
+      '011_connector_usage_delivery_evidence',
+      '012_replica_runtime_controls',
+      '013_connector_recipe_revisions',
+      '014_connector_recipe_retirement',
+      '015_backup_effect_fences',
+      '016_replica_runtime_boot_ack',
     ]) {
       const applied = await this.pool.query(
         'SELECT version FROM connector_schema_migrations WHERE version = $1',

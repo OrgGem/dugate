@@ -35,6 +35,14 @@ import {
   type WorkerArtifactIdentity,
 } from './artifact-encryption';
 import { writePublicArtifact } from '../../compat/legacy-public-artifact';
+import {
+  decryptStoredArtifact,
+  ENCRYPTED_OBJECT_MARKER,
+  ENCRYPTED_OBJECT_MARKER_VALUE,
+  MANIFEST_KEY_METADATA,
+} from '../encryption/artifact-read-decrypt';
+import type { StorageGenerationService } from './storage-generations';
+import type { BackupArtifactEffectPort, BackupArtifactEffectProof, BackupSnapshotWriteGate } from '../maintenance/backup-effect-fence';
 
 /**
  * Artifact lifecycle with either PostgreSQL fallback storage or an injected
@@ -72,6 +80,27 @@ export interface ArtifactService {
   putBlob(storageKey: string, tenantId: string, bytes: Buffer): Promise<void>;
   /** Worker-side blob GET (slice transport; resolves `downloadUrl`). */
   getBlob(storageKey: string): Promise<Readable>;
+  /** Verify exact tenant-owned artifact generations for Connector test execution. */
+  readInvocationArtifacts(input: { tenantId: string; artifactIds: readonly string[] }): Promise<{
+    contents: Array<InvocationArtifactReadContent>;
+    pins: Array<InvocationArtifactReadPin>;
+  }>;
+  /** Exact-version deletion for the audited maintenance engine. This claims
+   * an unreferenced row before touching storage and never deletes active or
+   * operation/task-pinned content. Ambiguous physical deletion is UNKNOWN. */
+  expireForMaintenance(artifactId: string, mode?: 'orphan' | 'retention'): Promise<{ status: 'DELETED' | 'SKIPPED' | 'UNKNOWN'; code: string | null }>;
+  /** Read ciphertext plus its exact encryption sidecar for the internal
+   * checksummed maintenance bundle. The caller already holds the immutable
+   * metadata snapshot; this helper resolves the pinned generation only. */
+  readPinnedObjectsForMaintenanceBackup(input: {
+    storageBackend: string; storageGenerationId: string | null; storageKey: string;
+    storageVersionId: string; manifestVersionId: string | null; maxBytes: number;
+  }): Promise<{ objectBytes: Buffer; manifestBytes: Buffer | null }>;
+  /** Streaming variant for full immutable backups of multipart-sized objects. */
+  openPinnedObjectsForMaintenanceBackup(input: {
+    storageBackend: string; storageGenerationId: string | null; storageKey: string;
+    storageVersionId: string; manifestVersionId: string | null;
+  }): Promise<{ object: Readable; manifest: Readable | null }>;
   /**
    * Store a caller-supplied upload that has no task yet (the legacy compat
    * facade). `requestUpload` cannot serve that case: it asserts a task row
@@ -85,6 +114,7 @@ export interface ArtifactService {
    */
   putPublicArtifact(input: {
     tenantId: string;
+    apiKeyId?: string;
     fileName: string | null;
     mimeType: string;
     bytes: Buffer;
@@ -102,12 +132,47 @@ export interface ArtifactService {
   sweepPublicArtifactCleanup(limit?: number): Promise<{ scanned: number; deleted: number; deferred: number }>;
 }
 
+/** Authenticated integrity facts keep logical content distinct from immutable
+ * ciphertext and the sidecar bytes stored for that artifact. */
+export interface InvocationArtifactReadIntegrity {
+  databaseMetadata: {
+    kind: 'gateway-ciphertext' | 'worker-plaintext' | 'legacy-plaintext';
+    sha256: string;
+    sizeBytes: number;
+  };
+  content: { sha256: string; sizeBytes: number };
+  storedObject: { sha256: string; sizeBytes: number; versionId: string; storageGenerationId: string | null };
+  sidecar: { sha256: string; sizeBytes: number; versionId: string } | null;
+  verified: true;
+}
+
+export interface InvocationArtifactReadPin {
+  artifactId: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  sha256: string;
+  storageVersionId: string;
+  storageGenerationId: string | null;
+  integrity: InvocationArtifactReadIntegrity;
+}
+
+export interface InvocationArtifactReadContent extends InvocationArtifactReadPin {
+  contentBase64: string;
+}
+
 export interface ArtifactServiceOptions {
   /** Defaults to PostgreSQL; S3 requires an explicitly injected facade. */
   storageBackend?: 'postgres' | 's3';
   storageFacade?: ArtifactStorageFacade;
   /** Explicitly approved rollback window: new writes use S3; reads may fall back to retained PostgreSQL blobs. */
   migrationWindow?: boolean;
+  /** Dynamic immutable generation router. Existing rows continue through their pinned generation. */
+  storageGenerations?: StorageGenerationService;
+  /** Durable snapshot permit for maintenance artifact deletion. */
+  backupArtifactEffects?: BackupArtifactEffectPort;
+  /** Same-transaction snapshot lock for artifact metadata mutations. */
+  backupSnapshotWriteGate?: BackupSnapshotWriteGate;
   /** Matches the bounded binary ingress default; S3 grants enforce it before upload. */
   maxArtifactBytes?: number;
   /**
@@ -129,7 +194,7 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
   // while an operator explicitly enables the approved migration window.
   const dualReadEnabled = options.migrationWindow === true;
   const s3OnlyCutover = storageBackend === 's3' && options.migrationWindow !== true;
-  if (storageBackend === 's3' && !options.storageFacade) {
+  if (storageBackend === 's3' && !options.storageFacade && !options.storageGenerations) {
     throw new Error('S3 artifact storage requires a configured facade');
   }
   const maxArtifactBytes = options.maxArtifactBytes ?? 64 * 1024 * 1024;
@@ -173,10 +238,152 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
     },
   });
 
-  function storageFor(backend: string): ArtifactStorageFacade {
+  function storageFor(backend: string, generationId?: string | null): ArtifactStorageFacade {
+    if (generationId) {
+      if (!options.storageGenerations) throw unavailable('artifact storage generation reader is not configured');
+      return options.storageGenerations.forGeneration(generationId);
+    }
     if (backend === 'postgres') return postgresStorage;
     if (backend === 's3' && options.storageFacade) return options.storageFacade;
     throw unavailable('artifact storage backend is not configured');
+  }
+
+  interface EncryptedArtifactRow {
+    id: string;
+    tenantId: string;
+    storageBackend: string;
+    storageGenerationId: string | null;
+    storageKey: string;
+    storageVersionId: string | null;
+    manifestVersionId: string | null;
+    sizeBytes: number | string | null;
+    sha256: string | null;
+    uploadToken: string | null;
+  }
+
+  async function openEncryptedArtifact(row: EncryptedArtifactRow): Promise<{
+    bytes: Buffer;
+    sha256: string;
+    sizeBytes: number;
+    logicalFacts: 'plaintext' | 'gateway-ciphertext-row';
+    storedObject: { sha256: string; sizeBytes: number };
+    sidecar: { sha256: string; sizeBytes: number };
+  }> {
+    if (!encryption || !row.uploadToken || !row.storageVersionId || row.storageVersionId === 'null'
+      || !row.manifestVersionId || row.manifestVersionId === 'null' || !row.sha256) {
+      throw storageErrorToHttp(new ArtifactStorageError('ENCRYPTION_REQUIRED'));
+    }
+    const expectedCiphertextSize = Number(row.sizeBytes);
+    if (!Number.isSafeInteger(expectedCiphertextSize) || expectedCiphertextSize < 1) {
+      throw conflict('STATE_CONFLICT', 'artifact ciphertext integrity metadata is invalid');
+    }
+    const objectStore = storageFor(row.storageBackend, row.storageGenerationId);
+    const expectedManifestKey = manifestKeyFor(row.storageKey);
+    let loadedManifest: unknown;
+    const loadedManifestBytes: { value: Buffer | null } = { value: null };
+    const loadedObjectBytes: { value: Buffer | null } = { value: null };
+    let manifestLoaded = false;
+    const reader = {
+      async head(storageKey: string, versionId?: string) {
+        if (storageKey !== row.storageKey || versionId !== row.storageVersionId) return null;
+        // The standard artifact reader expects object identity metadata. This
+        // facade has no HEAD metadata port, so derive those identity fields
+        // from the tenant-owned row and its exact-version sidecar; the reader
+        // still authenticates the wrapper's identity, ciphertext digest and
+        // crypto AAD against the same immutable row pins.
+        await this.readManifest(expectedManifestKey, row.manifestVersionId ?? undefined);
+        return {
+          [ENCRYPTED_OBJECT_MARKER]: ENCRYPTED_OBJECT_MARKER_VALUE,
+          [MANIFEST_KEY_METADATA]: expectedManifestKey,
+          artifactid: row.id,
+          tenantid: row.tenantId,
+        };
+      },
+      async read(storageKey: string, versionId?: string): Promise<Buffer> {
+        if (storageKey !== row.storageKey || versionId !== row.storageVersionId) {
+          throw new ArtifactStorageError('ARTIFACT_METADATA_MISMATCH');
+        }
+        loadedObjectBytes.value = await collectReadable(await objectStore.openRead({ objectKey: row.storageKey, versionId: row.storageVersionId! }), maxArtifactBytes);
+        return loadedObjectBytes.value;
+      },
+      async readManifest(manifestKey: string, versionId?: string): Promise<unknown> {
+        if (manifestKey !== expectedManifestKey || versionId !== row.manifestVersionId) {
+          throw new ArtifactStorageError('ARTIFACT_METADATA_MISMATCH');
+        }
+        if (manifestLoaded) return loadedManifest;
+        const bytes = await collectReadable(await objectStore.openRead({ objectKey: expectedManifestKey, versionId: row.manifestVersionId! }), 1024 * 1024);
+        loadedManifestBytes.value = bytes;
+        try { loadedManifest = JSON.parse(bytes.toString('utf8')) as unknown; }
+        catch { throw new ArtifactStorageError('ENVELOPE_INVALID'); }
+        manifestLoaded = true;
+        return loadedManifest;
+      },
+    };
+    const sealedRef = {
+      artifactId: row.id,
+      tenantId: row.tenantId,
+      storageKey: row.storageKey,
+      uploadToken: row.uploadToken,
+      manifestVersionId: row.manifestVersionId,
+      storageVersionId: row.storageVersionId,
+      ciphertextSha256: row.sha256,
+      ciphertextSizeBytes: expectedCiphertextSize,
+    };
+    const opened = await decryptStoredArtifact({ reader, facade: encryption.facade, encryptionRequired: true }, sealedRef);
+    if (!opened.decrypted) throw storageErrorToHttp(new ArtifactStorageError('ENVELOPE_INVALID'));
+    if (!loadedObjectBytes.value || !loadedManifestBytes.value) throw storageErrorToHttp(new ArtifactStorageError('ENVELOPE_INVALID'));
+    const logicalSha256 = createHash('sha256').update(opened.bytes).digest('hex');
+    const logicalSizeBytes = opened.bytes.byteLength;
+    const wrapper = loadedManifest && typeof loadedManifest === 'object' && !Array.isArray(loadedManifest)
+      ? loadedManifest as Record<string, unknown>
+      : null;
+    const gatewayWrapped = wrapper !== null && ('encryption' in wrapper || 'kind' in wrapper || 'artifactId' in wrapper);
+    if (gatewayWrapped) {
+      // Public encrypted uploads intentionally persist ciphertext integrity in
+      // artifacts.sha256/size_bytes. decryptStoredArtifact has already checked
+      // those exact physical facts against the v1 wrapper and authenticated
+      // the plaintext digest in the crypto manifest. Do not compare the
+      // logical plaintext digest to the historical ciphertext column.
+      return {
+        bytes: opened.bytes, sha256: logicalSha256, sizeBytes: logicalSizeBytes, logicalFacts: 'gateway-ciphertext-row',
+        storedObject: { sha256: createHash('sha256').update(loadedObjectBytes.value).digest('hex'), sizeBytes: loadedObjectBytes.value.byteLength },
+        sidecar: { sha256: createHash('sha256').update(loadedManifestBytes.value).digest('hex'), sizeBytes: loadedManifestBytes.value.byteLength },
+      };
+    }
+    if (logicalSizeBytes !== expectedCiphertextSize || logicalSha256 !== row.sha256.toLowerCase()) {
+      throw storageErrorToHttp(new ArtifactStorageError('CHECKSUM_MISMATCH'));
+    }
+    return {
+      bytes: opened.bytes, sha256: logicalSha256, sizeBytes: logicalSizeBytes, logicalFacts: 'plaintext',
+      storedObject: { sha256: createHash('sha256').update(loadedObjectBytes.value).digest('hex'), sizeBytes: loadedObjectBytes.value.byteLength },
+      sidecar: { sha256: createHash('sha256').update(loadedManifestBytes.value).digest('hex'), sizeBytes: loadedManifestBytes.value.byteLength },
+    };
+  }
+
+  async function storageForNewWrites(): Promise<{
+    backend: string;
+    generationId: string | null;
+    facade: ArtifactStorageFacade;
+    urlTtlSeconds: number | null;
+  }> {
+    if (options.storageGenerations) {
+      const active = await options.storageGenerations.current();
+      return {
+        backend: active.backend,
+        generationId: active.generationId,
+        facade: options.storageGenerations.forGeneration(active.generationId),
+        urlTtlSeconds: active.urlTtlSeconds,
+      };
+    }
+    return { backend: storageBackend, generationId: null, facade: storageFor(storageBackend), urlTtlSeconds: null };
+  }
+
+  function uploadGrantTtlMs(urlTtlSeconds: number | null): number {
+    if (urlTtlSeconds === null) return GRANT_TTL_MS;
+    if (!Number.isSafeInteger(urlTtlSeconds) || urlTtlSeconds < 1 || urlTtlSeconds > 86_400) {
+      throw unavailable('storage generation presigned URL TTL is invalid');
+    }
+    return urlTtlSeconds * 1000;
   }
 
   interface PublicArtifactCleanupRow {
@@ -184,6 +391,7 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
     tenantId: string;
     storageKey: string;
     storageBackend: string;
+    storageGenerationId: string | null;
     storageVersionId: string | null;
     manifestVersionId: string | null;
   }
@@ -192,6 +400,7 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
     return db.tx(async (client) => {
       const selected = await client.query<PublicArtifactCleanupRow & { state: string; abortReason: string | null }>(
         `SELECT id, tenant_id AS "tenantId", storage_key AS "storageKey", storage_backend AS "storageBackend",
+                storage_generation_id AS "storageGenerationId",
                 storage_version_id AS "storageVersionId", manifest_version_id AS "manifestVersionId",
                 state, abort_reason AS "abortReason"
          FROM artifacts
@@ -247,7 +456,7 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
         ).catch(() => null);
         return removedBlob !== null;
       };
-      const store = storageFor(row.storageBackend);
+      const store = storageFor(row.storageBackend, row.storageGenerationId);
       try {
         if (!row.storageVersionId || row.storageVersionId === 'null') {
           throw new ArtifactStorageError('OBJECT_VERSION_REQUIRED');
@@ -277,7 +486,7 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
       // without a version pin, retain the cleanup row for the storage GC.
       if (!row.storageVersionId || row.storageVersionId === 'null') return false;
       try {
-        const store = storageFor(row.storageBackend);
+        const store = storageFor(row.storageBackend, row.storageGenerationId);
         await store.delete({ objectKey: row.storageKey, versionId: row.storageVersionId });
         if (row.manifestVersionId) {
           await store.delete({ objectKey: manifestKeyFor(row.storageKey), versionId: row.manifestVersionId });
@@ -360,11 +569,13 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
       }
       const artifactId = randomUUID();
       const storageKey = `art-${artifactId}`;
+      const storage = await storageForNewWrites();
       const token = randomUUID();
       // CR-12: the grant is method-scoped (upload) with a STORED expiry. The
       // blob route enforces both, so this token can never GET and dies on
       // time even if the advertised `expiresAt` is ignored by the caller.
-      const expiresAt = new Date(Date.now() + GRANT_TTL_MS).toISOString();
+      const directUrlTtl = !encryption && storage.backend === 's3' ? storage.urlTtlSeconds : null;
+      const expiresAt = new Date(Date.now() + uploadGrantTtlMs(directUrlTtl)).toISOString();
       const proxyUrl = `/api/runtime/v1/artifacts/blob/${encodeURIComponent(storageKey)}?grant=${token}`;
       // SEC-ENC-04: when sealing is configured the object version and the
       // server-mediated proxy URL are pinned at admission. No direct backend
@@ -375,7 +586,7 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
         storageGrant = serverMediatedUploadGrant(proxyUrl, expiresAt);
       } else {
         try {
-          storageGrant = await storageFor(storageBackend).createUploadGrant({
+          storageGrant = await storage.facade.createUploadGrant({
             artifactId,
             tenantId: lease.tenant_id,
             objectKey: storageKey,
@@ -391,18 +602,18 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
       if (objectVersion) {
         await db.query(
           `INSERT INTO artifacts (id, tenant_id, operation_id, task_id, purpose, file_name, mime_type, size_bytes, state,
-                                  token, token_mode, token_expires_at, storage_key, storage_backend, upload_token)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'STAGING',$9,'upload',$10,$11,$12,$13)`,
+                                  token, token_mode, token_expires_at, storage_key, storage_backend, storage_generation_id, upload_token)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'STAGING',$9,'upload',$10,$11,$12,$13,$14)`,
           [artifactId, lease.tenant_id, lease.operation_id, taskId, req.purpose, req.fileName ?? null, req.mimeType, req.sizeBytes,
-            token, expiresAt, storageKey, storageBackend, objectVersion]
+            token, expiresAt, storageKey, storage.backend, storage.generationId, objectVersion]
         );
       } else {
         await db.query(
           `INSERT INTO artifacts (id, tenant_id, operation_id, task_id, purpose, file_name, mime_type, size_bytes, state,
-                                  token, token_mode, token_expires_at, storage_key, storage_backend)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'STAGING',$9,'upload',$10,$11,$12)`,
+                                  token, token_mode, token_expires_at, storage_key, storage_backend, storage_generation_id)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'STAGING',$9,'upload',$10,$11,$12,$13)`,
           [artifactId, lease.tenant_id, lease.operation_id, taskId, req.purpose, req.fileName ?? null, req.mimeType, req.sizeBytes,
-            token, expiresAt, storageKey, storageBackend]
+            token, expiresAt, storageKey, storage.backend, storage.generationId]
         );
       }
       return {
@@ -449,6 +660,7 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
 
         const artifactRes = await client.query(
           `SELECT tenant_id AS "tenantId", operation_id AS "operationId", storage_key AS "storageKey", storage_backend AS "storageBackend",
+                  storage_generation_id AS "storageGenerationId",
                   storage_version_id AS "storageVersionId", state,
                   task_id AS "taskId", size_bytes AS "sizeBytes", sha256,
                   upload_token AS "uploadToken", manifest_version_id AS "manifestVersionId",
@@ -463,6 +675,7 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
           operationId: string | null;
           storageKey: string;
           storageBackend?: string;
+          storageGenerationId?: string | null;
           storageVersionId?: string | null;
           state: string;
           taskId: string;
@@ -529,7 +742,7 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
                 await client.query('DELETE FROM artifact_blobs WHERE storage_key=$1', [storageKey]);
               },
             })
-          : storageFor(artifactBackend);
+          : storageFor(artifactBackend, art.storageGenerationId);
 
         const finishFinalize = async (finalized: {
           rowCount: number | null;
@@ -574,12 +787,15 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
           const manifestKey = manifestKeyFor(art.storageKey);
           let sidecarBytes: Buffer;
           try {
-            if (typeof verificationStorage.readServerObject !== 'function') {
-              throw new ArtifactStorageError('ENCRYPTION_UNAVAILABLE');
+            if (!art.manifestVersionId || art.manifestVersionId === 'null') {
+              throw new ArtifactStorageError('ENCRYPTION_REQUIRED');
             }
-            sidecarBytes = await verificationStorage.readServerObject(manifestKey);
+            sidecarBytes = await collectReadable(await verificationStorage.openRead({
+              objectKey: manifestKey,
+              versionId: art.manifestVersionId,
+            }), 1024 * 1024);
           } catch (error) {
-            if (error instanceof ArtifactStorageError && error.code === 'OBJECT_NOT_FOUND') {
+            if (error instanceof ArtifactStorageError && ['OBJECT_NOT_FOUND', 'ENCRYPTION_REQUIRED'].includes(error.code)) {
               throw storageErrorToHttp(new ArtifactStorageError('ENCRYPTION_REQUIRED'));
             }
             throw storageErrorToHttp(error);
@@ -712,6 +928,7 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
         const artifactRes = await client.query(
           `SELECT tenant_id AS "tenantId", operation_id AS "operationId",
                   storage_key AS "storageKey", storage_backend AS "storageBackend",
+                  storage_generation_id AS "storageGenerationId",
                   storage_version_id AS "storageVersionId", file_name AS "fileName", mime_type AS "mimeType",
                   size_bytes AS "sizeBytes", sha256,
                   state, task_id AS "taskId", purpose
@@ -724,6 +941,7 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
           operationId: string | null;
           storageKey: string;
           storageBackend?: string;
+          storageGenerationId?: string | null;
           storageVersionId?: string | null;
           fileName?: string | null;
           mimeType?: string;
@@ -779,7 +997,11 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
         const token = randomUUID();
         // CR-12: store method scope and expiry in the same transaction as the
         // authorization decision, before returning a storage-facade URL.
-        const expiresAt = new Date(Date.now() + GRANT_TTL_MS).toISOString();
+        const directUrlTtl = req.mode === 'write' && !encryption && art.storageBackend === 's3'
+          && art.storageGenerationId && options.storageGenerations
+          ? await options.storageGenerations.presignedUrlTtlSeconds(art.storageGenerationId)
+          : null;
+        const expiresAt = new Date(Date.now() + uploadGrantTtlMs(directUrlTtl)).toISOString();
         const scope = req.mode === 'read' ? 'download' : 'upload';
         await client.query(
           'UPDATE artifacts SET token=$2, token_mode=$3, token_expires_at=$4 WHERE id=$1',
@@ -798,7 +1020,7 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
         } else {
           if ((art.storageBackend ?? 'postgres') === 's3') {
             try {
-              const s3Grant = await storageFor('s3').createUploadGrant({
+              const s3Grant = await storageFor('s3', art.storageGenerationId).createUploadGrant({
                 artifactId,
                 tenantId: art.tenantId,
                 objectKey: art.storageKey,
@@ -824,7 +1046,7 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
     async putBlob(storageKey, tenantId, bytes): Promise<void> {
       await db.tx(async (client) => {
         const cur = await client.query(
-          `SELECT a.id, a.state, a.storage_backend AS "storageBackend", a.upload_token AS "uploadToken"
+          `SELECT a.id, a.state, a.storage_backend AS "storageBackend", a.storage_generation_id AS "storageGenerationId", a.upload_token AS "uploadToken"
            FROM artifacts a
            WHERE a.storage_key=$1 AND a.tenant_id=$2 FOR UPDATE OF a`,
           [storageKey, tenantId]
@@ -834,6 +1056,7 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
           id: string;
           state: string;
           storageBackend?: string;
+          storageGenerationId?: string | null;
           uploadToken: string | null;
         };
         const backend = row.storageBackend ?? 'postgres';
@@ -870,7 +1093,7 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
               );
               writtenManifestVersion = createHash('sha256').update(sealed.sidecar).digest('hex');
             } else {
-              const writer = storageFor(backend);
+              const writer = storageFor(backend, row.storageGenerationId);
               if (typeof writer.putServerObject !== 'function') {
                 throw new ArtifactStorageError('ENCRYPTION_UNAVAILABLE');
               }
@@ -895,14 +1118,15 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
               [row.id, writtenCiphertextVersion ?? null, writtenManifestVersion ?? null],
             );
           } catch (error) {
-            if (backend !== 'postgres' && options.storageFacade) {
+            if (backend !== 'postgres') {
+              const cleanupStore = storageFor(backend, row.storageGenerationId);
               // Best-effort orphan cleanup; the row stays STAGING and the
               // recovery sweeper owns anything left behind.
               if (writtenManifestVersion) {
-                await options.storageFacade.delete({ objectKey: manifestKey, versionId: writtenManifestVersion }).catch(() => undefined);
+                await cleanupStore.delete({ objectKey: manifestKey, versionId: writtenManifestVersion }).catch(() => undefined);
               }
               if (writtenCiphertextVersion) {
-                await options.storageFacade.delete({ objectKey: storageKey, versionId: writtenCiphertextVersion }).catch(() => undefined);
+                await cleanupStore.delete({ objectKey: storageKey, versionId: writtenCiphertextVersion }).catch(() => undefined);
               }
             }
             throw storageErrorToHttp(error);
@@ -922,12 +1146,13 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
 
 
     async putPublicArtifact(input) {
+      const selectedStorage = await storageForNewWrites();
       if (input.requireEncryption) {
         // This check is intentionally before writePublicArtifact inserts its
         // STAGING row. `encryption` is the same server-mediated worker
         // artifact seam used for ciphertext and sidecar storage.
         if (!encryption) throw unavailable('encrypted workflow artifact storage is not configured');
-        const writer = storageFor(storageBackend);
+        const writer = selectedStorage.facade;
         if (typeof writer.putServerObject !== 'function' || typeof writer.openRead !== 'function') {
           throw unavailable('encrypted workflow artifact storage is not available on this backend');
         }
@@ -936,6 +1161,20 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
         {
           query: (sql, params) => db.query(sql, params as unknown[]),
           putBlob: async (storageKey, tenantId, bytes) => {
+            // The legacy compatibility writer creates its STAGING row before
+            // invoking this callback. Pin its immutable generation before the
+            // first provider write so a concurrent activation cannot redirect
+            // this artifact halfway through the upload.
+            if (selectedStorage.generationId) {
+              const pinned = await db.query(
+                `UPDATE artifacts SET storage_generation_id=$3, storage_backend=$4
+                 WHERE storage_key=$1 AND tenant_id=$2 AND state='STAGING'
+                   AND purpose='input' AND operation_id IS NULL AND task_id IS NULL
+                 RETURNING id`,
+                [storageKey, tenantId, selectedStorage.generationId, selectedStorage.backend],
+              );
+              if (!pinned.rowCount) throw new ArtifactStorageError('ARTIFACT_METADATA_MISMATCH');
+            }
             if (encryption) {
               const rowResult = await db.query<{ id: string; uploadToken: string | null }>(
                 `SELECT id, upload_token AS "uploadToken" FROM artifacts
@@ -953,7 +1192,7 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
               };
               const sealed = await sealWorkerArtifact({ bytes, identity, seam: encryption });
               const manifestKey = manifestKeyFor(storageKey);
-              const writer = storageFor(storageBackend);
+              const writer = selectedStorage.facade;
               if (typeof writer.putServerObject !== 'function') {
                 throw new ArtifactStorageError('ENCRYPTION_UNAVAILABLE');
               }
@@ -1022,7 +1261,7 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
 
             // Unencrypted inline bytes have no server-mediated S3 upload path.
             // Keep them on the explicit PostgreSQL compatibility backend only.
-            if (storageBackend !== 'postgres') {
+            if (selectedStorage.backend !== 'postgres') {
               throw new HttpError(
                 503,
                 'TEMPORARY_UNAVAILABLE',
@@ -1038,7 +1277,7 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
           verifyAndPin: async (pin) => {
             if (!encryption) {
               try {
-                return await storageFor(storageBackend).verifyAndPin(pin);
+                return await selectedStorage.facade.verifyAndPin(pin);
               } catch (error) {
                 throw storageErrorToHttp(error);
               }
@@ -1061,7 +1300,7 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
               if (!row.uploadToken || !row.storageVersionId || !row.manifestVersionId) {
                 throw new ArtifactStorageError('ENCRYPTION_REQUIRED');
               }
-              const store = storageFor(storageBackend);
+              const store = selectedStorage.facade;
               const sidecarBytes = await collectReadable(await store.openRead({
                 objectKey: manifestKeyFor(pin.objectKey),
                 versionId: row.manifestVersionId,
@@ -1098,7 +1337,7 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
             }
           },
           cleanupAfterFailure: async (tenantId, artifactId) => compensatePublicArtifact(tenantId, artifactId),
-          storageBackend,
+          storageBackend: selectedStorage.backend as 'postgres' | 's3',
           maxArtifactBytes,
         },
         input,
@@ -1107,8 +1346,8 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
 
     assertPublicArtifactEncryptionReady() {
       if (!encryption) throw unavailable('encrypted workflow artifact storage is not configured');
-      const writer = storageFor(storageBackend);
-      if (typeof writer.putServerObject !== 'function' || typeof writer.openRead !== 'function') {
+      const writer = options.storageGenerations ? null : storageFor(storageBackend);
+      if (writer && (typeof writer.putServerObject !== 'function' || typeof writer.openRead !== 'function')) {
         throw unavailable('encrypted workflow artifact storage is not available on this backend');
       }
     },
@@ -1185,7 +1424,9 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
     async getBlob(storageKey): Promise<Readable> {
       const result = await db.query(
         `SELECT id, tenant_id AS "tenantId", state, storage_backend AS "storageBackend",
-                storage_version_id AS "storageVersionId", size_bytes AS "sizeBytes", sha256,
+                storage_generation_id AS "storageGenerationId",
+                storage_version_id AS "storageVersionId", manifest_version_id AS "manifestVersionId",
+                size_bytes AS "sizeBytes", sha256,
                 upload_token AS "uploadToken"
          FROM artifacts WHERE storage_key=$1`,
         [storageKey],
@@ -1196,7 +1437,9 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
         tenantId: string;
         state: string;
         storageBackend: string;
+        storageGenerationId: string | null;
         storageVersionId: string | null;
+        manifestVersionId: string | null;
         sizeBytes: number | string | null;
         sha256: string | null;
         uploadToken: string | null;
@@ -1209,62 +1452,41 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
       const expectedSha256 = art.sha256;
       const backend = art.storageBackend ?? 'postgres';
 
-      // SEC-ENC-04: sealed worker artifacts are opened server-side, exactly
-      // like the public upload route. The envelope binds tenant/artifact/pinned
-      // version, so a swapped row or ciphertext is a refusal, never a raw
-      // ciphertext body served under a success status.
-      if (encryption && art.uploadToken) {
-        const objectStore = storageFor(backend);
-        if (typeof objectStore.readServerObject !== 'function') {
-          throw storageErrorToHttp(new ArtifactStorageError('ENCRYPTION_UNAVAILABLE'));
-        }
-        const manifestKey = manifestKeyFor(storageKey);
-        let sidecarBytes: Buffer | null = null;
-        try {
-          sidecarBytes = await objectStore.readServerObject(manifestKey);
-        } catch (error) {
-          if (!(error instanceof ArtifactStorageError && error.code === 'OBJECT_NOT_FOUND')) {
-            throw storageErrorToHttp(error);
-          }
-        }
-        if (sidecarBytes) {
-          if (!art.storageVersionId) {
-            throw conflict('STATE_CONFLICT', 'artifact has no immutable version and integrity metadata');
-          }
-          try {
-            const manifest = parseWorkerArtifactSidecar(JSON.parse(sidecarBytes.toString('utf8')) as unknown);
-            const ciphertext = await collectReadable(await objectStore.openRead({
-              objectKey: storageKey,
-              versionId: art.storageVersionId,
-            }), maxArtifactBytes);
-            const plaintext = await openWorkerArtifact({
-              sidecar: manifest,
-              ciphertext,
-              context: artifactEncryptionContext({
-                tenantId: art.tenantId,
-                artifactId: art.id,
-                objectVersion: art.uploadToken,
-              }),
-              seam: encryption,
-            });
-            const plaintextSha256 = createHash('sha256').update(plaintext).digest('hex');
-            if (plaintextSha256 !== expectedSha256 || plaintext.byteLength !== expectedSizeBytes) {
-              throw new ArtifactStorageError('ENVELOPE_INVALID');
-            }
-            return Readable.from([plaintext]);
-          } catch (error) {
-            throw storageErrorToHttp(error);
-          }
-        }
-        if (encryptionRequired) {
-          throw storageErrorToHttp(new ArtifactStorageError('ENCRYPTION_REQUIRED'));
-        }
+      // Public gateway sidecars wrap the crypto manifest and persist physical
+      // ciphertext facts in the artifact row; worker sidecars are the raw
+      // crypto manifest and persist logical plaintext facts. The shared
+      // authenticated reader handles both formats and keeps those facts
+      // distinct while binding tenant/artifact/object versions in the AAD.
+      if (art.uploadToken && art.manifestVersionId) {
+        const opened = await openEncryptedArtifact({
+          id: art.id, tenantId: art.tenantId, storageBackend: backend,
+          storageGenerationId: art.storageGenerationId, storageKey,
+          storageVersionId: art.storageVersionId, manifestVersionId: art.manifestVersionId,
+          sizeBytes: art.sizeBytes, sha256: art.sha256, uploadToken: art.uploadToken,
+        });
+        return Readable.from([opened.bytes]);
       }
 
       // During DATA-05 roll-forward, check S3 first. For legacy PostgreSQL rows,
       // verify the candidate S3 object against source metadata. Only the active
       // explicitly enabled dual-read window may fall back to PostgreSQL;
       // missing or false configuration keeps PostgreSQL fallback disabled.
+      if (art.storageGenerationId) {
+        // Every post-generation artifact is read through the exact immutable
+        // backend config and object version written at admission.
+        try {
+          if (!art.storageVersionId || art.storageVersionId === 'null') {
+            throw new ArtifactStorageError('OBJECT_VERSION_REQUIRED');
+          }
+          return await storageFor(backend, art.storageGenerationId).openRead({
+            objectKey: storageKey,
+            versionId: art.storageVersionId,
+          });
+        } catch (error) {
+          throw storageErrorToHttp(error);
+        }
+      }
+
       if (options.storageFacade && (backend === 's3' || dualReadEnabled || s3OnlyCutover)) {
         try {
           if (backend === 's3' && art.storageVersionId) {
@@ -1328,6 +1550,312 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
       } catch (error) {
         throw storageErrorToHttp(error);
       }
+    },
+
+    /**
+     * Read and verify tenant-owned immutable inputs for Connector provider
+     * tests. Returned pins are safe signed locators; storage keys and
+     * credentials never leave this service. The reader only admits READY
+     * `input` artifacts owned by the requested tenant and enforces the same
+     * byte ceiling as Connector's invocation contract.
+     */
+    async readInvocationArtifacts(input: { tenantId: string; artifactIds: readonly string[] }): Promise<{
+      contents: Array<InvocationArtifactReadContent>;
+      pins: Array<InvocationArtifactReadPin>;
+    }> {
+      if (input.artifactIds.length > 4 || new Set(input.artifactIds).size !== input.artifactIds.length) {
+        throw unprocessable('INVALID_SCHEMA', 'provider test accepts up to four distinct artifact IDs');
+      }
+      const contents: InvocationArtifactReadContent[] = [];
+      const pins: InvocationArtifactReadPin[] = [];
+      for (const artifactId of input.artifactIds) {
+        const found = await db.query<{
+          id: string; tenantId: string; fileName: string | null; mimeType: string; sizeBytes: number | string | null;
+          sha256: string | null; storageBackend: string; storageGenerationId: string | null;
+          storageKey: string; storageVersionId: string | null; manifestVersionId: string | null; uploadToken: string | null;
+        }>(
+          `SELECT id,tenant_id AS "tenantId",file_name AS "fileName",mime_type AS "mimeType",size_bytes AS "sizeBytes",sha256,
+                  storage_backend AS "storageBackend",storage_generation_id AS "storageGenerationId",
+                  storage_key AS "storageKey",storage_version_id AS "storageVersionId",
+                  manifest_version_id AS "manifestVersionId",upload_token AS "uploadToken"
+             FROM artifacts
+            WHERE id=$1 AND tenant_id=$2 AND purpose='input' AND state='READY'
+              AND sha256 IS NOT NULL AND size_bytes BETWEEN 1 AND 10485760
+              AND storage_version_id IS NOT NULL`,
+          [artifactId, input.tenantId],
+        );
+        if (!found.rowCount) throw notFound('provider test artifact not found');
+        const row = found.rows[0]!;
+        if (!row.storageVersionId || row.storageVersionId === 'null') throw conflict('STATE_CONFLICT', 'provider test artifact has no immutable storage version');
+        const expectedSize = Number(row.sizeBytes);
+        if (!Number.isSafeInteger(expectedSize) || expectedSize < 1 || expectedSize > 10 * 1024 * 1024 || !row.sha256) {
+          throw conflict('STATE_CONFLICT', 'provider test artifact integrity metadata is invalid');
+        }
+        let bytes: Buffer;
+        let digest: string;
+        let logicalSize: number;
+        let objectFacts: { sha256: string; sizeBytes: number };
+        let sidecarFacts: { sha256: string; sizeBytes: number } | null = null;
+        let databaseMetadataKind: InvocationArtifactReadIntegrity['databaseMetadata']['kind'];
+        if (encryption && row.uploadToken && row.manifestVersionId) {
+          const opened = await openEncryptedArtifact({
+            id: row.id, tenantId: row.tenantId, storageBackend: row.storageBackend,
+            storageGenerationId: row.storageGenerationId, storageKey: row.storageKey,
+            storageVersionId: row.storageVersionId, manifestVersionId: row.manifestVersionId,
+            sizeBytes: row.sizeBytes, sha256: row.sha256, uploadToken: row.uploadToken,
+          });
+          bytes = opened.bytes;
+          digest = opened.sha256;
+          logicalSize = opened.sizeBytes;
+          objectFacts = opened.storedObject;
+          sidecarFacts = opened.sidecar;
+          databaseMetadataKind = opened.logicalFacts === 'gateway-ciphertext-row' ? 'gateway-ciphertext' : 'worker-plaintext';
+        } else {
+          bytes = await collectReadable(await this.getBlob(row.storageKey), 10 * 1024 * 1024);
+          digest = createHash('sha256').update(bytes).digest('hex');
+          logicalSize = bytes.byteLength;
+          if (logicalSize !== expectedSize || digest !== row.sha256.toLowerCase()) {
+            throw conflict('CHECKSUM_MISMATCH', 'provider test artifact bytes no longer match their pinned integrity metadata');
+          }
+          objectFacts = { sha256: digest, sizeBytes: logicalSize };
+          databaseMetadataKind = 'legacy-plaintext';
+        }
+        if (logicalSize < 1 || logicalSize > 10 * 1024 * 1024) {
+          throw conflict('STATE_CONFLICT', 'provider test artifact plaintext exceeds the supported size');
+        }
+        const integrity: InvocationArtifactReadIntegrity = {
+          databaseMetadata: { kind: databaseMetadataKind, sha256: row.sha256.toLowerCase(), sizeBytes: expectedSize },
+          content: { sha256: digest, sizeBytes: logicalSize },
+          storedObject: {
+            sha256: objectFacts.sha256,
+            sizeBytes: objectFacts.sizeBytes,
+            versionId: row.storageVersionId,
+            storageGenerationId: row.storageGenerationId,
+          },
+          sidecar: sidecarFacts ? {
+            sha256: sidecarFacts.sha256,
+            sizeBytes: sidecarFacts.sizeBytes,
+            versionId: row.manifestVersionId!,
+          } : null,
+          verified: true,
+        };
+        const pin: InvocationArtifactReadPin = {
+          artifactId: row.id,
+          fileName: row.fileName ?? 'artifact',
+          mimeType: row.mimeType,
+          sizeBytes: logicalSize,
+          sha256: digest,
+          storageVersionId: row.storageVersionId,
+          storageGenerationId: row.storageGenerationId,
+          integrity,
+        };
+        pins.push(pin);
+        contents.push({ ...pin, contentBase64: bytes.toString('base64') });
+      }
+      return { contents, pins };
+    },
+
+    async expireForMaintenance(artifactId: string, mode: 'orphan' | 'retention' = 'orphan'): Promise<{ status: 'DELETED' | 'SKIPPED' | 'UNKNOWN'; code: string | null }> {
+      const effects = options.backupArtifactEffects;
+      const writeGate = options.backupSnapshotWriteGate;
+      if (!effects || !writeGate) return { status: 'UNKNOWN', code: 'BACKUP_EFFECTS_UNAVAILABLE' };
+
+      interface MaintenanceArtifactRow {
+        id: string; tenantId: string | null; state: string; purpose: string; operationId: string | null; taskId: string | null;
+        storageKey: string | null; storageBackend: string | null; storageGenerationId: string | null;
+        storageVersionId: string | null; manifestVersionId: string | null; multipartUploadId: string | null;
+        sha256: string | null; sizeBytes: string | number | null;
+      }
+      const initialResult = await db.query<MaintenanceArtifactRow>(
+        `SELECT id,tenant_id AS "tenantId",state,purpose,operation_id AS "operationId",task_id AS "taskId",
+                storage_key AS "storageKey",storage_backend AS "storageBackend",
+                storage_generation_id AS "storageGenerationId",storage_version_id AS "storageVersionId",
+                manifest_version_id AS "manifestVersionId",multipart_upload_id AS "multipartUploadId",
+                sha256,size_bytes AS "sizeBytes"
+           FROM artifacts WHERE id=$1`, [artifactId],
+      );
+      const initial = initialResult.rows[0];
+      if (!initial) return { status: 'SKIPPED', code: 'REFERENCED_OR_INELIGIBLE' };
+      if (initial.state === 'DELETED') return { status: 'DELETED', code: null };
+      if (!['READY','EXPIRED'].includes(initial.state) || initial.multipartUploadId !== null) {
+        return { status: 'SKIPPED', code: 'REFERENCED_OR_INELIGIBLE' };
+      }
+      if (!initial.storageGenerationId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(initial.storageGenerationId)
+        || !initial.storageKey || !initial.storageBackend || !initial.storageVersionId || initial.storageVersionId === 'null') {
+        return { status: 'UNKNOWN', code: 'IMMUTABLE_STORAGE_PIN_MISSING' };
+      }
+      const effectKey = `cleanup:${createHash('sha256').update(JSON.stringify([
+        artifactId, initial.storageGenerationId, initial.storageKey, initial.storageVersionId, initial.manifestVersionId,
+      ])).digest('hex')}`;
+      if (initial.state === 'EXPIRED') {
+        const prior = await effects.lookup(effectKey);
+        if (prior?.state === 'COMPLETED') return { status: 'DELETED', code: null };
+        return { status: 'UNKNOWN', code: prior ? 'CLEANUP_RECONCILIATION_REQUIRED' : 'CLEANUP_EFFECT_MISSING' };
+      }
+
+      let effect: Awaited<ReturnType<BackupArtifactEffectPort['begin']>>;
+      try {
+        effect = await effects.begin({
+          effectKey, category: 'cleanup', tenantId: initial.tenantId, artifactId,
+          storageGenerationId: initial.storageGenerationId,
+          objectKeySha256: createHash('sha256').update(initial.storageKey).digest('hex'),
+        });
+      } catch (error) {
+        const code = error && typeof error === 'object' && 'code' in error ? String((error as { code: unknown }).code) : '';
+        if (code === 'BACKUP_EFFECT_FENCE_ACTIVE') return { status: 'SKIPPED', code };
+        return { status: 'UNKNOWN', code: 'BACKUP_EFFECTS_UNAVAILABLE' };
+      }
+      if (effect.state === 'COMPLETED') return { status: 'DELETED', code: null };
+      if (effect.state !== 'PREPARED') return { status: 'UNKNOWN', code: 'CLEANUP_RECONCILIATION_REQUIRED' };
+
+      let preparation: { status: 'ELIGIBLE'; row: MaintenanceArtifactRow } | { status: 'INELIGIBLE' | 'FENCE_BLOCKED' };
+      try {
+        preparation = await db.tx(async (client) => {
+          await writeGate.assertWriteAllowed(client, {
+            tenantId: initial.tenantId, domain: 'artifact-metadata', requestKey: effectKey,
+          });
+          const found = await client.query<MaintenanceArtifactRow>(
+            `SELECT id,tenant_id AS "tenantId",state,purpose,operation_id AS "operationId",task_id AS "taskId",
+                    storage_key AS "storageKey",storage_backend AS "storageBackend",
+                    storage_generation_id AS "storageGenerationId",storage_version_id AS "storageVersionId",
+                    manifest_version_id AS "manifestVersionId",multipart_upload_id AS "multipartUploadId",
+                    sha256,size_bytes AS "sizeBytes"
+               FROM artifacts WHERE id=$1 FOR UPDATE`, [artifactId],
+          );
+          const item = found.rows[0];
+          if (!item || item.state !== 'READY' || item.multipartUploadId !== null
+            || item.storageGenerationId !== initial.storageGenerationId || item.storageKey !== initial.storageKey
+            || item.storageVersionId !== initial.storageVersionId || item.manifestVersionId !== initial.manifestVersionId
+            || item.storageBackend !== initial.storageBackend) return { status: 'INELIGIBLE' } as const;
+          if (mode === 'orphan' && (item.operationId !== null || item.taskId !== null)) return { status: 'INELIGIBLE' } as const;
+          if (mode === 'retention') {
+            if ((item.purpose !== 'output' && item.purpose !== 'intermediate') || !item.operationId) return { status: 'INELIGIBLE' } as const;
+            const owner = await client.query(
+              `SELECT 1 FROM operations o
+                WHERE o.id=$1 AND o.state IN ('SUCCEEDED','FAILED','CANCELLED','TIMED_OUT')
+                  AND NOT COALESCE(o.cancel_requested,false) AND o.result_ref IS NULL
+                  AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.operation_id=o.id AND t.state IN ('READY','QUEUED','RUNNING','RETRY_PENDING','WAITING_INPUT','WAITING_CHILDREN'))
+                  AND NOT EXISTS (SELECT 1 FROM human_waits w WHERE w.operation_id=o.id AND w.status='OPEN')
+                LIMIT 1`, [item.operationId],
+            );
+            if (!owner.rowCount) return { status: 'INELIGIBLE' } as const;
+          }
+          const refs = await client.query(
+            `SELECT 1 FROM operations o
+              WHERE COALESCE(o.submit_artifacts,'[]'::jsonb) @> jsonb_build_array(jsonb_build_object('artifactId',$1::text))
+                 OR EXISTS (SELECT 1 FROM tasks t WHERE t.result_ref=$1)
+                 OR EXISTS (SELECT 1 FROM step_checkpoints sc WHERE sc.output_ref=$1)
+              LIMIT 1`, [artifactId],
+          );
+          if (refs.rowCount) return { status: 'INELIGIBLE' } as const;
+          const activated = await effects.activate(effect.effectId, client);
+          if (!activated) return { status: 'FENCE_BLOCKED' } as const;
+          const updated = await client.query(
+            `UPDATE artifacts SET state='EXPIRED' WHERE id=$1 AND state='READY' AND storage_generation_id=$2
+              AND storage_version_id=$3 AND storage_key=$4 RETURNING id`,
+            [artifactId,item.storageGenerationId,item.storageVersionId,item.storageKey],
+          );
+          if (updated.rowCount !== 1) throw conflict('ARTIFACT_STATE_CHANGED', 'Artifact changed during maintenance cleanup.');
+          return { status: 'ELIGIBLE', row: item } as const;
+        });
+      } catch {
+        await effects.cancelPrepared(effect.effectId, 'CLEANUP_PREPARE_FAILED').catch(() => false);
+        return { status: 'UNKNOWN', code: 'CLEANUP_PREPARE_OUTCOME_UNKNOWN' };
+      }
+      if (preparation.status !== 'ELIGIBLE') {
+        await effects.cancelPrepared(effect.effectId, preparation.status === 'FENCE_BLOCKED' ? 'BACKUP_EFFECT_FENCE_ACTIVE' : 'CLEANUP_INELIGIBLE').catch(() => false);
+        return preparation.status === 'FENCE_BLOCKED'
+          ? { status: 'SKIPPED', code: 'BACKUP_EFFECT_FENCE_ACTIVE' }
+          : { status: 'SKIPPED', code: 'REFERENCED_OR_INELIGIBLE' };
+      }
+      const row = preparation.row;
+      try {
+        const facade = storageFor(row.storageBackend!, row.storageGenerationId);
+        await facade.delete({ objectKey: row.storageKey!, versionId: row.storageVersionId! });
+        if (row.manifestVersionId) await facade.delete({ objectKey: manifestKeyFor(row.storageKey!), versionId: row.manifestVersionId });
+        let metadataRowSha256: string | null = null;
+        await db.tx(async (client) => {
+          await writeGate.assertWriteAllowed(client, {
+            tenantId: row!.tenantId, domain: 'artifact-metadata', requestKey: effectKey,
+          });
+          const current = await client.query<MaintenanceArtifactRow>(
+            `SELECT id,tenant_id AS "tenantId",state,purpose,operation_id AS "operationId",task_id AS "taskId",
+                    storage_key AS "storageKey",storage_backend AS "storageBackend",
+                    storage_generation_id AS "storageGenerationId",storage_version_id AS "storageVersionId",
+                    manifest_version_id AS "manifestVersionId",multipart_upload_id AS "multipartUploadId",
+                    sha256,size_bytes AS "sizeBytes"
+               FROM artifacts WHERE id=$1 FOR UPDATE`, [artifactId],
+          );
+          const currentRow = current.rows[0];
+          if (!currentRow || currentRow.state !== 'EXPIRED' || currentRow.storageGenerationId !== row!.storageGenerationId
+            || currentRow.storageVersionId !== row!.storageVersionId || currentRow.manifestVersionId !== row!.manifestVersionId) {
+            throw conflict('ARTIFACT_STATE_CHANGED', 'Artifact changed after the exact-version delete.');
+          }
+          const updated = await client.query(
+            `UPDATE artifacts SET state='DELETED' WHERE id=$1 AND state='EXPIRED' RETURNING id`, [artifactId],
+          );
+          if (updated.rowCount !== 1) throw conflict('ARTIFACT_STATE_CHANGED', 'Artifact state changed after the exact-version delete.');
+          const finalRow = await client.query<MaintenanceArtifactRow>(
+            `SELECT id,tenant_id AS "tenantId",state,purpose,operation_id AS "operationId",task_id AS "taskId",
+                    storage_key AS "storageKey",storage_backend AS "storageBackend",
+                    storage_generation_id AS "storageGenerationId",storage_version_id AS "storageVersionId",
+                    manifest_version_id AS "manifestVersionId",multipart_upload_id AS "multipartUploadId",
+                    sha256,size_bytes AS "sizeBytes"
+               FROM artifacts WHERE id=$1`, [artifactId],
+          );
+          const final = finalRow.rows[0];
+          if (!final || final.state !== 'DELETED') throw conflict('ARTIFACT_READBACK_FAILED', 'Deleted artifact metadata could not be verified.');
+          metadataRowSha256 = createHash('sha256').update(JSON.stringify([
+            final.id,final.tenantId,final.state,final.purpose,final.operationId,final.taskId,
+            final.storageKey,final.storageBackend,final.storageGenerationId,final.storageVersionId,
+            final.manifestVersionId,final.multipartUploadId,final.sha256,final.sizeBytes,
+          ])).digest('hex');
+        });
+        const proof: BackupArtifactEffectProof = {
+          objectVersionId: row.storageVersionId,
+          objectSha256: null,
+          objectByteSize: null,
+          sidecarVersionId: row.manifestVersionId,
+          sidecarSha256: null,
+          sidecarByteSize: null,
+          metadataRowSha256,
+        };
+        if (!metadataRowSha256 || !await effects.settle(effect.effectId, proof)) {
+          await effects.markUnknown(effect.effectId, 'CLEANUP_SETTLEMENT_UNCONFIRMED').catch(() => undefined);
+          return { status: 'UNKNOWN', code: 'CLEANUP_SETTLEMENT_UNCONFIRMED' };
+        }
+        return { status: 'DELETED', code: null };
+      } catch {
+        await effects.markUnknown(effect.effectId, 'STORAGE_DELETE_OUTCOME_UNKNOWN').catch(() => undefined);
+        return { status: 'UNKNOWN', code: 'STORAGE_DELETE_OUTCOME_UNKNOWN' };
+      }
+    },
+
+    async readPinnedObjectsForMaintenanceBackup(input) {
+      if (!input.storageKey || !input.storageVersionId || input.storageVersionId === 'null'
+        || !Number.isSafeInteger(input.maxBytes) || input.maxBytes < 1 || input.maxBytes > maxArtifactBytes) {
+        throw new ArtifactStorageError('OBJECT_VERSION_REQUIRED');
+      }
+      const facade = storageFor(input.storageBackend, input.storageGenerationId);
+      const objectBytes = await collectReadable(
+        await facade.openRead({ objectKey: input.storageKey, versionId: input.storageVersionId }), input.maxBytes,
+      );
+      const manifestBytes = input.manifestVersionId
+        ? await collectReadable(await facade.openRead({ objectKey: manifestKeyFor(input.storageKey), versionId: input.manifestVersionId }), 16 * 1024)
+        : null;
+      return { objectBytes, manifestBytes };
+    },
+
+    async openPinnedObjectsForMaintenanceBackup(input) {
+      if (!input.storageKey || !input.storageVersionId || input.storageVersionId === 'null') {
+        throw new ArtifactStorageError('OBJECT_VERSION_REQUIRED');
+      }
+      const facade = storageFor(input.storageBackend,input.storageGenerationId);
+      const object = await facade.openRead({objectKey:input.storageKey,versionId:input.storageVersionId});
+      const manifest = input.manifestVersionId
+        ? await facade.openRead({objectKey:manifestKeyFor(input.storageKey),versionId:input.manifestVersionId})
+        : null;
+      return {object,manifest};
     },
   };
 }

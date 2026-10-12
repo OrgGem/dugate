@@ -1,0 +1,15 @@
+{
+  "operation": "extract PoolClient.query then invoke without receiver",
+  "result": {
+    "name": "TypeError",
+    "message": "Cannot read properties of undefined (reading '_Promise')"
+  },
+  "actualPreviewResponseBeforeOwnerFix": {
+    "bffStatus": 502,
+    "bffCode": "UPSTREAM_ERROR",
+    "internalStatus": 500,
+    "internalCode": "TEMPORARY_UNAVAILABLE",
+    "internalErrorNameFromSanitizedServerLog": "TypeError"
+  },
+  "currentPreviewReceiverFix": "preview path succeeds with frozen source calling extracted query bound to executor"
+}

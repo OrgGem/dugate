@@ -53,6 +53,8 @@ export const IdentityUserSchema = z
     role: IdentityRoleSchema,
     enabled: z.boolean(),
     locked: z.boolean(),
+    /** Legacy import requires a deliberate administrator-set password before local login. */
+    legacyPasswordResetRequired: z.boolean().optional().default(false),
     createdAt: z.string(),
     updatedAt: z.string(),
     /** CAS token for updates; a stale value is refused with 409. */

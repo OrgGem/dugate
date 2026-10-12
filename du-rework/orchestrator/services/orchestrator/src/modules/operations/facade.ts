@@ -49,7 +49,7 @@ export function toOperationView(r: Record<string, unknown>) {
     progress: { percent: 0, message: r.state as string },
     links: {
       self: `/api/v1/operations/${id}`,
-      result: `/api/v1/operations/${id}/result`,
+      result: `/api/v1/operations/${id}`,
     },
   };
 }

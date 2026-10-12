@@ -1,0 +1,108 @@
+FAIL tests/workflow-api/orv14-vfy-core31.test.ts
+  ORV14 independent public HTTP compatibility with real outbox, worker, and Connector
+    ✕ imports and publishes XML through the normal workflow catalog, runs a real Worker workflow, and resumes HITL (178 ms)
+    ✕ imports and publishes JSON branch/join workflow and executes the immutable admitted pin in the real Worker (115 ms)
+    ○ skipped legacy multipart ingest parses exact bytes, projects/downloads result and replays without duplicate blobs
+    ○ skipped sync submit waits for real worker and returns terminal result within its budget
+    ○ skipped browser uploads a document and submits workflow.test to real worker, then polls success
+    31 public multipart variants through production outbox/Redis/worker/Connector
+      ○ skipped DOC-01-01 ingest/parse
+      ○ skipped DOC-01-02 ingest/ocr
+      ○ skipped DOC-01-03 ingest/digitize
+      ○ skipped DOC-01-04 ingest/split
+      ○ skipped DOC-02-01 extract/invoice
+      ○ skipped DOC-02-02 extract/contract
+      ○ skipped DOC-02-03 extract/receipt
+      ○ skipped DOC-02-04 extract/table
+      ○ skipped DOC-02-05 extract/custom
+      ○ skipped DOC-02-06 extract/id-card
+      ○ skipped DOC-03-01 analyze/classify
+      ○ skipped DOC-03-02 analyze/sentiment
+      ○ skipped DOC-03-03 analyze/compliance
+      ○ skipped DOC-03-04 analyze/quality
+      ○ skipped DOC-03-05 analyze/risk
+      ○ skipped DOC-03-06 analyze/fact-check
+      ○ skipped DOC-03-07 analyze/summarize-eval
+      ○ skipped DOC-04-01 transform/convert
+      ○ skipped DOC-04-02 transform/translate
+      ○ skipped DOC-04-03 transform/rewrite
+      ○ skipped DOC-04-04 transform/redact
+      ○ skipped DOC-04-05 transform/template
+      ○ skipped DOC-05-01 generate/summary
+      ○ skipped DOC-05-02 generate/outline
+      ○ skipped DOC-05-03 generate/report
+      ○ skipped DOC-05-04 generate/email
+      ○ skipped DOC-05-05 generate/minutes
+      ○ skipped DOC-05-06 generate/qa
+      ○ skipped DOC-06-01 compare/diff
+      ○ skipped DOC-06-02 compare/semantic
+      ○ skipped DOC-06-03 compare/version
+    ORV14 native tenant prompt and AI defaults observed by real Connector calls
+      ○ skipped published tenant prompt revisions reach real PNG/PDF/DOCX, compare, and generate provider calls with old/new operation pins
+      ○ skipped Gemini and OpenAI-compatible AI model defaults reach native provider tests and real Worker calls, with immutable old/new pins and Profile precedence
+    configured Worker private HTTPS
+      ○ skipped configured Worker receives exact private HTTPS policy, validates DNS/SNI/CA, executes callback and download, and exposes public result
+      ○ skipped parallel branch children share the configured private HTTPS policy
+      ○ skipped a resumed HITL workflow keeps the Worker policy for its later HTTPS callback
+      ○ skipped an explicit operation retry reuses the admitted schema pin and reaches HTTPS on the next attempt
+      ○ skipped worker default deny rejects a tenant-approved private origin when the operator list is empty
+      ○ skipped tenant schema approval blocks an origin absent from that immutable pin
+      ○ skipped operator list and tenant pin intersect; operator-only origin cannot be reached
+      ○ skipped verified TLS rejects a SAN mismatch while preserving the requested SNI
+      ○ skipped redirects are not followed and oversized file responses fail at the worker byte limit
+      ○ skipped operation cancellation aborts the active pinned HTTPS request
+      ○ skipped metadata, link-local, CGNAT, multicast, and reserved IP literals stay blocked with private opt-in
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › imports and publishes XML through the normal workflow catalog, runs a real Worker workflow, and resumes HITL
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "digest": "sha256:929ed5936cc12c469f6e3f0485a1584ee9a61c935fb1bd628e0bff999d9d9f97",
+    +   "digest": "sha256:21a9db167055e9206c439f15092b4a6f653f8784f50e523bffcf1b4a40237a9d",
+        "revision": 1,
+        "slug": "orv14-import-xml-e833dcb68516",
+      }
+
+      1872 |     expect(submitted.response.status).toBe(202);
+      1873 |     const operationPin = await admittedWorkflowPin(submitted.operationId);
+    > 1874 |     expect(operationPin).toMatchObject({ revision: publishedPin['revision'], digest: publishedPin['digest'], slug });
+           |                          ^
+      1875 |
+      1876 |     const schema = preview['schema'] as Record<string, unknown>;
+      1877 |     const nextPin = await publishNextWorkflowRevision(schema, operationPin.revision);
+
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:1874:26)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › imports and publishes JSON branch/join workflow and executes the immutable admitted pin in the real Worker
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "digest": "sha256:1d8957aced22cfeb7900453fdb4a2b217313ffe234e770d2bcf3a3cd3816be45",
+    +   "digest": "sha256:34861b7c9d1acc978a8478df2de73198d260fb65878b6905752c737b6900cf6e",
+        "revision": 1,
+        "slug": "orv14-import-json-7086fc9481ed",
+      }
+
+      1971 |     expect(submitted.response.status).toBe(202);
+      1972 |     const operationPin = await admittedWorkflowPin(submitted.operationId);
+    > 1973 |     expect(operationPin).toMatchObject({ revision: publishedPin['revision'], digest: publishedPin['digest'], slug });
+           |                          ^
+      1974 |     const nextPin = await publishNextWorkflowRevision(preview['schema'] as Record<string, unknown>, operationPin.revision);
+      1975 |     expect(nextPin['digest']).not.toBe(operationPin.digest);
+      1976 |
+
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:1973:26)
+
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 47 skipped, 49 total
+Snapshots:   0 total
+Time:        4.386 s, estimated 5 s
+Ran all test suites within paths "tests/workflow-api/orv14-vfy-core31.test.ts".

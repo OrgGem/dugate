@@ -16,6 +16,8 @@ import { SettingsRoute } from '@/routes/settings';
 import { WorkflowsRoute } from '@/routes/workflows';
 import { DocsRoute } from '@/routes/docs';
 import { ApiDocsRoute } from '@/routes/api-docs';
+import { SystemOperationsRoute } from '@/routes/system-operations';
+import { ApiKeysRoute } from '@/routes/api-keys';
 import { NotFound } from '@/routes/not-found';
 
 /**
@@ -40,6 +42,8 @@ export const router = createBrowserRouter(
           Component: BootstrapHome,
         },
         { path: 'overview', Component: OverviewRoute },
+        { path: 'system-operations', Component: SystemOperationsRoute },
+        { path: 'system-operations/:section', Component: SystemOperationsRoute },
         { path: 'audit', Component: AuditRoute },
         { path: 'trace', Component: TraceRoute },
         { path: 'connectors', Component: ConnectorsRoute },
@@ -54,6 +58,7 @@ export const router = createBrowserRouter(
         { path: 'workflows', Component: WorkflowsRoute },
         { path: 'docs', Component: DocsRoute },
         { path: 'api-docs', Component: ApiDocsRoute },
+        { path: 'api-keys', Component: ApiKeysRoute },
         { path: '*', Component: NotFound },
       ],
     },

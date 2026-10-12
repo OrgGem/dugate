@@ -1,0 +1,21 @@
+first_unfiltered_run_started_utc=2026-10-11T22:16:14.513Z
+cwd=/workspace/dugate/du-rework
+compose_project=orv14-vfy-20261011-a1
+postgres=127.0.0.1:25414/orv14_vfy; isolated_schema_created_by_tests/isolation/namespace.ts
+redis=127.0.0.1:26414; isolated_database/prefix_created_by_tests/isolation/namespace.ts
+toolchain=node24.21.0 direct binary; package-local Jest; NODE_PATH=orchestrator/node_modules/.pnpm/node_modules
+command=env WFA_DATABASE_URL=<synthetic-loopback-Postgres> WFA_REDIS_URL=<synthetic-loopback-Redis> NODE_PATH=<installed-pnpm-node-modules> node <installed-jest>/jest.js --config tests/workflow-api/jest.config.cjs --runInBand --detectOpenHandles --runTestsByPath tests/workflow-api/orv14-vfy-ops.test.ts
+initial_test_sha256=fcd2710f150998ee4923a7de78d12a22da00813bcb0e02fef8163fc64cfc5b3f
+ops_source_manifest_sha256=8b9b992bfedbd5a98668c7abab5321a8c573127985ce8abd324e12606b21a571
+incident_service_sha256=728c16880979748ab9d2e7612323edd04690473ee62e57e2be575936267317b2
+result=Jest reported 2 failed tests; see ops-live-current.log
+exit_code=1
+generated_db_schema_and_redis_db_not_printed_by_this_first_harness_revision; rerun_with_namespace_instrumentation_after_source_fix
+
+corrected_query_run_started_utc=2026-10-11T22:17:16.817Z
+corrected_test_sha256=333b51da04092b4f82ddd53937fcaed2adc9f9d201216d2617efc7569c57bc88
+command_filter=--testNamePattern 'searches, sorts, keyset-pages'
+result=1 passed; 1 skipped by filter; 0 failed
+exit_code=0
+raw=ops-query-corrected-before-incident-fix.log
+generated_db_schema_and_redis_db_not_printed_by_this_harness_revision; rerun_with_namespace_instrumentation_after_source_fix

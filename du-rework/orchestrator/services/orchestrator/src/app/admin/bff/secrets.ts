@@ -51,7 +51,7 @@ export type SecretsRoute =
   | { kind: 'disable'; secretId: string }
   | { kind: 'test'; secretId: string };
 
-const LIST_PARAM_ALLOWLIST = ['cursor', 'limit', 'state', 'purpose', 'sort'] as const;
+const LIST_PARAM_ALLOWLIST = ['cursor', 'limit', 'state', 'purpose', 'service', 'sort', 'q'] as const;
 const MAX_IDEMPOTENCY_KEY_LENGTH = 200;
 
 export function matchSecretsRoute(relative: string): SecretsRoute | null {

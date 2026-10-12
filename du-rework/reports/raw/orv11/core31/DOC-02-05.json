@@ -1,0 +1,32 @@
+{
+  "name": "operations/bfa4a82f-4ea3-46f1-a7c3-ffb6351f13f6",
+  "done": true,
+  "metadata": {
+    "state": "SUCCEEDED",
+    "pipeline": [],
+    "current_step": 0,
+    "progress_percent": 0,
+    "progress_message": "Queued",
+    "create_time": "2026-10-11T16:35:04.475Z",
+    "update_time": "2026-10-11T16:35:04.558Z",
+    "pipeline_steps": []
+  },
+  "result": {
+    "output_format": "json",
+    "content": "{\"projectId\":\"PRJ-99\",\"status\":\"ACTIVE\"}",
+    "extracted_data": {
+      "projectId": "PRJ-99",
+      "status": "ACTIVE"
+    },
+    "pipeline_steps": [],
+    "usage": {
+      "input_tokens": null,
+      "output_tokens": null,
+      "pages_processed": null,
+      "model_used": null,
+      "cost_usd": null,
+      "breakdown": []
+    },
+    "download_url": "/api/v1/operations/bfa4a82f-4ea3-46f1-a7c3-ffb6351f13f6/download"
+  }
+}

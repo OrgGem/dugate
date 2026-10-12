@@ -1,0 +1,32 @@
+{
+  "name": "operations/46c21c9c-75bf-4091-a0f3-1c8d4c411a5a",
+  "done": true,
+  "metadata": {
+    "state": "SUCCEEDED",
+    "pipeline": [],
+    "current_step": 0,
+    "progress_percent": 0,
+    "progress_message": "Queued",
+    "create_time": "2026-10-12T00:37:43.300Z",
+    "update_time": "2026-10-12T00:37:43.403Z",
+    "pipeline_steps": []
+  },
+  "result": {
+    "output_format": "json",
+    "content": "{\"category\":\"Finance\",\"confidence\":0.98}",
+    "extracted_data": {
+      "category": "Finance",
+      "confidence": 0.98
+    },
+    "pipeline_steps": [],
+    "usage": {
+      "input_tokens": null,
+      "output_tokens": null,
+      "pages_processed": null,
+      "model_used": null,
+      "cost_usd": null,
+      "breakdown": []
+    },
+    "download_url": "/api/v1/operations/46c21c9c-75bf-4091-a0f3-1c8d4c411a5a/download"
+  }
+}

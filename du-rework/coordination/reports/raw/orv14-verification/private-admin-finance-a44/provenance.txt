@@ -1,0 +1,28 @@
+Run ID: orv14_vfy_admin_ui_1791775922697_9ff7d994
+Started: 2026-10-12T03:32:02.697Z (run id epoch milliseconds)
+CWD: /workspace/dugate/du-rework
+Command: /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node tests/workflow-api/orv14-vfy/private-admin-web-server.cjs
+Exit: 1 (Playwright reports one axe failure)
+Node: v24.21.0
+Browser: Chromium 154.0.8037.57; Playwright launched /usr/bin/chromium.
+Server: actual normal createApp() shell, private Admin bundle, 62 canonical migrations. /admin returned 302 to /admin/login; /admin/login returned 200.
+Browser scope: all /admin/api/** calls were intercepted with fixture JSON. This receipt is UI behavior/accessibility evidence only; the separate real-Postgres financial receipt establishes accounting behavior.
+Postgres: owned schema du_test_orv14_vfy_admin_ui_1791775922697_9ff7d994 on synthetic Compose project orv14-vfy-20261011-a1 / port 25414; 62 migrations recorded.
+Redis: DB 12; prefix du:test:orv14_vfy_admin_ui_1791775922697_9ff7d994:; empty before and after.
+Object store: owned versioned MinIO endpoint 127.0.0.1:33069; bucket orv14-ui-bd1632821054459ab46e; container orv14-vfy-admin-ui-minio-fbe7e42b86; both absent after cleanup.
+Served bundle: private Vite output only, not shared dist and not a final ORV14 build. index.html sha256 866807991c9c0a304d8951020f4460256c8770cf63682d680d53bb67c1f9ff4c; served JS index-D5VHo1tE.js sha256 1ce044b9e0acf957c22e04a10e5be1e082a555301114fdc52534de3008aeb1a0; CSS index-yGBsUK5i.css sha256 41aa1720b9de9016e305c108d427fa896cfa8e4b89fd9a5b5f2b54d5ddd9c236. Previous private Admin source pre/post build manifest: 7187b344a63ea589d36024490e98653f3a16c9364db90ee715f54ed270d78edf. The bundle predates CostPolicyPanel accessibility fix SHA 16538f99e7a9d522693cd219c245b08be9af3a889215d39707a70885d3d65f4a; it contains the preceding panel source SHA 368bebb12fc32b611f4c15cecd743d9d277089d97a023259c725da4622a355fe.
+Contract build input: the private Vite config resolves browser runtime schemas through tests/workflow-api/orv14-vfy/private-admin-contracts-entry.ts; no shared build output was written.
+
+Independent browser spec SHA256 at run: a4b433b8b56a8b98d206abe45e08f8a0e077286880b6b8034986c6936acfa52d.
+Private server harness SHA256 at run: bb75829f37c7f5ff9015e5175781d620fd82a5990a055594e03175cbf83d13e2.
+Private Playwright config SHA256: 1c346a95f8937f8a93dc0c0f3508c83d15750a9c7a3deccff2150e9b88820bd9.
+Response preflight script SHA256: 255eb993f8061d4bcf3f560cd3bbba9814729cfffad622abad32c433f9fbb121; checked 26 response/wire bodies, 0 failures.
+CostAdjustmentPanel source SHA256: 24059edd41be0c6e10a0aef488c9df1cb09b6bb6a131e69ec93a22cc55efd7b2.
+CostPolicyPanel source SHA256 in the built snapshot: 368bebb12fc32b611f4c15cecd743d9d277089d97a023259c725da4622a355fe.
+Current narrow CostPolicyPanel source fix after a44: 16538f99e7a9d522693cd219c245b08be9af3a889215d39707a70885d3d65f4a.
+
+Results: 5 passed, 1 failed, 0 skipped, exit 1. Passing: correction/refund UI state and CSV field export; typed backup hold keeps reviewed draft and fresh idempotency key after known non-write; typed CAS conflict reload keeps user-entered values; 503 UNKNOWN keeps and rechecks same command/idempotency key; tenant USER receives read-only history. The sixth test passed its keyboard focus assertion and 1440px width check, then failed the whole-page axe `select-name` rule at 1440×900 light. Three CostPolicyPanel scope NativeSelects lack accessible names: API key, Profile, and Business. Later viewport/theme checks did not run after the assertion failed.
+
+Cleanup from the same run: schemaAbsent=true; redisEmptyAfter=true; redisKeysAfter=0; ownedBucketAbsent=true; ownedContainerAbsent=true. The actual 409/503 console notices are expected synthetic responses in cases 2–4; they are not unexplained network errors.
+
+Raw artifacts in this directory: full-run.log; response-preflight.log; axe-error-context.md; trace.zip. The trace and DOM include synthetic fixture data only.

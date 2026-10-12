@@ -1,0 +1,14 @@
+PASS orchestrator/packages/contracts/tests/cost-alerts.test.ts
+  cost alert contracts
+    ✓ allows only the first-party owner inbox channel and rejects browser destinations (10 ms)
+    ✓ requires unique, revision-pinned channels on an owner mapping (10 ms)
+    ✓ accepts a durable HELD delivery without implying an inbox receipt (1 ms)
+    ✓ accepts all concrete best-effort trust reasons while forbidding a hard-cap claim (4 ms)
+    ✓ requires the final persisted usage event for settlement alerts (1 ms)
+    ✓ defines bounded searchable scope pages and enforces parent filters and cursor state (2 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       6 passed, 6 total
+Snapshots:   0 total
+Time:        2.978 s, estimated 4 s
+Ran all test suites matching /orchestrator\/packages\/contracts\/tests\/cost-alerts.test.ts/i.

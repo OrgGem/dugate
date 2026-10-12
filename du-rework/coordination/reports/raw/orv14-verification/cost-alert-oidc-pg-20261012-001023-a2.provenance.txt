@@ -1,0 +1,18 @@
+attempt=cost-alert-oidc-pg-20261012-001023-a2
+started_utc=2026-10-12 00:10:23 UTC
+cwd=/workspace/dugate/du-rework
+node=/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node v24.21.0
+command=NODE_PATH=/workspace/dugate/du-rework/orchestrator/node_modules/.pnpm/node_modules /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node /workspace/dugate/du-rework/orchestrator/node_modules/.pnpm/node_modules/jest/bin/jest.js --config tests/workflow-api/jest.config.cjs --runInBand --detectOpenHandles --runTestsByPath tests/workflow-api/orv14-vfy/cost-alert-oidc.test.ts
+redis_base=redis://127.0.0.1:26414/0
+postgres_base=postgresql://orv14_vfy@127.0.0.1:25414/orv14_vfy
+idp=synthetic loopback mock IdP; actual port and two shell replica URLs are in the raw log
+redis_test_db=6
+redis_prefix=du:test:orv14_vfy_cost_oidc_1791763843793_166efde4:oidc:
+queue_prefix=du:q:orv14_vfy_cost_oidc_1791763843793_166efde4:
+postgres_schema=du_test_orv14_vfy_cost_oidc_1791763843793_166efde4
+result=1 selected test failed, exit 1; failure is verifier type assertion only. App A and B booted under normal autoMigrate, callback started on A completed on B, session resolved on A, verified OIDC directory row existed. Assertion compared PostgreSQL bigint string "1" to JS number 1. No downstream cost alert assertions executed.
+admin_bundle=explicit no-bundle; expected missing bundle warning is not browser/UI evidence
+source_manifest=Cost UI/alert owner manifest 7a5c9a14971a2d68b5085d24478114d545f33cbaa134088a80ac300bc912eb07; every backend/contract/migration file matched; `usage-screen.tsx` differed and is recorded separately in pre/post hashes. The UI screen is not imported by this HTTP/PG test. Central bootstrap remains mutable; integration result is snapshot-qualified/provisional.
+source_hashes_before=cost-alert-oidc-pg-20261012-001023-a2.pre.sha256
+source_hashes_after=cost-alert-oidc-pg-20261012-001023-a2.post.sha256
+cleanup=raw log records owned schema absent and test OIDC redis prefix scan remaining=0; app replicas, OIDC gateways, and mock IdP closed; no open-handle warning.

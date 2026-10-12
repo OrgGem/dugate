@@ -33,6 +33,8 @@ import type {
 import type { PoolClient, QueryResultRow } from 'pg';
 import type { Db } from '../../db/db';
 import { HttpError, zodIssuesToProblem } from '../../http/errors';
+import type { BackupSnapshotWriteGate } from '../maintenance/backup-effect-fence';
+import { loadEffectiveCharges } from './effective-charges';
 
 export interface BudgetReservationService {
   /** Persist a quota hold before any provider call is made. */
@@ -216,7 +218,7 @@ function mapReservation(row: BudgetReservationDbRow): BudgetReservation {
 
 async function acquireScopeLock(client: PoolClient, scopeKey: string, from: string, to: string): Promise<void> {
   const lockKey = JSON.stringify([scopeKey, from, to]);
-  await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [lockKey]);
+  await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`cost-quota:${lockKey}`]);
 }
 
 async function findOperationScope(
@@ -254,7 +256,11 @@ function assertOperationInScope(operation: OperationScopeRow, scope: BudgetQuota
   }
 }
 
-function usageAmounts(row: UsageDbRow): { tokens: number; costMicroUsd: number } {
+function usageAmounts(
+  row: UsageDbRow,
+  effectiveCostMicrousd?: number | null,
+  costStatus?: string | null,
+): { tokens: number; costMicroUsd: number; costKnown: boolean } {
   const checked = (inputTokens: number, outputTokens: number, costMicroUsd: number) => {
     const tokens = inputTokens + outputTokens;
     if (
@@ -265,12 +271,22 @@ function usageAmounts(row: UsageDbRow): { tokens: number; costMicroUsd: number }
     ) throw safeFailure();
     return { tokens, costMicroUsd };
   };
+  const selectCost = (rawCost: number | undefined): { value: number; known: boolean } => {
+    if (effectiveCostMicrousd !== null && effectiveCostMicrousd !== undefined) {
+      return { value: effectiveCostMicrousd, known: true };
+    }
+    if (costStatus === 'pending' || costStatus === 'unpriced' || rawCost === undefined) {
+      return { value: 0, known: false };
+    }
+    return { value: rawCost, known: true };
+  };
   const wire = UsageEventSchema.safeParse(row.payload);
   if (wire.success) {
     if (
       wire.data.eventId !== row.event_id || wire.data.operationId !== row.operation_id || wire.data.taskId !== row.task_id
     ) throw safeFailure();
-    return checked(wire.data.units.inputTokens, wire.data.units.outputTokens, wire.data.costMicrousd);
+    const cost = selectCost(wire.data.costMicrousd);
+    return { ...checked(wire.data.units.inputTokens, wire.data.units.outputTokens, cost.value), costKnown: cost.known };
   }
   const ledger = UsageLedgerEventSchema.safeParse(row.payload);
   if (ledger.success) {
@@ -279,7 +295,8 @@ function usageAmounts(row: UsageDbRow): { tokens: number; costMicroUsd: number }
       ledger.data.tenantId !== row.tenant_id || ledger.data.apiKeyId !== row.api_key_id ||
       ledger.data.businessId !== row.business_id
     ) throw safeFailure();
-    return checked(ledger.data.units.inputTokens, ledger.data.units.outputTokens, ledger.data.costMicrousd);
+    const cost = selectCost(ledger.data.costMicrousd);
+    return { ...checked(ledger.data.units.inputTokens, ledger.data.units.outputTokens, cost.value), costKnown: cost.known };
   }
   throw safeFailure();
 }
@@ -315,8 +332,14 @@ async function readCommittedUsage(
        )`,
     [scope.tenantId, scope.apiKeyId ?? null, scope.profileId ?? null, scope.businessId ?? null, from, to],
   );
+  const effective = await loadEffectiveCharges(client, rows.rows.map((row) => ({
+    event_id: row.event_id,
+    tenant_id: row.tenant_id,
+    payload: row.payload,
+  })));
   let tokens = 0n;
   let cost = 0n;
+  let validated = true;
   for (const row of rows.rows) {
     if (
       row.tenant_id !== scope.tenantId ||
@@ -324,11 +347,23 @@ async function readCommittedUsage(
       (scope.profileId !== undefined && row.profile_id !== scope.profileId) ||
       (scope.businessId !== undefined && row.business_id !== scope.businessId)
     ) throw safeFailure();
-    const amount = usageAmounts(row);
+    const projection = effective.get(row.event_id);
+    const amount = usageAmounts(row, projection?.netChargeMicrousd, projection?.costStatus);
     tokens = addSafe(tokens, amount.tokens, 'tokens');
     cost = addSafe(cost, amount.costMicroUsd, 'cost');
+    if (!amount.costKnown) validated = false;
   }
-  return { total: summary(tokens, cost, rows.rows.length), validated: true };
+  return { total: summary(tokens, cost, rows.rows.length), validated };
+}
+
+export interface BudgetReservationServiceOptions {
+  /** Required at every write call; absent configuration fails closed. */
+  backupSnapshotWriteGate?: BackupSnapshotWriteGate;
+  clock?: () => Date;
+}
+
+function requestKey(value: unknown): string {
+  return createHash('sha256').update(canonicalize(value)).digest('hex');
 }
 
 async function readHeldReservations(
@@ -391,7 +426,20 @@ async function runTx<T>(db: Db, fn: (client: PoolClient) => Promise<T>): Promise
   }
 }
 
-export function createBudgetReservationService(db: Db, clock: () => Date = () => new Date()): BudgetReservationService {
+export function createBudgetReservationService(
+  db: Db,
+  options: BudgetReservationServiceOptions | (() => Date) = {},
+): BudgetReservationService {
+  const normalized = typeof options === 'function' ? { clock: options } : options;
+  const clock = normalized.clock ?? (() => new Date());
+  const assertWriteGate = async (client: PoolClient, tenantId: string, identity: unknown): Promise<void> => {
+    if (!normalized.backupSnapshotWriteGate) throw safeFailure();
+    await normalized.backupSnapshotWriteGate.assertWriteAllowed(client, {
+      tenantId,
+      domain: 'usage-settlement',
+      requestKey: requestKey(identity),
+    });
+  };
   async function transition(input: unknown, target: BudgetReservationTransition['target']): Promise<BudgetReservation> {
     const parsed = BudgetReservationTransitionSchema.safeParse({
       ...(typeof input === 'object' && input !== null ? input : {}),
@@ -412,6 +460,12 @@ export function createBudgetReservationService(db: Db, clock: () => Date = () =>
       if (budgetQuotaScopeKey(request.quotaScope) !== budgetQuotaScopeKey(initialReservation.quotaScope)) {
         throw conflict('reservation scope does not match the original quota scope');
       }
+      await assertWriteGate(client, initialReservation.quotaScope.tenantId, {
+        purpose: 'legacy-budget-transition', reservationId: request.reservationId, target,
+      });
+      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [
+        `cost-policy-selection:${initialReservation.quotaScope.tenantId}`,
+      ]);
       await acquireScopeLock(client, initialRow.scope_key, initialReservation.window.from, initialReservation.window.to);
       const selected = await client.query<BudgetReservationDbRow>(
         `SELECT ${RESERVATION_COLUMNS}
@@ -455,6 +509,12 @@ export function createBudgetReservationService(db: Db, clock: () => Date = () =>
       const window = resolveBudgetQuotaWindow(request.budget.period, clock());
       const digest = requestDigest(request);
       return runTx(db, async (client) => {
+        await assertWriteGate(client, scope.tenantId, {
+          purpose: 'legacy-budget-reserve', scopeKey, idempotencyKey: request.idempotencyKey, digest,
+        });
+        await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [
+          `cost-policy-selection:${scope.tenantId}`,
+        ]);
         await acquireScopeLock(client, scopeKey, window.from, window.to);
         const existingResult = await client.query<BudgetReservationDbRow>(
           `SELECT ${RESERVATION_COLUMNS}
@@ -588,6 +648,12 @@ export function createBudgetReservationService(db: Db, clock: () => Date = () =>
           initialReservation.invocationId !== command.invocationId ||
           initialReservation.attempt !== command.attempt
         ) throw conflict('actual usage does not match the reserved invocation and quota scope');
+        await assertWriteGate(client, initialReservation.quotaScope.tenantId, {
+          purpose: 'legacy-budget-reconcile', reservationId: command.reservationId, eventId: command.eventId,
+        });
+        await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [
+          `cost-policy-selection:${initialReservation.quotaScope.tenantId}`,
+        ]);
         await acquireScopeLock(client, initialRow.scope_key, initialReservation.window.from, initialReservation.window.to);
         const selected = await client.query<BudgetReservationDbRow>(
           `SELECT ${RESERVATION_COLUMNS}

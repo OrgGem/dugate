@@ -1,0 +1,6 @@
+cleanup check UTC: 2026-10-12T01:20:09.672232+00:00
+namespace=du_test_wfa_1791767938179_01dbef4173
+postgresSchemaQueryExit=0 postgresSchemaExists=f
+redisScanExit=0/0 redisNamespaceKeyCount=0 redisQueueNamespaceKeyCount=0
+the failed in-process cleanup probe had missing node module lookup and was superseded by read-only container-native checks
+no customer or foreign resource queried/deleted; synthetic Compose stack left running

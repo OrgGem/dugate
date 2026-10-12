@@ -1,3 +1,4 @@
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 /**
  * auth-dispatch - extracted from shell-router.ts by CONV-12.
  *
@@ -319,4 +320,69 @@ export function sessionAuditEventFor(
   if (reason === 'expired_absolute' || reason === 'expired_idle') return { kind: 'auth.session_expired', reason };
   if (reason === 'absent_or_revoked') return { kind: 'auth.session_revoked', reason };
   return undefined;
+}
+
+const LOCAL_LOGIN_COOKIE = 'du_local_login';
+function localLoginProof(secret: string): string {
+  const value = `${Date.now()}.${randomBytes(24).toString('base64url')}`;
+  return `${value}.${createHmac('sha256', secret).update(value).digest('base64url')}`;
+}
+function validLocalProof(request: AdminShellRequest, secret: string): boolean {
+  const value = request.body['csrf'] ?? '';
+  if (!secret || value !== request.cookies[LOCAL_LOGIN_COOKIE] || !/^\d{13}\.[A-Za-z0-9_-]{32}\.[A-Za-z0-9_-]{43}$/.test(value)) return false;
+  const [time, nonce, signature] = value.split('.');
+  const age = Date.now() - Number(time);
+  if (age < 0 || age > 600_000) return false;
+  const expected = createHmac('sha256', secret).update(`${time}.${nonce}`).digest('base64url');
+  return timingSafeEqual(Buffer.from(signature!), Buffer.from(expected));
+}
+function localRedirect(value: string | undefined): string {
+  return value && /^\/admin(?:[/?#]|$)/.test(value) && !value.includes('\\') ? value : '/admin';
+}
+export function handleLocalLoginGet(request: AdminShellRequest, config: ShellRuntimeConfig, error?: string): AdminShellResponse {
+  const posture = legacyCookiePosture(request, config);
+  if (posture.denied || !config.cookieSecret) return { status: 503, headers: {}, body: 'Secure connection required' };
+  const csrfMarker = localLoginProof(config.cookieSecret);
+  return { status: error ? 401 : 200,
+    headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store',
+      'set-cookie': buildSetCookieHeader(LOCAL_LOGIN_COOKIE, csrfMarker, { maxAgeSeconds: 600, sameSite: 'Strict', httpOnly: true, path: '/admin', secure: posture.secure }) },
+    body: renderLoginPage({ redirect: localRedirect(request.body['redirect'] ?? request.query?.['redirect']), csrfMarker, mode: 'local', tokenFallback: true, error }) };
+}
+export async function handleLocalLoginPost(request: AdminShellRequest, config: ShellRuntimeConfig): Promise<AdminShellResponse> {
+  if (!validLocalProof(request, config.cookieSecret)) {
+    config.securityAudit?.({ kind: 'auth.csrf_denied', reason: 'csrf_missing_or_invalid', pathname: '/admin/login', method: 'POST' });
+    return { status: 403, headers: { 'cache-control': 'no-store' }, body: 'Invalid request' };
+  }
+  const posture = legacyCookiePosture(request, config);
+  if (posture.denied || !config.localAuth) return { status: 503, headers: {}, body: 'Secure connection required' };
+  request = { ...request, body: { ...request.body, redirect: localRedirect(request.body['redirect']) } };
+  if (request.body['token']) {
+    const response = handleLoginPost(request, config);
+    if (response.status === 302) {
+      const prior = request.cookies[SESSION_COOKIE_NAME];
+      if (prior) await config.localAuth.destroy(prior);
+      response.headers['set-cookie'] = joinSetCookie(response.headers['set-cookie'], buildSetCookieHeader(SESSION_COOKIE_NAME, '', { maxAgeSeconds: 0, httpOnly: true, sameSite: 'Strict', secure: posture.secure, path: '/' }))!;
+    }
+    return response.status === 401 ? handleLocalLoginGet(request, config, 'Invalid credentials') : response;
+  }
+  const session = await config.localAuth.login(request.body['username'] ?? '', request.body['password'] ?? '');
+  if (!session) {
+    config.securityAudit?.({ kind: 'auth.login_failed', reason: 'invalid_credentials', pathname: '/admin/login', method: 'POST' });
+    return handleLocalLoginGet(request, config, 'Invalid credentials');
+  }
+  const old = request.cookies[SESSION_COOKIE_NAME];
+  if (old) await config.localAuth.destroy(old);
+  config.securityAudit?.({ kind: 'auth.login_succeeded', reason: 'authenticated', pathname: '/admin/login', method: 'POST' });
+  const cookie = buildSetCookieHeader(SESSION_COOKIE_NAME, session.sessionId, { maxAgeSeconds: Math.max(1, Math.floor((session.expiresAt-Date.now())/1000)), httpOnly: true, secure: posture.secure, sameSite: 'Strict', path: '/' });
+  return { status: 302, headers: { location: request.body['redirect']!, 'cache-control': 'no-store', 'set-cookie': cookie + ', ' + buildSetCookieHeader('du_admin','',{maxAgeSeconds:0,httpOnly:true,sameSite:'Strict',secure:posture.secure,path:'/'}) }, body: '' };
+}
+export async function handleLocalLogout(request: AdminShellRequest, config: ShellRuntimeConfig): Promise<AdminShellResponse> {
+  const id = request.cookies[SESSION_COOKIE_NAME];
+  const session = id ? await config.oidcSessions?.get(id) : null;
+  if (session && !verifySessionCsrf(session as SessionRecord, request.body['csrf'])) return { status: 403, headers: {}, body: 'Invalid request' };
+  if (id) await config.localAuth?.destroy(id);
+  config.securityAudit?.({ kind: 'auth.logout', reason: 'user_logout', pathname: '/admin/logout', method: 'POST' });
+  const response = handleLogout(request, config);
+  response.headers['set-cookie'] = joinSetCookie(response.headers['set-cookie'], buildSetCookieHeader(SESSION_COOKIE_NAME,'',{maxAgeSeconds:0,httpOnly:true,sameSite:'Strict',secure:legacyCookiePosture(request,config).secure,path:'/'}))!;
+  return response;
 }

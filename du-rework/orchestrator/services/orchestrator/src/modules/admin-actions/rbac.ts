@@ -23,8 +23,26 @@ export type AdminPrincipal =
 export type AdminAuditPrincipal = AdminPrincipal;
 
 export interface AdminCredentialConfig {
+  adminLocalAuthEnabled?: boolean;
+  adminLocalServiceSecret?: string;
   adminToken?: string;
   tenantAdminTokens?: Record<string, string>;
+}
+
+const LOCAL_TENANT_PREFIX = 'du-local-tenant-v1';
+const LOCAL_TENANT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+/** Trusted BFF factory only: tenantId must come from a resolved session. */
+export function mintLocalTenantCredential(secret: string, tenantId: string): string {
+  if (Buffer.byteLength(secret) < 32 || !LOCAL_TENANT_ID.test(tenantId)) throw new Error('Invalid local service credential scope');
+  const mac = createHmac('sha256', secret).update(`${LOCAL_TENANT_PREFIX}\0${tenantId}`).digest('hex');
+  return `${LOCAL_TENANT_PREFIX}.${tenantId}.${mac}`;
+}
+function localTenantPrincipal(config: AdminCredentialConfig, token: string): AdminPrincipal | null {
+  if (config.adminLocalAuthEnabled !== true || !config.adminLocalServiceSecret || Buffer.byteLength(config.adminLocalServiceSecret) < 32) return null;
+  const parts = token.split('.');
+  if (parts.length !== 3 || parts[0] !== LOCAL_TENANT_PREFIX || !LOCAL_TENANT_ID.test(parts[1]!) || !/^[0-9a-f]{64}$/.test(parts[2]!)) return null;
+  const expected = mintLocalTenantCredential(config.adminLocalServiceSecret, parts[1]!);
+  return constantTimeEquals(token, expected) ? { role: 'tenant_operator', tenantId: parts[1]! } : null;
 }
 
 export function resolveAdminPrincipal(
@@ -54,7 +72,7 @@ export function resolveAdminPrincipal(
       return { role: 'tenant_operator', tenantId };
     }
   }
-  return null;
+  return localTenantPrincipal(config, token);
 }
 
 /** R3-02 name kept as a live alias — same resolver for every surface. */
@@ -181,6 +199,13 @@ export interface AdminActionCookieAuth {
    */
   principalId?: string;
   issuer?: string;
+  /** Current local-user row version from the trusted session resolver only. */
+  roleVersion?: number | null;
+  /** Cost Alerts recipient pin, copied only from the validated server session. */
+  costAlertPrincipalId?: string;
+  costAlertAuthorizationVersion?: number;
+  /** Original server session creation time used only for safe legacy recipient bootstrap. */
+  sessionCreatedAt?: number;
 }
 
 export type AdminActionAuth = AdminActionBearerAuth | AdminActionCookieAuth;
@@ -210,6 +235,8 @@ export type AdminActionAuth = AdminActionBearerAuth | AdminActionCookieAuth;
  * masquerading as login_failed (cycle-9 design, delta-31 lineage).
  */
 export type AdminSecurityEventKind =
+  | 'auth.login_succeeded'
+  | 'auth.logout'
   | 'auth.login_failed'
   | 'auth.tls_required'
   | 'auth.session_expired'
@@ -217,6 +244,8 @@ export type AdminSecurityEventKind =
   | 'auth.csrf_denied';
 
 export type AdminSecurityEventReason =
+  | 'authenticated'
+  | 'user_logout'
   | 'invalid_token'
   /** LOCAL-03: a local username/password credential POST was rejected
    *  (unknown user, wrong password, locked account, or unusable role) —
@@ -359,6 +388,15 @@ export interface AdminSessionView {
    * keeps the fallback attribution with NULL principal columns.
    */
   sub?: string;
+  /**
+   * Local identity row version confirmed by the local session resolver.
+   * OIDC and legacy sessions have no local role version. This is server-side
+   * context only and is never populated from request data.
+   */
+  roleVersion?: number | null;
+  costAlertPrincipalId?: string;
+  costAlertAuthorizationVersion?: number;
+  createdAt?: number;
 }
 
 /** Honest dead-cause for the server-side audit sink (W-SEC-AUDIT-TAXONOMY-1). */
@@ -371,6 +409,8 @@ export type AdminSessionDeadReason =
 
 export interface AdminSessionStore {
   get(sessionId: string): Promise<AdminSessionView | null>;
+  /** Optional CAS used only to pin an eligible legacy OIDC Admin session to its Cost Alerts recipient. */
+  pinCostAlertRecipient?(sessionId: string, principalId: string, authorizationVersion: number): Promise<AdminSessionView | null>;
   /**
    * Optional READ-ONLY classifier (no eviction, no touch). The wire keeps
    * its SEC-02 one-null-path rule either way — this seam exists solely so
@@ -422,6 +462,10 @@ export async function resolveAdminActionAuthAsync(
       // stub without one keeps the legacy fallback.
       ...(isNonEmptyString(session.sub) ? { principalId: session.sub } : {}),
       ...(isNonEmptyString(session.issuer) ? { issuer: session.issuer } : {}),
+      ...(session.roleVersion !== undefined ? { roleVersion: session.roleVersion } : {}),
+      ...(session.costAlertPrincipalId !== undefined ? { costAlertPrincipalId: session.costAlertPrincipalId } : {}),
+      ...(session.costAlertAuthorizationVersion !== undefined ? { costAlertAuthorizationVersion: session.costAlertAuthorizationVersion } : {}),
+      ...(session.createdAt !== undefined ? { sessionCreatedAt: session.createdAt } : {}),
     };
   }
   return legacyCookieAuth(config, headers, cookies);

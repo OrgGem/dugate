@@ -64,6 +64,11 @@ export const ENFORCED_METADATA_PURPOSES = [
   'tasks.result_ref',
   'operations.result_ref',
   'legacy_workflow_schemas.schema_ref',
+  'settings_revisions.payload_ref',
+  'connector_prompt_overrides.prompt_override',
+  'global_settings.tenant_revision',
+  'operations.tenant_defaults_ref',
+  'operations.connector_recipe_pins_ref',
 ] as const;
 
 /** Storage purpose the crypto-storage facade applies when none is named. */

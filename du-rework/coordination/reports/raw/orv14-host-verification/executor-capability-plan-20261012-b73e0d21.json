@@ -1,0 +1,61 @@
+{
+  "planId": "orv14-vfy-host-executor-20261012-b73e0d21",
+  "createdAt": "2026-10-12T04:47:51.635Z",
+  "cwd": "/workspace/scratch/orv14-host-executor-plan",
+  "manifestSha256": "f7ba5cdcdc8d9fde1066500895427bb3a3898eaf62a8f60daadd712a6eada828",
+  "inputHashes": {
+    "Dockerfile": "6cc97310325d266868ef4679ed809a3744dfcbd9067f8d5c88b6666efba0c278",
+    "package-sha256.txt": "064b0c1fabf1da8be69d6ec9eb63522e5f04ff818d63b7401ff1204ed5b2f266",
+    "package-resolution.json": "e385d4791211d427612a7bb9613c1fee8ad71dc3f99cead40fe9cbb0afc99245",
+    "APKINDEX-main.tar.gz": "24fc2ccb08f3125429a38b31bd6c76a7b394c6236df0975760dc8259e50dfbd5",
+    "APKINDEX-community.tar.gz": "2784f87a5eb8bad43dedb6a00c1f4b912485405db8b90d1e869236085c45ffcc",
+    "source-isolation.nft": "a8165769f5fe0f80e2ef341bfa0e5a23cc2ea4da3498b56e9d2e92dc306827cd",
+    "seed-volume.sh": "a3c12f774c04717ec939c1cd4319604a6958c262a42847ae3db36780cf98b09d",
+    "verify-target.mjs": "5355a1161c4711ac5d28fd3b888e8dc41ef3f517ba9665ae691c1777d281fed9",
+    "verify-executor.mjs": "edc2ecb132674029ed0c16cc3f405ba6d41f04669aef713f4ca44a26dc8d25dc",
+    "run-capability-smoke.mjs": "11abbe5875c8642212b033f7a824158b94fc464fe32742d20c35b623b2864b90",
+    "packages/gmp-6.3.0-r4.apk": "85323ef5bce8ff234736dc2d6592ea37aebdc6348a531e27430bdfe38364d256",
+    "packages/jansson-2.15.0-r0.apk": "7681b41486e1f2b2efce11875c839533464ae8857d30fc49130f0039c6585fdb",
+    "packages/libblkid-2.42.3-r1.apk": "2512c2bff496ac2b8561a3c814d21d35ce10cda579b3d410f9f96da93a5aaac1",
+    "packages/libeconf-0.8.3-r0.apk": "2a791c7957961f830cf31b04f35f814a63afcf633badc9052425ff1cf2f64380",
+    "packages/libfdisk-2.42.3-r1.apk": "9775aae10e103c128e6b8424585f5d2dac6d8e8e386cc8365a46358ccd6aa7d0",
+    "packages/libmnl-1.0.5-r2.apk": "3693162ff7c27998dbbb2da1c4bd9072079cd55af1fa3d6d2ade51d276e20157",
+    "packages/libmount-2.42.3-r1.apk": "e2ae003260f2c1ec13666c6e108d5e8e3d64974b0667166a02432bd3be263a7a",
+    "packages/libncursesw-6.6_p20260516-r0.apk": "cf8caa8a88bc4ce9d9e395567fefaf9ef7fbd55c50ae6155b35c1b58f3755023",
+    "packages/libnftnl-1.3.1-r0.apk": "2f4cf35959fde00fdba0dd35ef12a6739739b504e8319c97e30bd4834f98d924",
+    "packages/libsmartcols-2.42.3-r1.apk": "5e3a457257d9c0e6799ab5d544ca4f172c4e19e02adcde94c72343ed3f6d8b26",
+    "packages/libuuid-2.42.3-r1.apk": "8306e5bb577696c9069fe1dfd9e1dcc39d2d481c6a1b0e707fd03c3e21aa6aa2",
+    "packages/ncurses-terminfo-base-6.6_p20260516-r0.apk": "ce83be6d0bd10584a53c3a5868cc1595ce5f0f8e0b621f8f7f70b6144e521fc9",
+    "packages/nftables-1.1.6-r1.apk": "edca96e6160479bd734bb6cdb8412f84f689c6a771fdec75ce2c1c18f3e7cf42",
+    "packages/readline-8.3.3-r1.apk": "766911ecb986a6c5cf0841a6b556cd1e9dbbf22b3559726de32416486cd15c81",
+    "packages/setarch-2.42.3-r1.apk": "14098fdd87c4247acbee0513147eb2defd17fb850913e45a6dad6cb3e9a4d6b1",
+    "packages/skalibs-libs-2.15.0.0-r0.apk": "3301f6ccbeaea49cdd966c7e636898a8612fb8fe964a15f24f6d204b3944c3f3",
+    "packages/util-linux-misc-2.42.3-r1.apk": "8cba67c052d9932c61db6b32f3a6042b62cca642f16479ba066c59a5a97ffc55",
+    "packages/utmps-libs-0.1.3.3-r0.apk": "497f0f1cb51f0e6c1acc338fded0dc7722b1d43ea17bdb749f0d556794f8b2d8",
+    "packages/zlib-1.3.2-r1.apk": "63aeea03c15a2f9018f81805cfc8aa926bdf5cd68921f22149c2fbb5d0ee9f47"
+  },
+  "uniqueLabel": {
+    "key": "org.dugate.orv14-vfy-host",
+    "value": "executor-20261012-b73e0d21"
+  },
+  "resources": {
+    "image": "orv14-vfy-host-executor:20261012-b73e0d21",
+    "volume": "orv14-vfy-host-protected-20261012-b73e0d21",
+    "seed": "orv14-vfy-host-seed-20261012-b73e0d21",
+    "target": "orv14-vfy-host-target-20261012-b73e0d21",
+    "executor": "orv14-vfy-host-executor-20261012-b73e0d21"
+  },
+  "mountPlan": {
+    "target": "same named volume subpath runtime, readonly",
+    "executor": "same named volume subpath policy, readonly"
+  },
+  "executor": {
+    "uidGid": "1000:1000",
+    "capabilities": [
+      "SYS_ADMIN",
+      "NET_ADMIN"
+    ],
+    "pidMode": "container:<exact target ID>",
+    "networkMode": "none"
+  }
+}

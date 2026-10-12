@@ -1,0 +1,29 @@
+{
+  "observationTime": "Immediately after attempt 13; exact UTC timestamp was not captured.",
+  "command": "docker exec orv14-vfy-20261011-a1-postgres-1 psql -U orv14_vfy -d orv14_vfy -v ON_ERROR_STOP=1 -Atc <read-only SELECTs>",
+  "purpose": "Read-only check after discovering the previous connector fixture supplied a search_path schema that it had not created.",
+  "output": [
+    "orv14_vfy|orv14_vfy",
+    "public|connector_backup_effect_gate",
+    "public|connector_invocations",
+    "public|connector_parity_draft_intents",
+    "public|connector_schema_migrations",
+    "0"
+  ],
+  "queries": [
+    "SELECT current_database(), current_user",
+    "SELECT public relations among connector_schema_migrations, connector_backup_effect_gate, connector_invocations, connector_parity_draft_intents",
+    "SELECT count(*) FROM pg_namespace WHERE nspname LIKE 'du_test_wfa_%'"
+  ],
+  "interpretation": "The synthetic Compose database has Connector relations in public and no matching du_test_wfa_* schemas at inspection time. Their prior origin cannot be established from this read-only observation; do not attribute or remove them. The corrected fixture creates its exact connector schema before Connector startup and drops only that exact owned schema after shutdown.",
+  "attempt13TenantScopedCounts": {
+    "tenantId": "41e1badd-eae2-44b4-9029-4c9ee5c4b567",
+    "publicConnectorParityChains": 1,
+    "publicConnectorParityClaimIntents": 1,
+    "publicConnectorParityRevisions": 0,
+    "publicConnectorParityDraftIntents": 0,
+    "publicConnectorBackupEffectPermits": 0,
+    "interpretation": "The unique synthetic tenant used by attempt 13 has one chain and one claim row in public from the observed attempt. No revision/draft/backup permit exists. Rows were left untouched; the corresponding connector ID and idempotency material were not captured, so no cleanup was attempted."
+  },
+  "mutations": false
+}

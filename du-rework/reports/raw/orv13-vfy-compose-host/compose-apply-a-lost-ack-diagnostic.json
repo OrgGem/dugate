@@ -1,0 +1,441 @@
+{
+  "jobId": "21370c52-ea35-423f-826d-8573a03cc6ad",
+  "cli": {
+    "label": "apply release A with completion acknowledgement loss",
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  "runnerApi": [
+    {
+      "method": "POST",
+      "path": "/api/internal/compose/runner/snapshot",
+      "status": 200,
+      "dropped": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/internal/compose/runner/claim",
+      "status": 200,
+      "dropped": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/internal/compose/runner/snapshot",
+      "status": 200,
+      "dropped": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/internal/compose/runner/start",
+      "status": 200,
+      "dropped": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/internal/compose/runner/complete",
+      "status": 200,
+      "dropped": true
+    }
+  ],
+  "durableJob": {
+    "status": 200,
+    "state": "UNKNOWN",
+    "stateVersion": 4,
+    "uncertainReason": "EXECUTION_UNCERTAIN",
+    "perServiceOutcomes": [
+      {
+        "serviceId": "web",
+        "status": "UNKNOWN",
+        "errorCode": "INVENTORY_UNAVAILABLE"
+      },
+      {
+        "serviceId": "worker",
+        "status": "UNKNOWN",
+        "errorCode": "INVENTORY_UNAVAILABLE"
+      }
+    ]
+  },
+  "exactComposeInventoryProbe": {
+    "exitCode": 0,
+    "error": null,
+    "stdout": "{\"Command\":\"\\\"/bin/sh -c 'sleep 1…\\\"\",\"CreatedAt\":\"2026-10-11 18:42:47 +0000 UTC\",\"ExitCode\":0,\"Health\":\"\",\"ID\":\"1d2dad41da06\",\"Image\":\"redis@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499\",\"Labels\":\"com.docker.compose.image=sha256:f84b0c4678011602b9b98c227a4dcd5468bf8b088b02fdd4165cb7758bad8058,com.docker.compose.project.environment_file=/tmp/orv13-compose-vfy-f04da99dc4-6V9wTr/trusted/config/pinned.env,com.docker.compose.version=2.40.3,com.docker.compose.depends_on=,com.docker.compose.oneoff=False,com.docker.compose.project=orv13-compose-vfy-f04da99dc4,com.docker.compose.project.config_files=/tmp/orv13-compose-vfy-f04da99dc4-6V9wTr/trusted/project/release-a.yaml,com.docker.compose.project.working_dir=/tmp/orv13-compose-vfy-f04da99dc4-6V9wTr/trusted/project,com.docker.compose.service=web,orv13.sentinel=explicit-pinned-env,com.docker.compose.config-hash=0a7cfb5e9698a50c9eacb0f71671f749e7095ec679fa552bf9c2811b80ee27fa,com.docker.compose.container-number=1\",\"LocalVolumes\":\"1\",\"Mounts\":\"972315824f1fb3…\",\"Name\":\"orv13-compose-vfy-f04da99dc4-web-1\",\"Names\":\"orv13-compose-vfy-f04da99dc4-web-1\",\"Networks\":\"orv13-compose-vfy-f04da99dc4_default\",\"Ports\":\"6379/tcp\",\"Project\":\"orv13-compose-vfy-f04da99dc4\",\"Publishers\":[{\"URL\":\"\",\"TargetPort\":6379,\"PublishedPort\":0,\"Protocol\":\"tcp\"}],\"RunningFor\":\"1 second ago\",\"Service\":\"web\",\"Size\":\"0B\",\"State\":\"running\",\"Status\":\"Up Less than a second\"}\n{\"Command\":\"\\\"/bin/sh -c 'sleep 1…\\\"\",\"CreatedAt\":\"2026-10-11 18:42:47 +0000 UTC\",\"ExitCode\":0,\"Health\":\"\",\"ID\":\"1459ce8d1a20\",\"Image\":\"redis@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499\",\"Labels\":\"com.docker.compose.image=sha256:f84b0c4678011602b9b98c227a4dcd5468bf8b088b02fdd4165cb7758bad8058,com.docker.compose.oneoff=False,com.docker.compose.project=orv13-compose-vfy-f04da99dc4,com.docker.compose.project.environment_file=/tmp/orv13-compose-vfy-f04da99dc4-6V9wTr/trusted/config/pinned.env,com.docker.compose.version=2.40.3,orv13.sentinel=explicit-pinned-env,com.docker.compose.container-number=2,com.docker.compose.project.config_files=/tmp/orv13-compose-vfy-f04da99dc4-6V9wTr/trusted/project/release-a.yaml,com.docker.compose.project.working_dir=/tmp/orv13-compose-vfy-f04da99dc4-6V9wTr/trusted/project,com.docker.compose.service=web,com.docker.compose.config-hash=0a7cfb5e9698a50c9eacb0f71671f749e7095ec679fa552bf9c2811b80ee27fa,com.docker.compose.depends_on=\",\"LocalVolumes\":\"1\",\"Mounts\":\"7aaefb054f44d3…\",\"Name\":\"orv13-compose-vfy-f04da99dc4-web-2\",\"Names\":\"orv13-compose-vfy-f04da99dc4-web-2\",\"Networks\":\"orv13-compose-vfy-f04da99dc4_default\",\"Ports\":\"6379/tcp\",\"Project\":\"orv13-compose-vfy-f04da99dc4\",\"Publishers\":[{\"URL\":\"\",\"TargetPort\":6379,\"PublishedPort\":0,\"Protocol\":\"tcp\"}],\"RunningFor\":\"1 second ago\",\"Service\":\"web\",\"Size\":\"0B\",\"State\":\"running\",\"Status\":\"Up Less than a second\"}\n{\"Command\":\"\\\"/bin/sh -c 'sleep 1…\\\"\",\"CreatedAt\":\"2026-10-11 18:42:47 +0000 UTC\",\"ExitCode\":0,\"Health\":\"\",\"ID\":\"fb7c15638b38\",\"Image\":\"postgres@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea\",\"Labels\":\"com.docker.compose.container-number=1,com.docker.compose.oneoff=False,com.docker.compose.service=worker,orv13.sentinel=explicit-pinned-env,com.docker.compose.config-hash=12e0feeb1c87f52f39080182c57efd5fbc322fb8301161ab20ea3c52ed86ce37,com.docker.compose.depends_on=,com.docker.compose.image=sha256:81bd698b4594e751a3269e4dcd3e03a4a0ec0daf7b72e7aa1abd43cce9887542,com.docker.compose.project=orv13-compose-vfy-f04da99dc4,com.docker.compose.project.config_files=/tmp/orv13-compose-vfy-f04da99dc4-6V9wTr/trusted/project/release-a.yaml,com.docker.compose.project.environment_file=/tmp/orv13-compose-vfy-f04da99dc4-6V9wTr/trusted/config/pinned.env,com.docker.compose.project.working_dir=/tmp/orv13-compose-vfy-f04da99dc4-6V9wTr/trusted/project,com.docker.compose.version=2.40.3\",\"LocalVolumes\":\"1\",\"Mounts\":\"1549d974aad2ee…\",\"Name\":\"orv13-compose-vfy-f04da99dc4-worker-1\",\"Names\":\"orv13-compose-vfy-f04da99dc4-worker-1\",\"Net",
+    "stderr": "",
+    "parsedRows": [
+      {
+        "Command": "\"/bin/sh -c 'sleep 1…\"",
+        "CreatedAt": "2026-10-11 18:42:47 +0000 UTC",
+        "ExitCode": 0,
+        "Health": "",
+        "ID": "1d2dad41da06",
+        "Image": "redis@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499",
+        "Labels": "com.docker.compose.image=sha256:f84b0c4678011602b9b98c227a4dcd5468bf8b088b02fdd4165cb7758bad8058,com.docker.compose.project.environment_file=/tmp/orv13-compose-vfy-f04da99dc4-6V9wTr/trusted/config/pinned.env,com.docker.compose.version=2.40.3,com.docker.compose.depends_on=,com.docker.compose.oneoff=False,com.docker.compose.project=orv13-compose-vfy-f04da99dc4,com.docker.compose.project.config_files=/tmp/orv13-compose-vfy-f04da99dc4-6V9wTr/trusted/project/release-a.yaml,com.docker.compose.project.working_dir=/tmp/orv13-compose-vfy-f04da99dc4-6V9wTr/trusted/project,com.docker.compose.service=web,orv13.sentinel=explicit-pinned-env,com.docker.compose.config-hash=0a7cfb5e9698a50c9eacb0f71671f749e7095ec679fa552bf9c2811b80ee27fa,com.docker.compose.container-number=1",
+        "LocalVolumes": "1",
+        "Mounts": "972315824f1fb3…",
+        "Name": "orv13-compose-vfy-f04da99dc4-web-1",
+        "Names": "orv13-compose-vfy-f04da99dc4-web-1",
+        "Networks": "orv13-compose-vfy-f04da99dc4_default",
+        "Ports": "6379/tcp",
+        "Project": "orv13-compose-vfy-f04da99dc4",
+        "Publishers": [
+          {
+            "URL": "",
+            "TargetPort": 6379,
+            "PublishedPort": 0,
+            "Protocol": "tcp"
+          }
+        ],
+        "RunningFor": "1 second ago",
+        "Service": "web",
+        "Size": "0B",
+        "State": "running",
+        "Status": "Up Less than a second"
+      },
+      {
+        "Command": "\"/bin/sh -c 'sleep 1…\"",
+        "CreatedAt": "2026-10-11 18:42:47 +0000 UTC",
+        "ExitCode": 0,
+        "Health": "",
+        "ID": "1459ce8d1a20",
+        "Image": "redis@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499",
+        "Labels": "com.docker.compose.image=sha256:f84b0c4678011602b9b98c227a4dcd5468bf8b088b02fdd4165cb7758bad8058,com.docker.compose.oneoff=False,com.docker.compose.project=orv13-compose-vfy-f04da99dc4,com.docker.compose.project.environment_file=/tmp/orv13-compose-vfy-f04da99dc4-6V9wTr/trusted/config/pinned.env,com.docker.compose.version=2.40.3,orv13.sentinel=explicit-pinned-env,com.docker.compose.container-number=2,com.docker.compose.project.config_files=/tmp/orv13-compose-vfy-f04da99dc4-6V9wTr/trusted/project/release-a.yaml,com.docker.compose.project.working_dir=/tmp/orv13-compose-vfy-f04da99dc4-6V9wTr/trusted/project,com.docker.compose.service=web,com.docker.compose.config-hash=0a7cfb5e9698a50c9eacb0f71671f749e7095ec679fa552bf9c2811b80ee27fa,com.docker.compose.depends_on=",
+        "LocalVolumes": "1",
+        "Mounts": "7aaefb054f44d3…",
+        "Name": "orv13-compose-vfy-f04da99dc4-web-2",
+        "Names": "orv13-compose-vfy-f04da99dc4-web-2",
+        "Networks": "orv13-compose-vfy-f04da99dc4_default",
+        "Ports": "6379/tcp",
+        "Project": "orv13-compose-vfy-f04da99dc4",
+        "Publishers": [
+          {
+            "URL": "",
+            "TargetPort": 6379,
+            "PublishedPort": 0,
+            "Protocol": "tcp"
+          }
+        ],
+        "RunningFor": "1 second ago",
+        "Service": "web",
+        "Size": "0B",
+        "State": "running",
+        "Status": "Up Less than a second"
+      },
+      {
+        "Command": "\"/bin/sh -c 'sleep 1…\"",
+        "CreatedAt": "2026-10-11 18:42:47 +0000 UTC",
+        "ExitCode": 0,
+        "Health": "",
+        "ID": "fb7c15638b38",
+        "Image": "postgres@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea",
+        "Labels": "com.docker.compose.container-number=1,com.docker.compose.oneoff=False,com.docker.compose.service=worker,orv13.sentinel=explicit-pinned-env,com.docker.compose.config-hash=12e0feeb1c87f52f39080182c57efd5fbc322fb8301161ab20ea3c52ed86ce37,com.docker.compose.depends_on=,com.docker.compose.image=sha256:81bd698b4594e751a3269e4dcd3e03a4a0ec0daf7b72e7aa1abd43cce9887542,com.docker.compose.project=orv13-compose-vfy-f04da99dc4,com.docker.compose.project.config_files=/tmp/orv13-compose-vfy-f04da99dc4-6V9wTr/trusted/project/release-a.yaml,com.docker.compose.project.environment_file=/tmp/orv13-compose-vfy-f04da99dc4-6V9wTr/trusted/config/pinned.env,com.docker.compose.project.working_dir=/tmp/orv13-compose-vfy-f04da99dc4-6V9wTr/trusted/project,com.docker.compose.version=2.40.3",
+        "LocalVolumes": "1",
+        "Mounts": "1549d974aad2ee…",
+        "Name": "orv13-compose-vfy-f04da99dc4-worker-1",
+        "Names": "orv13-compose-vfy-f04da99dc4-worker-1",
+        "Networks": "orv13-compose-vfy-f04da99dc4_default",
+        "Ports": "5432/tcp",
+        "Project": "orv13-compose-vfy-f04da99dc4",
+        "Publishers": [
+          {
+            "URL": "",
+            "TargetPort": 5432,
+            "PublishedPort": 0,
+            "Protocol": "tcp"
+          }
+        ],
+        "RunningFor": "1 second ago",
+        "Service": "worker",
+        "Size": "0B",
+        "State": "running",
+        "Status": "Up Less than a second"
+      },
+      {
+        "Command": "\"/bin/sh -c 'sleep 1…\"",
+        "CreatedAt": "2026-10-11 18:42:47 +0000 UTC",
+        "ExitCode": 0,
+        "Health": "",
+        "ID": "815254a8276f",
+        "Image": "postgres@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea",
+        "Labels": "com.docker.compose.project.working_dir=/tmp/orv13-compose-vfy-f04da99dc4-6V9wTr/trusted/project,orv13.sentinel=explicit-pinned-env,com.docker.compose.container-number=2,com.docker.compose.image=sha256:81bd698b4594e751a3269e4dcd3e03a4a0ec0daf7b72e7aa1abd43cce9887542,com.docker.compose.oneoff=False,com.docker.compose.project=orv13-compose-vfy-f04da99dc4,com.docker.compose.service=worker,com.docker.compose.version=2.40.3,com.docker.compose.config-hash=12e0feeb1c87f52f39080182c57efd5fbc322fb8301161ab20ea3c52ed86ce37,com.docker.compose.depends_on=,com.docker.compose.project.config_files=/tmp/orv13-compose-vfy-f04da99dc4-6V9wTr/trusted/project/release-a.yaml,com.docker.compose.project.environment_file=/tmp/orv13-compose-vfy-f04da99dc4-6V9wTr/trusted/config/pinned.env",
+        "LocalVolumes": "1",
+        "Mounts": "609b0ea9628951…",
+        "Name": "orv13-compose-vfy-f04da99dc4-worker-2",
+        "Names": "orv13-compose-vfy-f04da99dc4-worker-2",
+        "Networks": "orv13-compose-vfy-f04da99dc4_default",
+        "Ports": "5432/tcp",
+        "Project": "orv13-compose-vfy-f04da99dc4",
+        "Publishers": [
+          {
+            "URL": "",
+            "TargetPort": 5432,
+            "PublishedPort": 0,
+            "Protocol": "tcp"
+          }
+        ],
+        "RunningFor": "1 second ago",
+        "Service": "worker",
+        "Size": "0B",
+        "State": "running",
+        "Status": "Up Less than a second"
+      }
+    ]
+  },
+  "exactContainerInspectProbe": {
+    "exitCode": 1,
+    "error": null,
+    "containerCount": 4,
+    "lineCountBeforeTrim": 0,
+    "fieldCountsBeforeTrim": [],
+    "lineCountAfterTrim": 0,
+    "fieldCountsAfterTrim": [],
+    "finalRawLineHadEmptyHealthTab": false,
+    "selectedFinalFieldsBeforeTrim": [],
+    "selectedFinalFieldsAfterTrim": [],
+    "stderr": "template parsing error: template: :1:91: executing \"\" at <.State.Health>: map has no entry for key \"Health\"\ntemplate parsing error: template: :1:91: executing \"\" at <.State.Health>: map has no entry for key \"Health\"\ntemplate parsing error: template: :1:91: executing \"\" at <.State.Health>: map has no entry for key \"Health\"\ntemplate parsing error: template: :1:91: executing \"\" at <.State.Health>: map has no entry for key \"Health\"\n"
+  },
+  "selectedContainerInspectProbe": {
+    "engineVersion": "28.4.0",
+    "composeVersion": "2.40.3",
+    "templateUsesActualTabArgumentBytes": true,
+    "exitCode": 0,
+    "error": null,
+    "containerCount": 4,
+    "lineCount": 4,
+    "fieldCounts": [
+      3,
+      3,
+      3,
+      3
+    ],
+    "outputSeparatorsAreTabBytes": true,
+    "selectedStateRows": [
+      {
+        "id": "1d2dad41da067fd29c7e5b8cc639ff4e533559311578d1a720871f244add0edd",
+        "imageId": "sha256:f84b0c4678011602b9b98c227a4dcd5468bf8b088b02fdd4165cb7758bad8058",
+        "stateKeys": [
+          "Dead",
+          "Error",
+          "ExitCode",
+          "FinishedAt",
+          "OOMKilled",
+          "Paused",
+          "Pid",
+          "Restarting",
+          "Running",
+          "StartedAt",
+          "Status"
+        ],
+        "status": "running",
+        "startedAtPresent": true,
+        "finishedAtPresent": true,
+        "healthPresent": false
+      },
+      {
+        "id": "1459ce8d1a2048aa930ab92723315ba0b298686198e31b9403e5e11df05fcfa4",
+        "imageId": "sha256:f84b0c4678011602b9b98c227a4dcd5468bf8b088b02fdd4165cb7758bad8058",
+        "stateKeys": [
+          "Dead",
+          "Error",
+          "ExitCode",
+          "FinishedAt",
+          "OOMKilled",
+          "Paused",
+          "Pid",
+          "Restarting",
+          "Running",
+          "StartedAt",
+          "Status"
+        ],
+        "status": "running",
+        "startedAtPresent": true,
+        "finishedAtPresent": true,
+        "healthPresent": false
+      },
+      {
+        "id": "fb7c15638b385a175b368eda8a1cc8c1c12f60842846de835fde27a965f8c2f2",
+        "imageId": "sha256:81bd698b4594e751a3269e4dcd3e03a4a0ec0daf7b72e7aa1abd43cce9887542",
+        "stateKeys": [
+          "Dead",
+          "Error",
+          "ExitCode",
+          "FinishedAt",
+          "OOMKilled",
+          "Paused",
+          "Pid",
+          "Restarting",
+          "Running",
+          "StartedAt",
+          "Status"
+        ],
+        "status": "running",
+        "startedAtPresent": true,
+        "finishedAtPresent": true,
+        "healthPresent": false
+      },
+      {
+        "id": "815254a8276f89ab7ac64026ca9925acc94401b94d9717cb37a4386d3f3d4142",
+        "imageId": "sha256:81bd698b4594e751a3269e4dcd3e03a4a0ec0daf7b72e7aa1abd43cce9887542",
+        "stateKeys": [
+          "Dead",
+          "Error",
+          "ExitCode",
+          "FinishedAt",
+          "OOMKilled",
+          "Paused",
+          "Pid",
+          "Restarting",
+          "Running",
+          "StartedAt",
+          "Status"
+        ],
+        "status": "running",
+        "startedAtPresent": true,
+        "finishedAtPresent": true,
+        "healthPresent": false
+      }
+    ],
+    "stderr": ""
+  },
+  "candidateHostFormatProbe": {
+    "template": "ID, image ID, state status, startedAt, finishedAt, optional Health.Status via index .State \"Health\"",
+    "engineVersion": "28.4.0",
+    "composeVersion": "2.40.3",
+    "templateUsesActualTabArgumentBytes": true,
+    "exitCode": 0,
+    "error": null,
+    "containerCount": 4,
+    "lineCount": 4,
+    "fieldCountsBeforeTrim": [
+      6,
+      6,
+      6,
+      6
+    ],
+    "trailingTabBeforeTrim": [
+      true,
+      true,
+      true,
+      true
+    ],
+    "outputSeparatorsAreTabBytes": true,
+    "lineCountAfterTrim": 4,
+    "fieldCountsAfterTrim": [
+      6,
+      6,
+      6,
+      5
+    ],
+    "selectedRows": [
+      {
+        "id": "1d2dad41da067fd29c7e5b8cc639ff4e533559311578d1a720871f244add0edd",
+        "imageId": "sha256:f84b0c4678011602b9b98c227a4dcd5468bf8b088b02fdd4165cb7758bad8058",
+        "status": "running",
+        "startedAtPresent": true,
+        "finishedAtPresent": true,
+        "health": ""
+      },
+      {
+        "id": "1459ce8d1a2048aa930ab92723315ba0b298686198e31b9403e5e11df05fcfa4",
+        "imageId": "sha256:f84b0c4678011602b9b98c227a4dcd5468bf8b088b02fdd4165cb7758bad8058",
+        "status": "running",
+        "startedAtPresent": true,
+        "finishedAtPresent": true,
+        "health": ""
+      },
+      {
+        "id": "fb7c15638b385a175b368eda8a1cc8c1c12f60842846de835fde27a965f8c2f2",
+        "imageId": "sha256:81bd698b4594e751a3269e4dcd3e03a4a0ec0daf7b72e7aa1abd43cce9887542",
+        "status": "running",
+        "startedAtPresent": true,
+        "finishedAtPresent": true,
+        "health": ""
+      },
+      {
+        "id": "815254a8276f89ab7ac64026ca9925acc94401b94d9717cb37a4386d3f3d4142",
+        "imageId": "sha256:81bd698b4594e751a3269e4dcd3e03a4a0ec0daf7b72e7aa1abd43cce9887542",
+        "status": "running",
+        "startedAtPresent": true,
+        "finishedAtPresent": true,
+        "health": ""
+      }
+    ],
+    "stderr": ""
+  },
+  "hostContainers": [
+    {
+      "id": "1459ce8d1a2048aa930ab92723315ba0b298686198e31b9403e5e11df05fcfa4",
+      "serviceId": "web",
+      "status": "running",
+      "startedAt": "2026-10-11T18:42:48.665805827Z",
+      "configuredImage": "redis@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499",
+      "imageId": "sha256:f84b0c4678011602b9b98c227a4dcd5468bf8b088b02fdd4165cb7758bad8058"
+    },
+    {
+      "id": "1d2dad41da067fd29c7e5b8cc639ff4e533559311578d1a720871f244add0edd",
+      "serviceId": "web",
+      "status": "running",
+      "startedAt": "2026-10-11T18:42:48.546777995Z",
+      "configuredImage": "redis@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499",
+      "imageId": "sha256:f84b0c4678011602b9b98c227a4dcd5468bf8b088b02fdd4165cb7758bad8058"
+    },
+    {
+      "id": "815254a8276f89ab7ac64026ca9925acc94401b94d9717cb37a4386d3f3d4142",
+      "serviceId": "worker",
+      "status": "running",
+      "startedAt": "2026-10-11T18:42:48.662529477Z",
+      "configuredImage": "postgres@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea",
+      "imageId": "sha256:81bd698b4594e751a3269e4dcd3e03a4a0ec0daf7b72e7aa1abd43cce9887542"
+    },
+    {
+      "id": "fb7c15638b385a175b368eda8a1cc8c1c12f60842846de835fde27a965f8c2f2",
+      "serviceId": "worker",
+      "status": "running",
+      "startedAt": "2026-10-11T18:42:48.546219798Z",
+      "configuredImage": "postgres@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea",
+      "imageId": "sha256:81bd698b4594e751a3269e4dcd3e03a4a0ec0daf7b72e7aa1abd43cce9887542"
+    }
+  ],
+  "journalDiagnostic": [
+    {
+      "kind": "CLAIM",
+      "perServiceOutcomes": []
+    },
+    {
+      "kind": "START_INTENT",
+      "perServiceOutcomes": []
+    },
+    {
+      "kind": "START_ACK",
+      "perServiceOutcomes": []
+    },
+    {
+      "kind": "EXECUTOR_PID",
+      "perServiceOutcomes": []
+    },
+    {
+      "kind": "EXECUTOR_EXIT",
+      "perServiceOutcomes": []
+    },
+    {
+      "kind": "ACTION_OUTCOME",
+      "outcome": "UNKNOWN",
+      "errorCode": "INVENTORY_UNAVAILABLE",
+      "perServiceOutcomes": [
+        {
+          "serviceId": "web",
+          "status": "UNKNOWN",
+          "errorCode": "INVENTORY_UNAVAILABLE"
+        },
+        {
+          "serviceId": "worker",
+          "status": "UNKNOWN",
+          "errorCode": "INVENTORY_UNAVAILABLE"
+        }
+      ]
+    },
+    {
+      "kind": "COMPLETE_PENDING",
+      "perServiceOutcomes": []
+    }
+  ]
+}

@@ -1,0 +1,98 @@
+{
+  "attempt": "21",
+  "cwd": "/workspace/dugate/du-rework",
+  "startedAtUtc": "2026-10-12T03:02:30.499904+00:00",
+  "command": [
+    "/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node",
+    "/workspace/dugate/du-rework/businesses/document-core/node_modules/jest/bin/jest.js",
+    "--config",
+    "tests/workflow-api/jest.config.cjs",
+    "--runInBand",
+    "--runTestsByPath",
+    "tests/workflow-api/orv14-vfy-core31.test.ts",
+    "--testNamePattern",
+    "Gemini and OpenAI-compatible AI model defaults reach native provider tests and real Worker calls, with immutable old/new pins and Profile precedence"
+  ],
+  "node": "/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node",
+  "nodeVersion": "v24.21.0",
+  "jest": "/workspace/dugate/du-rework/businesses/document-core/node_modules/jest/bin/jest.js",
+  "testNamePattern": "Gemini and OpenAI-compatible AI model defaults reach native provider tests and real Worker calls, with immutable old/new pins and Profile precedence",
+  "environment": {
+    "WFA_DATABASE_URL": "postgresql://orv14_vfy:<synthetic Compose password omitted>@127.0.0.1:25414/orv14_vfy",
+    "WFA_REDIS_URL": "redis://127.0.0.1:26414/2 (per-run database index and namespace prefix allocated by test isolation)",
+    "NODE_PATH": "/workspace/dugate/du-rework/businesses/document-core/node_modules",
+    "NODE_EXTRA_CA_CERTS": "/workspace/dugate/du-rework/tests/workflow-api/orv14-vfy-worker/https-fixture/runner-trust-bundle.pem",
+    "ORV14_WORKER_E2E_RAW_DIR": "/workspace/dugate/du-rework/coordination/reports/raw/orv14-worker-e2e-verification/attempt-21",
+    "HTTP(S)_PROXY": "inherited unchanged"
+  },
+  "composeProject": "orv14-vfy-20261011-a1",
+  "sourceScope": "native tenant AI settings revisions through real typed Connector drafts and real HTTP provider-test/cost-control with actual OpenAI-compatible and Gemini fixture observations; publish old/new immutable AI defaults, execute actual document-core Worker calls, and verify locked Profile model precedence; capture bounded Orchestrator/Connector state on failure",
+  "sourcePinsBefore": {
+    "workerVerifierCore31Test": "6cab4d39480525b1d20e31992bdf83e62e36e93c6e46a099444194bea4e4f340",
+    "workflowImportContractSource": "6d1f3b705084488d6ac7cb2e8b3844d67c814fc41e747ff4e116ace2fffc39ce",
+    "legacyWorkflowContractSource": "5824e39d02a81d731745b1dcf8a124003f9d53ec666745bc1be3849830880660",
+    "workflowImportContractDist": "368dcde853e1f004ca62f6ca20642e98b18c1aeb49ee83d7a941d52743277e9d",
+    "legacyWorkflowContractDist": "204b80b8c94cade0ad778ac57b192e7d0fbebb36287d6a95bfdfe0305908ec32",
+    "contractsIndexDist": "c319606e305affe6a08c7a7df8efa62e56ff1172699550fcf956d348761a969a",
+    "legacyWorkflowDecoder": "9db12610b79f39743f571842a209e21305d4a128bfe2e9670949e5cf2de916e6",
+    "workflowImportPreview": "a1a3e4b1482a17f252bd127112a19b8fc18c41261b7cd4499282949f7a85fd77",
+    "internalWorkflowImportRoute": "e0fb38b5524a1cf330b1b58944965d4aab316c78920925bc96103ac76f0cd6d7",
+    "adminActionsRoute": "c9535411d7fa147a7f0af4e36e94081da1083eff7bcf9d8ab71f3e1e26524860",
+    "adminActionDispatcher": "6e788f65a3416cc8febadff663dbb30eb530621d1d7a9acd371e81fe418f196a",
+    "workflowSchemaCatalog": "ccdc69e4f8106217361cbcb163616464a0be042d3d43142b7c510ef0f433b21c",
+    "orchestratorCreateApp": "2913288498cfd4ffcb3ddb6b03b2f1d8fa7fde336e3a7d27c70a42a5a3b81626",
+    "orchestratorServer": "2a6258ffe7f106b3b7de14529e72be05a5ecce21ba18c836ef277d6f5948bdce",
+    "documentCoreWorker": "27a562c906d2cdf75fb6981b0d6eb27fc56c0632d430ef14b017180449801c34",
+    "documentCoreMain": "13816a6e5d924ec1951fa8e25b15df4ed009b19de935118ce71faaea12cb5c84",
+    "documentCoreLegacyWorkflowRuntime": "4583cb04a3b80894112fceee3da1367bcf16b9d956ad0d15d468190514af4e58",
+    "documentCoreManifest": "fe694f7bd81c3bf7c55e731b1b570687053b48170407510ac0d5c294d5d19067",
+    "workerSdkTaskContextSource": "65a063046829b400846ae387ac8a3347281bbab749a103f63b8c33e0dcf8efd4",
+    "workerSdkTaskContextDist": "420a5db392478959c476a5bbeef2ad21792791cbbfe6e00348338c32778c91b8",
+    "workerSdkTaskContextTypesDist": "8d0b39314c92a69b9c3d6cf4939b8f0aa5f476c28c81430f737b2f10768d1b24",
+    "workerSdkIndexDist": "a76f5c3f3cc264c39aa194fc5f6a4d09b89612e47a0934d596dd5bb6e212a3e1",
+    "workerSdkIndexTypesDist": "751e295703626dad5d1a25dbea2391704abdf3565346aeb5cc15106621c01e7a",
+    "observabilitySource": "4999a79de5b0da53ac47e4f32a41b6920064e722eb6c10add5b190a0666bc19d",
+    "observabilityDist": "9d67342f26c100a077417048aae7c34ffb0a6ba26675b5140b1bb8728fc2a3a3",
+    "connectorComposition": "cbb3ebe767f91c9d693ff3b6b7dc4900bbf9cc38f76c83c24df651607750d353",
+    "connectorEntrypoint": "43cd417bce85aabac6bbd97f2b1b2f9adb371dc282cc91e11a6b16e4be579401",
+    "connectorServices": "4445514a0c14d4f4bc061fd6a4f0e69dae8555c0d39edfe8beb1ec9a2b5a2c3a",
+    "connectorRepository": "b0cdc400bdc844c9a923cde4e7f712796b163c1efaadd7d5791b8143b7705dbf",
+    "connectorCostControlClient": "1d4afd3f6a74864cc773188d7ef60ed9177ea0b775807c482abe3a89bf7e131e",
+    "connectorContractGrants": "f30844ffe06b1d7d12b8044af5a054358d4570a0779b8e14782c84f66af821ef",
+    "connectorRuntimeControls": "daa0d34e24a85cc907e6469d7f425e997e2326a69922e0dd02428727bd2ab5fe",
+    "connectorHttpServer": "ee82d33d49ba37d47c00876323110500b6ed720dfcbe074f696b1b3df7c70899",
+    "globalSettingsService": "6f60272612c7b5c6bae341f2f569bbf0c7809df4cd090ad1d4eb8a94f4190035",
+    "internalGlobalSettingsRoute": "31a989362b4a8616c3ce8a45711d7a5a98d1e9913422bbc9e52dded8350054d1",
+    "providerTestService": "e36911e29c3d27027156c54c6ed6f8d40a145ea71a9df0ff2a1209cfe5691818",
+    "connectorManagementStore": "89a649c9ae37df485d055318afb40e0f956f541f4d0589235f141845db1392bc",
+    "internalCostControlRoute": "d7f5f5e18e3c672fdcd4668f33ccfbae561bcd5437734c381968d615c662062d",
+    "costControlService": "67e78a5d61894c233485b073e9565f96b49ebc90cfa7c9d3cd7b05b02b351090",
+    "ownedMinioHelper": "e5a352686dcfcdd6be51fcaa40b603a341682f4aec8665069ae3aade4e8cd1a2",
+    "privateHttpsHelper": "3c64bfe190802fef883f59b063ddbe7d50379fd9d55a6aacf85cc8aec50b8172"
+  },
+  "contractsSourceManifest": {
+    "path": "coordination/reports/raw/orv14-worker-e2e-verification/attempt-21/backend-service-runtime-bootid-contracts-src.sha256",
+    "aggregateSha256": "d33d0ce970a4f7620dde4854b0df2ddb272d824baf3efda84bafb36d99cde916",
+    "entries": 46,
+    "mismatches": []
+  },
+  "contractsDistManifest": {
+    "path": "coordination/reports/raw/orv14-worker-e2e-verification/attempt-21/backend-service-runtime-bootid-contracts-dist.sha256",
+    "aggregateSha256": "27cb417f246da2c9b31820af54d310163aaf8d657532c6cacb21b6c9a722c91a",
+    "entries": 184,
+    "mismatches": []
+  },
+  "dependencyInputs": {
+    "sha256": "f66c405a7b117120134244a6bb591ca47aa8b4865ff066fe620f06ee21444b2b",
+    "files": 943,
+    "missing": []
+  },
+  "composeImages": {
+    "postgres": "sha256:81bd698b4594e751a3269e4dcd3e03a4a0ec0daf7b72e7aa1abd43cce9887542",
+    "redis": "sha256:f84b0c4678011602b9b98c227a4dcd5468bf8b088b02fdd4165cb7758bad8058",
+    "ownedMinio": {
+      "tag": "orv14-vfy/minio:RELEASE-2025-09-07",
+      "imageId": "sha256:ff768636ea5c1b7bd295ddae1505506ae91a3beff613b14be377d23734cd2915"
+    }
+  }
+}

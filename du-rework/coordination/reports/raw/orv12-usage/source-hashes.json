@@ -1,0 +1,13 @@
+{
+  "orchestrator/services/orchestrator/src/modules/usage/spend-admission.ts": "b9bdd7f6eb0ae63f6fef2285966f30876194f7f6e9832904c56131f6074405e4",
+  "orchestrator/services/orchestrator/src/modules/usage/usage.ts": "6c351f03054830f032fad33e4068ceae44614a617750822df0081126d807c033",
+  "orchestrator/services/orchestrator/src/modules/operations/submission.ts": "b0a1afa3f3ee3e82e39b3ade074f13900f7db3e4b64ad6964b4d838631de579b",
+  "orchestrator/services/orchestrator/src/compat/legacy-host-adapter.ts": "e49f2bdeb8daa420e386c8c188c3c528b3e43b84ba5f1a18eb9ef5f928120f7e",
+  "orchestrator/services/orchestrator/src/compat/legacy-http-mount.ts": "08f734939995f3982bf0879b6ab291fe79d28d76acf8ed23236a7b99ebeca157",
+  "orchestrator/services/connector/src/usage.ts": "8c760860e50cdada70ab30918a9336a4f6777678b70e301ebdbc799e6bb2d89f",
+  "orchestrator/services/connector/src/db/usage-outbox.ts": "2d1534df8cf38aa46f55bcb676bb6b71f8dda949f66ebe687c7b993cabadfcb4",
+  "orchestrator/services/connector/src/db/repository.ts": "4cc725c38f1460ab96c929788ddc8322872b986f8ccbda1b02e8d65384f35b75",
+  "orchestrator/services/connector/src/types.ts": "926c6958e6c3893fe391f8a6193d102de28847ed9006887897f99a3df74bbfa9",
+  "orchestrator/packages/contracts/src/runtime.ts": "2ba616d3a46b734c30f7b8d8e4d3e0aa781512da22284d8b037ecc73d62f36e6",
+  "orchestrator/packages/contracts/src/operations.ts": "de6689c9ba7113783b891e7612266076989aeb72c459fc663f7897cae99056c1"
+}

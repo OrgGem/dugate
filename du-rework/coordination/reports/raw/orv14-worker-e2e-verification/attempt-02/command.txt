@@ -1,0 +1,6 @@
+UTC start: 2026-10-12T00:57:49.515078+00:00
+CWD: /workspace/dugate/du-rework
+Pinned Node: /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node
+Command: /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node /workspace/dugate/du-rework/businesses/document-core/node_modules/jest/bin/jest.js --config tests/workflow-api/jest.config.cjs --runInBand --runTestsByPath tests/workflow-api/orv14-vfy-core31.test.ts --testNamePattern configured Worker private HTTPS
+Environment: WFA_DATABASE_URL=postgresql://orv14_vfy:<synthetic Compose password omitted>@127.0.0.1:25414/orv14_vfy; WFA_REDIS_URL=redis://127.0.0.1:26414/2; NODE_PATH=/workspace/dugate/du-rework/businesses/document-core/node_modules; NODE_EXTRA_CA_CERTS=/workspace/dugate/du-rework/tests/workflow-api/orv14-vfy-worker/https-fixture/runner-trust-bundle.pem; ORV14_WORKER_E2E_RAW_DIR=/workspace/dugate/du-rework/coordination/reports/raw/orv14-worker-e2e-verification/attempt-02
+Proxy environment inherited unchanged. No dependency install or shared build.

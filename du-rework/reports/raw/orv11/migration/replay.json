@@ -1,0 +1,231 @@
+{
+  "status": "APPLIED",
+  "tenant": {
+    "name": "legacy-default",
+    "id": "ad7948d5-19d8-48b7-9f4f-15d64420a00a",
+    "status": "existing",
+    "seeded": false
+  },
+  "sourceRows": {
+    "read": 5,
+    "written": 0,
+    "skipped": 5,
+    "failed": 0
+  },
+  "destinationRows": {
+    "planned": 13,
+    "written": 0,
+    "skipped": 13
+  },
+  "perTable": {
+    "Operation": {
+      "read": 1,
+      "written": 0,
+      "skipped": 1,
+      "failed": 0
+    },
+    "ApiKey": {
+      "read": 1,
+      "written": 0,
+      "skipped": 1,
+      "failed": 0
+    },
+    "ExternalApiConnection": {
+      "read": 0,
+      "written": 0,
+      "skipped": 0,
+      "failed": 0
+    },
+    "ExternalApiOverride": {
+      "read": 0,
+      "written": 0,
+      "skipped": 0,
+      "failed": 0
+    },
+    "ProfileEndpoint": {
+      "read": 2,
+      "written": 0,
+      "skipped": 2,
+      "failed": 0
+    },
+    "AppSetting": {
+      "read": 0,
+      "written": 0,
+      "skipped": 0,
+      "failed": 0
+    },
+    "FileCache": {
+      "read": 1,
+      "written": 0,
+      "skipped": 1,
+      "failed": 0
+    },
+    "User": {
+      "read": 0,
+      "written": 0,
+      "skipped": 0,
+      "failed": 0
+    },
+    "UserProfileAssignment": {
+      "read": 0,
+      "written": 0,
+      "skipped": 0,
+      "failed": 0
+    }
+  },
+  "failures": [],
+  "omissions": [
+    {
+      "table": "Operation",
+      "sourceKey": "8c068412-4374-4a50-abf0-252805c512bf",
+      "field": "done",
+      "reason": "target compatibility projection derives done from terminal state"
+    },
+    {
+      "table": "ApiKey",
+      "sourceKey": "cb2441e0-331e-41e6-bf12-d0731beeca77",
+      "field": "role",
+      "reason": "rework api_keys has no role consumer"
+    },
+    {
+      "table": "ApiKey",
+      "sourceKey": "cb2441e0-331e-41e6-bf12-d0731beeca77",
+      "field": "note",
+      "reason": "rework api_keys has no note consumer"
+    },
+    {
+      "table": "ProfileEndpoint",
+      "sourceKey": "78150d33-9e92-42a3-b061-8a39e40f8e65",
+      "field": "connector_bindings",
+      "reason": "no reviewed connector slot mapping; establish and test effective bindings before cutover"
+    },
+    {
+      "table": "ProfileEndpoint",
+      "sourceKey": "78150d33-9e92-42a3-b061-8a39e40f8e65",
+      "field": "updatedAt",
+      "reason": "immutable profile rows have no updated_at destination"
+    },
+    {
+      "table": "ProfileEndpoint",
+      "sourceKey": "78150d33-9e92-42a3-b061-8a39e40f8e65",
+      "field": "rateLimitPerMin",
+      "reason": "retired by plan section 3.4; no rework consumer"
+    },
+    {
+      "table": "ProfileEndpoint",
+      "sourceKey": "78150d33-9e92-42a3-b061-8a39e40f8e65",
+      "field": "maxConcurrent",
+      "reason": "retired by plan section 3.4; no rework consumer"
+    },
+    {
+      "table": "ProfileEndpoint",
+      "sourceKey": "c9022778-c1ec-4850-afc8-ee5b3c11a924",
+      "field": "updatedAt",
+      "reason": "immutable profile rows have no updated_at destination"
+    },
+    {
+      "table": "ProfileEndpoint",
+      "sourceKey": "c9022778-c1ec-4850-afc8-ee5b3c11a924",
+      "field": "rateLimitPerMin",
+      "reason": "retired by plan section 3.4; no rework consumer"
+    },
+    {
+      "table": "ProfileEndpoint",
+      "sourceKey": "c9022778-c1ec-4850-afc8-ee5b3c11a924",
+      "field": "maxConcurrent",
+      "reason": "retired by plan section 3.4; no rework consumer"
+    },
+    {
+      "table": "FileCache",
+      "sourceKey": "00948719-2b2b-4b7a-8fe4-4707f141c6da",
+      "field": "refCount",
+      "reason": "no target owner or reference count exists; source count is not copied"
+    },
+    {
+      "table": "FileCache",
+      "sourceKey": "00948719-2b2b-4b7a-8fe4-4707f141c6da",
+      "field": "lastAccessedAt",
+      "reason": "no target timestamp column exists"
+    }
+  ],
+  "skips": [],
+  "workflowDuplicates": [],
+  "sourceSnapshot": {
+    "sha256": "db552ea53e5e7f152aa1386c7413ae51ccd3c4e25dcf4bebcfc7e130e4259b1d",
+    "rowCounts": {
+      "Operation": 1,
+      "ApiKey": 1,
+      "ExternalApiConnection": 0,
+      "ExternalApiOverride": 0,
+      "ProfileEndpoint": 2,
+      "AppSetting": 0,
+      "FileCache": 1,
+      "User": 0,
+      "UserProfileAssignment": 0
+    }
+  },
+  "preflight": [
+    {
+      "entity": "api_keys",
+      "key": "cb2441e0-331e-41e6-bf12-d0731beeca77",
+      "result": "identical"
+    },
+    {
+      "entity": "profile_bindings",
+      "key": "78150d33-9e92-42a3-b061-8a39e40f8e65|1",
+      "result": "identical"
+    },
+    {
+      "entity": "profile_bindings",
+      "key": "c9022778-c1ec-4850-afc8-ee5b3c11a924|1",
+      "result": "identical"
+    },
+    {
+      "entity": "profile_active_revisions",
+      "key": "78150d33-9e92-42a3-b061-8a39e40f8e65",
+      "result": "identical"
+    },
+    {
+      "entity": "profile_active_revisions",
+      "key": "c9022778-c1ec-4850-afc8-ee5b3c11a924",
+      "result": "identical"
+    },
+    {
+      "entity": "profile_api_keys",
+      "key": "78150d33-9e92-42a3-b061-8a39e40f8e65|cb2441e0-331e-41e6-bf12-d0731beeca77",
+      "result": "identical"
+    },
+    {
+      "entity": "profile_api_keys",
+      "key": "c9022778-c1ec-4850-afc8-ee5b3c11a924|cb2441e0-331e-41e6-bf12-d0731beeca77",
+      "result": "identical"
+    },
+    {
+      "entity": "profile_names",
+      "key": "78150d33-9e92-42a3-b061-8a39e40f8e65",
+      "result": "identical"
+    },
+    {
+      "entity": "profile_names",
+      "key": "c9022778-c1ec-4850-afc8-ee5b3c11a924",
+      "result": "identical"
+    },
+    {
+      "entity": "operations",
+      "key": "8c068412-4374-4a50-abf0-252805c512bf",
+      "result": "identical"
+    },
+    {
+      "entity": "artifacts",
+      "key": "00948719-2b2b-4b7a-8fe4-4707f141c6da",
+      "result": "identical"
+    },
+    {
+      "entity": "artifact_blobs",
+      "key": "legacy-filecache/00948719-2b2b-4b7a-8fe4-4707f141c6da",
+      "result": "identical"
+    }
+  ],
+  "cutoverReady": false,
+  "cutoverGate": "Independent rehearsal, effective settings/profile reconciliation, identity activation and source freeze approval required; APPLIED only means immutable rows were written"
+}

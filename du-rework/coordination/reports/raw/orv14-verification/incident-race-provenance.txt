@@ -1,0 +1,32 @@
+started_utc=2026-10-11T22:30:26Z
+cwd=/workspace/dugate/du-rework
+compose_project=orv14-vfy-20261011-a1
+postgres=127.0.0.1:25414/orv14_vfy; postgres_schema=du_test_orv14_vfy_ops_1791757835146_51ba38c7
+redis=127.0.0.1:26414; redis_db=6; redis_prefix=du:test:orv14_vfy_ops_1791757835146_51ba38c7:
+toolchain=/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node
+jest=/workspace/dugate/du-rework/orchestrator/node_modules/.pnpm/node_modules/jest/bin/jest.js
+node_path=/workspace/dugate/du-rework/orchestrator/node_modules/.pnpm/node_modules
+command=env WFA_DATABASE_URL=postgresql://orv14_vfy:orv14-vfy-local-only@127.0.0.1:25414/orv14_vfy WFA_REDIS_URL=redis://127.0.0.1:26414/0 NODE_PATH=/workspace/dugate/du-rework/orchestrator/node_modules/.pnpm/node_modules /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node /workspace/dugate/du-rework/orchestrator/node_modules/.pnpm/node_modules/jest/bin/jest.js --config tests/workflow-api/jest.config.cjs --runInBand --detectOpenHandles --runTestsByPath tests/workflow-api/orv14-vfy-ops.test.ts --testNamePattern 'preserves the newest payload'
+verifier_test_sha256=ec95d17f57cd277ad0524b6f4fcce2ecb768abd633d32ff37f6d40a726e6d307
+incident_service_sha256=6c259cb19dda2af013c1fd6d7423c9eb525d9512679e915cdb8487fe87749556
+build_or_served_bundle_hash=none; direct source execution; Admin bundle set to no-bundle
+filtered_scope=the single first-time same-source interleaving test; two other tests skipped by explicit testNamePattern
+result=one test failed by design assertion after actual-PG race reproduced older payload overwrite and duplicate detected history
+exit_code=1
+raw_log=incident-first-signal-race-final.log
+
+observed_interleaving=older prior SELECT returned zero rows and paused inside its transaction; newer call committed before older was released; no PostgreSQL lock wait observed for the newer call
+older_and_newer_returned_same_incident_id=true
+newer_payload=critical summary 'Newer committed source payload' threshold orv14-vfy-new-threshold counters {stalled:9} newer affected-resource label
+persisted_payload=low summary 'Older interleaved source payload' threshold orv14-vfy-old-threshold counters {stalled:1} older affected-resource label
+persisted_last_sampled_at=2026-10-11T22:28:06.617Z (the newer timestamp)
+history=two detected events: older summary and newer summary
+
+cleanup_evidence_at_2026-10-11T22:30:59Z:
+postgres information_schema schema count for du_test_orv14_vfy_ops_1791757835146_51ba38c7=0
+redis-cli -h 127.0.0.1 -p 26414 -n 6 --scan --pattern 'du:test:orv14_vfy_ops_1791757835146_51ba38c7:*' returned no keys
+owned artifact directory tests/workflow-api/orv14-vfy/ops-artifacts/orv14_vfy_ops_1791757835146_51ba38c7=ABSENT
+
+harness_attempts_preserved:
+incident-first-signal-race-current.log = test compile stopped at TS1005 due test SQL literal quoting; zero tests ran
+incident-first-signal-race-rerun.log = diagnostic output had test variable typo `newerWaitedOnPgLock`; one failed test harness ReferenceError before the behavior assertions

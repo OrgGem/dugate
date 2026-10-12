@@ -1,0 +1,38 @@
+{
+  "name": "operations/ce467daf-028c-45e1-b9d3-67acc05a863d",
+  "done": true,
+  "metadata": {
+    "state": "SUCCEEDED",
+    "pipeline": [],
+    "current_step": 0,
+    "progress_percent": 0,
+    "progress_message": "Queued",
+    "create_time": "2026-10-12T00:37:42.651Z",
+    "update_time": "2026-10-12T00:37:42.771Z",
+    "pipeline_steps": []
+  },
+  "result": {
+    "output_format": "json",
+    "content": "{\"merchantName\":\"Corner Grocery\",\"totalAmount\":25.5,\"items\":[{\"name\":\"Milk\",\"price\":3.5}]}",
+    "extracted_data": {
+      "merchantName": "Corner Grocery",
+      "totalAmount": 25.5,
+      "items": [
+        {
+          "name": "Milk",
+          "price": 3.5
+        }
+      ]
+    },
+    "pipeline_steps": [],
+    "usage": {
+      "input_tokens": null,
+      "output_tokens": null,
+      "pages_processed": null,
+      "model_used": null,
+      "cost_usd": null,
+      "breakdown": []
+    },
+    "download_url": "/api/v1/operations/ce467daf-028c-45e1-b9d3-67acc05a863d/download"
+  }
+}

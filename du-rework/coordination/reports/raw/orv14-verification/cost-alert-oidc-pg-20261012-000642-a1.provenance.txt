@@ -1,0 +1,14 @@
+attempt=cost-alert-oidc-pg-20261012-000642-a1
+started_utc=2026-10-12 00:06:42 UTC
+cwd=/workspace/dugate/du-rework
+node=/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node v24.21.0
+command=NODE_PATH=/workspace/dugate/du-rework/orchestrator/node_modules/.pnpm/node_modules /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node /workspace/dugate/du-rework/orchestrator/node_modules/.pnpm/node_modules/jest/bin/jest.js --config tests/workflow-api/jest.config.cjs --runInBand --detectOpenHandles --runTestsByPath tests/workflow-api/orv14-vfy/cost-alert-oidc.test.ts
+postgres_schema=du_test_orv14_vfy_cost_oidc_1791763613312_bbe0364e
+redis_db=4
+redis_prefix=du:test:orv14_vfy_cost_oidc_1791763613312_bbe0364e:oidc:
+queue_prefix=du:q:orv14_vfy_cost_oidc_1791763613312_bbe0364e:
+source_freeze=Cost UI/alert owner manifest 7a5c9a14971a2d68b5085d24478114d545f33cbaa134088a80ac300bc912eb07 passed sha256sum -c; app bootstrap still mutable
+source_hashes_before=cost-alert-oidc-pg-20261012-000642-a1.pre.sha256
+source_hashes_after=not captured; shell wrapper was interrupted before post-hash step
+result=Jest reported 1 suite failure, 0 tests; setup failed when replica B used autoMigrate=false and generic verifyMigrations looked only for schema_migrations in public, while replica A's normal autoMigrate path placed the ledger in the isolated search_path schema. No behavior assertions ran.
+cleanup=Jest afterAll closed owned apps, OIDC gateways and synthetic IdP and dropped the isolated schema before its Redis scanner hit Stream-isnt-writeable; independently verified PostgreSQL schema absent and namespaced Redis key count 0 at 2026-10-12 00:09 UTC. The test process was interrupted after the failure summary because one base PG pool handle remained open when afterAll stopped at the Redis readiness error. This attempt is fixture/setup evidence only, not product behavior.

@@ -1,0 +1,166 @@
+(node:835244) [DEP0123] DeprecationWarning: Setting the TLS ServerName to an IP address is not permitted by RFC 6066. This will be ignored in a future version.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+FAIL tests/workflow-api/orv14-vfy-core31.test.ts (88.69 s)
+  ORV14 independent public HTTP compatibility with real outbox, worker, and Connector
+    ○ skipped legacy multipart ingest parses exact bytes, projects/downloads result and replays without duplicate blobs
+    ○ skipped sync submit waits for real worker and returns terminal result within its budget
+    ○ skipped browser uploads a document and submits workflow.test to real worker, then polls success
+    31 public multipart variants through production outbox/Redis/worker/Connector
+      ○ skipped DOC-01-01 ingest/parse
+      ○ skipped DOC-01-02 ingest/ocr
+      ○ skipped DOC-01-03 ingest/digitize
+      ○ skipped DOC-01-04 ingest/split
+      ○ skipped DOC-02-01 extract/invoice
+      ○ skipped DOC-02-02 extract/contract
+      ○ skipped DOC-02-03 extract/receipt
+      ○ skipped DOC-02-04 extract/table
+      ○ skipped DOC-02-05 extract/custom
+      ○ skipped DOC-02-06 extract/id-card
+      ○ skipped DOC-03-01 analyze/classify
+      ○ skipped DOC-03-02 analyze/sentiment
+      ○ skipped DOC-03-03 analyze/compliance
+      ○ skipped DOC-03-04 analyze/quality
+      ○ skipped DOC-03-05 analyze/risk
+      ○ skipped DOC-03-06 analyze/fact-check
+      ○ skipped DOC-03-07 analyze/summarize-eval
+      ○ skipped DOC-04-01 transform/convert
+      ○ skipped DOC-04-02 transform/translate
+      ○ skipped DOC-04-03 transform/rewrite
+      ○ skipped DOC-04-04 transform/redact
+      ○ skipped DOC-04-05 transform/template
+      ○ skipped DOC-05-01 generate/summary
+      ○ skipped DOC-05-02 generate/outline
+      ○ skipped DOC-05-03 generate/report
+      ○ skipped DOC-05-04 generate/email
+      ○ skipped DOC-05-05 generate/minutes
+      ○ skipped DOC-05-06 generate/qa
+      ○ skipped DOC-06-01 compare/diff
+      ○ skipped DOC-06-02 compare/semantic
+      ○ skipped DOC-06-03 compare/version
+    ORV14 native tenant prompt and AI defaults observed by real Connector calls
+      ○ skipped published tenant prompt revisions reach real PNG/PDF/DOCX, compare, and generate provider calls with old/new operation pins
+      ○ skipped Gemini and OpenAI-compatible AI model defaults reach native provider tests and real Worker calls, with immutable old/new pins and Profile precedence
+    configured Worker private HTTPS
+      ✕ configured Worker receives exact private HTTPS policy, validates DNS/SNI/CA, executes callback and download, and exposes public result (5755 ms)
+      ✕ parallel branch children share the configured private HTTPS policy (337 ms)
+      ✕ a resumed HITL workflow keeps the Worker policy for its later HTTPS callback (50299 ms)
+      ✕ an explicit operation retry reuses the admitted schema pin and reaches HTTPS on the next attempt (5361 ms)
+      ✓ worker default deny rejects a tenant-approved private origin when the operator list is empty (622 ms)
+      ✓ tenant schema approval blocks an origin absent from that immutable pin (230 ms)
+      ✕ operator list and tenant pin intersect; operator-only origin cannot be reached (404 ms)
+      ✓ verified TLS rejects a SAN mismatch while preserving the requested SNI (439 ms)
+      ✓ redirects are not followed and oversized file responses fail at the worker byte limit (999 ms)
+      ✕ operation cancellation aborts the active pinned HTTPS request (187 ms)
+      ✓ metadata, link-local, CGNAT, multicast, and reserved IP literals stay blocked with private opt-in (21055 ms)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › configured Worker private HTTPS › configured Worker receives exact private HTTPS policy, validates DNS/SNI/CA, executes callback and download, and exposes public result
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "SUCCEEDED"
+    Received: "FAILED"
+
+      1657 |         callbackPayload,
+      1658 |       });
+    > 1659 |       expect(run.terminal.state).toBe('SUCCEEDED');
+           |                                  ^
+      1660 |       expect(run.publicOperation.done).toBe(true);
+      1661 |       expect(run.publicOperation.metadata).toMatchObject({ state: 'SUCCEEDED' });
+      1662 |       const result = run.publicOperation.result as { content?: unknown; extracted_data?: unknown };
+
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:1659:34)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › configured Worker private HTTPS › parallel branch children share the configured private HTTPS policy
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "SUCCEEDED"
+    Received: "FAILED"
+
+      1717 |       });
+      1718 |       const events = httpsFixture.events.slice(before);
+    > 1719 |       expect(run.terminal.state).toBe('SUCCEEDED');
+           |                                  ^
+      1720 |       expect(events.some((event) => event.kind === 'request' && event.path === '/file.txt' && event.sni === PRIVATE_HTTPS_TARGETS.sanMatch.host)).toBe(true);
+      1721 |       expect(events.some((event) => event.kind === 'request' && event.path === '/callback' && event.bodySha256 === payloadSha256)).toBe(true);
+      1722 |       savePrivateHttpsCase('parallel-branches', { operationId: run.operationId, state: run.terminal.state, listenerEvents: events });
+
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:1719:34)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › configured Worker private HTTPS › a resumed HITL workflow keeps the Worker policy for its later HTTPS callback
+
+    timed out waiting for WAITING_INPUT; last state was ACCEPTED
+
+      623 |     await new Promise((resolve) => setTimeout(resolve, 100));
+      624 |   }
+    > 625 |   throw new Error(`timed out waiting for ${expected.join('|')}; last state was ${last?.state ?? 'unknown'}`);
+          |         ^
+      626 | }
+      627 |
+      628 | async function waitForCondition(
+
+      at waitForState (tests/workflow-api/orv14-vfy-core31.test.ts:625:9)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:1737:23)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › configured Worker private HTTPS › an explicit operation retry reuses the admitted schema pin and reaches HTTPS on the next attempt
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 201
+    Received: 200
+
+      1771 |       });
+      1772 |       const retryBody = await retryResponse.json() as { operationId?: unknown; retryOf?: unknown; replayed?: unknown };
+    > 1773 |       expect(retryResponse.status).toBe(201);
+           |                                    ^
+      1774 |       expect(retryBody).toMatchObject({ retryOf: first.operationId, replayed: false });
+      1775 |       expect(typeof retryBody.operationId).toBe('string');
+      1776 |       const retryId = String(retryBody.operationId);
+
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:1773:36)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › configured Worker private HTTPS › operator list and tenant pin intersect; operator-only origin cannot be reached
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "error_code": "LEGACY_WORKFLOW_EGRESS_ORIGIN_DENIED",
+    +   "error_code": "LEGACY_WORKFLOW_URL_DOWNLOAD_FAILED",
+        "state": "FAILED",
+      }
+
+      1812 |         reference: 'synthetic-operator-origin-fence', fileUrl: httpsFixture.url('san-match', '/file.txt'),
+      1813 |       });
+    > 1814 |       expect(run.terminal).toMatchObject({ state: 'FAILED', error_code: 'LEGACY_WORKFLOW_EGRESS_ORIGIN_DENIED' });
+           |                            ^
+      1815 |       expect(httpsFixture.events.slice(before)).toHaveLength(0);
+      1816 |       savePrivateHttpsCase('operator-tenant-intersection', { operationId: run.operationId, state: run.terminal.state, errorCode: run.terminal.error_code, listenerEvents: [] });
+      1817 |     }, 45_000);
+
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:1814:28)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › configured Worker private HTTPS › operation cancellation aborts the active pinned HTTPS request
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 404
+
+      1863 |         method: 'POST', headers: { 'x-api-key': leafApiKey },
+      1864 |       });
+    > 1865 |       expect(cancel.status).toBe(200);
+           |                             ^
+      1866 |       const terminal = await waitForState(submitted.operationId, ['CANCELLED'], 20_000);
+      1867 |       await waitForCondition(() => httpsFixture.count('san-match', 'client-close', '/slow') > 0, 10_000, 'HTTPS client socket close after operation cancellation');
+      1868 |       const events = httpsFixture.events.filter((event) => event.path === '/slow');
+
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:1865:29)
+
+Test Suites: 1 failed, 1 total
+Tests:       6 failed, 36 skipped, 5 passed, 47 total
+Snapshots:   0 total
+Time:        88.882 s
+Ran all test suites within paths "tests/workflow-api/orv14-vfy-core31.test.ts".

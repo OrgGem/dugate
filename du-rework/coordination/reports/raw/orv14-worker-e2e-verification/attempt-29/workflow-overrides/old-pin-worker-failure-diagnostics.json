@@ -1,0 +1,42 @@
+{
+  "operation": [
+    {
+      "id": "f75a4f2d-6cf3-499a-a6ed-75f138dac2b0",
+      "state": "FAILED",
+      "errorCode": "LEGACY_WORKFLOW_CONNECTOR_FAILED",
+      "rootTaskId": "3f68740f-01b9-436c-9b41-18f31bb4f2f2",
+      "correlationId": "7c880a82-3358-4d1d-b315-bfbdc2601639"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "3f68740f-01b9-436c-9b41-18f31bb4f2f2",
+      "task_key": "root",
+      "kind": "root",
+      "state": "FAILED",
+      "attempt": 1,
+      "error_code": "LEGACY_WORKFLOW_CONNECTOR_FAILED"
+    }
+  ],
+  "grants": [
+    {
+      "taskId": "3f68740f-01b9-436c-9b41-18f31bb4f2f2",
+      "stepKey": "legacy-workflow:node:sha256:ec6f2e4318a3c3df327f8ba858cd54685d5bdf80ae3b04756229bd62b259339a:root:root:recipe_request",
+      "invocationId": "b16390d0-7d84-5f1a-9c50-e3d3eea54d7f",
+      "inputHash": "sha256:9f986b5036574a38181b486bc876b2eed8d136e99b914fa1d8af42abb824c0b5",
+      "connectorId": "orv14-vfy-workflow-recipe-71b3c28b-825e-4d98-87ef-8789e903e44c",
+      "connectorRevision": 1,
+      "bindingSlot": "legacy-connector-00",
+      "grantSignatureValid": true,
+      "signedWorkflowOverridesDigest": "2e1f0febaebaa6e37ece57625da7b44e7cfc2b60c7c34696c548c4f34cf25aa5",
+      "expectedWorkflowOverridesDigest": "2e1f0febaebaa6e37ece57625da7b44e7cfc2b60c7c34696c548c4f34cf25aa5",
+      "workflowOverridesDigestMatches": true
+    }
+  ],
+  "connectorInvocations": [],
+  "costReservationGroups": [],
+  "costBudgetHoldStates": [],
+  "sdkConnectorFailures": [],
+  "workerErrorFrames": [],
+  "boundedProviderCallDelta": 0
+}

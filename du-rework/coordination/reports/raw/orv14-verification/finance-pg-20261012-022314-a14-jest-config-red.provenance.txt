@@ -1,0 +1,9 @@
+Attempt: finance-pg-20261012-022314-a14-jest-config-red
+UTC: 2026-10-12T02:23:14Z
+Working directory: /workspace/dugate/du-rework
+Node: /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node v24.21.0
+Command: node tests/workflow-api/run-jest.cjs finance-pg-20261012-022314-a14-target.log --runTestsByPath tests/workflow-api/orv14-vfy/cost-adjustments.test.ts --testNamePattern='records 100 → 80 → refund 30'
+Exit: 1 before test collection.
+Cause: the shared tests/workflow-api/jest.config.cjs resolves bare `ts-jest` from repository root, but the installed package is only available through the Orchestrator-local dependency path. Jest reported “Module ts-jest in the transform option was not found.” This is harness configuration, not a product assertion.
+Correction: invoke installed Jest directly with the owned tests/workflow-api/orv14-vfy/jest.config.cjs, which pins the existing Orchestrator-local ts-jest package. A `--listTests` check succeeded for the exact target path.
+Raw: finance-pg-20261012-022314-a14-jest-config-red.log (sha256 a820f5bbba307135b8a1c9489efcd7aead555e8fb123b9daf2cfbcfccca1bda4).

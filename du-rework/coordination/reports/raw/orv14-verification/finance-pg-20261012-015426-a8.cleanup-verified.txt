@@ -1,0 +1,7 @@
+Independent cleanup verification for a8, captured after the Jest process ended.
+Jest cleanup stdout: schemaAbsent=true ownedBucketAbsent=true ownedContainerAbsent=true.
+Independent Node pg/ioredis read-only check: schema_count=0; redis_key_count=0.
+Artifact directory: absent.
+Owned MinIO container: absent (docker inspect returned nonzero).
+Owned versioned bucket: removed before the owned container exited; bucket name orv14-fin-6d087998b82146f1a22c638e.
+No Compose/shared services were stopped.

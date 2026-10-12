@@ -1,0 +1,248 @@
+FAIL tests/workflow-api/http-worker.integration.test.ts
+  WFA real schema HTTP → PostgreSQL outbox → Redis worker → legacy poll/result
+    ✕ executes the pinned input node and projects a terminal versioned result through the legacy poll/download routes (1 ms)
+    ✕ preserves one-file doc-compare 202 admission and lets the real worker report its two-document failure
+    ✕ executes a two-file named doc-compare to a completed legacy result (WFA-T03)
+    ✕ executes file_parse, connector, archive_compress and archive_extract through the real worker (WFA-T15/T18/T19/T22)
+    ✕ denies client-steered file_url_download and callback destinations (WFA-T15/T19 fences) (1 ms)
+    ✕ recovers an expired lease without repeating the completed provider stage (WFA-T26)
+    ✕ cancels an operation while a provider stage is in flight and aborts that stage (WFA-T27)
+    ✕ runs named disbursement end to end through admission, HITL approval and connector stages to a legacy result (WFA-T01)
+    ✕ runs named lc-checker end to end through admission and connector stages to a legacy result (WFA-T02)
+    ✕ records legacy HITL state/resume parity while proving a canonical resume completes the real worker
+    ✕ runs two ordered parallel checkpoints with encrypted branch artifacts and configured joins
+    ✕ keeps sequential human checkpoints distinct across resume deliveries
+    ✕ does not let an administrator credential bypass public workflow API-key authorization
+    ✕ refuses file-bearing workflow upload when metadata encryption exists but artifact encryption is absent
+    ✕ cancels a paused workflow safely and closes its wait without exposing it to a same-tenant profile key
+
+  ● WFA real schema HTTP → PostgreSQL outbox → Redis worker → legacy poll/result › executes the pinned input node and projects a terminal versioned result through the legacy poll/download routes
+
+    owned Connector schema did not register its exact process identity and open backup effect fence
+
+      443 |       || backupGate.state !== 'OPEN'
+      444 |       || Number(backupGate.fence_revision) !== 0) {
+    > 445 |     throw new Error('owned Connector schema did not register its exact process identity and open backup effect fence');
+          |           ^
+      446 |   }
+      447 |   const connectorAddress = connectorComposition.address();
+      448 |   if (!connectorAddress || typeof connectorAddress === 'string') throw new Error('synthetic Connector service did not bind');
+
+      at startNamedConnectorFixture (tests/workflow-api/http-worker.integration.test.ts:445:11)
+      at Object.<anonymous> (tests/workflow-api/http-worker.integration.test.ts:953:5)
+
+  ● WFA real schema HTTP → PostgreSQL outbox → Redis worker → legacy poll/result › preserves one-file doc-compare 202 admission and lets the real worker report its two-document failure
+
+    owned Connector schema did not register its exact process identity and open backup effect fence
+
+      443 |       || backupGate.state !== 'OPEN'
+      444 |       || Number(backupGate.fence_revision) !== 0) {
+    > 445 |     throw new Error('owned Connector schema did not register its exact process identity and open backup effect fence');
+          |           ^
+      446 |   }
+      447 |   const connectorAddress = connectorComposition.address();
+      448 |   if (!connectorAddress || typeof connectorAddress === 'string') throw new Error('synthetic Connector service did not bind');
+
+      at startNamedConnectorFixture (tests/workflow-api/http-worker.integration.test.ts:445:11)
+      at Object.<anonymous> (tests/workflow-api/http-worker.integration.test.ts:953:5)
+
+  ● WFA real schema HTTP → PostgreSQL outbox → Redis worker → legacy poll/result › executes a two-file named doc-compare to a completed legacy result (WFA-T03)
+
+    owned Connector schema did not register its exact process identity and open backup effect fence
+
+      443 |       || backupGate.state !== 'OPEN'
+      444 |       || Number(backupGate.fence_revision) !== 0) {
+    > 445 |     throw new Error('owned Connector schema did not register its exact process identity and open backup effect fence');
+          |           ^
+      446 |   }
+      447 |   const connectorAddress = connectorComposition.address();
+      448 |   if (!connectorAddress || typeof connectorAddress === 'string') throw new Error('synthetic Connector service did not bind');
+
+      at startNamedConnectorFixture (tests/workflow-api/http-worker.integration.test.ts:445:11)
+      at Object.<anonymous> (tests/workflow-api/http-worker.integration.test.ts:953:5)
+
+  ● WFA real schema HTTP → PostgreSQL outbox → Redis worker → legacy poll/result › executes file_parse, connector, archive_compress and archive_extract through the real worker (WFA-T15/T18/T19/T22)
+
+    owned Connector schema did not register its exact process identity and open backup effect fence
+
+      443 |       || backupGate.state !== 'OPEN'
+      444 |       || Number(backupGate.fence_revision) !== 0) {
+    > 445 |     throw new Error('owned Connector schema did not register its exact process identity and open backup effect fence');
+          |           ^
+      446 |   }
+      447 |   const connectorAddress = connectorComposition.address();
+      448 |   if (!connectorAddress || typeof connectorAddress === 'string') throw new Error('synthetic Connector service did not bind');
+
+      at startNamedConnectorFixture (tests/workflow-api/http-worker.integration.test.ts:445:11)
+      at Object.<anonymous> (tests/workflow-api/http-worker.integration.test.ts:953:5)
+
+  ● WFA real schema HTTP → PostgreSQL outbox → Redis worker → legacy poll/result › denies client-steered file_url_download and callback destinations (WFA-T15/T19 fences)
+
+    owned Connector schema did not register its exact process identity and open backup effect fence
+
+      443 |       || backupGate.state !== 'OPEN'
+      444 |       || Number(backupGate.fence_revision) !== 0) {
+    > 445 |     throw new Error('owned Connector schema did not register its exact process identity and open backup effect fence');
+          |           ^
+      446 |   }
+      447 |   const connectorAddress = connectorComposition.address();
+      448 |   if (!connectorAddress || typeof connectorAddress === 'string') throw new Error('synthetic Connector service did not bind');
+
+      at startNamedConnectorFixture (tests/workflow-api/http-worker.integration.test.ts:445:11)
+      at Object.<anonymous> (tests/workflow-api/http-worker.integration.test.ts:953:5)
+
+  ● WFA real schema HTTP → PostgreSQL outbox → Redis worker → legacy poll/result › recovers an expired lease without repeating the completed provider stage (WFA-T26)
+
+    owned Connector schema did not register its exact process identity and open backup effect fence
+
+      443 |       || backupGate.state !== 'OPEN'
+      444 |       || Number(backupGate.fence_revision) !== 0) {
+    > 445 |     throw new Error('owned Connector schema did not register its exact process identity and open backup effect fence');
+          |           ^
+      446 |   }
+      447 |   const connectorAddress = connectorComposition.address();
+      448 |   if (!connectorAddress || typeof connectorAddress === 'string') throw new Error('synthetic Connector service did not bind');
+
+      at startNamedConnectorFixture (tests/workflow-api/http-worker.integration.test.ts:445:11)
+      at Object.<anonymous> (tests/workflow-api/http-worker.integration.test.ts:953:5)
+
+  ● WFA real schema HTTP → PostgreSQL outbox → Redis worker → legacy poll/result › cancels an operation while a provider stage is in flight and aborts that stage (WFA-T27)
+
+    owned Connector schema did not register its exact process identity and open backup effect fence
+
+      443 |       || backupGate.state !== 'OPEN'
+      444 |       || Number(backupGate.fence_revision) !== 0) {
+    > 445 |     throw new Error('owned Connector schema did not register its exact process identity and open backup effect fence');
+          |           ^
+      446 |   }
+      447 |   const connectorAddress = connectorComposition.address();
+      448 |   if (!connectorAddress || typeof connectorAddress === 'string') throw new Error('synthetic Connector service did not bind');
+
+      at startNamedConnectorFixture (tests/workflow-api/http-worker.integration.test.ts:445:11)
+      at Object.<anonymous> (tests/workflow-api/http-worker.integration.test.ts:953:5)
+
+  ● WFA real schema HTTP → PostgreSQL outbox → Redis worker → legacy poll/result › runs named disbursement end to end through admission, HITL approval and connector stages to a legacy result (WFA-T01)
+
+    owned Connector schema did not register its exact process identity and open backup effect fence
+
+      443 |       || backupGate.state !== 'OPEN'
+      444 |       || Number(backupGate.fence_revision) !== 0) {
+    > 445 |     throw new Error('owned Connector schema did not register its exact process identity and open backup effect fence');
+          |           ^
+      446 |   }
+      447 |   const connectorAddress = connectorComposition.address();
+      448 |   if (!connectorAddress || typeof connectorAddress === 'string') throw new Error('synthetic Connector service did not bind');
+
+      at startNamedConnectorFixture (tests/workflow-api/http-worker.integration.test.ts:445:11)
+      at Object.<anonymous> (tests/workflow-api/http-worker.integration.test.ts:953:5)
+
+  ● WFA real schema HTTP → PostgreSQL outbox → Redis worker → legacy poll/result › runs named lc-checker end to end through admission and connector stages to a legacy result (WFA-T02)
+
+    owned Connector schema did not register its exact process identity and open backup effect fence
+
+      443 |       || backupGate.state !== 'OPEN'
+      444 |       || Number(backupGate.fence_revision) !== 0) {
+    > 445 |     throw new Error('owned Connector schema did not register its exact process identity and open backup effect fence');
+          |           ^
+      446 |   }
+      447 |   const connectorAddress = connectorComposition.address();
+      448 |   if (!connectorAddress || typeof connectorAddress === 'string') throw new Error('synthetic Connector service did not bind');
+
+      at startNamedConnectorFixture (tests/workflow-api/http-worker.integration.test.ts:445:11)
+      at Object.<anonymous> (tests/workflow-api/http-worker.integration.test.ts:953:5)
+
+  ● WFA real schema HTTP → PostgreSQL outbox → Redis worker → legacy poll/result › records legacy HITL state/resume parity while proving a canonical resume completes the real worker
+
+    owned Connector schema did not register its exact process identity and open backup effect fence
+
+      443 |       || backupGate.state !== 'OPEN'
+      444 |       || Number(backupGate.fence_revision) !== 0) {
+    > 445 |     throw new Error('owned Connector schema did not register its exact process identity and open backup effect fence');
+          |           ^
+      446 |   }
+      447 |   const connectorAddress = connectorComposition.address();
+      448 |   if (!connectorAddress || typeof connectorAddress === 'string') throw new Error('synthetic Connector service did not bind');
+
+      at startNamedConnectorFixture (tests/workflow-api/http-worker.integration.test.ts:445:11)
+      at Object.<anonymous> (tests/workflow-api/http-worker.integration.test.ts:953:5)
+
+  ● WFA real schema HTTP → PostgreSQL outbox → Redis worker → legacy poll/result › runs two ordered parallel checkpoints with encrypted branch artifacts and configured joins
+
+    owned Connector schema did not register its exact process identity and open backup effect fence
+
+      443 |       || backupGate.state !== 'OPEN'
+      444 |       || Number(backupGate.fence_revision) !== 0) {
+    > 445 |     throw new Error('owned Connector schema did not register its exact process identity and open backup effect fence');
+          |           ^
+      446 |   }
+      447 |   const connectorAddress = connectorComposition.address();
+      448 |   if (!connectorAddress || typeof connectorAddress === 'string') throw new Error('synthetic Connector service did not bind');
+
+      at startNamedConnectorFixture (tests/workflow-api/http-worker.integration.test.ts:445:11)
+      at Object.<anonymous> (tests/workflow-api/http-worker.integration.test.ts:953:5)
+
+  ● WFA real schema HTTP → PostgreSQL outbox → Redis worker → legacy poll/result › keeps sequential human checkpoints distinct across resume deliveries
+
+    owned Connector schema did not register its exact process identity and open backup effect fence
+
+      443 |       || backupGate.state !== 'OPEN'
+      444 |       || Number(backupGate.fence_revision) !== 0) {
+    > 445 |     throw new Error('owned Connector schema did not register its exact process identity and open backup effect fence');
+          |           ^
+      446 |   }
+      447 |   const connectorAddress = connectorComposition.address();
+      448 |   if (!connectorAddress || typeof connectorAddress === 'string') throw new Error('synthetic Connector service did not bind');
+
+      at startNamedConnectorFixture (tests/workflow-api/http-worker.integration.test.ts:445:11)
+      at Object.<anonymous> (tests/workflow-api/http-worker.integration.test.ts:953:5)
+
+  ● WFA real schema HTTP → PostgreSQL outbox → Redis worker → legacy poll/result › does not let an administrator credential bypass public workflow API-key authorization
+
+    owned Connector schema did not register its exact process identity and open backup effect fence
+
+      443 |       || backupGate.state !== 'OPEN'
+      444 |       || Number(backupGate.fence_revision) !== 0) {
+    > 445 |     throw new Error('owned Connector schema did not register its exact process identity and open backup effect fence');
+          |           ^
+      446 |   }
+      447 |   const connectorAddress = connectorComposition.address();
+      448 |   if (!connectorAddress || typeof connectorAddress === 'string') throw new Error('synthetic Connector service did not bind');
+
+      at startNamedConnectorFixture (tests/workflow-api/http-worker.integration.test.ts:445:11)
+      at Object.<anonymous> (tests/workflow-api/http-worker.integration.test.ts:953:5)
+
+  ● WFA real schema HTTP → PostgreSQL outbox → Redis worker → legacy poll/result › refuses file-bearing workflow upload when metadata encryption exists but artifact encryption is absent
+
+    owned Connector schema did not register its exact process identity and open backup effect fence
+
+      443 |       || backupGate.state !== 'OPEN'
+      444 |       || Number(backupGate.fence_revision) !== 0) {
+    > 445 |     throw new Error('owned Connector schema did not register its exact process identity and open backup effect fence');
+          |           ^
+      446 |   }
+      447 |   const connectorAddress = connectorComposition.address();
+      448 |   if (!connectorAddress || typeof connectorAddress === 'string') throw new Error('synthetic Connector service did not bind');
+
+      at startNamedConnectorFixture (tests/workflow-api/http-worker.integration.test.ts:445:11)
+      at Object.<anonymous> (tests/workflow-api/http-worker.integration.test.ts:953:5)
+
+  ● WFA real schema HTTP → PostgreSQL outbox → Redis worker → legacy poll/result › cancels a paused workflow safely and closes its wait without exposing it to a same-tenant profile key
+
+    owned Connector schema did not register its exact process identity and open backup effect fence
+
+      443 |       || backupGate.state !== 'OPEN'
+      444 |       || Number(backupGate.fence_revision) !== 0) {
+    > 445 |     throw new Error('owned Connector schema did not register its exact process identity and open backup effect fence');
+          |           ^
+      446 |   }
+      447 |   const connectorAddress = connectorComposition.address();
+      448 |   if (!connectorAddress || typeof connectorAddress === 'string') throw new Error('synthetic Connector service did not bind');
+
+      at startNamedConnectorFixture (tests/workflow-api/http-worker.integration.test.ts:445:11)
+      at Object.<anonymous> (tests/workflow-api/http-worker.integration.test.ts:953:5)
+
+Test Suites: 1 failed, 1 total
+Tests:       15 failed, 15 total
+Snapshots:   0 total
+Time:        2.05 s, estimated 7 s
+Ran all test suites within paths "tests/workflow-api/http-worker.integration.test.ts".

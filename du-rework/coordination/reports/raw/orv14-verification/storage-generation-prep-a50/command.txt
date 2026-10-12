@@ -1,0 +1,1 @@
+/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node orchestrator/node_modules/.pnpm/typescript@5.9.3/node_modules/typescript/bin/tsc --noEmit -p /workspace/scratch/orv14-generation-test-tsconfig.json

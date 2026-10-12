@@ -1,0 +1,67 @@
+{
+  "schema": "orv14-native19-fixture-prep/v1",
+  "startedAt": "2026-10-12T02:30:31Z",
+  "completedAt": "2026-10-12T02:30:52Z",
+  "cwd": "/workspace/dugate/du-rework",
+  "node": "/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node v24.21.0",
+  "uid": 1000,
+  "commandChecks": [
+    {
+      "command": "/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node --check tests/workflow-api/orv14-vfy-host/make-native19-manifest.mjs",
+      "exitCode": 0,
+      "fileSha256": "a110e2790193c24f66e5bde165c2750e7b1eb4f0b110029272a95cc04bb86a30"
+    },
+    {
+      "command": "/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node --check tests/workflow-api/orv14-vfy-host/verify-native-a2-fixture.mjs",
+      "exitCode": 0,
+      "fileSha256": "48b2ab811170fa34c894223f0cdad035ece50e95e716be3e9b560f2eb9876963"
+    }
+  ],
+  "newFixtureAssertionsPrepared": {
+    "sourceTables": 9,
+    "canonicalSettings": 17,
+    "extensionSettings": 2,
+    "expectedFunctionalSettings": 16,
+    "expectedRetiredSettings": 3,
+    "retirementRowsDigestOnly": true,
+    "nativeManifestReads": "actual frozen source via production A2 adapter and actual target inventory",
+    "plaintextOrKeyMaterialWrittenToRaw": false
+  },
+  "priorActualA2Attempt": {
+    "rawReceipt": "coordination/reports/raw/orv14-host-verification/native-a2-fixture-orv14-vfy-host-mv4lnn0i-cc59fcfff5.json",
+    "rawReceiptSha256": "c6f9d7f1734fb57fe8ec8d914653146dcb525f77091ea6dfc4c6e597ffeaac95",
+    "project": "orv14-vfy-host-mv4lnn0i-cc59fcfff5",
+    "status": "FAILED",
+    "stage": "run normal current A2 backfill first apply",
+    "sourceRowsRead": 29,
+    "sourceSettings": 19,
+    "externalApiConnectionTransformFailures": 2,
+    "errorCode": "TRANSFORM_ERROR",
+    "error": "relation secret_versions does not exist",
+    "cleanup": {
+      "containers": 10,
+      "volumes": 6,
+      "networks": 1,
+      "remainingContainers": 0,
+      "remainingVolumes": 0,
+      "remainingNetworks": 0,
+      "temporaryFixtureRemoved": true
+    },
+    "countedAsNative19Import": false
+  },
+  "ownedResourceCheck": {
+    "scope": "the exact prior verifier project label only",
+    "command": "docker ps -a, docker volume ls, docker network ls filtered by com.docker.compose.project=orv14-vfy-host-mv4lnn0i-cc59fcfff5",
+    "remainingContainers": 0,
+    "remainingVolumes": 0,
+    "remainingNetworks": 0
+  },
+  "sourceOwnerState": {
+    "backendA2": "real rerun/private build held until planned Connector revisions are visible to exact tenant/profile pin validation and Orchestrator projection plus source-snapshot journal are in the safe partial/HOLD phase; final hashes/owner receipt requested",
+    "host": "backup adapter manifest schema remains in progress; exact source hashes/config will follow; Host owner stated current Orchestrator no-emit passes",
+    "productionCutover": "NOT_PERFORMED"
+  },
+  "native19Execution": "NOT_PERFORMED",
+  "fullHostBackupRestoreAndHA": "NOT_PERFORMED",
+  "acceptance": "NOT_CLAIMED"
+}

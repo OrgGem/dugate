@@ -22,12 +22,12 @@
  * store no boot path reads. Rather than invent storage, the writer refuses with
  * `SETTINGS_WRITER_DISABLED` and an explicit reason, and makes NO upstream call.
  */
+import { EffectiveSettingsSchema } from '../../../modules/settings/settings';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createLogger } from '@du/observability';
 import { isHttpError } from '../../../http/errors';
 import { authorizeAuditTenantRead } from '../../../modules/admin-actions/rbac';
 import {
-  SettingsReadSchema,
   SETTINGS_WRITER_DISABLED_CODE,
   SETTINGS_WRITER_DISABLED_REASON,
 } from '@du/contracts';
@@ -137,6 +137,7 @@ export async function handleSettingsRoute(
 
   const upstream = new URL('/api/v1/admin/settings', runtime.jsonBaseUrl);
   if (scope !== '') upstream.searchParams.set('tenantId', scope);
+  for (const key of ['apiKeyId', 'endpointSlug', 'revision']) { const value = query.get(key); if (value) upstream.searchParams.set(key, value); }
 
   // 4xx keeps status+code; 5xx collapses to 502 UPSTREAM_ERROR via
   // relayUpstream → upstreamProblem.
@@ -160,7 +161,7 @@ export async function handleSettingsRoute(
   } catch {
     parsed = null;
   }
-  const narrowed = parsed === null ? null : SettingsReadSchema.safeParse(parsed);
+  const narrowed = parsed === null ? null : EffectiveSettingsSchema.safeParse(parsed);
   if (narrowed === null || !narrowed.success) {
     logger.warn('[admin-bff] settings read did not match the settings DTO', {
       correlationId,

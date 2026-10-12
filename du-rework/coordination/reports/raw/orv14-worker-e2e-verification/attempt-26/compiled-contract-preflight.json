@@ -1,0 +1,19 @@
+{
+  "checkedAtUtc": "2026-10-12T03:33:42.258Z",
+  "nodeVersion": "v24.21.0",
+  "module": "orchestrator/packages/contracts/dist/index.js",
+  "moduleSha256": "c319606e305affe6a08c7a7df8efa62e56ff1172699550fcf956d348761a969a",
+  "sourceManifestSha256": "9f4539eee8ce66a354dd4c8cc6038367aaab2c85b6233f649815e9b1ed1d5117",
+  "distManifestSha256": "bfae53477c456e292e53c45aec271c3210d05e5f200a9eff0f37d28b198a71a4",
+  "preflightOnly": true,
+  "checks": {
+    "workflowSchemaValid": true,
+    "connectorRecipePinValid": true,
+    "endpointTestOpenAiShapeValid": true,
+    "endpointTestGeminiShapeValid": true,
+    "promptWizardOpenAiShapeValid": true,
+    "promptWizardGeminiShapeValid": true,
+    "strictWizardRejectsClientBudgetOverride": true,
+    "strictEndpointTestRejectsClientBudgetOverride": true
+  }
+}

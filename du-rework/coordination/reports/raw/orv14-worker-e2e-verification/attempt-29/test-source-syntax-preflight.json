@@ -1,0 +1,10 @@
+{
+  "checkedAtUtc": "2026-10-12T04:07:16.484Z",
+  "nodeVersion": "v24.21.0",
+  "typescriptVersion": "5.9.3",
+  "file": "tests/workflow-api/orv14-vfy-core31.test.ts",
+  "sha256": "f4f3d9712b29b4cb96a75729bfe79542bc1d7f2e70e6b77f1ee7c202103d64cb",
+  "syntaxDiagnosticCount": 0,
+  "errors": [],
+  "limitation": "transpileModule checks syntax and emit diagnostics only; strict type checking remains provided by the selected Jest/ts-jest execution."
+}

@@ -1,0 +1,14 @@
+✔ continuity inventory hashes full target planes without returning source settings (7.284036ms)
+✔ configuration readiness requires a matching immutable mapping receipt and current target digest (6.735223ms)
+✔ continuity evidence is append-only and rejects credential-bearing fields (2.743331ms)
+✔ frozen source reader binds one-time mappings to exact source snapshot, row counts, timezone, and setting archive (1.275902ms)
+✔ native connector and Profile mappings require exact source-row coverage and connector-step identity (1.501941ms)
+✔ typed Connector and identity grant readiness compare exact persisted revisions and full grant sets (0.837826ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 77.209706

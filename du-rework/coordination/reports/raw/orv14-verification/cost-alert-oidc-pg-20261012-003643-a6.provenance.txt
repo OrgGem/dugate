@@ -1,0 +1,15 @@
+started_utc=2026-10-12 00:36:56 UTC
+attempt=cost-alert-oidc-pg-20261012-003643-a6
+started_utc=2026-10-12 00:36:56 UTC
+ended_utc=2026-10-12 00:37:00 UTC
+cwd=/workspace/dugate/du-rework
+node=/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node v24.21.0
+command=NODE_PATH=/workspace/dugate/du-rework/orchestrator/node_modules/.pnpm/node_modules /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node /workspace/dugate/du-rework/orchestrator/node_modules/.pnpm/node_modules/jest/bin/jest.js --config tests/workflow-api/jest.config.cjs --runInBand --detectOpenHandles --runTestsByPath tests/workflow-api/orv14-vfy/cost-alert-oidc.test.ts
+pre_hashes=coordination/reports/raw/orv14-verification/cost-alert-oidc-pg-20261012-003643-a6.pre.sha256
+post_hashes=coordination/reports/raw/orv14-verification/cost-alert-oidc-pg-20261012-003643-a6.post.sha256
+result_exit=0
+raw_log=coordination/reports/raw/orv14-verification/cost-alert-oidc-pg-20261012-003643-a6.log
+admin_bundle=explicit no-bundle; not served-UI evidence
+services=Compose project orv14-vfy-20261011-a1; PostgreSQL 127.0.0.1:25414/orv14_vfy and Redis 127.0.0.1:26414, DB14; test uses only its generated PostgreSQL schema and OIDC Redis prefix
+source_result=all paths in the pre.sha256 and post.sha256 manifests matched byte-for-byte; relevant owner-frozen route/service hashes are recorded in the main verification receipt
+cleanup_check=cost-alert-oidc-pg-20261012-003643-a6.cleanup-check-02.txt; initial failed extra probe is separately preserved as cleanup-probe-01.provenance.txt and cleanup.txt

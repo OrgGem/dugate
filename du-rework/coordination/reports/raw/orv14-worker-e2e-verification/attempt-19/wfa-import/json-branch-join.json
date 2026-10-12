@@ -1,0 +1,25 @@
+{
+  "format": "json",
+  "sourceSha256": "feda32ea4359fdf6aa4002e51bffa839c8e76b3684423212c51de1f05d177ced",
+  "previewDigest": "sha256:feda32ea4359fdf6aa4002e51bffa839c8e76b3684423212c51de1f05d177ced",
+  "schemaSlug": "orv14-import-json-8d68f184f315",
+  "publishedRevision": 1,
+  "admittedRevision": 1,
+  "admittedDigest": "sha256:0e9ff75bd37b3005d7456db7e91f46ac38c2a6abcc5a67ae4e0bdb31bc26d160",
+  "laterActiveRevision": 2,
+  "laterActiveDigest": "sha256:1fd89292e501cfc33dd7207a2a7dcd5415db2f3c5fa07a852307ccb9e126b3df",
+  "operationId": "f37b30e1-06a2-4d89-9d76-e530ff459968",
+  "terminalState": "SUCCEEDED",
+  "branchTasks": [
+    {
+      "task_key": "legacy-workflow:parallel_import:branch:00",
+      "state": "SUCCEEDED"
+    },
+    {
+      "task_key": "legacy-workflow:parallel_import:branch:01",
+      "state": "SUCCEEDED"
+    }
+  ],
+  "publicGetStatus": 200,
+  "publicDownloadStatus": 200
+}

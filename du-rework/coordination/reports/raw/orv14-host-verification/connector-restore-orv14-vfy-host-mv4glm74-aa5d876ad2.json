@@ -1,0 +1,41 @@
+{
+  "schema": "orv14-host-connector-restore-slice/v1",
+  "disposition": "FAILED_PARTIAL_HOST_CONNECTOR_SLICE_ONLY",
+  "completedAt": "2026-10-11T23:33:51.384Z",
+  "error": "synthetic Vault setup endpoint auth/approle/role/orv14-vfy-1c67e76ca8a344/role-id returned HTTP 400",
+  "cleanup": {
+    "projectId": "orv14-vfy-host-mv4glm74-aa5d876ad2",
+    "removed": {
+      "containers": [
+        "d69a0f230877",
+        "1588374243c1",
+        "94c8f46e61e6",
+        "c774e504718b",
+        "b36005d072a1",
+        "ce0263c0becf",
+        "6a818128d5aa",
+        "c72e5e6bf6bf",
+        "6e322d5b653b",
+        "36a2b8f1444a"
+      ],
+      "volumes": [
+        "orv14-vfy-host-mv4glm74-aa5d876ad2_connector-restore-data",
+        "orv14-vfy-host-mv4glm74-aa5d876ad2_connector-source-data",
+        "orv14-vfy-host-mv4glm74-aa5d876ad2_minio-data",
+        "orv14-vfy-host-mv4glm74-aa5d876ad2_minio-restore-data",
+        "orv14-vfy-host-mv4glm74-aa5d876ad2_orchestrator-restore-data",
+        "orv14-vfy-host-mv4glm74-aa5d876ad2_orchestrator-source-data"
+      ],
+      "networks": [
+        "e08c84007ddb"
+      ]
+    },
+    "remaining": {
+      "containers": [],
+      "volumes": [],
+      "networks": []
+    },
+    "temporaryFixtureRemoved": true
+  },
+  "acceptance": "not claimed; source checkpoint and cross-family restore verification remain outstanding"
+}

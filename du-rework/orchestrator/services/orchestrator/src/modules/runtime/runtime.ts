@@ -20,6 +20,9 @@ import type { PoolClient } from 'pg';
 import type { Queue } from 'bullmq';
 import { Db } from '../../db/db';
 import { HttpError, conflict, gone, notFound, unprocessable, zodIssuesToProblem } from '../../http/errors';
+import { lockRuntimeControlsForTask } from './control';
+import { openTenantDefaultsSnapshot } from '../global-settings/snapshot';
+import type { BackupSnapshotWriteGate } from '../maintenance/backup-effect-fence';
 import { maybeScheduleWebhook } from '../webhooks/webhooks';
 import {
   MetadataCryptoError,
@@ -493,6 +496,7 @@ export function createRuntimeService(
   queueAccess?: { getQueue: (name: string) => Queue },
   metadataCrypto?: MetadataCrypto,
   metadataReader?: MetadataReader,
+  backupSnapshotWriteGate?: BackupSnapshotWriteGate,
 ) {
   // CONTROL-PLANE-IMPL-818: ONE reader for the whole service, built at boot by
   // the composition root. Absent an injected one, the bounded compatibility
@@ -544,11 +548,22 @@ export function createRuntimeService(
         throw new HttpError(503, 'SHUTTING_DOWN', 'server is shutting down');
       }
       return db.tx(async (client) => {
+        // The backup barrier is independent from ordinary DRAINING. It is the
+        // first lock in this transaction and remains held through lease
+        // creation, so a snapshot cannot race a worker claim. Existing lease
+        // heartbeats/checkpoints do not acquire this barrier and can settle.
+        if (backupSnapshotWriteGate) {
+          await backupSnapshotWriteGate.assertWriteAllowed(client, {
+            tenantId: null,
+            domain: 'work-admission',
+            requestKey: `worker-claim:${taskId}:${deliveryId}`,
+          });
+        }
         const taskRes = await client.query(
           `SELECT t.*, o.tenant_id, o.business_id, o.business_version, o.action,
                   o.input_ref, o.deadline_at, bv.digest as manifest_digest,
                   o.profile_id, o.profile_revision, o.connector_bindings,
-                  o.profile_policy_snapshot, o.prompt_revisions_pin,
+                  o.profile_policy_snapshot, o.prompt_revisions_pin, o.tenant_defaults_ref,
                   o.prompt_overrides_ref,
                   o.cancel_requested AS op_cancel_requested, o.state AS op_state
            FROM tasks t
@@ -611,6 +626,40 @@ export function createRuntimeService(
           leaseIsActive
         ) {
           return buildClaimResult(t, client, metadataCrypto, reader);
+        }
+
+        // Persisted admission control is shared across all orchestrator
+        // replicas. Locking its platform/tenant/business rows serializes this
+        // check with pause/resume and drain mutations; current leases above
+        // remain heartbeatable while new claims are refused.
+        const control = await lockRuntimeControlsForTask(client, {
+          tenantId: t.tenant_id as string,
+          businessId: t.business_id as string,
+        });
+        if (control.state !== 'OPEN') {
+          throw conflict('ADMISSION_PAUSED', `task admission is ${control.state.toLowerCase()}`);
+        }
+
+        // Deployment rollout can drain one worker replica without pausing the
+        // whole business. The desired row and task claim share this lock, so a
+        // claim cannot slip in after the per-worker drain CAS commits. A fresh
+        // SDK heartbeat ACK is required before a worker can claim after resume.
+        const workerControl = await client.query<{
+          state: string; control_revision: number | string; control_state: string;
+          desired_control_revision: number | string; desired_control_state: string;
+        }>(
+          `SELECT state,control_revision,control_state,desired_control_revision,desired_control_state
+             FROM worker_instances WHERE business_id=$1 AND instance_id=$2 FOR UPDATE`,
+          [t.business_id, workerInstanceId],
+        );
+        const worker = workerControl.rows[0];
+        if (!worker) {
+          throw conflict('WORKER_NOT_REGISTERED', 'worker must register through heartbeat before claiming tasks');
+        }
+        if (worker.desired_control_state !== 'OPEN' || worker.state !== 'ONLINE'
+          || worker.control_state !== 'OPEN'
+          || Number(worker.control_revision) < Number(worker.desired_control_revision)) {
+          throw conflict('WORKER_ADMISSION_CLOSED', 'this worker replica has not acknowledged open task admission');
         }
 
         // Leased elsewhere and not expired → busy.
@@ -1654,7 +1703,8 @@ export function createRuntimeService(
            WHERE t.state = 'RUNNING'
              AND t.lease_expires_at IS NOT NULL
              AND t.lease_expires_at < now()
-             AND o.state NOT IN ('SUCCEEDED','FAILED','CANCELLED','TIMED_OUT')
+             AND o.state NOT IN ('SUCCEEDED','FAILED','CANCELLED','TIMED_OUT','CANCEL_REQUESTED')
+             AND NOT COALESCE(o.cancel_requested, false)
            ORDER BY t.lease_expires_at
            LIMIT $1
            FOR UPDATE OF t SKIP LOCKED`,
@@ -1675,6 +1725,15 @@ export function createRuntimeService(
         }[]) {
           const taskId = row.id;
           const operationId = row.operation_id;
+          // The candidate snapshot may predate a concurrent cancel signal.
+          // Recheck under the operation lock in runtime's task→operation order;
+          // the cancellation finalizer alone owns signalled operations.
+          const operation = await client.query<{ op_state: string; cancel_requested: boolean }>(
+            'SELECT state AS op_state, cancel_requested FROM operations WHERE id=$1 FOR UPDATE',
+            [operationId],
+          );
+          const current = operation.rows[0];
+          if (!current || hasCancelSignal(current) || ['SUCCEEDED','FAILED','CANCELLED','TIMED_OUT'].includes(current.op_state)) continue;
           if (row.attempt < row.max_attempts) {
             // Re-dispatch: bump epoch to fence the old worker, clear the lease
             // so the recovered claim isn't treated as "leased elsewhere", and
@@ -1731,6 +1790,64 @@ export function createRuntimeService(
           handled++;
         }
         return handled;
+      });
+    },
+
+    /** Preview-confirmed lease recovery uses the same fencing and exhausted
+     * retry path as the runtime sweeper, but pins one task/epoch so a stale
+     * maintenance preview cannot recover a later lease. */
+    async recoverExpiredLease(taskId: string, expectedLeaseEpoch: number): Promise<{
+      status: 'APPLIED' | 'SKIPPED'; code: string | null; evidence: Record<string, unknown>;
+    }> {
+      return db.tx(async (client) => {
+        const selected = await client.query<{
+          id: string; operation_id: string; attempt: number; max_attempts: number; lease_epoch: number;
+          kind: string; business_id: string; business_version: string; action: string; correlation_id: string;
+        }>(
+          `SELECT t.id,t.operation_id,t.attempt,t.max_attempts,t.lease_epoch,t.kind,
+                  o.business_id,o.business_version,o.action,o.correlation_id
+             FROM tasks t JOIN operations o ON o.id=t.operation_id
+            WHERE t.id=$1 AND t.state='RUNNING' AND t.lease_epoch=$2
+              AND t.lease_expires_at IS NOT NULL AND t.lease_expires_at<now()
+            FOR UPDATE OF t`,
+          [taskId, expectedLeaseEpoch],
+        );
+        const task = selected.rows[0];
+        if (!task) return { status: 'SKIPPED', code: 'LEASE_CHANGED', evidence: {} };
+        const operation = await client.query<{ op_state: string; cancel_requested: boolean }>(
+          'SELECT state AS op_state,cancel_requested FROM operations WHERE id=$1 FOR UPDATE', [task.operation_id],
+        );
+        const current = operation.rows[0];
+        if (!current || hasCancelSignal(current) || ['SUCCEEDED','FAILED','CANCELLED','TIMED_OUT'].includes(current.op_state)) {
+          return { status: 'SKIPPED', code: 'OPERATION_NO_LONGER_RECOVERABLE', evidence: {} };
+        }
+        const humanWait = await client.query('SELECT 1 FROM human_waits WHERE task_id=$1 AND status=\'OPEN\' LIMIT 1', [taskId]);
+        if (humanWait.rowCount) return { status: 'SKIPPED', code: 'HUMAN_INPUT_PENDING', evidence: {} };
+        if (task.attempt < task.max_attempts) {
+          const nextEpoch = task.lease_epoch + 1;
+          const deliveryId = `${taskId}:recover:${nextEpoch}`;
+          const changed = await client.query(
+            `UPDATE tasks SET lease_epoch=$2,lease_expires_at=NULL,leased_by=NULL,state='READY',updated_at=now()
+              WHERE id=$1 AND state='RUNNING' AND lease_epoch=$3 AND lease_expires_at<now()`,
+            [taskId,nextEpoch,expectedLeaseEpoch],
+          );
+          if (!changed.rowCount) return { status: 'SKIPPED', code: 'LEASE_CHANGED', evidence: {} };
+          await client.query(
+            `INSERT INTO outbox (aggregate_id,type,delivery_id,payload)
+             VALUES ($1,'task.dispatch',$2,$3) ON CONFLICT (delivery_id) DO NOTHING`,
+            [taskId,deliveryId,JSON.stringify({ contractVersion:'1',deliveryId,taskId,operationId:task.operation_id,
+              businessId:task.business_id,businessVersion:task.business_version,action:task.action,kind:task.kind,correlationId:task.correlation_id })],
+          );
+          return { status: 'APPLIED', code: null, evidence: { previousLeaseEpoch: task.lease_epoch, newLeaseEpoch: nextEpoch, terminal: false } };
+        }
+        const failed = await client.query(`UPDATE tasks SET state='FAILED',error_code='LEASE_EXPIRED',updated_at=now() WHERE id=$1 AND state='RUNNING' AND lease_epoch=$2 AND lease_expires_at<now() RETURNING id`,[taskId,expectedLeaseEpoch]);
+        if (!failed.rowCount) return { status: 'SKIPPED', code: 'LEASE_CHANGED', evidence: {} };
+        const joinAck = await reconcileParentJoin(client,taskId,task.operation_id,metadataCrypto,reader);
+        if (!joinAck) {
+          await client.query(`UPDATE operations SET state='FAILED',state_version=state_version+1,error_code='LEASE_EXPIRED',updated_at=now() WHERE id=$1`,[task.operation_id]);
+          await maybeScheduleWebhook(client,task.operation_id);
+        }
+        return { status: 'APPLIED', code: null, evidence: { previousLeaseEpoch: task.lease_epoch, terminal: true, parentReconciled: Boolean(joinAck) } };
       });
     },
 
@@ -2127,6 +2244,10 @@ async function buildClaimResult(
         tenantId: t.tenant_id as string,
         profileId: t.profile_id,
         profileRevision: t.profile_revision,
+      }),
+      tenantDefaults: await openTenantDefaultsSnapshot(metadataCrypto, t.tenant_defaults_ref, {
+        tenantId: t.tenant_id as string,
+        operationId: t.operation_id as string,
       }),
     },
     taskKey: t.task_key as string,

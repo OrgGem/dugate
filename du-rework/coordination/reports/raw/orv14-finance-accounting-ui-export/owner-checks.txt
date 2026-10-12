@@ -1,0 +1,37 @@
+ORV14 FINANCE ACCOUNTING UI EXPORT — owner checks
+Observed 2026-10-12 01:14 UTC in /workspace/dugate/du-rework. Node 24.21.0 for executable checks.
+
+1) Admin source typecheck
+cwd: /workspace/dugate/du-rework/orchestrator
+Node: /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node (Node 24.21.0)
+command: /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node services/orchestrator/node_modules/typescript/bin/tsc -p apps/admin-web/tsconfig.json --noEmit
+result: exit 0, no diagnostics
+
+2) Focused Usage/accounting owner regressions
+cwd: /workspace/dugate/du-rework/orchestrator/services/orchestrator
+Node: /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node (Node 24.21.0)
+command: /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node node_modules/jest/bin/jest.js --config jest.unit.config.cjs --runInBand --runTestsByPath tests/orv14-finance-accounting-ui-export-owner.test.ts tests/orv13-usage-owner.test.ts
+result: exit 0; suites 2 passed, tests 10 passed, 0 failed, 0 skipped
+coverage: exact server accounting envelope preserved alongside immutable initial cost; malformed root/initial rejected; missing legacy envelope remains explicitly unavailable; event CSV carries exact accounting values for supplied page only; history CSV includes direct-root decision fields and proof status for only the supplied server page; formula-leading reason is neutralized and cursor is not exported; maintenance/CAS/idempotency/unknown failure classes are distinguished, with server-unavailable status remaining UNKNOWN.
+
+Initial, misconfigured attempt:
+cwd: /workspace/dugate/du-rework/orchestrator
+command: services/orchestrator/node_modules/.bin/jest --runInBand tests/orv14-finance-accounting-ui-export-owner.test.ts tests/orv13-usage-owner.test.ts
+result: exit 1; the default Jest config did not apply the service TypeScript transformer and failed during parsing before executing tests (0 tests). The corrected `jest.unit.config.cjs` command above ran both suites successfully.
+
+3) Scoped source whitespace
+cwd: /workspace/dugate/du-rework
+command: ! rg -n '[\t ]+$' orchestrator/apps/admin-web/src/features/usage/state.ts orchestrator/apps/admin-web/src/features/usage/usage-screen.tsx orchestrator/apps/admin-web/src/features/usage/cost-adjustment-panel.tsx orchestrator/apps/admin-web/src/features/usage/cost-adjustment-state.ts orchestrator/apps/admin-web/src/features/usage/cost-state.ts orchestrator/services/orchestrator/tests/orv14-finance-accounting-ui-export-owner.test.ts docs/49-cost-policy-alert-operations.md
+result: exit 0; no matches
+
+4) Tracked-file diff check
+cwd: /workspace/dugate/du-rework
+command: git diff --check -- orchestrator/apps/admin-web/src/features/usage/usage-screen.tsx docs/49-cost-policy-alert-operations.md
+result: exit 0
+
+5) Source manifest verification
+cwd: /workspace/dugate/du-rework
+command: sha256sum -c coordination/reports/raw/orv14-finance-accounting-ui-export/source-sha256.txt
+result: exit 0; all 7 frozen source paths matched
+
+No shared contracts build, Admin bundle, browser/axe run, PostgreSQL migration/service test, Docker Compose run, production action, or product acceptance was performed in this owner lane.

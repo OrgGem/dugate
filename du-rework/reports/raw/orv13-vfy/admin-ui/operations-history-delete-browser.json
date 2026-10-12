@@ -1,0 +1,143 @@
+{
+  "test": "VFY-UI13 operation query deep-link, Back/Forward restoration, and terminal deletion",
+  "operationId": "b65dc8de-db61-43e2-9bb5-6b12fbf1b069",
+  "tenantId": "3a1e9e7f-0c8e-4e94-a00c-9fb30220ab6a",
+  "history": [
+    "list",
+    "?operation=b65dc8de-db61-43e2-9bb5-6b12fbf1b069",
+    "Back -> list",
+    "Forward -> detail"
+  ],
+  "delete": {
+    "confirmationHeading": "Delete this terminal operation?",
+    "confirmKey": "Enter",
+    "status": 200,
+    "softDeleted": true,
+    "auditRows": 1
+  },
+  "detailMobileReadability": [
+    {
+      "viewport": 390,
+      "scrollWidth": 390,
+      "downloadLink": {
+        "width": 100.390625,
+        "height": 20,
+        "clientWidth": 100,
+        "scrollWidth": 100,
+        "whiteSpace": "nowrap"
+      }
+    },
+    {
+      "viewport": 320,
+      "scrollWidth": 320,
+      "downloadLink": {
+        "width": 100.390625,
+        "height": 20,
+        "clientWidth": 100,
+        "scrollWidth": 100,
+        "whiteSpace": "nowrap"
+      }
+    }
+  ],
+  "viewportWidths": [
+    {
+      "width": 768,
+      "scrollWidth": 768
+    },
+    {
+      "width": 390,
+      "scrollWidth": 390
+    },
+    {
+      "width": 320,
+      "scrollWidth": 320
+    }
+  ],
+  "actionResponses": [
+    {
+      "path": "/admin/api/session",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/session",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/operations",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/tenants",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/operations",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/operations",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/operations/b65dc8de-db61-43e2-9bb5-6b12fbf1b069",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/operations",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/operations/b65dc8de-db61-43e2-9bb5-6b12fbf1b069/deliveries",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/operations",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/operations",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/operations/b65dc8de-db61-43e2-9bb5-6b12fbf1b069",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/operations/b65dc8de-db61-43e2-9bb5-6b12fbf1b069/deliveries",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/session",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/operations/b65dc8de-db61-43e2-9bb5-6b12fbf1b069",
+      "method": "DELETE",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/operations",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/operations",
+      "method": "GET",
+      "status": 200
+    }
+  ]
+}

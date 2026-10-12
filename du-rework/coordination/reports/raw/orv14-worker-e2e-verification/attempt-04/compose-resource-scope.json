@@ -1,0 +1,9 @@
+{
+  "composeProject": "orv14-vfy-20261011-a1",
+  "postgresPort": 25414,
+  "redisPort": 26414,
+  "redisDatabase": 2,
+  "createdByRun": "unique PostgreSQL schema, tenant/key IDs, Redis prefix, artifact directory, worker IDs and private TLS listener ports from test namespace",
+  "foreignResources": "untouched",
+  "composeStack": "left running"
+}

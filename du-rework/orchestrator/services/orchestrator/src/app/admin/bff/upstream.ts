@@ -1,3 +1,4 @@
+import type { Readable } from 'node:stream';
 /**
  * Shared upstream plumbing for the Admin BFF (AWEB-02/04/05).
  *
@@ -8,6 +9,7 @@
 import type { ServerResponse } from 'node:http';
 import { createLogger } from '@du/observability';
 import type { ScopedPrincipal } from './types';
+import type { ProfileSelfService } from '../../../modules/profiles/self-service';
 import {
   JSON_CONTENT_TYPE,
   PROBLEM_CONTENT_TYPE,
@@ -21,6 +23,8 @@ const logger = createLogger({ service: 'orchestrator', baseFields: { subsystem: 
 export const UPSTREAM_TIMEOUT_MS = 5000;
 
 export interface BffRuntimeConfig {
+  /** Called only with the already authenticated session tenant. */
+  tenantCredentialFor?: (tenantId: string) => string | undefined;
   /** Platform admin bearer — used ONLY for platform-principal sessions. */
   adminToken?: string;
   /** Per-tenant admin bearers (ServerConfig.tenantAdminTokens shape). */
@@ -29,14 +33,22 @@ export interface BffRuntimeConfig {
   jsonBaseUrl?: string;
   /** Injectable for tests; defaults to the global fetch. */
   fetchImpl?: typeof fetch;
+  /** Same-process command for current local USER Profile assignments. */
+  profileSelfService?: ProfileSelfService;
 }
 
 export interface UpstreamCallOptions {
-  method: 'GET' | 'POST' | 'PUT';
-  credential: string;
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  /** Omit only when a validated opaque session proof is forwarded instead. */
+  credential?: string;
   correlationId: string;
   jsonBody?: string;
+  streamBody?: Readable;
+  contentType?: string;
+  contentLength?: string;
   idempotencyKey?: string;
+  /** Validated shell session proof used only by Compose's internal actor binding. */
+  sessionProof?: { cookie: string; csrfToken: string };
 }
 
 /**
@@ -68,7 +80,7 @@ export function credentialFor(principal: ScopedPrincipal, runtime: BffRuntimeCon
   const value =
     principal.kind === 'platform'
       ? runtime.adminToken
-      : credentialForTenant(runtime.tenantAdminTokens, principal.tenantId);
+      : credentialForTenant(runtime.tenantAdminTokens, principal.tenantId) ?? runtime.tenantCredentialFor?.(principal.tenantId);
   return typeof value === 'string' && value.length > 0 ? value : null;
 }
 
@@ -103,20 +115,31 @@ export async function callUpstream(
   options: UpstreamCallOptions,
 ): Promise<Response> {
   const fetchImpl = runtime.fetchImpl ?? fetch;
+  if (!options.credential && !options.sessionProof) {
+    throw new Error('an upstream credential or validated session proof is required');
+  }
   const headers: Record<string, string> = {
-    authorization: `Bearer ${options.credential}`,
     accept: 'application/json',
     'x-correlation-id': options.correlationId,
   };
+  if (options.credential) headers.authorization = `Bearer ${options.credential}`;
   if (options.jsonBody !== undefined) headers['content-type'] = 'application/json';
+  if (options.contentType !== undefined) headers['content-type'] = options.contentType;
+  if (options.contentLength !== undefined) headers['content-length'] = options.contentLength;
   if (options.idempotencyKey !== undefined) headers['idempotency-key'] = options.idempotencyKey;
+  if (options.sessionProof !== undefined) {
+    headers.cookie = options.sessionProof.cookie;
+    headers['x-csrf-token'] = options.sessionProof.csrfToken;
+  }
   try {
-    return await fetchImpl(url.toString(), {
+    const init: RequestInit & { duplex?: 'half' } = {
       method: options.method,
       headers,
       ...(options.jsonBody !== undefined ? { body: options.jsonBody } : {}),
-      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
-    });
+      ...(options.streamBody ? { body: options.streamBody as unknown as RequestInit['body'], duplex: 'half' as const } : {}),
+      signal: AbortSignal.timeout(options.streamBody ? 60_000 : UPSTREAM_TIMEOUT_MS),
+    };
+    return await fetchImpl(url.toString(), init);
   } catch (err) {
     logger.warn('[admin-bff] upstream call failed', {
       correlationId: options.correlationId,

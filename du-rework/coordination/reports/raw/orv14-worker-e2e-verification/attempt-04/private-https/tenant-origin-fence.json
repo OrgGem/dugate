@@ -1,0 +1,6 @@
+{
+  "operationId": "71008438-6752-478a-ae30-db558c132b56",
+  "state": "FAILED",
+  "errorCode": "LEGACY_WORKFLOW_EGRESS_ORIGIN_DENIED",
+  "listenerEvents": []
+}

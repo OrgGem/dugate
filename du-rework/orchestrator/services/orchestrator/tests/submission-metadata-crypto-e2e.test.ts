@@ -116,6 +116,7 @@ function harness(opts: { keyProvider?: KeyProvider; crypto?: boolean } = {}): Ha
   };
 
   const answer = (sql: string, params: unknown[], sink: Bound[]) => {
+    if (sql.includes('FROM api_keys k')) return result<Row>([{ name: 'test', spending_limit: '0', total_used: '0', new_cost: '0' }]);
     if (/FROM business_versions/.test(sql)) {
       return result<Row>([{
         version: '1.0.0', manifest, digest: 'sha256:test', queue: 'du-q',

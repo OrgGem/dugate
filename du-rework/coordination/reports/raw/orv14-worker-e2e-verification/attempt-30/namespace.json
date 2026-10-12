@@ -1,0 +1,19 @@
+{
+  "runId": "wfa_1791780561367_336c2cae06",
+  "postgresSchema": "du_test_wfa_1791780561367_336c2cae06",
+  "connectorPostgresSchema": "du_test_wfa_1791780561367_336c2cae06_connector",
+  "redis": {
+    "host": "127.0.0.1",
+    "port": "26414",
+    "database": "8",
+    "keyPrefix": "du:test:wfa_1791780561367_336c2cae06:",
+    "connectorQuotaKeyPrefix": "du:test:wfa_1791780561367_336c2cae06_connector:quota:",
+    "businessQueueNames": [
+      "du-business-document-core-1.1.0",
+      "du-business-lc-checker-1.1.0"
+    ]
+  },
+  "artifactDirectory": "tests/workflow-api/.scratch/artifacts/wfa_1791780561367_336c2cae06",
+  "connectorArtifactDirectory": "tests/workflow-api/.scratch/connector-artifacts/wfa_1791780561367_336c2cae06_connector",
+  "tenantId": "63769f1d-c645-4d28-9533-94bc4c898290"
+}

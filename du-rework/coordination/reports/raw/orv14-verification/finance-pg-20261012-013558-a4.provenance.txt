@@ -1,0 +1,12 @@
+Attempt: finance-pg-20261012-013558-a4
+Actual UTC start: 2026-10-12 01:35:58 UTC (clock tool)
+Scope: one selected independent actual-PostgreSQL COST-01 correction/refund path; normal Orchestrator app/migrations; signed preflight, real Usage ingestion, encrypted synthetic evidence and OIDC Admin BFF.
+CWD: /workspace/dugate/du-rework
+Command: /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node orchestrator/services/orchestrator/node_modules/jest/bin/jest.js --runInBand --config tests/workflow-api/orv14-vfy/jest.config.cjs tests/workflow-api/orv14-vfy/cost-adjustments.test.ts --testNamePattern='records 100'
+Node v24.21.0: /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node. Jest/ts-jest/@types from existing Orchestrator package-local installation.
+Unique PostgreSQL schema, Redis DB/prefix, localhost ephemeral app/IdP ports and artifact directory emitted by the test. Existing Compose is reused; this attempt starts/stops no container.
+Source pre-manifest: finance-pg-20261012-013558-a4.sources-pre.sha256
+Harness pre-manifest: finance-pg-20261012-013558-a4.harness-pre.sha256
+Raw Jest output: finance-pg-20261012-013558-a4.log
+Exit artifact: finance-pg-20261012-013558-a4.exit
+Post-manifest and resource cleanup confirmation to follow.

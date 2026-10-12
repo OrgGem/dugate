@@ -1,0 +1,41 @@
+{
+  "schema": "orv14-host-connector-restore-slice/v1",
+  "disposition": "FAILED_PARTIAL_HOST_CONNECTOR_SLICE_ONLY",
+  "completedAt": "2026-10-11T23:33:05.873Z",
+  "error": "Cannot find module 'pg' Require stack: - /tmp/orv14-vfy-host-mv4gkood-58fa1fbae0-GClNpz/work/connector-build/db/pg-client.js - /tmp/orv14-vfy-host-mv4gkood-58fa1fbae0-GClNpz/work/connector-build/entrypoint.js",
+  "cleanup": {
+    "projectId": "orv14-vfy-host-mv4gkood-58fa1fbae0",
+    "removed": {
+      "containers": [
+        "28f84b5ab7a3",
+        "d89b7a219128",
+        "b878cd50e765",
+        "3e25f4d1c1e6",
+        "85be9bd83645",
+        "4a6178188b95",
+        "8f1a8babaea8",
+        "69a7dface8e7",
+        "cd4be68c2420",
+        "e262beb05773"
+      ],
+      "volumes": [
+        "orv14-vfy-host-mv4gkood-58fa1fbae0_connector-restore-data",
+        "orv14-vfy-host-mv4gkood-58fa1fbae0_connector-source-data",
+        "orv14-vfy-host-mv4gkood-58fa1fbae0_minio-data",
+        "orv14-vfy-host-mv4gkood-58fa1fbae0_minio-restore-data",
+        "orv14-vfy-host-mv4gkood-58fa1fbae0_orchestrator-restore-data",
+        "orv14-vfy-host-mv4gkood-58fa1fbae0_orchestrator-source-data"
+      ],
+      "networks": [
+        "46fcf28edbf6"
+      ]
+    },
+    "remaining": {
+      "containers": [],
+      "volumes": [],
+      "networks": []
+    },
+    "temporaryFixtureRemoved": true
+  },
+  "acceptance": "not claimed; source checkpoint and cross-family restore verification remain outstanding"
+}

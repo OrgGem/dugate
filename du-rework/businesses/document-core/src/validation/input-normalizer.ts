@@ -13,7 +13,7 @@ import { resolveIngestionSource, type IngestionReceipt } from '@du/contracts';
 /**
  * Normalizes and audits input payloads across all six actions (WORKLOAD-REBALANCE-04).
  * Enforces strict bounds:
- * - Artifact count bounds (max 20 for ingest, max 10 for others)
+ * - Artifact count bounds (max 20 for ingest, max 20 for canonical inputs; legacy multipart is bounded by aggregate bytes)
  * - Text/document length bounds (max 100,000 characters)
  * - Page selection bounds (valid range syntax, max 500 pages)
  * - Custom schema complexity bounds (depth <= 5, properties <= 50, no network $ref)
@@ -22,7 +22,7 @@ import { resolveIngestionSource, type IngestionReceipt } from '@du/contracts';
  */
 export class InputNormalizer {
   private static readonly MAX_ARTIFACTS_INGEST = 20;
-  private static readonly MAX_ARTIFACTS_DEFAULT = 10;
+  private static readonly MAX_ARTIFACTS_DEFAULT = 20;
   private static readonly MAX_TEXT_LENGTH = 100_000;
   private static readonly MAX_PAGES_LIMIT = 500;
   private static readonly MAX_QA_QUESTIONS = 20;
@@ -38,7 +38,7 @@ export class InputNormalizer {
     }
 
     const artifactIds = this.toStringArray(raw.artifactIds ?? raw.artifact_ids ?? raw.file_ids);
-    if (artifactIds && artifactIds.length > this.MAX_ARTIFACTS_INGEST) {
+    if (artifactIds && artifactIds.length > this.MAX_ARTIFACTS_INGEST && raw.legacyArtifactCount !== artifactIds.length) {
       throw new ValidationError(
         `Artifact count (${artifactIds.length}) exceeds maximum allowed limit (${this.MAX_ARTIFACTS_INGEST})`,
         'TOO_MANY_ARTIFACTS'
@@ -100,8 +100,10 @@ export class InputNormalizer {
       throw new ValidationError(`Invalid extract type: "${type}"`, 'INVALID_DISCRIMINATOR');
     }
 
-    const artifactIds = this.toStringArray(raw.artifactIds ?? raw.artifact_ids ?? raw.file_ids);
-    if (artifactIds && artifactIds.length > this.MAX_ARTIFACTS_DEFAULT) {
+    const explicitIds = this.toStringArray(raw.artifactIds ?? raw.artifact_ids ?? raw.file_ids);
+    const source = resolveIngestionSource(raw);
+    const artifactIds = explicitIds?.length ? explicitIds : source?.artifactId ? [source.artifactId] : explicitIds;
+    if (artifactIds && artifactIds.length > this.MAX_ARTIFACTS_DEFAULT && raw.legacyArtifactCount !== artifactIds.length) {
       throw new ValidationError(
         `Artifact count (${artifactIds.length}) exceeds maximum allowed limit (${this.MAX_ARTIFACTS_DEFAULT})`,
         'TOO_MANY_ARTIFACTS'
@@ -150,8 +152,10 @@ export class InputNormalizer {
       throw new ValidationError(`Invalid analyze task: "${task}"`, 'INVALID_DISCRIMINATOR');
     }
 
-    const artifactIds = this.toStringArray(raw.artifactIds ?? raw.artifact_ids ?? raw.file_ids);
-    if (artifactIds && artifactIds.length > this.MAX_ARTIFACTS_DEFAULT) {
+    const explicitIds = this.toStringArray(raw.artifactIds ?? raw.artifact_ids ?? raw.file_ids);
+    const source = resolveIngestionSource(raw);
+    const artifactIds = explicitIds?.length ? explicitIds : source?.artifactId ? [source.artifactId] : explicitIds;
+    if (artifactIds && artifactIds.length > this.MAX_ARTIFACTS_DEFAULT && raw.legacyArtifactCount !== artifactIds.length) {
       throw new ValidationError(
         `Artifact count (${artifactIds.length}) exceeds maximum allowed limit (${this.MAX_ARTIFACTS_DEFAULT})`,
         'TOO_MANY_ARTIFACTS'
@@ -209,8 +213,10 @@ export class InputNormalizer {
       throw new ValidationError(`Invalid transform variant: "${variant}"`, 'INVALID_DISCRIMINATOR');
     }
 
-    const artifactIds = this.toStringArray(raw.artifactIds ?? raw.artifact_ids ?? raw.file_ids);
-    if (artifactIds && artifactIds.length > this.MAX_ARTIFACTS_DEFAULT) {
+    const explicitIds = this.toStringArray(raw.artifactIds ?? raw.artifact_ids ?? raw.file_ids);
+    const source = resolveIngestionSource(raw);
+    const artifactIds = explicitIds?.length ? explicitIds : source?.artifactId ? [source.artifactId] : explicitIds;
+    if (artifactIds && artifactIds.length > this.MAX_ARTIFACTS_DEFAULT && raw.legacyArtifactCount !== artifactIds.length) {
       throw new ValidationError(
         `Artifact count (${artifactIds.length}) exceeds maximum allowed limit (${this.MAX_ARTIFACTS_DEFAULT})`,
         'TOO_MANY_ARTIFACTS'
@@ -237,7 +243,7 @@ export class InputNormalizer {
       redactPatterns: this.toStringArray(raw.redactPatterns ?? raw.redact_patterns),
       template: typeof raw.template === 'string' ? raw.template : undefined,
       outputFormat: typeof (raw.outputFormat ?? raw.output_format) === 'string'
-        ? (raw.outputFormat ?? raw.output_format) as string
+        ? ((raw.outputFormat ?? raw.output_format) === 'csv' ? 'text' : (raw.outputFormat ?? raw.output_format) as string)
         : undefined,
     };
   }
@@ -251,8 +257,10 @@ export class InputNormalizer {
       throw new ValidationError(`Invalid generate task: "${task}"`, 'INVALID_DISCRIMINATOR');
     }
 
-    const artifactIds = this.toStringArray(raw.artifactIds ?? raw.artifact_ids ?? raw.file_ids);
-    if (artifactIds && artifactIds.length > this.MAX_ARTIFACTS_DEFAULT) {
+    const explicitIds = this.toStringArray(raw.artifactIds ?? raw.artifact_ids ?? raw.file_ids);
+    const source = resolveIngestionSource(raw);
+    const artifactIds = explicitIds?.length ? explicitIds : source?.artifactId ? [source.artifactId] : explicitIds;
+    if (artifactIds && artifactIds.length > this.MAX_ARTIFACTS_DEFAULT && raw.legacyArtifactCount !== artifactIds.length) {
       throw new ValidationError(
         `Artifact count (${artifactIds.length}) exceeds maximum allowed limit (${this.MAX_ARTIFACTS_DEFAULT})`,
         'TOO_MANY_ARTIFACTS'

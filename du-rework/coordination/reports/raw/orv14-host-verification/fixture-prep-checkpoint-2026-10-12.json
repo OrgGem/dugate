@@ -1,0 +1,87 @@
+{
+  "kind": "fixture-preparation-checkpoint",
+  "startedAt": "2026-10-12T00:08:38Z",
+  "completedAt": "2026-10-12T00:10:54Z",
+  "cwd": "/workspace/dugate/du-rework",
+  "node": "v24.21.0",
+  "result": "PREPARATION_COMPLETE; FINAL PRODUCT REHEARSAL NOT RUN",
+  "preparationChecks": { "passed": 1, "failed": 0, "skipped": 0, "detail": "Node syntax check for latest source-off child-process verifier" },
+  "preparationFiles": {
+    "tests/workflow-api/orv14-vfy-host/verify-connector-restore.mjs": "ea19bb6f5473e56c3bbacb05e6f51de8ddb0dfe5e5f73929170acd134a92e8da",
+    "tests/workflow-api/orv14-vfy-host/infrastructure.mjs": "b1541e6d71fa68c5679afb3fa44a89c96a34808c9dd4b7abbdb81de4522ccf44",
+    "tests/workflow-api/orv14-vfy-host/compose.yml": "7e18e4f71e1211331bca91af270ef50bdd24f1609876201b593a0afdd9a2f1d0",
+    "tests/workflow-api/orv14-vfy-host/verify-infrastructure.mjs": "6a11d3c516ea3dcb1890b713c1ed9b4fe6c7fd6f92132b3e84363b6f5b9b6403",
+    "tests/workflow-api/orv14-vfy-host/verify-fabrics.mjs": "c99c8a052560416692de42db0463d543eb7fef27b7c47c530ca85e65d2d00afb",
+    "tests/workflow-api/orv14-vfy-host/verify-recovery-key-loader.mjs": "4f296f0ce5b83fb58e2866ea192f8af2942f5aaa1231c934a96e4c44a8e99c27"
+  },
+  "scopedExecutionEvidence": {
+    "recoveryKeyLoader": {
+      "receipt": "recovery-key-loader-orv14-vfy-host-recovery-7c38c9f73e7946.json",
+      "passed": 16,
+      "failed": 0,
+      "skipped": 0,
+      "productionSourceSha256": "2c8f8ccb6926475e7702e51118c1e2e3cfc08382e5f6ff8e81ff88933d72423f",
+      "scope": "real production file resolver as UID 1000 on root-owned synthetic key files; not an application decrypt or full restore"
+    },
+    "connectorRestoreProcessSlice": {
+      "receipt": "connector-restore-orv14-vfy-host-mv4gzuv8-a94cf65604.json",
+      "passed": 14,
+      "failed": 0,
+      "skipped": 0,
+      "runtimeControlSourceSha256": "274b983a6ca08b612e9ff267c87ef1603b130a60b6dd21768c471c9a246e0f83",
+      "scope": "real compiled Connector child, UID 1000, pre-migrated isolated PostgreSQL/Redis/restore Vault, preserved UNKNOWN/PENDING history, denied effects/resume; predates later Host controls/HTTP changes and is not overall source-frozen acceptance"
+    },
+    "fabricPreparation": {
+      "receipt": "isolated-fabrics-preparation-orv14-vfy-host-mv4haymv-8ee00e4e4c.json",
+      "passedBaseChecks": 8,
+      "failed": 0,
+      "skipped": 0,
+      "scope": "independent synthetic versioned MinIO and Vault Transit v1 import/decrypt mechanics for generic, metadata, and artifact keys; source Vault stopped for post-stop decrypt; not product backup/restore"
+    }
+  },
+  "sourceOffHarness": {
+    "receipt": "connector-source-off-harness-syntax-2026-10-12.json",
+    "status": "PREPARED_UNEXECUTED",
+    "plannedOwnedServicesStoppedBeforeChild": ["orchestrator-source", "connector-source", "vault", "minio"],
+    "reason": "No final Host source/build handoff; current source tree has moving factory/contract work"
+  },
+  "ownedResourceCheck": {
+    "command": "Node 24 script read this report directory's own raw receipts, then ran `docker ps --all --quiet`, `docker volume ls --quiet`, and `docker network ls --quiet` with exact `com.docker.compose.project=<project-id>` filters for each recorded orv14-vfy-host-mv* and orv14-vfy-host-recovery-* project.",
+    "checkedProjects": 20,
+    "remainingProjects": 0,
+    "remainingContainers": 0,
+    "remainingVolumes": 0,
+    "remainingNetworks": 0,
+    "foreignProjectResourcesInspected": false
+  },
+  "sourceFreeze": {
+    "completeHostSourceHashManifest": false,
+    "backendNormalFactoryBuildReceipt": false,
+    "selectedConnectorHashesAreScopedOnly": true,
+    "currentKnownScopedConnectorFiles": {
+      "entrypoint.ts": "43cd417bce85aabac6bbd97f2b1b2f9adb371dc282cc91e11a6b16e4be579401",
+      "isolated-mode.ts": "42a7558056ab9777d71516af17e6536942d771221eb1b3943ab646d86315a857",
+      "composition.ts": "d427146fe58ab33c48c01d4c82a8f4605448f304aed10c28809165e106614ce8",
+      "lifecycle.ts": "594e13cccf7586ee66d56db7ae7714957d88201d7a4da605e231ecb9b1b7a967",
+      "http/server.ts": "60cde2935710c4f12e8c052201a2ed1bc8e5988c5472de3b28fb3a15be9e3341",
+      "db/replica-runtime-controls.ts": "274b983a6ca08b612e9ff267c87ef1603b130a60b6dd21768c471c9a246e0f83",
+      "db/pg-client.ts": "403d8f1d0609b56b99abd0c884d3c837be60c53d40987e37d6fe41219f854408",
+      "db/repository.ts": "ce43a758f7998fe4b15dca1eb74f41f5730edbb88230d98dcebf84d47f9770a7",
+      "db/invocation-crypto.ts": "79af50213d9ba5827542320f8c3a9a487933a04d4f9b2ee98ca8782210aafec0",
+      "vault/runtime.ts": "e9a713822de1b781d6ed3b8b0e43c01bdbcafa5148502000dd2e8d8492b11faa",
+      "packages/contracts/src/connector-runtime-control.ts": "b6ce4df07983dc6a04ccdeed7e25d004295774bc2340e5d0d32d2473136a4d75"
+    }
+  },
+  "remainingRehearsal": {
+    "actualHostAndBackendFrozenBuild": "PENDING",
+    "dualPostgresBackupWithActualSixFences": "NOT_PERFORMED",
+    "schemaV5All32ByteKeyVersionBackupAndEveryPurposeFamilyRestore": "NOT_PERFORMED",
+    "sourceOffNormalFactoryRestoreWithLoginHistoryDownloadAndReconcile": "NOT_PERFORMED",
+    "syntheticTwoSlotTrustedFixedIngressCutoverDrainAckZeroRollback": "NOT_PERFORMED",
+    "workerSdkNoHttpLeaseSafeExactReplacement": "NOT_PERFORMED",
+    "nativeBootstrapMigrationAndBuild": "NOT_PERFORMED",
+    "productionCutover": "NOT_PERFORMED"
+  },
+  "sharedBuildOrProductSourceMutated": false,
+  "primaryVfyComposeOrResourcesTouched": false
+}

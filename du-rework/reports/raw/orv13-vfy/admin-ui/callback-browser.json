@@ -1,0 +1,81 @@
+{
+  "test": "VFY-UI13 AOPS-J05 callback retry through mounted Admin UI",
+  "operationId": "9fdaf895-38d4-4348-8bd2-c47b66a39a24",
+  "deliveryId": "420eae43-bfd5-4255-8972-8e95f268e5a5",
+  "failedBefore": {
+    "status": "FAILED",
+    "attempts": 4,
+    "maxAttempts": 5
+  },
+  "queuedAfterBff": {
+    "status": "PENDING",
+    "attempts": 4
+  },
+  "deliveredAfterRealDispatcher": {
+    "status": "DELIVERED",
+    "attempts": 5
+  },
+  "actualReceiverPayloads": [
+    {
+      "state": "SUCCEEDED",
+      "message": "synthetic callback fixture",
+      "operationId": "9fdaf895-38d4-4348-8bd2-c47b66a39a24"
+    }
+  ],
+  "operationTaskUsageUnchanged": true,
+  "keyboard": {
+    "focusedButton": "Review one retry",
+    "confirmation": "accessible ConfirmDialog inspected before Queue one retry",
+    "key": "Enter"
+  },
+  "selectedDetailsAction": "Download result",
+  "viewportScrollWidths": [
+    {
+      "viewport": 768,
+      "scrollWidth": 768
+    },
+    {
+      "viewport": 390,
+      "scrollWidth": 390,
+      "downloadLink": {
+        "width": 100.390625,
+        "height": 20,
+        "clientWidth": 100,
+        "scrollWidth": 100,
+        "whiteSpace": "nowrap"
+      }
+    },
+    {
+      "viewport": 320,
+      "scrollWidth": 320,
+      "downloadLink": {
+        "width": 100.390625,
+        "height": 20,
+        "clientWidth": 100,
+        "scrollWidth": 100,
+        "whiteSpace": "nowrap"
+      }
+    }
+  ],
+  "browserLoadedScripts": [
+    {
+      "path": "/admin/assets/index-BO7-bJEd.js",
+      "status": 200,
+      "contentType": "text/javascript; charset=utf-8",
+      "sha256": "8e55dd6148ae91b2c18e38c4a4176742e574894bbadb36a407ce0f9ddc7c3e6a"
+    }
+  ],
+  "loadedScripts": [
+    {
+      "path": "/admin/assets/index-BO7-bJEd.js",
+      "status": 200,
+      "contentType": "text/javascript; charset=utf-8",
+      "sha256": "8e55dd6148ae91b2c18e38c4a4176742e574894bbadb36a407ce0f9ddc7c3e6a",
+      "localSha256": "8e55dd6148ae91b2c18e38c4a4176742e574894bbadb36a407ce0f9ddc7c3e6a",
+      "finalUrl": "http://127.0.0.1:34269/admin/assets/index-BO7-bJEd.js"
+    }
+  ],
+  "shellUrl": "http://127.0.0.1:34269",
+  "publicUrl": "http://127.0.0.1:38643",
+  "internalUrl": "http://127.0.0.1:40771"
+}

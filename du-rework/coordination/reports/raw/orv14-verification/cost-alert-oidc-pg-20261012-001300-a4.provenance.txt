@@ -1,0 +1,18 @@
+attempt=cost-alert-oidc-pg-20261012-001300-a4
+started_utc=2026-10-12 00:13:00 UTC
+cwd=/workspace/dugate/du-rework
+node=/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node v24.21.0
+command=NODE_PATH=/workspace/dugate/du-rework/orchestrator/node_modules/.pnpm/node_modules /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node /workspace/dugate/du-rework/orchestrator/node_modules/.pnpm/node_modules/jest/bin/jest.js --config tests/workflow-api/jest.config.cjs --runInBand --detectOpenHandles --runTestsByPath tests/workflow-api/orv14-vfy/cost-alert-oidc.test.ts
+postgres_schema=du_test_orv14_vfy_cost_oidc_1791763928018_c6b62a7e
+redis_db=7
+redis_prefix=du:test:orv14_vfy_cost_oidc_1791763928018_c6b62a7e:oidc:
+queue_prefix=du:q:orv14_vfy_cost_oidc_1791763928018_c6b62a7e:
+app_shell_a=http://127.0.0.1:40215
+app_shell_b=http://127.0.0.1:35219
+internal_a=http://127.0.0.1:35401
+synthetic_idp=http://127.0.0.1:44829
+source_hashes_before=cost-alert-oidc-pg-20261012-001300-a4.pre.sha256
+source_hashes_after=cost-alert-oidc-pg-20261012-001300-a4.post.sha256
+result=1 selected test failed, exit 1 at a verifier assertion that expected an eligible second external OIDC Admin to be unpinned after callback. Source inspection showed the actual configured callback observer enrolls eligible verified principals and stamps the recipient/version pin into the new session before session creation. The real path before that assertion passed: first cross-replica callback, private recipient self registration, budget draft/review/publish, CSRF denial, binding save, canonical alert enqueue twice with one persisted alert/delivery, actual delivery from replica B, repeat batch with zero claims, and persisted DELIVERED plus one inbox row. No wrong-expected-state assertion is a product failure. The privacy echo is being collected for final assertion so delivery and read paths can complete.
+cleanup=raw log records isolated schema absent and namespaced OIDC Redis prefix count 0; both apps, both OIDC gateways, and synthetic IdP closed; no open-handle warning.
+admin_bundle=explicit no-bundle; not browser evidence

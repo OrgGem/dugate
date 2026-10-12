@@ -1,0 +1,23 @@
+{
+  "schema": "orv14-native-a2-attempt/v1",
+  "command": "/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node tests/workflow-api/orv14-vfy-host/verify-native-a2-fixture.mjs /tmp/orv14-vfy-host-native-mv4koyze-e961911f5a /tmp/orv14-vfy-host-native-mv4kecuu-c0811e6e73 http://127.0.0.1:41503",
+  "cwd": "/workspace/dugate/du-rework",
+  "node": "v24.21.0",
+  "verifierUid": 1000,
+  "startTimeBracketUtc": { "after": "2026-10-12T01:51:33Z", "before": "2026-10-12T01:52:33Z" },
+  "execReportedWallSeconds": 20.5,
+  "status": "HARNESS_EXIT_WITH_UNHANDLED_POOL_SHUTDOWN",
+  "stage": "fresh migrations completed; synthetic legacy seed began; exact failed statement is unknown because cleanup-triggered pool event terminated the process before the harness receipt was emitted",
+  "observedError": { "code": "57P01", "message": "terminating connection due to administrator command", "applicationName": "ldba03-source-adapter", "emitter": "adapter-owned PostgreSQL pool during owned fixture teardown" },
+  "fixture": { "composeProject": "orv14-vfy-host-mv4lj8mw-588f4f8fab", "temporaryRoot": "/tmp/orv14-vfy-host-mv4lj8mw-588f4f8fab-wXh3J2" },
+  "cleanup": {
+    "command": "cleanupHostInfrastructureFixture with exact owned project/root",
+    "completedAt": "2026-10-12T01:52:33Z",
+    "removed": { "containers": [], "volumes": [], "networks": [] },
+    "remaining": { "containers": [], "volumes": [], "networks": [] },
+    "temporaryFixtureRemoved": true
+  },
+  "productSourceWrites": false,
+  "providerStats": { "count": 0, "observedAt": "2026-10-12T01:52:33Z" },
+  "policy": "No migration/import assertion was weakened; adapter-owned pools are now explicitly supplied, tracked, and closed before fixture cleanup."
+}

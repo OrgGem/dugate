@@ -1,4 +1,9 @@
-import { randomUUID } from 'node:crypto';
+import { readKeySpend, moneyAsUsd } from '../modules/usage/spend-admission';
+import { renderLegacyDocumentContent } from './legacy-result-format';
+import { HttpError } from '../http/errors';
+import { extensionDeniedReason, fileUrlEntryName } from '../modules/profiles/policy';
+import { acquireLegacyUrl } from './legacy-url-input';
+import { createHash, randomUUID } from 'node:crypto';
 import type { LegacyBillingSnapshot, LegacyCompatHost, LegacyOperationRow } from './legacy-http-mount';
 import { LegacyWorkflowResultSchema, type LegacyWorkflowSchemaPin } from '@du/contracts';
 import type { RouteContext } from '../server';
@@ -67,6 +72,16 @@ function legacyWorkflowFileRole(field: string, index: number): string {
   return `files-${index + 1}`;
 }
 
+function legacyUrlRoles(action: string, existing: readonly { role: string }[], entries: readonly Record<string, unknown>[]): string[] {
+  const assigned = new Set(existing.map((entry) => entry.role));
+  return entries.map((entry) => {
+    if (action !== 'compare') return 'source';
+    const role = entry.role === 'source' || entry.role === 'target' ? entry.role : assigned.has('source') ? 'target' : 'source';
+    assigned.add(role);
+    return role;
+  });
+}
+
 export function legacyCompatHost(ctx: RouteContext): LegacyCompatHost {
   const base: LegacyCompatHost = {
     db: ctx.db,
@@ -79,35 +94,88 @@ export function legacyCompatHost(ctx: RouteContext): LegacyCompatHost {
     loadOperation: (operationId, tenantId, apiKeyId) => loadLegacyRow(ctx, operationId, tenantId, apiKeyId),
     loadOutputContent: (operationId, tenantId, apiKeyId) => loadLegacyOutput(ctx, operationId, tenantId, apiKeyId),
     submitLegacy: async (principal, action, decoded) => {
-      // Files first: the submission references their artifact ids, so they
-      // must exist before the operation row is written.
-      const artifacts: { artifactId: string; role: string }[] = [];
-      for (const part of decoded.files) {
-        const file = part.value as { name: string; size: number; type: string; bytes: Buffer };
-        const stored = await ctx.artifacts.putPublicArtifact({
-          tenantId: principal.tenantId,
-          fileName: file.name,
-          mimeType: file.type || 'application/octet-stream',
-          bytes: file.bytes,
-        });
-        artifacts.push({ artifactId: stored.artifactId, role: legacyFileRole(part.field) });
-      }
-      const result = await ctx.submission.submit({
-        tenantId: principal.tenantId,
-        apiKeyId: principal.apiKeyId,
-        businessId: LEGACY_BUSINESS_ID,
-        action,
-        ...(decoded.idempotencyKey === undefined ? {} : { idempotencyKey: decoded.idempotencyKey }),
-        ...(decoded.correlationId === undefined ? {} : { correlationId: decoded.correlationId }),
-        submission: {
-          input: decoded.submission.input,
-          output: decoded.submission.output,
-          ...(artifacts.length > 0 ? { artifacts } : {}),
-          ...(decoded.submission.sourceUrl === undefined ? {} : { sourceUrl: decoded.submission.sourceUrl }),
-          ...(decoded.submission.callback === undefined ? {} : { callback: decoded.submission.callback }),
-        },
+      const fileParts = decoded.files.map((part, index) => ({
+        role: action === 'compare' && (part.field === 'files[]' || part.field === 'file') ? (index === 1 ? 'target' : 'source') : legacyFileRole(part.field),
+        file: part.value as { name: string; size: number; type: string; bytes: Buffer },
+      }));
+      const identity = {
+        input: { parameters: decoded.submission.input, files: fileParts.map(({ role, file }, ordinal) => ({ role, ordinal, name: file.name, mimeType: file.type || 'application/octet-stream', sha256: createHash('sha256').update(file.bytes).digest('hex') })) },
+        output: decoded.submission.output,
+        callback: decoded.submission.callback,
+        sourceUrl: decoded.submission.sourceUrl,
+        artifacts: fileParts.map(({ role, file }) => ({ role, sha256: createHash('sha256').update(file.bytes).digest('hex') })),
+      };
+      const scope = {
+        tenantId: principal.tenantId, apiKeyId: principal.apiKeyId,
+        businessId: LEGACY_BUSINESS_ID, action,
+        idempotencyKey: decoded.idempotencyKey, correlationId: decoded.correlationId,
+      };
+      const replay = await ctx.submission.replayLegacy(scope, identity);
+      if (replay) return { operationId: replay.operation.id, replayed: true };
+      const endpointSlug = `${action}:${decoded.variant}`;
+      const toInput = (refs: { artifactId: string; role: string }[]) => {
+        const input = { ...decoded.submission.input };
+        if (action === 'compare') {
+          if (refs.length > 2 || new Set(refs.map(ref => ref.role)).size !== refs.length) throw new HttpError(422, 'CONFLICTING_COMPARISON_PARAMETERS', 'Compare accepts one source and one target');
+          for (const side of ['source', 'target']) {
+            const ref = refs.find((item) => item.role === side);
+            if (ref && input[side] !== undefined) throw new HttpError(422, 'CONFLICTING_COMPARISON_PARAMETERS', `Conflicting comparison side: ${side}`);
+            if (ref) input[side] = { artifactId: ref.artifactId };
+          }
+        } else if (refs.length) input.artifactIds = refs.map((ref) => ref.artifactId);
+        return input;
+      };
+      const profile = await ctx.submission.preflightLegacyWorkflow({
+        ...scope, endpointSlug,
+        input: toInput([...fileParts.map(({ role }) => ({ role, artifactId: randomUUID() })), ...legacyUrlRoles(action, fileParts, decoded.fileUrls).map((role) => ({ role, artifactId: randomUUID() }))]),
+        fileNames: fileParts.map(({ file }) => file.name),
       });
-      return { operationId: result.operation.id, replayed: result.replayed };
+      const effectiveUrls = profile.mode === 'pinned' ? profile.effectiveInput.fileUrls : decoded.fileUrls;
+      const urlEntries = Array.isArray(effectiveUrls) ? effectiveUrls as Record<string, unknown>[] : [];
+      if (urlEntries.length > 20) throw new HttpError(422, 'TOO_MANY_ARTIFACTS', 'At most 20 URL inputs are accepted');
+      if (action === 'compare' && fileParts.length + urlEntries.length > 2) throw new HttpError(422, 'TOO_MANY_ARTIFACTS', 'Compare requires exactly two document sides');
+      for (const entry of urlEntries) {
+        if (profile.mode === 'pinned') {
+          const denied = extensionDeniedReason(profile.policy.allowedFileExtensions, fileUrlEntryName(entry) ?? 'document');
+          if (denied) throw new HttpError(422, 'PROFILE_EXTENSION_DENIED', denied);
+        }
+      }
+      let totalBytes = fileParts.reduce((sum, part) => sum + part.file.bytes.length, 0);
+      const transferDeadline = Date.now() + 30_000;
+      if (fileParts.length || urlEntries.length) ctx.artifacts.assertPublicArtifactEncryptionReady();
+      const urlRoles = legacyUrlRoles(action, fileParts, urlEntries);
+      for (const [index, entry] of urlEntries.entries()) {
+        const role = urlRoles[index]!;
+        const file = await acquireLegacyUrl(entry, profile, { maxBytes: 64 * 1024 * 1024 - totalBytes, timeoutMs: Math.max(1, transferDeadline - Date.now()) });
+        totalBytes += file.bytes.length;
+        fileParts.push({ role, file });
+      }
+      const artifacts: { artifactId: string; role: string }[] = [];
+      try {
+        for (const { file, role } of fileParts) {
+          const stored = await ctx.artifacts.putPublicArtifact({
+            tenantId: principal.tenantId, apiKeyId: principal.apiKeyId, fileName: file.name,
+            mimeType: file.type || 'application/octet-stream', bytes: file.bytes,
+            requireEncryption: true,
+          });
+          artifacts.push({ artifactId: stored.artifactId, role });
+        }
+        const result = await ctx.submission.submit({
+          ...scope, legacyRequestIdentity: identity, legacyEndpointSlug: endpointSlug,
+          legacyExpectedProfile: profile.mode === 'pinned' ? { profileId: profile.profileId, revision: profile.revision } : null,
+          legacyProjection: { endpointSlug, pipelineJson: [{ legacyCallback: true }], progressMessage: 'Queued' },
+          submission: {
+            ...decoded.submission, input: toInput(artifacts), artifacts,
+          },
+        });
+        if (result.replayed && artifacts.length) {
+          await ctx.artifacts.cleanupUnlinkedPublicArtifacts(principal.tenantId, artifacts.map((ref) => ref.artifactId));
+        }
+        return { operationId: result.operation.id, replayed: result.replayed };
+      } catch (error) {
+        await ctx.artifacts.cleanupUnlinkedPublicArtifacts(principal.tenantId, artifacts.map((ref) => ref.artifactId)).catch(() => undefined);
+        throw error;
+      }
     },
     resolveLegacyWorkflowSchema: (tenantId, slug) =>
       resolveLegacyWorkflowSchema(ctx.db, { tenantId, slug }, ctx.metadataCrypto),
@@ -119,6 +187,7 @@ export function legacyCompatHost(ctx: RouteContext): LegacyCompatHost {
           ? 'lc-checker'
           : LEGACY_BUSINESS_ID;
       const action = decoded.kind === 'schema' ? 'schema-workflow' : decoded.process;
+      const endpointSlug = decoded.kind === 'named' ? `workflows:${decoded.process}` : `workflows:schema:${decoded.schemaSlug}`;
       const workflowVariables = decoded.kind === 'named' ? decoded.variables : decoded.input;
       const legacyWorkflow = decoded.kind === 'named'
         ? { version: 'legacy-workflow-named-input-v1' as const, process: decoded.process }
@@ -138,6 +207,7 @@ export function legacyCompatHost(ctx: RouteContext): LegacyCompatHost {
         apiKeyId: principal.apiKeyId,
         businessId,
         action,
+        endpointSlug,
         input: {
           variables: workflowVariables,
           artifactIds: pendingArtifactIds,
@@ -161,6 +231,7 @@ export function legacyCompatHost(ctx: RouteContext): LegacyCompatHost {
           const part = decoded.files[index]!;
           const stored = await ctx.artifacts.putPublicArtifact({
             tenantId: principal.tenantId,
+            apiKeyId: principal.apiKeyId,
             fileName: part.fileName,
             mimeType: part.mimeType || 'application/octet-stream',
             bytes: part.bytes,
@@ -170,9 +241,6 @@ export function legacyCompatHost(ctx: RouteContext): LegacyCompatHost {
           artifactRefs.push({ artifactId: stored.artifactId, role: legacyWorkflowFileRole(part.field, index) });
         }
 
-        const endpointSlug = decoded.kind === 'named'
-          ? `workflows:${decoded.process}`
-          : `workflows:schema:${decoded.schemaSlug}`;
         const workflowInput = {
           variables: decoded.kind === 'named' ? decoded.variables : decoded.input,
           artifactIds: artifactRefs.map((artifact) => artifact.artifactId),
@@ -397,7 +465,7 @@ export function legacyCompatHost(ctx: RouteContext): LegacyCompatHost {
       const res = await ctx.db.query(
         `UPDATE operations SET deleted_at = now()
           WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
-            AND (pipeline_json->0->>'workflow' IS NULL OR api_key_id = $3)`,
+            AND api_key_id = $3`,
         [operationId, tenantId, apiKeyId],
       );
       return Boolean(res.rowCount);
@@ -410,7 +478,7 @@ export function legacyCompatHost(ctx: RouteContext): LegacyCompatHost {
       // that is row visibility, not authorization, and folding it in would turn
       // a soft-deleted boundary row into an empty page mid-walk.
       const tenantScope = 'tenant_id = $1';
-      const apiKeyFence = "(pipeline_json->0->>'workflow' IS NULL OR api_key_id = $3)";
+      const apiKeyFence = "api_key_id = $3";
       const where: string[] = [
         tenantScope,
         'deleted_at IS NULL',
@@ -446,7 +514,38 @@ export function legacyCompatHost(ctx: RouteContext): LegacyCompatHost {
       const hasMore = all.length > input.pageSize;
       return { rows: all.slice(0, input.pageSize).map(toLegacyRow), hasMore };
     },
-    billingFor: async (apiKeyId) => loadLegacyBilling(ctx, apiKeyId),
+    serviceCatalogue: async (apiKeyId) => {
+      const active = await ctx.db.query("SELECT business_id, version, manifest FROM business_versions WHERE business_id=ANY($1::text[]) AND is_active=true", [[LEGACY_BUSINESS_ID, 'lc-checker']]);
+      const services: Record<string, unknown>[] = [];
+      const workflows: Record<string, unknown>[] = [];
+      const discriminators: Record<string, string> = { ingest: 'mode', extract: 'type', analyze: 'task', transform: 'variant', generate: 'task', compare: 'mode' };
+      for (const registered of active.rows) {
+        const { business_id: businessId, version, manifest } = registered as { business_id: string; version: string; manifest: { actions: Array<{ name: string; displayName?: string; description?: string; inputSchema: { properties?: Record<string, { enum?: string[] }> } }> } };
+        for (const action of manifest.actions) {
+          const workflow = ['disbursement', 'doc-compare', 'lc-checker'].includes(action.name);
+          const key = discriminators[action.name];
+          if (!key && !workflow) continue;
+          const properties = action.inputSchema.properties ?? {};
+          const subCases: Record<string, unknown>[] = [];
+          for (const variant of workflow ? [action.name] : properties[key!]?.enum ?? []) {
+            try {
+              const endpointSlug = workflow ? `workflows:${variant}` : `${action.name}:${variant}`;
+              const profile = await ctx.profiles.resolveEffectiveProfile(apiKeyId, businessId, version, action.name, {}, Object.keys(properties), endpointSlug);
+              const clientParameters = Object.fromEntries(Object.entries(properties).filter(([name]) => name !== key && !(profile.mode === 'pinned' && profile.policy.parameters[name]?.isLocked)));
+              subCases.push({ id: variant, displayName: workflow ? action.displayName ?? variant : variant, description: action.description ?? '', clientParameters });
+            } catch (error) {
+              if (typeof error === 'object' && error !== null && 'status' in error && [403, 404].includes(Number(error.status))) continue;
+              throw error;
+            }
+          }
+          if (workflow) workflows.push(...subCases);
+          else if (subCases.length) services.push({ serviceId: action.name, serviceName: action.displayName ?? action.name, discriminatorKey: key === 'variant' ? 'action' : key, subCases });
+        }
+      }
+      if (workflows.length) services.push({ serviceId: 'workflows', serviceName: 'Business Workflows', discriminatorKey: 'process', subCases: workflows });
+      return services;
+    },
+    billingFor: async (apiKeyId, window) => loadLegacyBilling(ctx, apiKeyId, window),
   };
 }
 
@@ -462,7 +561,7 @@ export function toLegacyRow(row: Record<string, unknown>): LegacyOperationRow {
   const num = (value: unknown): number | null =>
     value === null || value === undefined ? null : Number(value);
   const text = (value: unknown): string | null =>
-    value === null || value === undefined ? null : String(value);
+    value === null || value === undefined ? null : value instanceof Date ? value.toISOString() : String(value);
   const pipelineJson = jsonOrNull(row.pipeline_json);
   const workflowMarkers = workflowMarkersFromPipeline(pipelineJson);
   const rawState = String(row.state);
@@ -523,6 +622,7 @@ function workflowMarkersFromPipeline(json: string | null): {
 }
 
 const MAX_LEGACY_WORKFLOW_RESULT_BYTES = 8 * 1024 * 1024;
+const MAX_DOCUMENT_RESULT_BYTES = 64 * 1024 * 1024;
 
 async function projectWorkflowResult(
   ctx: RouteContext,
@@ -573,6 +673,28 @@ async function projectWorkflowResult(
   };
 }
 
+/** Resolve document worker artifact envelopes only inside the authorized operation. */
+async function projectDocumentResult(ctx: RouteContext, row: LegacyOperationRow, raw: Record<string, unknown>, tenantId: string): Promise<LegacyOperationRow> {
+  if (row.workflow) return projectWorkflowResult(ctx, row, raw, tenantId);
+  if (row.state !== 'SUCCEEDED' || !raw.result_ref || raw.business_id !== LEGACY_BUSINESS_ID) return row;
+  const ref = await (ctx.metadataReader ?? compatibilityMetadataReader(ctx.metadataCrypto)).readStoredText(raw.result_ref, { tenantId, slot: 'operations.result_ref', refId: row.id });
+  if (!ref?.startsWith('artifact://')) throw new Error('Invalid document result reference');
+  const artifact = await ctx.db.query(
+    "SELECT storage_key FROM artifacts WHERE id=$1 AND tenant_id=$2 AND operation_id=$3 AND state='READY'",
+    [ref.slice('artifact://'.length), tenantId, row.id],
+  );
+  if (!artifact.rowCount) throw new Error('Document result artifact unavailable');
+  const bytes = await collectOutputBytes(await ctx.artifacts.getBlob(String(artifact.rows[0]!.storage_key)), MAX_DOCUMENT_RESULT_BYTES);
+  if (bytes.length > MAX_DOCUMENT_RESULT_BYTES) throw new Error('Document result exceeds projection limit');
+  const envelope = JSON.parse(bytes.toString('utf8')) as { version?: string; status?: string; data?: unknown; provenance?: unknown };
+  if ((envelope.version !== undefined && envelope.version !== 'document-core-result-v1') || envelope.status !== 'COMPLETED' || envelope.data === undefined || !envelope.provenance) throw new Error('Invalid document result envelope');
+  const data = envelope.data;
+  const format = row.outputFormat ?? 'json';
+  return { ...row, outputFormat: format, extractedData: JSON.stringify(data),
+    outputContent: renderLegacyDocumentContent(data, format),
+  };
+}
+
 /** `jsonb` columns arrive already parsed; the legacy contract wants a string. */
 function jsonOrNull(value: unknown): string | null {
   if (value === null || value === undefined) return null;
@@ -608,12 +730,17 @@ async function loadLegacyRow(
   const res = await ctx.db.query(
     `SELECT * FROM operations
       WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
-        AND (pipeline_json->0->>'workflow' IS NULL OR api_key_id = $3)`,
+        AND api_key_id = $3`,
     [operationId, tenantId, apiKeyId],
   );
   if (!res.rowCount) return null;
   const raw = res.rows[0] as Record<string, unknown>;
-  return projectWorkflowResult(ctx, toLegacyRow(raw), raw, tenantId);
+  const row = await projectDocumentResult(ctx, toLegacyRow(raw), raw, tenantId);
+  const usage = ctx.usage ? await ctx.usage.project(operationId) : undefined;
+  if (!usage || usage.measurement === 'pending') return row;
+  return { ...row, totalInputTokens: usage.inputTokens, totalOutputTokens: usage.outputTokens,
+    pagesProcessed: usage.pages ?? row.pagesProcessed, modelUsed: usage.model ?? row.modelUsed,
+    totalCostUsd: usage.costStatus === 'unpriced' || usage.costStatus === 'pending' ? null : usage.costMicrousd / 1_000_000 };
 }
 
 /**
@@ -649,10 +776,13 @@ async function loadLegacyOutput(
 }
 
 /** Collect a blob reader into one buffer; the download wire is buffer-based. */
-async function collectOutputBytes(stream: AsyncIterable<Uint8Array>): Promise<Buffer> {
+async function collectOutputBytes(stream: AsyncIterable<Uint8Array>, maxBytes = Number.POSITIVE_INFINITY): Promise<Buffer> {
   const chunks: Buffer[] = [];
+  let size = 0;
   for await (const chunk of stream) {
     chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    size += chunk.byteLength;
+    if (size > maxBytes) throw new Error('Output exceeds projection limit');
   }
   return Buffer.concat(chunks);
 }
@@ -668,24 +798,27 @@ async function collectOutputBytes(stream: AsyncIterable<Uint8Array>): Promise<Bu
 async function loadLegacyBilling(
   ctx: RouteContext,
   apiKeyId: string,
+  window?: { from: Date; to: Date },
 ): Promise<LegacyBillingSnapshot | null> {
-  const key = await ctx.db.query(
-    'SELECT name, spending_limit, total_used FROM api_keys WHERE id = $1',
-    [apiKeyId],
-  );
-  if (!key.rowCount) return null;
-  const keyRow = key.rows[0] as { name: string | null; spending_limit: string; total_used: string };
-
+  const balance = await readKeySpend(ctx.db, apiKeyId);
   const spend = await ctx.db.query(
-    `SELECT model_used,
-           COALESCE(SUM(total_input_tokens), 0)  AS prompt_tokens,
-           COALESCE(SUM(total_output_tokens), 0) AS completion_tokens,
-           COALESCE(SUM(pages_processed), 0)      AS pages_processed,
-           COALESCE(SUM(total_cost_usd), 0)       AS cost_usd
-     FROM operations
-     WHERE api_key_id = $1 AND state = 'SUCCEEDED' AND deleted_at IS NULL
-     GROUP BY model_used`,
-    [apiKeyId],
+    `WITH scoped AS (
+       SELECT * FROM operations WHERE api_key_id=$1 AND state='SUCCEEDED' AND deleted_at IS NULL
+         AND ($2::timestamptz IS NULL OR created_at >= $2) AND ($3::timestamptz IS NULL OR created_at <= $3)
+     ), entries AS (
+       SELECT o.model_used, o.total_input_tokens AS prompt_tokens, o.total_output_tokens AS completion_tokens,
+         o.pages_processed, o.total_cost_usd AS cost_usd FROM scoped o
+       WHERE NOT EXISTS (SELECT 1 FROM usage_events ue WHERE ue.operation_id=o.id)
+       UNION ALL
+       SELECT COALESCE(ue.payload->>'model',o.model_used),
+         (ue.payload->'units'->>'inputTokens')::numeric, (ue.payload->'units'->>'outputTokens')::numeric,
+         (ue.payload->'units'->>'pages')::numeric,
+         CASE WHEN ue.payload->>'costStatus'='unpriced' THEN NULL ELSE (ue.payload->>'costMicrousd')::numeric / 1000000 END
+       FROM scoped o JOIN usage_events ue ON ue.operation_id=o.id
+     ) SELECT model_used, COALESCE(SUM(prompt_tokens),0) AS prompt_tokens,
+       COALESCE(SUM(completion_tokens),0) AS completion_tokens, COALESCE(SUM(pages_processed),0) AS pages_processed,
+       COALESCE(SUM(cost_usd),0) AS cost_usd FROM entries GROUP BY model_used`,
+    [apiKeyId, window?.from.toISOString() ?? null, window?.to.toISOString() ?? null],
   );
 
   const byModel = (spend.rows as Record<string, unknown>[]).map((row) => ({
@@ -697,15 +830,16 @@ async function loadLegacyBilling(
   }));
 
   const count = await ctx.db.query(
-    "SELECT COUNT(*)::int AS n FROM operations WHERE api_key_id = $1 AND state = 'SUCCEEDED' AND deleted_at IS NULL",
-    [apiKeyId],
+    "SELECT COUNT(*)::int AS n FROM operations WHERE api_key_id = $1 AND state = 'SUCCEEDED' AND deleted_at IS NULL AND ($2::timestamptz IS NULL OR created_at >= $2) AND ($3::timestamptz IS NULL OR created_at <= $3)",
+    [apiKeyId, window?.from.toISOString() ?? null, window?.to.toISOString() ?? null],
   );
   const operationCount = Number((count.rows[0] as { n: number }).n);
 
   return {
-    name: keyRow.name,
-    spendingLimit: Number(keyRow.spending_limit),
-    totalUsed: Number(keyRow.total_used),
+    name: balance.name,
+    spendingLimit: moneyAsUsd(balance.limit),
+    totalUsed: moneyAsUsd(balance.used),
+    periodCostUsd: byModel.reduce((sum, row) => sum + row.costUsd, 0),
     byModel,
     operationCount,
   };

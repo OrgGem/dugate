@@ -5,26 +5,22 @@
  * they are now module-level and only this family calls them.
  */
 import { Readable } from 'node:stream';
-import { HttpError, isHttpError, zodIssuesToProblem } from '../errors';
+import { resultHttpStatus } from '../../modules/operations/facade';
+import { compatibilityMetadataReader } from '../../modules/encryption/metadata-read-policy';
+import { HttpError, zodIssuesToProblem } from '../errors';
 import { MULTIPART_MIN_TOTAL_BYTES, UsageEventDrilldownQuerySchema } from '@du/contracts';
 import { publicUploadToken } from '../../modules/artifacts/multipart-service';
 import { DeliveryEncryptionError } from '../../modules/public-api';
 import { decryptStoredArtifact } from '../../modules/encryption/artifact-read-decrypt';
 import { handleLegacyRoute } from '../../compat/legacy-http-mount';
 import { legacyCompatHost } from '../../compat/legacy-host-adapter';
-import { resultHttpStatus, toOperationView, waitForTerminal } from '../../modules/operations/facade';
-import { listOperationsPage, parseOperationsListQuery } from '../../modules/operations/list-query';
-import { getOperationsMetrics, parseOperationsMetricsQuery } from '../../modules/admin-read/operations-metrics';
-import { buildAdminOperationDetail, toOperationDetailWire } from '../../modules/operations/mappers';
 import {
   authorizeAuditTenantRead,
-  requireResourceTenant,
   resolveAdminPrincipal,
 } from '../../modules/admin-actions/rbac';
 import { readStreamBounded } from './public-bounded-body';
 import { resolveApiKey } from './api-key-auth';
 import { authorizeConnectorProbe } from '../../modules/connectors/probe-authorization';
-import { compatibilityMetadataReader } from '../../modules/encryption/metadata-read-policy';
 import type { RouteContext, RouteResult } from '../route-context';
 
 /**
@@ -57,30 +53,6 @@ function deliveryEncryptionHttpError(err: DeliveryEncryptionError): HttpError {
     return new HttpError(409, 'STATE_CONFLICT', 'delivery encryption is not enabled for this tenant');
   }
   return new HttpError(503, 'TEMPORARY_UNAVAILABLE', 'encrypted delivery is unavailable');
-}
-
-/**
- * Operation reads behind a tenant/profile fence must not expose the ID-bearing
- * message from runtime.getOperation when its global lookup misses. Keep the
- * public 404 identical to the one emitted by the subsequent ownership fence.
- */
-function throwFencedOperationNotFound(err: unknown, message: string): never {
-  if (isHttpError(err) && err.status === 404 && err.code === 'NOT_FOUND') {
-    throw new HttpError(404, 'NOT_FOUND', message);
-  }
-  throw err;
-}
-
-async function getFencedOperation(
-  ctx: RouteContext,
-  operationId: string,
-  notFoundMessage: string,
-): Promise<Record<string, unknown>> {
-  try {
-    return await ctx.runtime.getOperation(operationId);
-  } catch (err) {
-    return throwFencedOperationNotFound(err, notFoundMessage);
-  }
 }
 
 /**
@@ -123,8 +95,25 @@ async function encryptedDeliveryBody(
   }
 }
 
+async function requireOwnedUpload(ctx: RouteContext, artifactId: string, key: { id: string; tenantId: string }): Promise<void> {
+  const owned = await ctx.db.query(
+    "SELECT id FROM artifacts WHERE id=$1 AND tenant_id=$2 AND upload_api_key_id=$3 AND purpose='input' AND operation_id IS NULL AND task_id IS NULL",
+    [artifactId, key.tenantId, key.id],
+  );
+  if (!owned.rowCount) throw new HttpError(404, 'NOT_FOUND', 'upload not found');
+}
+
 export async function handlePublicRoutes(ctx: RouteContext): Promise<RouteResult | null> {
   const { method, pathname } = ctx;
+
+  // Only legacy by-id result reads (and their download representation) remain
+  // public. Deny retired management paths before the compatibility mount.
+  if (pathname === '/api/v1/operations' || pathname.startsWith('/api/v1/operations/')) {
+    const publicRead = method === 'GET'
+      && /^\/api\/v1\/operations\/(?!metrics$)[^/]+(?:\/download)?$/.test(pathname);
+    if (!publicRead) throw new HttpError(404, 'NOT_FOUND', 'Not Found');
+  }
+
 
   // Public: GET /api/v1/usage/summary?from=<iso>&to=<iso> (P2-07 tenant usage projection).
   // Tenant-scoped via x-api-key; aggregates usage by provider/model over [from,to).
@@ -248,6 +237,7 @@ export async function handlePublicRoutes(ctx: RouteContext): Promise<RouteResult
     const content = /^\/api\/v1\/uploads\/([^/]+)(?:\/content)?$/.exec(pathname);
     if (method === 'PUT' && content) {
       const apiKey = await resolveApiKey(ctx);
+      await requireOwnedUpload(ctx, decodeURIComponent(content[1]!), apiKey);
       if (!ctx.publicUploadGateway) {
         throw new HttpError(503, 'TEMPORARY_UNAVAILABLE', 'encrypted public uploads are not configured');
       }
@@ -274,13 +264,22 @@ export async function handlePublicRoutes(ctx: RouteContext): Promise<RouteResult
         throw new HttpError(413, 'PAYLOAD_TOO_LARGE', 'artifact exceeds the encrypted upload size limit');
       }
       const headerKey = ctx.headers['idempotency-key'];
-      const forwarded =
-        typeof body.uploadToken === 'string' || typeof headerKey !== 'string' || headerKey.length === 0
-          ? body
-          : { ...body, uploadToken: publicUploadToken(apiKey.tenantId, headerKey) };
+      if (typeof body.uploadToken === 'string' && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.uploadToken)) {
+        throw new HttpError(422, 'INVALID_SCHEMA', 'uploadToken must be a UUID');
+      }
+      // Namespace replay tokens by authenticated key before initialization, so
+      // concurrent keys cannot race to claim one newly-created orphan row.
+      const clientToken = typeof body.uploadToken === 'string' ? body.uploadToken : typeof headerKey === 'string' && headerKey.length ? headerKey : undefined;
+      const forwarded = clientToken === undefined ? body
+        : { ...body, uploadToken: publicUploadToken(apiKey.tenantId, `${apiKey.id}:${clientToken}`) };
       const ack = typeof body.sizeBytes === 'number' && body.sizeBytes < MULTIPART_MIN_TOTAL_BYTES
         ? await ctx.publicUploadGateway.initSingle(apiKey.tenantId, forwarded)
         : await ctx.multipart.publicInit(apiKey.tenantId, forwarded);
+      const bound = await ctx.db.query(
+        "UPDATE artifacts SET upload_api_key_id=$3 WHERE id=$1 AND tenant_id=$2 AND purpose='input' AND operation_id IS NULL AND task_id IS NULL AND (upload_api_key_id IS NULL OR upload_api_key_id=$3)",
+        [ack.artifactId, apiKey.tenantId, apiKey.id],
+      );
+      if (!bound.rowCount) throw new HttpError(409, 'STATE_CONFLICT', 'upload token belongs to another API key');
       return {
         status: ack.replayed ? 200 : 201,
         body: { ...ack, uploadUrl: `/api/v1/uploads/${encodeURIComponent(ack.artifactId)}/content` },
@@ -290,6 +289,7 @@ export async function handlePublicRoutes(ctx: RouteContext): Promise<RouteResult
     if (m && method === 'POST') {
       const apiKey = await resolveApiKey(ctx);
       const artifactId = decodeURIComponent(m[1]!);
+      await requireOwnedUpload(ctx, artifactId, apiKey);
       if (m[2] === 'part') {
         // CR06-10: a direct-S3 `part` grant is the same capability the
         // encryption-gated public multipart refuses, so it must report the
@@ -427,218 +427,6 @@ export async function handlePublicRoutes(ctx: RouteContext): Promise<RouteResult
     }
   }
 
-  // Overview metrics are one bounded aggregate statement, not a page sample.
-  if (method === 'GET' && pathname === '/api/v1/operations/metrics') {
-    const metricsQuery = parseOperationsMetricsQuery(ctx.searchParams);
-    const metricsPrincipal = resolveAdminPrincipal(ctx.config, ctx.headers['authorization']);
-    if (metricsPrincipal) {
-      const scope = authorizeAuditTenantRead(metricsPrincipal, metricsQuery.tenantId ?? '');
-      return {
-        status: 200,
-        body: await getOperationsMetrics(ctx, metricsQuery, scope === '' ? null : scope),
-      };
-    }
-
-    const apiKey = await resolveApiKey(ctx);
-    if (metricsQuery.tenantId !== null && metricsQuery.tenantId !== apiKey.tenantId) {
-      throw new HttpError(403, 'PERMISSION_DENIED', 'admin reads are scoped to the caller tenant');
-    }
-    return {
-      status: 200,
-      body: await getOperationsMetrics(ctx, metricsQuery, apiKey.tenantId),
-    };
-  }
-
-  // Public: GET /api/v1/operations
-  // ADM-BASE-01: the admin bearer is accepted as an ALTERNATE auth path
-  // (the shell's operation fetcher sends `Authorization: Bearer <adminToken>`
-  // with no x-api-key). ADM-UX-02 replaced the two divergent list envelopes
-  // with ONE query contract on both paths: allow-listed `state`/`tenant`/
-  // `id` filters, a server-enforced `limit` (default 20, max 100), a stable
-  // keyset `cursor`, and `{ items, nextCursor, prevCursor, total, limit }`
-  // where `total` is a COUNT of the filtered population (the old
-  // `total = rows.length` is gone). The x-api-key path stays tenant-fenced
-  // (R24-01 untouched) and gains the same read-only filters.
-  if (method === 'GET' && pathname === '/api/v1/operations') {
-    // ADM-BASE-02: the admin-bearer list is principal-aware. The tenant SCOPE
-    // comes from the credential: a platform principal may narrow to any
-    // tenant with `?tenant=`, a tenant operator is pinned to its own tenant
-    // by SQL predicate (server-side fence, not post-filter) and gets 403 on a
-    // foreign `tenant` — identical wording for foreign and unknown ids.
-    const listPrincipal = resolveAdminPrincipal(ctx.config, ctx.headers['authorization']);
-    if (listPrincipal) {
-      const query = parseOperationsListQuery(ctx.searchParams);
-      const scope = authorizeAuditTenantRead(listPrincipal, query.tenantId ?? '');
-      return {
-        status: 200,
-        body: await listOperationsPage(ctx, query, scope === '' ? null : scope, toOperationDetailWire),
-      };
-    }
-    const apiKey = await resolveApiKey(ctx);
-    const query = parseOperationsListQuery(ctx.searchParams);
-    // R24-01: on the public path the API KEY is the fence, never a query
-    // parameter — `tenant` is not a scope selector here, it is only honoured
-    // when it equals the key's own tenant (a foreign value 403s rather than
-    // being silently ignored, so no caller believes it widened its view).
-    if (query.tenantId !== null && query.tenantId !== apiKey.tenantId) {
-      throw new HttpError(403, 'PERMISSION_DENIED', 'admin reads are scoped to the caller tenant');
-    }
-    return {
-      status: 200,
-      body: await listOperationsPage(ctx, query, apiKey.tenantId, toOperationView),
-    };
-  }
-
-  // Public: GET /api/v1/operations/:id  (P2-08 facade, `?wait=<seconds>` long-poll)
-  // R24-01: the read is tenant-scoped BEFORE the poll starts and stays
-  // tenant-scoped on every 500 ms re-read inside waitForTerminal, so a
-  // foreign id 404s promptly (no timing leak, no wasted DB polling) and an
-  // operation that changes hands/is cancelled mid-poll re-fences per
-  // iteration. No post-poll tenant comparison is needed — or trusted.
-  {
-    const m = /^\/api\/v1\/operations\/([^/]+)$/.exec(pathname);
-    if (m && method === 'GET' && !pathname.endsWith('/result')) {
-      // ADM-BASE-01: admin bearer alternate path — the shell's detail
-      // fetcher GETs this same URL with the admin token. Admin gets the
-      // merged `{ operation, result, artifacts, serverNow }` envelope the
-      // fetcher parses (cross-tenant: it IS the admin console). The
-      // x-api-key path below is unchanged (tenant-fenced plain view).
-      // ADM-BASE-02: by-id admin detail is principal-aware. A tenant
-      // operator reaching a foreign operation gets the SAME 404 as a
-      // missing row (R24-01 precedent — no existence leak on by-id access);
-      // platform behavior unchanged.
-      const detailPrincipal = resolveAdminPrincipal(ctx.config, ctx.headers['authorization']);
-      if (detailPrincipal) {
-        if (detailPrincipal.role === 'tenant_operator') {
-          const op = await getFencedOperation(ctx, m[1]!, 'not found');
-          requireResourceTenant(detailPrincipal, String(op.tenant_id));
-          try {
-            return { status: 200, body: await buildAdminOperationDetail(ctx, m[1]!) };
-          } catch (err) {
-            // buildAdminOperationDetail performs a second read. A row deleted
-            // between the fenced read and this read must stay indistinguishable.
-            return throwFencedOperationNotFound(err, 'not found');
-          }
-        }
-        return { status: 200, body: await buildAdminOperationDetail(ctx, m[1]!) };
-      }
-      const apiKey = await resolveApiKey(ctx);
-      const waitParam = ctx.searchParams.get('wait');
-      const waitSeconds = waitParam ? parseInt(waitParam, 10) : 0;
-      const op = await waitForTerminal(
-        (id) => ctx.runtime.getTenantOperation(id, apiKey.tenantId),
-        m[1]!,
-        Number.isFinite(waitSeconds) ? waitSeconds : 0
-      );
-      return { status: 200, body: toOperationView(op) };
-    }
-  }
-
-  // Public: GET /api/v1/operations/:id/result  (P2-08 facade)
-  // CR-12/MM-02: the envelope now projects REAL artifact refs (never []):
-  // submission-declared inputs (top-level roles from `submit_artifacts`,
-  // persisted verbatim at submit) plus task-produced outputs (READY rows
-  // verified at completion time, purpose 'output'). `data` carries the worker's
-  // opaque resultRef verbatim (no envelope guessing); `download` is a
-  // relative public URL per ArtifactRefSchema — the GET below mints a real
-  // download for READY rows after a tenant-scoped check.
-  {
-    const m = /^\/api\/v1\/operations\/([^/]+)\/result$/.exec(pathname);
-    if (m && method === 'GET') {
-      const apiKey = await resolveApiKey(ctx);
-      const op = await getFencedOperation(ctx, m[1]!, 'operation not found');
-      if ((op.tenant_id as string) !== apiKey.tenantId) throw new HttpError(404, 'NOT_FOUND', 'operation not found');
-      // Legacy workflow operations carry user-derived results in an encrypted
-      // resultRef. Keep that projection bound to the API key/profile that
-      // admitted the immutable workflow snapshot, even when another key shares
-      // the same tenant.
-      if (typeof op.endpoint_slug === 'string' && op.endpoint_slug.startsWith('workflows:')
-          && String(op.api_key_id) !== apiKey.id) {
-        throw new HttpError(404, 'NOT_FOUND', 'operation not found');
-      }
-      const status = resultHttpStatus(op.state as string);
-      if (status !== 200) {
-        if (status === 410) {
-          throw new HttpError(410, 'GONE', `operation ${op.state as string} is expired`);
-        }
-        throw new HttpError(409, 'STATE_CONFLICT', `operation is ${op.state as string}, not SUCCEEDED`);
-      }
-      const arts = await ctx.db.query(
-        `SELECT a.id, a.purpose, a.mime_type, a.size_bytes, a.sha256, a.state,
-                COALESCE(o.submit_artifacts, '[]'::jsonb) AS submit_roles
-         FROM operations o
-         LEFT JOIN artifacts a
-           ON a.state = 'READY'
-          AND a.tenant_id = o.tenant_id
-          AND a.purpose IN ('input', 'output')
-          AND (
-            (a.operation_id = o.id AND a.purpose = 'output')
-            OR COALESCE(o.submit_artifacts, '[]'::jsonb) @>
-               jsonb_build_array(jsonb_build_object('artifactId', a.id::text))
-          )
-         WHERE o.id = $1`,
-        [m[1]!]
-      );
-      const submitRoles = new Map<string, string>();
-      for (const row of arts.rows as { submit_roles: unknown }[]) {
-        const declared = (row.submit_roles as { artifactId?: unknown; role?: unknown }[] | null) ?? [];
-        if (Array.isArray(declared)) {
-          for (const d of declared) {
-            if (typeof d?.artifactId === 'string' && typeof d?.role === 'string') {
-              submitRoles.set(d.artifactId, d.role);
-            }
-          }
-        }
-        break;
-      }
-      const artifacts = (arts.rows as {
-        id: string | null; purpose: string | null; mime_type: string | null;
-        size_bytes: number | string | null; sha256: string | null; state: string | null;
-      }[])
-        .filter((r) => r.id !== null)
-        .map((r) => ({
-          artifactId: r.id as string,
-          role: submitRoles.get(r.id as string) ?? r.purpose ?? 'output',
-          mimeType: r.mime_type ?? undefined,
-          sizeBytes: r.size_bytes === null ? undefined : Number(r.size_bytes),
-          hashSha256: r.sha256 ?? undefined,
-          download: `/api/v1/artifacts/${r.id as string}/download`,
-        }));
-      // ENCMETA-RESULTREF R1: the stored copy is sealed under the operation's
-      // own slot; open it here and project the SAME opaque string — the public
-      // wire shape does not change. No seam / legacy plaintext row → the
-      // historical verbatim value (the standard backfill-window convention).
-      const openedResultRef =
-        op.result_ref == null
-          ? undefined
-          : await (ctx.metadataReader ?? compatibilityMetadataReader(ctx.metadataCrypto)).readStoredText(
-              String(op.result_ref),
-              { tenantId: apiKey.tenantId, slot: 'operations.result_ref', refId: String(op.id) },
-            );
-      const plaintextResult = {
-        schemaVersion: '1',
-        data: openedResultRef ? { resultRef: openedResultRef } : {},
-        artifacts,
-        usage: await ctx.usage.project(m[1]!),
-        warnings: [],
-      };
-      // ENC-07: the tenant policy, not the caller, decides the wire shape. A
-      // client cannot ask for plaintext here, and a failed encryption is a
-      // 503 rather than a downgrade, so /result can never quietly serve
-      // plaintext under a tenant that switched encryption on.
-      const encrypted = await encryptedDeliveryBody(
-        ctx,
-        apiKey.tenantId,
-        Buffer.from(JSON.stringify(plaintextResult), 'utf8'),
-      );
-      if (encrypted) return { status: 200, body: encrypted.body };
-      return {
-        status: 200,
-        body: plaintextResult,
-      };
-    }
-  }
-
   // Public: GET /api/v1/artifacts/:id/download  (CR-12/MM-02)
   // Tenant-scoped download for published READY inputs/outputs. Unlike the
   // runtime blob route (grant-bearer, worker lane), this route is tenant-scoped
@@ -650,7 +438,7 @@ export async function handlePublicRoutes(ctx: RouteContext): Promise<RouteResult
     if (m && method === 'GET') {
       const apiKey = await resolveApiKey(ctx);
       const res = await ctx.db.query(
-        `SELECT a.state, a.mime_type, a.tenant_id, a.storage_key, a.upload_token, a.manifest_version_id
+        `SELECT a.state, a.mime_type, a.tenant_id, a.storage_key, a.storage_generation_id, a.upload_token, a.manifest_version_id, a.storage_version_id, a.sha256, a.size_bytes
          FROM artifacts a
          WHERE a.id = $1 AND a.tenant_id = $2
            AND a.purpose IN ('input', 'output')
@@ -658,21 +446,23 @@ export async function handlePublicRoutes(ctx: RouteContext): Promise<RouteResult
              (a.purpose = 'output' AND EXISTS (
                SELECT 1 FROM operations owner_op
                WHERE owner_op.id = a.operation_id
-                 AND owner_op.tenant_id = $2 AND owner_op.state = 'SUCCEEDED'
+                 AND owner_op.tenant_id = $2 AND owner_op.api_key_id = $3
+                 AND owner_op.deleted_at IS NULL AND owner_op.state = 'SUCCEEDED'
              ))
              OR EXISTS (
                SELECT 1 FROM operations ref_op
-               WHERE ref_op.tenant_id = $2 AND ref_op.state = 'SUCCEEDED'
+               WHERE ref_op.tenant_id = $2 AND ref_op.api_key_id = $3
+                 AND ref_op.deleted_at IS NULL AND ref_op.state = 'SUCCEEDED'
                  AND COALESCE(ref_op.submit_artifacts, '[]'::jsonb) @>
                      jsonb_build_array(jsonb_build_object('artifactId', a.id::text))
              )
            )`,
-        [m[1]!, apiKey.tenantId]
+        [m[1]!, apiKey.tenantId, apiKey.id]
       );
       if (!res.rowCount) throw new HttpError(404, 'NOT_FOUND', `artifact ${m[1]} not found`);
       const row = res.rows[0] as {
-        state: string; mime_type: string; tenant_id: string; storage_key: string;
-        upload_token: string | null; manifest_version_id: string | null;
+        state: string; mime_type: string; tenant_id: string; storage_key: string; storage_generation_id: string | null;
+        upload_token: string | null; manifest_version_id: string | null; storage_version_id: string | null; sha256: string | null; size_bytes: string | number | null;
       };
       if (row.state !== 'READY') {
         throw new HttpError(409, 'STATE_CONFLICT', `artifact ${m[1]} is ${row.state}, not READY`);
@@ -686,9 +476,13 @@ export async function handlePublicRoutes(ctx: RouteContext): Promise<RouteResult
             artifactId: m[1]!,
             tenantId: apiKey.tenantId,
             storageKey: row.storage_key,
+            storageGenerationId: row.storage_generation_id,
             uploadToken: row.upload_token,
             // RFX-05-residual: pin the sidecar generation the row committed.
             manifestVersionId: row.manifest_version_id,
+            storageVersionId: row.storage_version_id,
+            ciphertextSha256: row.sha256,
+            ciphertextSizeBytes: row.size_bytes === null ? null : Number(row.size_bytes),
           })
         : null;
       const stream = stored ? Readable.from([stored.bytes]) : await ctx.artifacts.getBlob(row.storage_key);
@@ -725,25 +519,107 @@ export async function handlePublicRoutes(ctx: RouteContext): Promise<RouteResult
     }
   }
 
-  // Public: POST /api/v1/operations/:id/cancel  (P2-06, idempotent, tenant-scoped)
-  {
-    const m = /^\/api\/v1\/operations\/([^/]+)\/cancel$/.exec(pathname);
-    if (m && method === 'POST') {
-      const apiKey = await resolveApiKey(ctx);
-      const result = await ctx.lifecycle.cancelOperation(m[1]!, apiKey.tenantId);
-      return { status: result.replayed ? 200 : 202, body: result };
-    }
-  }
-
-  // Public: POST /api/v1/operations/:id/resume  (W13-C item 4: tenant-scoped, CAS)
-  {
-    const m = /^\/api\/v1\/operations\/([^/]+)\/resume$/.exec(pathname);
-    if (m && method === 'POST') {
-      const apiKey = await resolveApiKey(ctx);
-      const result = await ctx.runtime.resumeOperation(m[1]!, apiKey.tenantId, ctx.body as never);
-      return { status: result.replayed ? 200 : 202, body: result };
-    }
-  }
-
   return null;
+}
+
+/** Canonical result projection after the caller authorizes the operation. */
+export async function buildOperationResult(ctx: RouteContext, op: Record<string, unknown>): Promise<RouteResult> {
+  const status = resultHttpStatus(op.state as string);
+  if (status !== 200) {
+    if (status === 410) {
+      throw new HttpError(410, 'GONE', `operation ${op.state as string} is expired`);
+    }
+    throw new HttpError(409, 'STATE_CONFLICT', `operation is ${op.state as string}, not SUCCEEDED`);
+  }
+  const arts = await ctx.db.query(
+    `SELECT a.id, a.purpose, a.mime_type, a.size_bytes, a.sha256, a.state,
+            COALESCE(o.submit_artifacts, '[]'::jsonb) AS submit_roles
+     FROM operations o
+     LEFT JOIN artifacts a
+       ON a.state = 'READY'
+      AND a.tenant_id = o.tenant_id
+      AND a.purpose IN ('input', 'output')
+      AND (
+        (a.operation_id = o.id AND a.purpose = 'output')
+        OR COALESCE(o.submit_artifacts, '[]'::jsonb) @>
+           jsonb_build_array(jsonb_build_object('artifactId', a.id::text))
+      )
+     WHERE o.id = $1`,
+    [String(op.id)]
+  );
+  const submitRoles = new Map<string, string>();
+  for (const row of arts.rows as { submit_roles: unknown }[]) {
+    const declared = (row.submit_roles as { artifactId?: unknown; role?: unknown }[] | null) ?? [];
+    if (Array.isArray(declared)) {
+      for (const d of declared) {
+        if (typeof d?.artifactId === 'string' && typeof d?.role === 'string') {
+          submitRoles.set(d.artifactId, d.role);
+        }
+      }
+    }
+    break;
+  }
+  const artifacts = (arts.rows as {
+    id: string | null; purpose: string | null; mime_type: string | null;
+    size_bytes: number | string | null; sha256: string | null; state: string | null;
+  }[])
+    .filter((r) => r.id !== null)
+    .map((r) => ({
+      artifactId: r.id as string,
+      role: submitRoles.get(r.id as string) ?? r.purpose ?? 'output',
+      mimeType: r.mime_type ?? undefined,
+      sizeBytes: r.size_bytes === null ? undefined : Number(r.size_bytes),
+      hashSha256: r.sha256 ?? undefined,
+      download: `/api/v1/artifacts/${r.id as string}/download`,
+    }));
+  // ENCMETA-RESULTREF R1: the stored copy is sealed under the operation's
+  // own slot; open it here and project the SAME opaque string — the public
+  // wire shape does not change. No seam / legacy plaintext row → the
+  // historical verbatim value (the standard backfill-window convention).
+  const openedResultRef =
+    op.result_ref == null
+      ? undefined
+      : await (ctx.metadataReader ?? compatibilityMetadataReader(ctx.metadataCrypto)).readStoredText(
+          String(op.result_ref),
+          { tenantId: String(op.tenant_id), slot: 'operations.result_ref', refId: String(op.id) },
+        );
+  const plaintextResult = {
+    schemaVersion: '1',
+    data: openedResultRef ? { resultRef: openedResultRef } : {},
+    artifacts,
+    usage: await ctx.usage.project(String(op.id)),
+    warnings: [],
+  };
+  // ENC-07: the tenant policy, not the caller, decides the wire shape. A
+  // client cannot ask for plaintext here, and a failed encryption is a
+  // 503 rather than a downgrade, so /result can never quietly serve
+  // plaintext under a tenant that switched encryption on.
+  const encrypted = await encryptedDeliveryBody(
+    ctx,
+    String(op.tenant_id),
+    Buffer.from(JSON.stringify(plaintextResult), 'utf8'),
+  );
+  if (encrypted) return { status: 200, body: encrypted.body };
+  return {
+    status: 200,
+    body: plaintextResult,
+  };
+}
+
+/** Output bytes for an already-authorized administrative operation. */
+export async function buildOperationDownload(ctx: RouteContext, op: Record<string, unknown>): Promise<RouteResult> {
+  if (op.state !== 'SUCCEEDED') throw new HttpError(409, 'STATE_CONFLICT', 'operation has not completed successfully');
+  const host = legacyCompatHost(ctx);
+  const tenantId = String(op.tenant_id);
+  const keyId = String(op.api_key_id ?? '');
+  const row = await host.loadOperation(String(op.id), tenantId, keyId);
+  if (!row) throw new HttpError(404, 'NOT_FOUND', 'not found');
+  const bytes = await host.loadOutputContent(String(op.id), tenantId, keyId);
+  if (!bytes) throw new HttpError(404, 'NOT_FOUND', 'operation output is unavailable');
+  const mimeType = row.outputFormat === 'html' ? 'text/html; charset=utf-8'
+    : row.outputFormat === 'json' ? 'application/json' : 'text/markdown; charset=utf-8';
+  const encrypted = await encryptedDeliveryBody(ctx, tenantId, bytes, { mimeType });
+  if (encrypted) return { status: 200, body: encrypted.body, headers: { 'content-type': 'application/json' } };
+  return { status: 200, raw: bytes, headers: { 'content-type': mimeType, 'content-length': String(bytes.length),
+    'content-disposition': 'attachment', 'x-content-type-options': 'nosniff' } };
 }

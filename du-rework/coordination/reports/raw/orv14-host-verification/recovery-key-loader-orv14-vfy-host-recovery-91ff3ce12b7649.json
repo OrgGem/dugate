@@ -1,0 +1,50 @@
+{
+  "schema": "orv14-host-protected-recovery-key-loader/v1",
+  "disposition": "PROTECTED_LOADER_INCOMPLETE_OR_FAILED",
+  "command": "/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node tests/workflow-api/orv14-vfy-host/verify-recovery-key-loader.mjs",
+  "cwd": "/workspace/dugate/du-rework",
+  "node": "v24.21.0",
+  "startedAt": "2026-10-11T23:39:47.049Z",
+  "completedAt": "2026-10-11T23:39:51.525Z",
+  "uid": 1000,
+  "gid": 1000,
+  "sourceHash": "2c8f8ccb6926475e7702e51118c1e2e3cfc08382e5f6ff8e81ff88933d72423f",
+  "helperHashes": {
+    "infrastructure": "b1541e6d71fa68c5679afb3fa44a89c96a34808c9dd4b7abbdb81de4522ccf44",
+    "verifier": "ce71fce6fe373601afa5050be28cd728077e08a1ffad4b906dbeb14c658fa962"
+  },
+  "scratchBuild": {
+    "command": "/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node /workspace/dugate/du-rework/orchestrator/node_modules/.pnpm/typescript@5.9.3/node_modules/typescript/bin/tsc /workspace/dugate/du-rework/orchestrator/services/orchestrator/src/modules/maintenance/recovery-key-file.ts --target ES2022 --module commonjs --moduleResolution node --strict --esModuleInterop --skipLibCheck --rootDir /workspace/dugate/du-rework/orchestrator/services/orchestrator/src/modules/maintenance --outDir /tmp/orv14-vfy-host-recovery-91ff3ce12b7649-Gmkv9Z/work/recovery-key-loader-build",
+    "exitCode": 2,
+    "outputDirectory": "/tmp/orv14-vfy-host-recovery-91ff3ce12b7649-Gmkv9Z/work/recovery-key-loader-build",
+    "outputUnderUniqueFixtureTemp": true,
+    "sharedDistModified": false
+  },
+  "rootFixtureImage": {
+    "reference": "postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea",
+    "imageId": "sha256:81bd698b4594e751a3269e4dcd3e03a4a0ec0daf7b72e7aa1abd43cce9887542"
+  },
+  "namespace": "orv14-vfy-host-recovery-91ff3ce12b7649",
+  "tests": {
+    "passed": 0,
+    "failed": 0,
+    "skipped": 0,
+    "cases": []
+  },
+  "cleanup": {
+    "projectId": "orv14-vfy-host-recovery-91ff3ce12b7649",
+    "removed": {
+      "containers": [],
+      "volumes": [],
+      "networks": []
+    },
+    "remaining": {
+      "containers": [],
+      "volumes": [],
+      "networks": []
+    },
+    "temporaryFixtureRemoved": true
+  },
+  "keyMaterialLogged": false,
+  "acceptance": "protected recovery-key loader slice only; no encrypted backup restore or full host continuity acceptance is claimed"
+}

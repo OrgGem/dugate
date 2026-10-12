@@ -97,7 +97,9 @@ describe('legacy mount — submit wire', () => {
     expect((r?.body as { name: string }).name).toBe('operations/op-1');
   });
 
-  it('answers 200 with no header when sync=true, even mid-flight', async () => {
+  it('answers 200 with no header when sync=true reaches its bounded timeout', async () => {
+    const priorBudget = process.env.SYNC_TIMEOUT_MS;
+    process.env.SYNC_TIMEOUT_MS = '1';
     const mp = multipart('extract', [['type', 'invoice']], [['file', 'PDF']]);
     const r = await handleLegacyRoute(
       req({
@@ -112,9 +114,22 @@ describe('legacy mount — submit wire', () => {
         loadOperation: async (id) => toLegacyRow(row({ id, state: 'RUNNING' })),
       }),
     );
+    if (priorBudget === undefined) delete process.env.SYNC_TIMEOUT_MS; else process.env.SYNC_TIMEOUT_MS = priorBudget;
     expect(r?.status).toBe(200);
     expect(r?.headers['Operation-Location']).toBeUndefined();
     expect((r?.body as { done: boolean }).done).toBe(false);
+  });
+
+  it('sync waits for the terminal row and returns its completed envelope', async () => {
+    let reads = 0;
+    const mp = multipart('ingest', [['mode', 'parse']], [['file', 'sample']]);
+    const r = await handleLegacyRoute(req({ method: 'POST', pathname: '/api/v1/docs/ingest', headers: mp.headers, bodyStream: mp.bodyStream, searchParams: new URLSearchParams('sync=true') }), host({
+      submitLegacy: async () => ({ operationId: 'op-1', replayed: false }),
+      loadOperation: async (id) => toLegacyRow(row({ id, state: ++reads < 2 ? 'RUNNING' : 'SUCCEEDED' })),
+    }));
+    expect(reads).toBe(2);
+    expect(r?.status).toBe(200);
+    expect(r?.body).toMatchObject({ done: true });
   });
 
   it('answers 200 on an idempotent replay', async () => {
@@ -332,85 +347,15 @@ describe('legacy mount — operations', () => {
     expect(r?.body).toMatchObject({ title: 'Operation Not Found', requested_id: 'op-1' });
   });
 
-  it('deletes with 204 and an empty body', async () => {
-    const r = await handleLegacyRoute(
-      req({ method: 'DELETE' }),
-      host({ softDeleteOperation: async () => true }),
-    );
-    expect(r?.status).toBe(204);
-    expect(r?.body).toEqual({});
-  });
-
-  it('404s a delete of an absent row', async () => {
-    const r = await handleLegacyRoute(
-      req({ method: 'DELETE' }),
-      host({ softDeleteOperation: async () => false }),
-    );
-    expect(r?.status).toBe(404);
-  });
-
-  it('lists with {operations, next_page_token} and a plain id token', async () => {
-    const r = await handleLegacyRoute(
-      req({ pathname: '/api/v1/operations' }),
-      host({
-        listLegacyOperations: async () => ({
-          rows: [toLegacyRow(row({ id: 'a' })), toLegacyRow(row({ id: 'b' }))],
-          hasMore: true,
-        }),
-      }),
-    );
-    expect(r?.status).toBe(200);
-    expect(r?.body).toMatchObject({ next_page_token: 'b' });
-    expect((r?.body as { operations: unknown[] }).operations).toHaveLength(2);
-  });
-
-  it('answers a bad state filter with {error}, not problem+json', async () => {
-    const r = await handleLegacyRoute(
-      req({ pathname: '/api/v1/operations', searchParams: new URLSearchParams('filter=state=NOPE') }),
-      host({ listLegacyOperations: async () => ({ rows: [], hasMore: false }) }),
-    );
-    expect(r?.status).toBe(400);
-    expect(r?.body).toEqual({ error: 'Invalid state filter. Must be one of: RUNNING, SUCCEEDED, FAILED, PENDING' });
-    expect(r?.body).not.toHaveProperty('type');
-  });
-
-  it('cancels with 200 and the envelope', async () => {
-    const r = await handleLegacyRoute(
-      req({ method: 'POST', pathname: '/api/v1/operations/op-1/cancel' }),
-      host({ cancelLegacy: async () => ({ ok: true, row: toLegacyRow(row({ state: 'CANCEL_REQUESTED' })) }) }),
-    );
-    expect(r?.status).toBe(200);
-    expect((r?.body as { metadata: { state: string } }).metadata.state).toBe('CANCEL_REQUESTED');
-  });
-
-  it('answers 409 already-done when cancelling a finished operation', async () => {
-    const r = await handleLegacyRoute(
-      req({ method: 'POST', pathname: '/api/v1/operations/op-1/cancel' }),
-      host({ cancelLegacy: async () => ({ ok: false, status: 409 }) }),
-    );
-    expect(r?.status).toBe(409);
-    expect(r?.body).toMatchObject({ title: 'Already Completed' });
-    expect((r?.body as { type: string }).type).toBe('https://dugate.vn/errors/already-completed');
-  });
-
-  it('resumes with {success,message}', async () => {
-    const r = await handleLegacyRoute(
-      req({ method: 'POST', pathname: '/api/v1/operations/op-1/resume' }),
-      host({ resumeLegacy: async () => ({ ok: true }) }),
-    );
-    expect(r?.status).toBe(200);
-    expect(r?.body).toEqual({ success: true, message: 'Resumed successfully' });
-  });
-
-  it('answers a bad resume with {error}, not problem+json', async () => {
-    const r = await handleLegacyRoute(
-      req({ method: 'POST', pathname: '/api/v1/operations/op-1/resume' }),
-      host({ resumeLegacy: async () => ({ ok: false, status: 400, state: 'RUNNING' }) }),
-    );
-    expect(r?.status).toBe(400);
-    expect(r?.body).toEqual({
-      error: 'Operation is in state RUNNING, cannot resume. Must be WAITING_USER_INPUT.',
-    });
+  it.each([
+    ['GET', '/api/v1/operations'], ['DELETE', '/api/v1/operations/op-1'],
+    ['POST', '/api/v1/operations/op-1/cancel'], ['POST', '/api/v1/operations/op-1/resume'],
+    ['POST', '/api/v1/operations/op-1/retry'], ['GET', '/api/v1/operations/op-1/result'],
+  ])('keeps %s %s internal without invoking management capabilities', async (method, pathname) => {
+    const mutate = jest.fn();
+    const response = await handleLegacyRoute(req({ method, pathname }), host({ cancelLegacy: mutate, resumeLegacy: mutate, softDeleteOperation: mutate, listLegacyOperations: mutate }));
+    expect(response?.status).toBe(404);
+    expect(mutate).not.toHaveBeenCalled();
   });
 
   it('409s a download of an unfinished operation', async () => {
@@ -463,15 +408,18 @@ describe('legacy mount — billing and discoverability', () => {
     });
   });
 
-  it('defaults the usage window to 30 days and echoes YYYY-MM-DD', async () => {
+  it('forwards the requested usage window and separates period cost from lifetime balance', async () => {
     const r = await handleLegacyRoute(
       req({ pathname: '/api/v1/billing/usage', searchParams: new URLSearchParams('start_date=2026-09-01&end_date=2026-09-30') }),
       host({
-        billingFor: async () => ({
-          name: 'k', spendingLimit: 0, totalUsed: 3,
+        billingFor: async (_key, window) => {
+          expect(window?.from.toISOString()).toBe('2026-09-01T00:00:00.000Z');
+          expect(window?.to.toISOString()).toBe('2026-09-30T23:59:59.000Z');
+          return ({
+          name: 'k', spendingLimit: 0, totalUsed: 100, periodCostUsd: 3,
           byModel: [{ model: 'gpt-x', promptTokens: 10, completionTokens: 20, pagesProcessed: 2, costUsd: 3 }],
           operationCount: 7,
-        }),
+        }); },
       }),
     );
     expect(r?.body).toMatchObject({
@@ -512,12 +460,12 @@ describe('legacy mount — billing and discoverability', () => {
 });
 
 describe('legacy mount — auth and error hygiene', () => {
-  it('answers 401 when the principal cannot be resolved', async () => {
+  it.each(['/api/v1/operations/op-1', '/api/v1/operations/op-1/download', '/api/v1/services', '/api/v1/billing/balance', '/api/v1/billing/usage'])('answers 401 when the principal cannot be resolved: %s', async (pathname) => {
     const r = await handleLegacyRoute(
-      req({ resolvePrincipal: async () => { throw new Error('no key'); } }),
+      req({ pathname, resolvePrincipal: async () => { throw new Error('no key'); } }),
       host(),
     );
-    expect(r?.status).toBe(500);
+    expect(r?.status).toBe(401);
   });
 
   it('never echoes a decoder or host error message into a 500', async () => {

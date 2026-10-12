@@ -1,0 +1,36 @@
+{
+  "name": "operations/fe446bcc-b3d2-4396-8bd4-a22e16dde135",
+  "done": true,
+  "metadata": {
+    "state": "SUCCEEDED",
+    "pipeline": [],
+    "current_step": 0,
+    "progress_percent": 0,
+    "progress_message": "Queued",
+    "create_time": "2026-10-11T16:35:06.329Z",
+    "update_time": "2026-10-11T16:35:06.378Z",
+    "pipeline_steps": []
+  },
+  "result": {
+    "output_format": "json",
+    "content": "{\"transformedText\":\"Welcome Global Corp to DU Gate.\",\"outputFormat\":\"text\",\"metadata\":{\"missingVariables\":[],\"method\":\"local_template_engine\"}}",
+    "extracted_data": {
+      "transformedText": "Welcome Global Corp to DU Gate.",
+      "outputFormat": "text",
+      "metadata": {
+        "missingVariables": [],
+        "method": "local_template_engine"
+      }
+    },
+    "pipeline_steps": [],
+    "usage": {
+      "input_tokens": null,
+      "output_tokens": null,
+      "pages_processed": null,
+      "model_used": null,
+      "cost_usd": null,
+      "breakdown": []
+    },
+    "download_url": "/api/v1/operations/fe446bcc-b3d2-4396-8bd4-a22e16dde135/download"
+  }
+}

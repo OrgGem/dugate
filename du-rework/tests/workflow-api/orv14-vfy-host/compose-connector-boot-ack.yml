@@ -1,0 +1,20 @@
+services:
+  pg:
+    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
+    environment:
+      POSTGRES_DB: orv14_connector_boot_ack
+      POSTGRES_USER: synthetic
+      POSTGRES_PASSWORD: synthetic
+    command: ["postgres", "-c", "cluster_name=orv14-connector-boot-ack-synthetic"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U synthetic -d orv14_connector_boot_ack"]
+      interval: 1s
+      timeout: 2s
+      retries: 30
+    ports:
+      - "127.0.0.1::5432"
+    tmpfs:
+      - /var/lib/postgresql/data:rw,noexec,nosuid,size=256m
+    labels:
+      com.du.verify.owner: orv14-vfy-host
+      com.du.verify.fixture: connector-boot-ack

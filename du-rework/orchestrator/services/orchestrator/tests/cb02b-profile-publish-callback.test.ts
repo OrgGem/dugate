@@ -22,7 +22,7 @@ function harness(stored: unknown = policy, hasPrevious = true) {
   const statements: Statement[] = [];
   const previous = {
     enabled: true, parameters: {}, job_priority: 'MEDIUM', allowed_file_extensions: '',
-    connections_override: [], file_url_auth_cipher: null, request_redaction: [], callback_policy: stored,
+    connections_override: [], file_url_auth_cipher: null, request_redaction: [], callback_policy: stored, endpoint_slug: 'extract:invoice',
   };
   const client = { query: async (sql: string, params: unknown[] = []) => {
     statements.push({ sql, params });
@@ -56,6 +56,15 @@ function harness(stored: unknown = policy, hasPrevious = true) {
 }
 
 describe('CB-02b profile publish callback write boundary', () => {
+  it('preserves the migrated subcase on revision and creates its author membership atomically', async () => {
+    const h = harness();
+    await h.publish();
+    const insert = h.statements.find(statement => statement.sql.includes('INSERT INTO profile_bindings'))!;
+    expect(insert.params[17]).toBe('extract:invoice');
+    const membership = h.statements.find(statement => statement.sql.includes('INSERT INTO profile_api_keys'))!;
+    expect(membership.params).toEqual([profileId, apiKeyId, tenantId]);
+    expect(membership.sql).toContain('DO NOTHING');
+  });
   it.each([undefined, {}, { callbackPolicy: undefined }])('absent callback inherits the previous revision', async (inputPolicy) => {
     const h = harness();
     await expect(h.publish(inputPolicy)).resolves.toMatchObject({ profileId, revision: 5 });
@@ -103,6 +112,6 @@ describe('CB-02b profile publish callback write boundary', () => {
     if (effective.mode !== 'pinned') throw new Error('Expected a pinned profile');
     expect(effective.policy.callbackPolicy).toEqual(policy);
     expect(h.statements[0]?.sql).toContain('p.callback_policy');
-    expect(h.statements[0]?.params).toEqual([apiKeyId, 'document-core', '1.0.0', 'extract']);
+    expect(h.statements[0]?.params).toEqual([apiKeyId, 'document-core', '1.0.0', 'extract', null]);
   });
 });

@@ -3,10 +3,16 @@ import {
   InvocationGrantClaimsSchema,
   InvocationRequestSchema,
   InvocationResponseSchema,
+  ProviderTestGrantClaimsSchema,
+  ProviderTestInvocationRequestSchema,
+  ProviderTestResultSchema,
   UsageEventSchema,
   type InvocationGrantClaims,
   type InvocationRequest,
   type InvocationResponse,
+  type ProviderTestGrantClaims,
+  type ProviderTestInvocationRequest,
+  type ProviderTestResult,
   type UsageEvent,
 } from '@du/contracts';
 import { ConnectorError, isRetryableErrorCode } from './errors';
@@ -27,6 +33,18 @@ export function parseContractGrantClaims(value: unknown): InvocationGrantClaims 
 
 export function parseContractUsageEvent(value: unknown): UsageEvent {
   return UsageEventSchema.parse(value);
+}
+
+export function parseProviderTestGrantClaims(value: unknown): ProviderTestGrantClaims {
+  return ProviderTestGrantClaimsSchema.parse(value);
+}
+
+export function parseProviderTestInvocationRequest(value: unknown): ProviderTestInvocationRequest {
+  return ProviderTestInvocationRequestSchema.parse(value);
+}
+
+export function parseProviderTestResult(value: unknown): ProviderTestResult {
+  return ProviderTestResultSchema.parse(value);
 }
 
 export function toContractInvocationRequest(request: LocalInvocationRequest, grant: string): InvocationRequest {
@@ -76,6 +94,7 @@ export function toContractInvocationResponse(
       ? {
         inputTokens: result.result.usage.inputTokens ?? 0,
         outputTokens: result.result.usage.outputTokens ?? 0,
+        cachedInputTokens: result.result.usage.cachedInputTokens,
         pages: result.result.usage.pages,
         costMicrousd: result.result.usage.costMicrousd ?? 0,
         measurement: result.result.usage.measurement,
@@ -114,6 +133,8 @@ export function localGrantClaimsFromContract(claims: InvocationGrantClaims): Gra
     allowedModel: claims.allowedModel ?? undefined,
     artifactIds: claims.artifactIds,
     artifactPins: claims.artifactPins,
+    costContext: claims.costContext,
+    workflowOverridesDigest: claims.workflowOverridesDigest,
   };
 }
 

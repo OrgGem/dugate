@@ -1,0 +1,33 @@
+ORV14 independent COST01 fixture preflight
+Observed UTC: 2026-10-12 00:46:36
+CWD: /workspace/dugate/du-rework
+Execution: read-only source and migration inventory; no Jest/API/DB behavior test run.
+Database: existing synthetic Compose project only; no schema created/modified by this preflight.
+
+Current source snapshot (SHA-256):
+7d7449f89ba235830b749e52bcc765477884e1737be45afd1ffa6e40f66d57f8  orchestrator/services/orchestrator/src/modules/cost-control/adjustments.ts
+29f178e2dbe58cff191671ed9cf3a4805b3dd1f5755027963a8d9f8fb36bae05  orchestrator/services/orchestrator/src/modules/usage/effective-charges.ts
+63716e464e10dcd8391e78bb127cf1e20ed4c61dd4a0201b8c3e8e13246858f1  orchestrator/services/orchestrator/src/modules/cost-control/reservation-groups.ts
+7e911ce82c91773a51b239a91ae599ad11f9e4a35319054541bbe98377af37f3  orchestrator/services/orchestrator/src/modules/usage/budget-reservations.ts
+b9bdd7f6eb0ae63f6fef2285966f30876194f7f6e9832904c56131f6074405e4  orchestrator/services/orchestrator/src/modules/usage/spend-admission.ts
+d98354ac7254cc6c1f36a3201fd982bb66af5e87d0fc12f748c5e7a138ef4290  orchestrator/services/orchestrator/src/modules/usage/usage.ts
+109ab863b1ff6b62d7161507cd63bf3ec3502736a57259e522828793bc9d6a9d  orchestrator/services/orchestrator/src/modules/admin-read/operations-metrics.ts
+842cb1bba9426230f413d86ccc1227e8c30fe6f236e587b3ca258062c4afa2cd  orchestrator/services/orchestrator/src/modules/maintenance/backup-effect-fence.ts
+00fafa246a9149caad2bfc0840cacc00193b93b082504eeb7e4e79f529407fad  orchestrator/services/orchestrator/migrations/0063_backup_effect_fences.sql
+7e0e33aff73afd019bcfabc57e8833bdbc9ca91a939e3c9f57d3f9bb76230070  orchestrator/services/orchestrator/migrations/0064_cost_financial_adjustments.sql
+28573d63f23e309209cb120d55d619f009196053ec9a16408b9e80d3ae210869  orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts
+70003e3247e0642392082c424907021eb7d677082efeccee98e62159f2855291  orchestrator/services/orchestrator/src/server.ts
+22b9196da7c21fbbb31dfc02fb25b8b205f2ff06f07d0f93bdd9205ec52029b7  orchestrator/services/orchestrator/src/http/route-context.ts
+2a1e58c73b8784bc6834b4b2563a0b9e8a5cf22415b05083ce0f7efb15453564  orchestrator/services/orchestrator/src/http/routes/internal-cost-adjustments.ts
+3f79e36f6b3d24d77695f010fe4c2f1e9a2c70f695d4586db4d8c5735d1dc25f  orchestrator/services/orchestrator/src/app/admin/bff/cost-control.ts
+029fc22599d504c582f2cb5f4f665a9adbec8955148cf9ee1235f398ca0982ad  orchestrator/services/orchestrator/src/app/admin/bff/handle.ts
+6c62b595990d7646f8cec6904a67fd8972305e565ba967bab098f3bd280e50c4  orchestrator/services/orchestrator/src/modules/cost-control/evidence-resolver.ts
+90ff5952ab0b605e0c4882f11495d33cb185617c1e7f0eae3c15f077ada904a3  orchestrator/packages/contracts/src/cost-adjustments.ts
+5517e43518e1cca4756956ae06e82efbac6c0aa77b6122cdb5c7e4fdbbfc9a06  orchestrator/apps/admin-web/src/lib/api/client.ts
+bd81854f760831be07f308f4ef10b2e4fe60cb97c5363e7d4045a1821dd8f5ca  orchestrator/apps/admin-web/src/features/usage/cost-adjustment-panel.tsx
+
+State observed: migration 0063 has the canonical normal-runner path and seeds singleton OPEN using INSERT ... ON CONFLICT DO NOTHING. The isolated normal `createApp({autoMigrate:true})` path is the intended way to initialize that row. Never insert/mock OPEN directly.
+
+State observed: `create-app.ts` creates the gate, but no `createCostAdjustmentService` wiring or `costAdjustments` context property was found; `server.ts` does not register `handleInternalCostAdjustmentRoutes`; the route/context files and service/migration/API surfaces are present but not yet reachable through normal app/BFF composition. This is a source-composition prerequisite, not a finance-behavior result. Source may be moving; this snapshot is provisional until exact owner handoff.
+
+No test assertions executed. Earlier finance behavior remains unverified. Continue only after Host 0063/gate freeze plus Backend normal route/bootstrap/BFF freeze and Usage mutation/projection freeze. Inject real createBackupSnapshotWriteGate() and `assertWriterCurrent` path; no gate bypass or manual OPEN-row seeding.

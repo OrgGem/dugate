@@ -1,3 +1,4 @@
+import { CORE_ENDPOINTS } from '../settings/endpoints';
 import { randomUUID } from 'node:crypto';
 import { PoolClient, QueryResult, QueryResultRow } from 'pg';
 import {
@@ -101,6 +102,7 @@ export interface EffectiveProfilePolicy {
   allowedFileExtensions: string;
   connectionsOverride: ConnectionStep[];
   fileUrlAuthConfig: FileUrlAuthConfig | null;
+  allowedOrigins?: string[];
   /** CB-02: stored callback policy, or null when none is configured. */
   callbackPolicy: ProfileCallbackPolicy | null;
 }
@@ -146,6 +148,7 @@ export interface CreateBindingInput {
   businessVersion: string;
   action: string;
   connectorBindings: unknown;
+  endpointSlug?: string;
   /**
    * T-PROF-02/04: the policy half of the revision. Absent fields carry
    * forward from the previous revision — the legacy admin route treated an
@@ -338,6 +341,7 @@ export function createProfileService(db: Db, options: CreateProfileServiceOption
       connections_override: unknown;
       file_url_auth_cipher: string | null;
       callback_policy?: unknown;
+      allowed_origins?: unknown;
     }
   ): EffectiveProfilePolicy => {
     const decrypted = decryptFileUrlAuthConfig(row.file_url_auth_cipher, cryptoEnv, warnLegacyPlaintext);
@@ -348,6 +352,7 @@ export function createProfileService(db: Db, options: CreateProfileServiceOption
       allowedFileExtensions: coerceAllowedFileExtensions(row.allowed_file_extensions),
       connectionsOverride: coerceConnectionsOverride(row.connections_override),
       fileUrlAuthConfig: decrypted?.config ?? null,
+      allowedOrigins: parseStoredCredentialAllowedOrigins(row.allowed_origins),
       callbackPolicy: parseStoredCallbackPolicy(row.callback_policy),
     };
   };
@@ -383,7 +388,8 @@ export function createProfileService(db: Db, options: CreateProfileServiceOption
     apiKeyId: string,
     businessId: string,
     businessVersion: string,
-    action: string
+    action: string,
+    endpointSlug?: string
   ) => {
     const hit = await c.query<
       PolicyRow & {
@@ -395,7 +401,7 @@ export function createProfileService(db: Db, options: CreateProfileServiceOption
     >(
       `SELECT p.profile_id, p.revision, p.connector_bindings,
               p.enabled, p.parameters, p.job_priority, p.allowed_file_extensions,
-              p.connections_override, p.file_url_auth_cipher, p.request_redaction, p.callback_policy,
+              p.connections_override, p.file_url_auth_cipher, p.request_redaction, p.callback_policy, p.allowed_origins,
               (SELECT n.profile_name FROM profile_names n WHERE n.profile_id = p.profile_id LIMIT 1) AS profile_name,
               a.moved_at
          FROM profile_active_revisions a
@@ -408,9 +414,10 @@ export function createProfileService(db: Db, options: CreateProfileServiceOption
            ON m.profile_id = p.profile_id AND m.api_key_id=$1
           AND m.state='ACTIVE' AND m.tenant_id = p.tenant_id
         WHERE p.business_id=$2 AND p.business_version=$3 AND p.action=$4
-        ORDER BY a.moved_at DESC, p.profile_id
+          AND (p.endpoint_slug IS NULL OR p.endpoint_slug=$5)
+        ORDER BY (p.endpoint_slug IS NOT NULL) DESC, a.moved_at DESC, p.profile_id
         LIMIT 1`,
-      [apiKeyId, businessId, businessVersion, action]
+      [apiKeyId, businessId, businessVersion, action, endpointSlug ?? null]
     );
     if (hit.rowCount) return hit.rows[0]!;
 
@@ -420,8 +427,9 @@ export function createProfileService(db: Db, options: CreateProfileServiceOption
       `SELECT 1 FROM profile_api_keys m
          JOIN profile_bindings p ON p.profile_id = m.profile_id
         WHERE m.api_key_id=$1 AND m.state='ACTIVE'
-          AND p.business_id=$2 AND p.business_version=$3 AND p.action=$4 LIMIT 1`,
-      [apiKeyId, businessId, businessVersion, action]
+          AND p.business_id=$2 AND p.business_version=$3 AND p.action=$4
+          AND (p.endpoint_slug IS NULL OR p.endpoint_slug=$5) LIMIT 1`,
+      [apiKeyId, businessId, businessVersion, action, endpointSlug ?? null]
     );
     if (orphan.rowCount) return 'pointer-missing' as const;
 
@@ -475,13 +483,15 @@ export function createProfileService(db: Db, options: CreateProfileServiceOption
         );
         const revision = (maxRes.rows[0]?.m ?? 0) + 1;
 
-        const prevRes = await c.query<PolicyRow>(
+        const prevRes = await c.query<PolicyRow & { endpoint_slug: string | null }>(
           `SELECT enabled, parameters, job_priority, allowed_file_extensions,
                   connections_override, file_url_auth_cipher, request_redaction, callback_policy,
-                  allowed_origins
+                  allowed_origins, endpoint_slug
              FROM profile_bindings WHERE profile_id=$1 AND revision=$2`,
           [profileId, revision - 1]
         );
+        if(input.endpointSlug !== undefined && (input.businessId !== 'document-core' || !CORE_ENDPOINTS.has(input.endpointSlug) || input.endpointSlug.split(':')[0] !== input.action)) throw new HttpError(422,'INVALID_SCHEMA','endpointSlug must be a supported core endpoint matching action');
+        if(prevRes.rows[0] && input.endpointSlug !== undefined && input.endpointSlug !== prevRes.rows[0].endpoint_slug) throw new HttpError(409,'STATE_CONFLICT','existing profile endpoint selector cannot be changed; create a dedicated profile');
         const policy = carryForwardPolicy(
           prevRes.rows[0],
           input.policy,
@@ -494,8 +504,8 @@ export function createProfileService(db: Db, options: CreateProfileServiceOption
              (profile_id, revision, tenant_id, api_key_id, business_id, business_version, action,
               connector_bindings, enabled, parameters, job_priority, allowed_file_extensions,
               file_url_auth_cipher, connections_override, request_redaction, callback_policy,
-              allowed_origins)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+              allowed_origins, endpoint_slug)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
           [
             profileId,
             revision,
@@ -514,11 +524,19 @@ export function createProfileService(db: Db, options: CreateProfileServiceOption
             JSON.stringify(policy.requestRedaction),
             policy.callbackPolicy === null ? null : JSON.stringify(policy.callbackPolicy),
             JSON.stringify(policy.allowedOrigins),
+            input.endpointSlug ?? prevRes.rows[0]?.endpoint_slug ?? null,
           ]
         );
 
         // T-DB-02 invariant #1 — SAME transaction, not "sometime after".
         await pinActiveRevision(c, profileId, revision);
+        // A binding created through the admin API must be resolvable immediately.
+        // Existing explicit revocations stay revoked; membership restore is a separate action.
+        await c.query(
+          `INSERT INTO profile_api_keys (profile_id, api_key_id, tenant_id, state)
+           VALUES ($1,$2,$3,'ACTIVE') ON CONFLICT (profile_id, api_key_id) DO NOTHING`,
+          [profileId, key.id, key.tenant_id],
+        );
 
         return { profileId, revision, tenantId: key.tenant_id, apiKeyId: key.id };
       };
@@ -532,9 +550,10 @@ export function createProfileService(db: Db, options: CreateProfileServiceOption
       apiKeyId: string,
       businessId: string,
       businessVersion: string,
-      action: string
+      action: string,
+      endpointSlug?: string
     ): Promise<BindingResolution> {
-      const row = await selectActiveRow(db, apiKeyId, businessId, businessVersion, action);
+      const row = await selectActiveRow(db, apiKeyId, businessId, businessVersion, action, endpointSlug);
       if (row === 'legacy') return { mode: 'legacy' };
       if (row === 'pointer-missing') {
         // Invariant #3: never fall back to MAX(revision).
@@ -571,9 +590,10 @@ export function createProfileService(db: Db, options: CreateProfileServiceOption
       businessVersion: string,
       action: string,
       clientInput: Record<string, unknown> = {},
-      declaredKeys?: readonly string[]
+      declaredKeys?: readonly string[],
+      endpointSlug?: string
     ): Promise<EffectiveProfile> {
-      const row = await selectActiveRow(db, apiKeyId, businessId, businessVersion, action);
+      const row = await selectActiveRow(db, apiKeyId, businessId, businessVersion, action, endpointSlug);
       if (row === 'legacy') return { mode: 'legacy' };
       if (row === 'pointer-missing') {
         throw notFound(
@@ -586,6 +606,13 @@ export function createProfileService(db: Db, options: CreateProfileServiceOption
       }
 
       const policy = decodePolicy(row);
+      if (endpointSlug !== undefined) {
+        const aliases = Object.entries(policy.parameters).map(([key, value]) => [
+          key === 'action' && action === 'transform' ? 'variant' : key.replace(/_+([a-zA-Z0-9])/g, (_match, letter: string) => letter.toUpperCase()), value,
+        ] as const);
+        if (new Set(aliases.map(([key]) => key)).size !== aliases.length) throw new HttpError(422, 'INVALID_SCHEMA', 'Legacy profile has conflicting parameter aliases');
+        policy.parameters = Object.fromEntries(aliases);
+      }
       if (!policy.enabled) {
         // Fail closed: a disabled profile admits nothing, not even a zero-row
         // operation, so an operator's "turn this off" is immediate.

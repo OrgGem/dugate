@@ -1,0 +1,11 @@
+{
+  "composeProject": "orv14-vfy-20261011-a1",
+  "postgresHostPort": 25414,
+  "redisHostPort": 26414,
+  "postgresSchema": "created uniquely at test startup and dropped by exact name at cleanup",
+  "redis": "test isolation allocates a random DB index and per-run Redis/key/queue prefixes; no FLUSHDB or global key deletion",
+  "minio": "new uniquely labeled ephemeral container, loopback dynamic port, unique versioned bucket, tmpfs-only data, synthetic per-run credentials",
+  "test": "one previously-red browser workflow upload case only",
+  "foreignResources": "untouched",
+  "composeStack": "left running"
+}

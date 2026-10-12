@@ -23,9 +23,9 @@ def main():
     spec = json.load(io.open(parser.parse_args().spec, encoding="utf-8"))
     assert spec.get("openapi") == "3.0.3", "openapi version"
     paths = spec.get("paths", {})
-    need = ["/api/v1/businesses/{id}/actions/{action}", "/api/v1/operations",
-            "/api/v1/operations/{id}", "/api/v1/operations/{id}/result",
-            "/api/v1/operations/{id}/cancel", "/api/v1/operations/{id}/resume",
+    need = ["/api/v1/businesses/{id}/actions/{action}", "/api/internal/operations",
+            "/api/v1/operations/{id}", "/api/internal/operations/{id}/result",
+            "/api/internal/operations/{id}/cancel", "/api/internal/operations/{id}/resume",
             "/api/v1/usage/summary", "/api/v1/connectors/{id}/test",
             "/api/v1/admin/businesses/{id}/versions/{version}/enable",
             "/api/v1/admin/businesses/{id}/versions/{version}/activate",
@@ -40,6 +40,20 @@ def main():
             "/api/runtime/v1/artifacts/{id}/finalize",
             "/api/runtime/v1/artifacts/{id}/access",
             "/invocations", "/health/ready"]
+    need += ['/api/v1/operations/{id}/download','/api/v1/admin/settings','/api/v1/admin/legacy-migration/readiness','/api/internal/operations/{id}/deliveries']
+    need += ['/api/internal/usage/events', '/admin/api/usage/events',
+             '/api/internal/compose/catalog', '/api/internal/compose/previews',
+             '/api/internal/compose/jobs', '/api/internal/compose/jobs/{jobId}',
+             '/api/internal/compose/runner/snapshot', '/api/internal/compose/runner/claim',
+             '/api/internal/compose/runner/start', '/api/internal/compose/runner/complete',
+             '/api/internal/compose/runner/reconcile', '/api/internal/compose/runner/jobs/{jobId}',
+             '/admin/api/compose/catalog', '/admin/api/compose/previews',
+             '/admin/api/compose/jobs', '/admin/api/compose/jobs/{jobId}']
+    for retired in ['/api/v1/operations','/api/v1/operations/{id}/result','/api/v1/operations/{id}/cancel','/api/v1/operations/{id}/resume','/api/v1/operations/{id}/retry']:
+        assert retired not in paths, 'retired public management route republished: ' + retired
+    for retrieval in ['/api/v1/operations/{id}','/api/v1/operations/{id}/download']:
+        assert set(paths[retrieval]).issuperset({'get'}), 'public result retrieval GET missing'
+        assert not ({'post','put','patch','delete'} & set(paths[retrieval])), 'public result retrieval gained mutation'
     missing = [p for p in need if p not in paths]
     assert not missing, "missing paths: %s" % missing
     for workflow_path, selector in [('/api/v1/docs/workflows', 'process'),
@@ -69,6 +83,35 @@ def main():
     assert 'x-planned-request-schema' not in create, 'obsolete unreachable-create marker'
     assert {'401', '403', '404', '405', '413', '422', '503'}.issubset(create['responses']), 'create error/availability contract drifted'
     assert any(p['name'] == 'x-csrf-token' and p.get('required') for p in create['parameters']), 'mutation CSRF missing'
+    # BASIC_ADMIN_USAGE_V1 is a bounded, separate projection. Its nullable
+    # absent provenance must not replace or weaken the rich public COST page.
+    schemas = spec['components']['schemas']
+    for name in ['AdminUsageEventRecord', 'AdminUsageEventPage', 'AdminUsageEventQuery', 'ComposeCatalog',
+                 'ComposePreview', 'ComposeJob', 'ComposeJobPage', 'ComposeJobSubmission',
+                 'ComposeRunnerSnapshotRequest', 'ComposeRunnerStartRequest',
+                 'ComposeRunnerCompleteRequest', 'ComposeRunnerReconcileRequest']:
+        assert name in schemas, 'missing BASIC_ADMIN_USAGE_V1/Compose schema: ' + name
+    assert sorted(schemas['AdminUsageEventRecord']['properties']) == [
+        'costMicrousd', 'costStatus', 'eventId', 'invocationId', 'measurement', 'model',
+        'occurredAt', 'operationId', 'provider', 'receivedAt', 'taskId', 'units']
+    assert schemas['AdminUsageEventRecord']['properties']['costMicrousd']['nullable'] is True
+    assert schemas['AdminUsageEventRecord']['properties']['costStatus']['nullable'] is True
+    assert schemas['AdminUsageEventPage']['properties']['timeSemantics']['properties']['field']['enum'] == ['receivedAt']
+    assert paths['/api/v1/usage/events']['get']['responses']['200']['content']['application/json']['schema']['$ref'] == '#/components/schemas/UsageEventExportPage'
+    assert paths['/api/internal/usage/events']['get']['responses']['200']['content']['application/json']['schema']['$ref'] == '#/components/schemas/AdminUsageEventPage'
+    for path in ['/admin/api/usage/events', '/admin/api/compose/catalog', '/admin/api/compose/previews',
+                 '/admin/api/compose/jobs', '/admin/api/compose/jobs/{jobId}']:
+        assert path in paths, 'missing Admin BFF route: ' + path
+        for operation in paths[path].values():
+            assert operation['security'] == [{'PortalSession': []}], 'Admin BFF must use the Portal session: ' + path
+    for path in ['/api/internal/compose/runner/snapshot', '/api/internal/compose/runner/claim',
+                 '/api/internal/compose/runner/start', '/api/internal/compose/runner/complete',
+                 '/api/internal/compose/runner/reconcile', '/api/internal/compose/runner/jobs/{jobId}']:
+        for operation in paths[path].values():
+            assert operation['security'] == [{'ComposeRunnerBearer': []}], 'runner auth must stay host scoped: ' + path
+    assert not any(path.startswith('/admin/api/compose/runner') for path in paths), 'runner API must not be proxied via BFF'
+    for retrieval in ['/api/v1/operations/{id}', '/api/v1/operations/{id}/download']:
+        assert set(paths[retrieval]) == {'get'}, 'public legacy result API gained an unsupported method'
     for path in ['/admin/api/secrets', '/admin/api/secrets/{secretId}/rotate',
                  '/admin/api/secrets/{secretId}/disable', '/admin/api/secrets/{secretId}/test']:
         assert path in paths, 'missing BFF route: ' + path

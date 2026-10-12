@@ -1,0 +1,11 @@
+{
+  "route": "POST /admin/api/compose/previews",
+  "status": 409,
+  "body": {
+    "type": "urn:du:error:target_busy",
+    "title": "The admin API rejected the request",
+    "status": 409,
+    "code": "TARGET_BUSY",
+    "correlationId": "1f0c9060-63f0-4004-a862-4e129f1e630f"
+  }
+}

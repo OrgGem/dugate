@@ -1,0 +1,1 @@
+Error: Stream isn't writeable and enableOfflineQueue options is false

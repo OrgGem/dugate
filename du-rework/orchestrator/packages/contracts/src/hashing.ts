@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { canonicalize } from './manifest-validator';
+import type { ConnectorWorkflowOverrides } from './connector';
 
 /**
  * Canonical request hashing (docs 06 idempotency, P1 required tests).
@@ -71,25 +72,60 @@ export interface InvocationInputHashParts {
   bindingSlot: string;
   input: unknown;
   options?: unknown;
+  /** Additive compiled recipe override. Omission preserves legacy hashes. */
+  workflowOverrides?: ConnectorWorkflowOverrides;
   sessionRef?: string | null;
   deadlineAt: string;
+  /** Separate signed domain for connector-managed probe invocations. Omission
+   * preserves canonical hashes for every ordinary invocation. */
+  purpose?: 'admin-provider-test';
 }
 
 export function hashInvocationInput(value: InvocationInputHashParts): string {
+  const canonicalPayload: Record<string, unknown> = {
+    contractVersion: value.contractVersion,
+    tenantId: value.tenantId,
+    operationId: value.operationId,
+    taskId: value.taskId,
+    stepKey: value.stepKey,
+    bindingSlot: value.bindingSlot,
+    input: value.input,
+    options: value.options ?? {},
+    sessionRef: value.sessionRef ?? null,
+    deadlineAt: value.deadlineAt,
+  };
+  if (value.workflowOverrides !== undefined) canonicalPayload.workflowOverrides = value.workflowOverrides;
+  if (value.purpose !== undefined) canonicalPayload.purpose = value.purpose;
   return `sha256:${createHash('sha256')
     .update(
-      canonicalize({
-        contractVersion: value.contractVersion,
-        tenantId: value.tenantId,
-        operationId: value.operationId,
-        taskId: value.taskId,
-        stepKey: value.stepKey,
-        bindingSlot: value.bindingSlot,
-        input: value.input,
-        options: value.options ?? {},
-        sessionRef: value.sessionRef ?? null,
-        deadlineAt: value.deadlineAt,
-      })
+      canonicalize(canonicalPayload)
     )
     .digest('hex')}`;
+}
+
+/** Signed grant binding for an admitted workflow recipe. The node identity is
+ * `stepKey`; recipeDigest binds the exact compiled schema-node revision. */
+export interface WorkflowOverridesDigestParts {
+  tenantId: string;
+  operationId: string;
+  taskId: string;
+  stepKey: string;
+  invocationId: string;
+  connectorId: string;
+  connectorRevision: number;
+  workflowOverrides: ConnectorWorkflowOverrides;
+}
+
+export function workflowOverridesDigest(parts: WorkflowOverridesDigestParts): string {
+  return createHash('sha256').update(canonicalize({
+    version: 1,
+    tenantId: parts.tenantId,
+    operationId: parts.operationId,
+    taskId: parts.taskId,
+    stepKey: parts.stepKey,
+    invocationId: parts.invocationId,
+    connectorId: parts.connectorId,
+    connectorRevision: parts.connectorRevision,
+    workflowOverrides: parts.workflowOverrides,
+  })).digest('hex');
 }

@@ -1,0 +1,38 @@
+{
+  "attempt": "08",
+  "cwd": "/workspace/dugate/du-rework",
+  "startedAtUtc": "2026-10-12T01:36:46.471894+00:00",
+  "command": [
+    "/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node",
+    "/workspace/dugate/du-rework/businesses/document-core/node_modules/jest/bin/jest.js",
+    "--config",
+    "tests/workflow-api/jest.config.cjs",
+    "--runInBand",
+    "--runTestsByPath",
+    "tests/workflow-api/orv14-vfy-core31.test.ts",
+    "--testNamePattern",
+    "configured Worker receives exact private HTTPS policy|parallel branch children|a resumed HITL workflow|tenant schema approval blocks|operator list and tenant pin intersect"
+  ],
+  "node": "/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node",
+  "nodeVersion": "v24.21.0",
+  "jest": "/workspace/dugate/du-rework/businesses/document-core/node_modules/jest/bin/jest.js",
+  "testNamePattern": "configured Worker receives exact private HTTPS policy|parallel branch children|a resumed HITL workflow|tenant schema approval blocks|operator list and tenant pin intersect",
+  "environment": {
+    "WFA_DATABASE_URL": "postgresql://orv14_vfy:<synthetic Compose password omitted>@127.0.0.1:25414/orv14_vfy",
+    "WFA_REDIS_URL": "redis://127.0.0.1:26414/2",
+    "NODE_PATH": "/workspace/dugate/du-rework/businesses/document-core/node_modules",
+    "NODE_EXTRA_CA_CERTS": "/workspace/dugate/du-rework/tests/workflow-api/orv14-vfy-worker/https-fixture/runner-trust-bundle.pem",
+    "ORV14_WORKER_E2E_RAW_DIR": "/workspace/dugate/du-rework/coordination/reports/raw/orv14-worker-e2e-verification/attempt-08",
+    "HTTP(S)_PROXY": "inherited unchanged"
+  },
+  "composeProject": "orv14-vfy-20261011-a1",
+  "sourceScope": "targeted corrected private HTTPS positives and tenant/operator policy fences; no whole-app freeze implied",
+  "createAppSourceSha256Before": "d4096d0b607610d8e6d6571e5a20c7d906aa3989a4225151a3c320b493e6820b",
+  "contractsSourceManifestSha256": "c6aff5e58e05f2cfaeb8d6d8ee441d7365e8340af479870afa7fae834b059831",
+  "contractsDistManifestSha256": "c8b95f0b902b6f05b92033cda8472ae5aa1806809b484668703efa49583fd9dc",
+  "dependencyInputs": {
+    "sha256": "4088fa9d9bcd9a2f9f349dbd3f67bcd6b2d82faf88ee9d6363c9e56b0a6c6633",
+    "files": 943,
+    "missing": []
+  }
+}

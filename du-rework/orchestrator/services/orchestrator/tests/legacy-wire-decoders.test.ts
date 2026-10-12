@@ -45,7 +45,7 @@ function expectDecodeCode(run: () => unknown, code: string): void {
 }
 
 describe('COMP-02 legacy wire decoders', () => {
-  it('normalizes each legacy core action discriminator into canonical variant', () => {
+  it('normalizes each legacy core action discriminator into the business discriminator', () => {
     const cases: Array<{ action: LegacyCoreAction; field: string; variant: string }> = [
       { action: 'ingest', field: 'mode', variant: 'ocr' },
       { action: 'extract', field: 'type', variant: 'id-card' },
@@ -61,7 +61,7 @@ describe('COMP-02 legacy wire decoders', () => {
       });
       expect(decoded.action).toBe(testCase.action);
       expect(decoded.variant).toBe(testCase.variant);
-      expect(decoded.submission.input).toMatchObject({ variant: testCase.variant, targetLanguage: 'vi' });
+      expect(decoded.submission.input).toMatchObject({ [testCase.field === 'action' ? 'variant' : testCase.field]: testCase.variant, targetLanguage: 'vi' });
       expect(decoded.presence.inputFields).toContain('targetLanguage');
     }
   });
@@ -81,7 +81,7 @@ describe('COMP-02 legacy wire decoders', () => {
       referenceData: '[{"claim":"x"}]',
       extractFields: 'summary',
       criteria: 'confirm dates',
-      variant: 'fact-check',
+      task: 'fact-check',
     });
   });
 
@@ -130,7 +130,7 @@ describe('COMP-02 legacy wire decoders', () => {
       query: { sync: 'true' },
     });
 
-    expect(decoded.submission.input).toEqual({ variant: 'rewrite', style: '' });
+    expect(decoded.submission.input).toEqual({ variant: 'rewrite', style: '', outputFormat: '' });
     expect(decoded.submission.output).toEqual({ format: '' });
     expect(decoded.submission.callback).toEqual({ url: '' });
     expect(decoded.idempotencyKey).toBe('');
@@ -171,7 +171,7 @@ describe('COMP-02 legacy wire decoders', () => {
       },
     });
 
-    expect(decoded.submission.input).toEqual({ variant: 'parse' });
+    expect(decoded.submission.input).toEqual({ mode: 'parse' });
     expect(decoded).not.toHaveProperty('idempotencyKey');
     expect(decoded).not.toHaveProperty('correlationId');
   });

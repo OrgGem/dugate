@@ -1,0 +1,233 @@
+Skip to content
+Orchestrator Portal
+10/11/2026, 4:27:59 PM UTC
+legacy:admin · Profile
+Logout
+System health: ok
+Database: Healthy
+Redis: Healthy
+Queue integrity: Unavailable
+Active leases: 0
+Outbox backlog: Unavailable
+Sampled 0s ago
+Health details
+ACTIVE TENANT
+ACTIVE
+WFA other tenant
+WFA worker tenant
+8f8ecd6e-54d7-47a1…
+
+Workspace
+
+Overview
+Operations
+Trace
+Usage
+
+Configuration
+
+Businesses
+Profiles
+Connectors
+Workflows
+
+Administration
+
+Audit
+Security
+Secrets
+Identity
+Settings
+
+Resources
+
+API Reference
+Documentation
+Bootstrap
+Profiles
+PAR-12 + PAR-13 slice
+Wire frozen (Phase-1 contract)
+Reads use the frozen shape {revision, currentValues, policy, manifest, capabilities:[{connectorId, capability}]}; writes ride /admin/api/profiles/… → dispatcher (profile.upsert/publish/rollback). Until T-API-02 lands the dispatcher answers 404 ACTION_NOT_FOUND and actions stay disabled — nothing is faked here.
+Profiles
+
+Catalog for the selected tenant. Active key count includes only active profile-to-key bindings; bound actions come from the active revision.
+
+Business filter
+All businesses
+lc-checker
+document-core
+Refresh
+Tenant scope:
+WFA worker tenant
+0 of 0 profiles loaded
+No profiles were found for this tenant and business filter.
+Create Profile
+
+Select a business service, version, and name to create a new profile from its manifest or load an existing profile.
+
+Global Tenant:
+WFA worker tenant
+ACTIVE
+Legacy endpoint (optional)
+Generic action profile
+ingest:parse
+ingest:ocr
+ingest:digitize
+ingest:split
+extract:invoice
+extract:contract
+extract:id-card
+extract:receipt
+extract:table
+extract:custom
+analyze:classify
+analyze:sentiment
+analyze:compliance
+analyze:fact-check
+analyze:quality
+analyze:risk
+analyze:summarize-eval
+transform:convert
+transform:translate
+transform:rewrite
+transform:redact
+transform:template
+generate:summary
+generate:outline
+generate:report
+generate:email
+generate:minutes
+generate:qa
+compare:diff
+compare:semantic
+compare:version
+Exact endpoint profiles override generic action profiles; the action row must match.
+Initial connector bindings
+
+Use the slot names required by the business manifest or workflow schema. Select a configured connector revision for every required slot. Manage connectors
+
+Select connector revision
+027c264b-4b70-4ee2-88f2-4fd286aa8d7e · revision 1
+12445775-8eb8-4740-b88e-2d92a6569ed1 · revision 1
+158eb2d3-8f50-4dac-b778-aca8ea4e84e7 · revision 1
+2898eeff-9f2f-47f6-8525-ce95dccf125f · revision 1
+3795c32f-95ef-4836-86d1-e1870a3e196e · revision 1
+6185ca97-2e80-43e7-8087-0c6d8e046033 · revision 1
+665ec533-a2c0-4eb8-a0da-9610b05c2013 · revision 1
+6ba217f9-6873-4172-b2ed-8b35ca00bef1 · revision 1
+7b2b64bf-1a87-41fe-8f03-dda2a4612017 · revision 1
+a985aa61-c1b4-4277-87ad-c22ff961db6e · revision 1
+b4ee7dd0-572a-4788-afc1-302948776622 · revision 1
+c6ead0be-9729-48a6-97a2-74a8a17d149e · revision 1
+e8ce6e1a-1783-4489-8903-4325a2e527d8 · revision 1
+ebc9e98c-6737-4321-8785-71154da2e9ea · revision 1
+ef3d3ac8-1f69-4130-9f23-029c0ea1025a · revision 1
+wfa-16a8c1c5-f3d2-4f43-bb0b-c907a9d73699 · revision 1
+wfa-3cd6dc82-135f-4547-b3b5-231095873768 · revision 1
+wfa-47625715-db03-4de5-aa7a-da1ef953ea7d · revision 1
+wfa-48cb1546-1c5a-411f-bc68-46ec4314971e · revision 1
+wfa-634e5f00-a154-4c26-99c7-06febeef3e75 · revision 1
+wfa-689f92b8-4cac-4be1-a4a9-022e82899c5d · revision 1
+wfa-6d4b1403-6330-4c7b-98a4-1176b4161611 · revision 1
+wfa-760fad34-8ac2-46e7-b156-6b7ab766d9d0 · revision 1
+wfa-8b371e46-e746-4655-a7fd-7be540e7705f · revision 1
+wfa-95533907-8791-47fc-a86d-38f089e21028 · revision 1
+wfa-966d3bae-3097-4dd6-8e73-b5ad229b8c16 · revision 1
+wfa-9d6a4f8a-c296-4b6f-8436-9505331784b2 · revision 1
+wfa-a397f3b5-bb47-4243-bf53-d6db72d313dc · revision 1
+wfa-ae332d96-8179-4d30-8b35-342ad466a69b · revision 1
+wfa-af6126ce-7c5c-4e86-8132-6019e89c2cb7 · revision 1
+wfa-b50f0280-7fda-4da0-8bcf-a31dd31022e2 · revision 1
+wfa-ccf6fc31-44d3-4d2a-8377-fa650446f9f4 · revision 1
+wfa-d3d5e476-d5c9-4c42-99ca-56ae6b4327ad · revision 1
+wfa-eece8758-5338-4b52-aee5-ef18352cbeae · revision 1
+wfa-f6fbf4c2-b019-4532-a1f5-886967cf969a · revision 1
+wfa-f73e9dac-87b1-4024-9889-23bcbbeb0394 · revision 1
+wfa-f8174681-cd20-462a-bbbe-e0c9283f94f2 · revision 1
+wfa-fe1d82be-f97e-4dfc-8ec1-77c751f9c35a · revision 1
+Remove slot
+Add connector slot
+Business Service
+lc-checker
+document-core
+Version
+1.1.0
+Profile Name
+API Key
+Key (c8ab0078...)
+Key (a8e2cd60...)
+Key (6c36ed9a...)
+Key (6bbc3f47...)
+Key (347aace6...)
+Create Profile
+Load Profile
+API keys
+
+Save this profile once - a profile that is not stored owns no keys.
+
+Profile
+Save complete: rows that succeeded are persisted.
+document-core@1.1.0 · ORV12 browser invoice
+Draft / New Profile (Revision 0)
+no capabilities reported
+Bulk save results (per row)
+extract: OK — saved (revision 1)
+Save Profile
+Publish
+Rollback to v1
+Test Endpoint
+Add endpoint row
+enabled
+
+Locked slots are display-only; the server rejects a locked field even when unchanged.
+
+Job priority
+LOW (queue 20)
+MEDIUM (queue 10)
+HIGH (queue 1)
+Allowed file extensions (CSV)
+Parameters
+
+No parameters in this policy.
+
+Connections override (ConnectionStep[])
+Add step
+Request input redaction
+
+Matches are masked before admins and operators receive request input. Processing uses the original input. No rules means input is visible. Logs always contain metadata only.
+
+Add redaction rule
+
+All matches are replaced. Use $1, $2 in the replacement to keep selected capture groups.
+
+Callback policy (CB-04)
+secrets stay server-side
+
+Delivery mode and outbound authentication for this profile's endpoint callbacks. Credentials are catalog secret references only — no literal secret is ever typed into or read from this form. Leaving the policy unchecked preserves the existing notification-only behavior.
+
+Configure a callback policy for this profile
+
+No callback policy is attached: the platform keeps the existing notification-only delivery (submission callback URL + HMAC signature).
+
+Remove row
+Save ingest
+fileUrlAuthConfig (write-only)
+write-only · snake_case
+
+Encrypted server-side (AES-256-GCM, T-PROF-04); the read wire never returns it. Fields below follow the frozen legacy shape and are sent only when touched — nothing is stored in the browser.
+
+type
+none
+bearer
+header
+query
+Prompt override (PAR-13, key-4)
+
+Upsert via prompt-override.upsert (dispatcher). Errors are shown honestly until the dispatcher case lands.
+
+active (off = delete)
+Apply prompt override
+Effective config preview
+requires backend
+
+Preview requires backend: the frozen read wire carries no effective field (coordinator decision #2), so the merged preview waits for a dedicated capability — no sample is synthesised.

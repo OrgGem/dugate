@@ -10,6 +10,7 @@ import {
   type RenewalDaemon,
   type RenewalDaemonOptions,
 } from './token-renewal';
+import { createVaultKv2HttpSecretWriter, type VaultKv2SecretWriter } from './writer';
 
 /**
  * SC-02 (SECRET-CATALOG-20261006) — one production factory that closes the
@@ -48,10 +49,13 @@ export interface ConnectorVaultRuntimeOptions {
 
 export interface ConnectorVaultRuntime {
   secretResolver: SecretResolver;
+  secretWriter: VaultKv2SecretWriter;
   daemon: RenewalDaemon;
   reader: VaultKv2SecretReader;
   /** Acquire the first lease; call before serving. */
   start(): Promise<void>;
+  /** Authenticate once for isolated restore reads, then cancel renewal work. */
+  startForRestoreProbe(): Promise<void>;
   stop(): void;
 }
 
@@ -79,15 +83,30 @@ export function createConnectorVaultRuntime(
     ...(options.maxResponseBytes === undefined ? {} : { maxResponseBytes: options.maxResponseBytes }),
   });
   const reader = createDaemonBackedVaultKv2Reader({ daemon, reader: httpReader });
+  const secretWriter = createVaultKv2HttpSecretWriter({
+    address: options.address,
+    ...(options.namespace === undefined ? {} : { namespace: options.namespace }),
+    allowedScopes: options.scopes,
+    daemon,
+    ...(options.fetchImpl === undefined ? {} : { fetchImpl: options.fetchImpl }),
+    ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
+    ...(options.maxResponseBytes === undefined ? {} : { maxResponseBytes: options.maxResponseBytes }),
+  });
   const secretResolver = new SecretResolver({
     kv2: reader,
     ...(options.retry === undefined ? {} : { retry: options.retry }),
   });
   return {
     secretResolver,
+    secretWriter,
     daemon,
     reader,
     start: () => daemon.start(),
+    startForRestoreProbe: async () => {
+      await daemon.start();
+      daemon.stop();
+      if (!daemon.current()) throw new Error('VAULT_UNAUTHENTICATED: restore probe reader unavailable');
+    },
     stop: () => daemon.stop(),
   };
 }

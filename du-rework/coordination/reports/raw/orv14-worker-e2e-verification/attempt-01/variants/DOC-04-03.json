@@ -1,0 +1,37 @@
+{
+  "name": "operations/2c5e7d89-e0d5-4ecb-8457-9bb7e0502a21",
+  "done": true,
+  "metadata": {
+    "state": "SUCCEEDED",
+    "pipeline": [],
+    "current_step": 0,
+    "progress_percent": 0,
+    "progress_message": "Queued",
+    "create_time": "2026-10-12T00:37:44.597Z",
+    "update_time": "2026-10-12T00:37:44.656Z",
+    "pipeline_steps": []
+  },
+  "result": {
+    "output_format": "json",
+    "content": "{\"transformedText\":\"High-level operational overview.\",\"outputFormat\":\"md\",\"metadata\":{\"style\":\"executive\",\"method\":\"llm_rewrite\",\"chunksCount\":1}}",
+    "extracted_data": {
+      "transformedText": "High-level operational overview.",
+      "outputFormat": "md",
+      "metadata": {
+        "style": "executive",
+        "method": "llm_rewrite",
+        "chunksCount": 1
+      }
+    },
+    "pipeline_steps": [],
+    "usage": {
+      "input_tokens": null,
+      "output_tokens": null,
+      "pages_processed": null,
+      "model_used": null,
+      "cost_usd": null,
+      "breakdown": []
+    },
+    "download_url": "/api/v1/operations/2c5e7d89-e0d5-4ecb-8457-9bb7e0502a21/download"
+  }
+}

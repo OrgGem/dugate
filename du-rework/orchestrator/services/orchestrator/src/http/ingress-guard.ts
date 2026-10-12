@@ -27,6 +27,10 @@ export function isPublicIngressAllowed(pathname: string): boolean {
   if (pathname === '/api/runtime' || pathname.startsWith('/api/runtime/')) return false;
   if (pathname === '/api/internal' || pathname.startsWith('/api/internal/')) return false;
 
+  if (pathname === '/api/v1/operations' || pathname === '/api/v1/operations/metrics') return false;
+  if (pathname.startsWith('/api/v1/operations/')
+      && !/^\/api\/v1\/operations\/[^/]+(?:\/download)?$/.test(pathname)) return false;
+
   // The public family only. Anything else is not a public surface.
   return pathname === '/api/v1' || pathname.startsWith('/api/v1/');
 }

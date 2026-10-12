@@ -1,0 +1,8 @@
+{
+  "stage": "tenant-ai-test",
+  "expectedConstraint": "selected tenant Connector revision must resolve ACTIVE through the boot-configured connectorBaseUrls mapping; test request uses the exact active Profile/API key pin",
+  "status": 200,
+  "code": "PROVIDER_TEST_UNKNOWN",
+  "correlationId": "22f5084b-d54c-40e9-b06b-51c006549690",
+  "fieldErrors": []
+}

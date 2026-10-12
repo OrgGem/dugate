@@ -47,6 +47,9 @@ export interface SessionRecord {
   createdAt: number;
   lastSeenAt: number;
   expiresAt: number;
+  /** Independent Cost Alerts directory pin; never an application auth grant. */
+  costAlertPrincipalId?: string;
+  costAlertAuthorizationVersion?: number;
 }
 
 export class SessionError extends Error {
@@ -86,6 +89,13 @@ export function createMemorySessionRepository(): SessionRepository & { size(): n
       map.set(expected.sessionId, touched);
       return { ...touched };
     },
+    async pinCostAlertRecipient(expected, principalId, authorizationVersion) {
+      const current = map.get(expected.sessionId);
+      if (current === undefined || !sameSessionGeneration(current, expected)) return null;
+      const updated: SessionRecord = { ...current, costAlertPrincipalId: principalId, costAlertAuthorizationVersion: authorizationVersion };
+      map.set(expected.sessionId, updated);
+      return { ...updated };
+    },
     async delete(id) {
       return map.delete(id);
     },
@@ -108,6 +118,8 @@ export interface SessionIdentity {
   sub: string;
   tenantId?: string | null;
   role: SessionRole;
+  costAlertPrincipalId?: string;
+  costAlertAuthorizationVersion?: number;
 }
 
 const ROLES: SessionRole[] = ['admin', 'operator', 'viewer'];
@@ -155,6 +167,17 @@ export function createSessionStore(opts: SessionStoreOptions) {
       throw new SessionError('invalid-identity', 'issuer and sub are required');
     }
     if (!ROLES.includes(identity.role)) throw new SessionError('invalid-role');
+    const hasAlertPrincipal = identity.costAlertPrincipalId !== undefined;
+    const hasAlertVersion = identity.costAlertAuthorizationVersion !== undefined;
+    if (hasAlertPrincipal !== hasAlertVersion || (hasAlertPrincipal && (
+      identity.role !== 'admin'
+      || (identity.tenantId ?? null) !== null
+      || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(identity.costAlertPrincipalId!)
+      || !Number.isSafeInteger(identity.costAlertAuthorizationVersion)
+      || Number(identity.costAlertAuthorizationVersion) < 1
+    ))) {
+      throw new SessionError('invalid-alert-recipient-pin');
+    }
     if (identity.role === 'operator' && !isValidNonEmpty(identity.tenantId ?? undefined)) {
       // Default deny: an operator session without a tenant could never be
       // mapped to a principal — refuse to mint it (SEC-02 map-must-exist).
@@ -167,6 +190,8 @@ export function createSessionStore(opts: SessionStoreOptions) {
       sub: identity.sub,
       tenantId: identity.tenantId ?? null,
       role: identity.role,
+      ...(identity.costAlertPrincipalId !== undefined ? { costAlertPrincipalId: identity.costAlertPrincipalId } : {}),
+      ...(identity.costAlertAuthorizationVersion !== undefined ? { costAlertAuthorizationVersion: identity.costAlertAuthorizationVersion } : {}),
       csrfToken: newOpaqueId(),
       createdAt: at,
       lastSeenAt: at,
@@ -202,6 +227,27 @@ export function createSessionStore(opts: SessionStoreOptions) {
 
   function get(sessionId: string): Promise<SessionRecord | null> {
     return coordinate(() => getUnlocked(sessionId));
+  }
+
+  async function pinCostAlertRecipient(
+    sessionId: string,
+    principalId: string,
+    authorizationVersion: number,
+  ): Promise<SessionRecord | null> {
+    if (!isValidSessionId(sessionId)
+      || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(principalId)
+      || !Number.isSafeInteger(authorizationVersion) || authorizationVersion < 1) return null;
+    return coordinate(async () => {
+      const current = await getUnlocked(sessionId);
+      if (!current || current.role !== 'admin' || current.tenantId !== null || current.issuer === 'du-local') return null;
+      if (current.costAlertPrincipalId !== undefined || current.costAlertAuthorizationVersion !== undefined) {
+        return current.costAlertPrincipalId === principalId
+          && current.costAlertAuthorizationVersion === authorizationVersion ? { ...current } : null;
+      }
+      if (!opts.repo.pinCostAlertRecipient) return null;
+      const pinned = await opts.repo.pinCostAlertRecipient(current, principalId, authorizationVersion);
+      return pinned ? { ...pinned } : null;
+    });
   }
 
   /**
@@ -269,7 +315,7 @@ export function createSessionStore(opts: SessionStoreOptions) {
     return coordinate(() => revokePrincipalUnlocked(issuer, sub));
   }
 
-  return { create, get, classify, rotate, destroy, revokePrincipal, config: { absoluteTtlMs, idleTtlMs } };
+  return { create, get, classify, rotate, destroy, revokePrincipal, pinCostAlertRecipient, config: { absoluteTtlMs, idleTtlMs } };
 }
 
 function sameSessionGeneration(current: SessionRecord | null, expected: SessionRecord): current is SessionRecord {
@@ -279,6 +325,8 @@ function sameSessionGeneration(current: SessionRecord | null, expected: SessionR
     current.sub === expected.sub &&
     current.tenantId === expected.tenantId &&
     current.role === expected.role &&
+    current.costAlertPrincipalId === expected.costAlertPrincipalId &&
+    current.costAlertAuthorizationVersion === expected.costAlertAuthorizationVersion &&
     current.csrfToken === expected.csrfToken &&
     current.createdAt === expected.createdAt &&
     current.expiresAt === expected.expiresAt;

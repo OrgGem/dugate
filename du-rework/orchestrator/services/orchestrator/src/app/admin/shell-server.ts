@@ -32,9 +32,10 @@ import { dispatchShellRequestAsync } from './shell-router';
 import { parseCookieSecurePolicy } from './oidc-boot';
 import type { OidcFlow } from './oidc-flow';
 import type { AdminSecurityAuditSink, AdminSessionStore } from '../../modules/admin-actions/rbac';
+import type { ProfileSelfService } from '../../modules/profiles/self-service';
 import type { ShellRuntimeConfig } from './shell-router';
 import { wrapTablesForReflow } from './shell-render';
-import { errorClassOf, safeTransportErrorText } from '../../http/errors';
+import { errorClassOf, isHttpError, safeTransportErrorText } from '../../http/errors';
 import type {
   AdminCookieClaims,
   AdminShellRequest,
@@ -80,6 +81,11 @@ export interface AdminShellHandle {
 
 /** Factory options. `port=0` picks an OS-assigned ephemeral port (test harness). */
 export interface CreateAdminShellServerOptions {
+  localAuth?: import('./local-auth-boot').LocalAdminAuth;
+  profileSelfService?: ProfileSelfService;
+  /** Counts the complete browser-tier request lifetime in service drain evidence. */
+  trackHttpRequest?: (method: string, pathname: string, response: ServerResponse) => Promise<void>;
+  tenantCredentialFor?: (tenantId: string) => string | undefined;
   port?: number;
   host?: string;
   cookieSecret: string;
@@ -198,7 +204,7 @@ async function writeResponseAsync(
 ): Promise<void> {
   res.statusCode = payload.status;
   for (const [k, v] of Object.entries(payload.headers)) {
-    res.setHeader(k, v);
+    res.setHeader(k, k.toLowerCase() === 'set-cookie' ? v.split(/,\s*(?=[A-Za-z0-9_-]+=)/) : v);
   }
   if (res.statusCode === 204 || res.statusCode === 302 || res.statusCode === 301) {
     res.end();
@@ -266,7 +272,7 @@ function writeResponse(res: ServerResponse, payload: AdminShellResponse, correla
   }
   res.statusCode = payload.status;
   for (const [k, v] of Object.entries(payload.headers)) {
-    res.setHeader(k, v);
+    res.setHeader(k, k.toLowerCase() === 'set-cookie' ? v.split(/,\s*(?=[A-Za-z0-9_-]+=)/) : v);
   }
   if (res.statusCode === 204 || res.statusCode === 302 || res.statusCode === 301) {
     res.end();
@@ -781,9 +787,11 @@ export function createAdminShellServer(
     adminToken: options.adminToken,
     jsonBaseUrl: options.jsonBaseUrl,
     tenantAdminTokens: options.tenantAdminTokens,
+    tenantCredentialFor: options.tenantCredentialFor,
     cookieMaxAgeSeconds: options.cookieMaxAgeSeconds,
     nowMs: options.nowMs,
     oidcFlow: options.oidcFlow,
+    localAuth: options.localAuth,
     oidcSessions: options.oidcSessions,
     cookiePolicy,
     securityAudit,
@@ -822,7 +830,9 @@ export function createAdminShellServer(
   const bffRuntime: BffRuntimeConfig = {
     adminToken: options.adminToken,
     tenantAdminTokens: options.tenantAdminTokens,
+    tenantCredentialFor: options.tenantCredentialFor,
     jsonBaseUrl: options.jsonBaseUrl,
+    profileSelfService: options.profileSelfService,
   };
 
   let lastRouteId = 'unknown';
@@ -835,6 +845,7 @@ export function createAdminShellServer(
       const qIdx = url.indexOf('?');
       const pathname = qIdx < 0 ? url : url.slice(0, qIdx);
       const query = qIdx < 0 ? '' : url.slice(qIdx + 1);
+      await options.trackHttpRequest?.(req.method ?? 'GET', pathname, res);
       if (adminWebMount && isBffPath(pathname)) {
         lastRouteId = 'admin-bff';
         const bffRequest = buildRequest(req, pathname, query, '');
@@ -892,6 +903,14 @@ export function createAdminShellServer(
       writeResponse(res, out.response, correlationId);
     } catch (err) {
       lastRouteId = 'error';
+      if (isHttpError(err)) {
+        res.statusCode = err.status;
+        res.setHeader('content-type', 'application/problem+json');
+        res.setHeader('cache-control', 'no-store');
+        res.setHeader('x-correlation-id', correlationId);
+        res.end(JSON.stringify(err.toProblem(correlationId)));
+        return;
+      }
       // W-ADMBASE03-ERR-1: the browser-tier boundary answers the SAME
       // contract as the JSON API (ADM-BASE-03): a stable code, fixed safe
       // copy and a correlationId — never the upstream text, the error
@@ -997,6 +1016,8 @@ export interface AdminShellAttachInput {
     /** OIDC-04: opaque-session IdP flow built by the platform
      *  (modules/auth/oidc-client + session-store + app/admin/oidc-flow). */
     adminOidcFlow?: OidcFlow;
+    adminLocalAuth?: import('./local-auth-boot').LocalAdminAuth;
+    adminTenantCredentialFor?: (tenantId: string) => string | undefined;
     /** OIDC-02/CYCLE-101: the session store the gate resolves du_session against. */
     adminSessionStore?: AdminSessionStore;
     /** AWEB-02: per-tenant admin bearers for the BFF tenant_operator path. */
@@ -1009,6 +1030,9 @@ export interface AdminShellAttachInput {
      */
     cookiePolicy?: ShellRuntimeConfig['cookiePolicy'];
   };
+  profileSelfService?: ProfileSelfService;
+  /** Counts the complete browser-tier request lifetime in service drain evidence. */
+  trackHttpRequest?: (method: string, pathname: string, response: ServerResponse) => Promise<void>;
 }
 
 export interface AdminShellAttachResult {
@@ -1032,8 +1056,12 @@ export async function attachAdminShell(
     cookiePolicy: input.config.cookiePolicy,
     jsonBaseUrl: input.config.jsonBaseUrl,
     oidcFlow: input.config.adminOidcFlow,
+    localAuth: input.config.adminLocalAuth,
     oidcSessions: input.config.adminSessionStore,
     tenantAdminTokens: input.config.tenantAdminTokens,
+    tenantCredentialFor: input.config.adminTenantCredentialFor,
+    profileSelfService: input.profileSelfService,
+    trackHttpRequest: input.trackHttpRequest,
   });
   await handle.listen();
   return { handle, url: handle.url };

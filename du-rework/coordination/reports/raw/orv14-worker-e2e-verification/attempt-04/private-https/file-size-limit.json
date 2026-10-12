@@ -1,0 +1,20 @@
+{
+  "operationId": "0830a769-5664-4f66-b34e-b1eee20f697e",
+  "state": "FAILED",
+  "errorCode": "LEGACY_WORKFLOW_FILE_TOO_LARGE",
+  "listenerEvents": [
+    {
+      "kind": "tls",
+      "listener": "san-match",
+      "sni": "172-26-91-253.sslip.io"
+    },
+    {
+      "kind": "request",
+      "listener": "san-match",
+      "method": "GET",
+      "path": "/oversize",
+      "host": "172-26-91-253.sslip.io:36461",
+      "sni": "172-26-91-253.sslip.io"
+    }
+  ]
+}

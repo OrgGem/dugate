@@ -1,0 +1,19 @@
+$ cd orchestrator/services/orchestrator && ./node_modules/.bin/jest --runInBand tests/orv14-workbench-owner.test.ts
+PASS tests/orv14-workbench-owner.test.ts
+  ORV14 workflow import and assigned Profile workbench
+    ✓ legacy XML converts full supported node and override fields into the validated schema (27 ms)
+    ✓ XML parser rejects DTD/entity expansion, unknown elements, and oversized input before mapping (23 ms)
+    ✓ JSON and XML binding checks reject cycles, dangling nodes, and cross-branch references (5 ms)
+    ✓ assigned Profile list returns only assignment-scoped safe inputs and never parameter credentials (3 ms)
+    ✓ assigned API-key discovery intersects current Profile and key assignments and returns safe paged addresses (2 ms)
+    ✓ assigned API-key route is limited to one profile UUID and rejects traversal
+    ✓ workflow pin canonical bytes include compiled connector recipe overrides only when admitted (1 ms)
+    ✓ guided node override edit preserves sibling schema fields and removes empty optional values (1 ms)
+    ✓ Admin Workbench recognizes trusted local USER only from opaque identity and checks current key plus profile grants (1 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       9 passed, 9 total
+Snapshots:   0 total
+Time:        2.997 s, estimated 3 s
+Ran all test suites matching /tests\/orv14-workbench-owner.test.ts/i.
+exit code: 0

@@ -1,0 +1,19 @@
+Owner validation record
+UTC: 2026-10-11 23:09:53 UTC
+Workspace: /workspace/dugate/du-rework
+Runtime: Node v24.21.0, linux x64 (/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node)
+
+Connector owner tests:
+Command: /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node orchestrator/services/connector/node_modules/jest/bin/jest.js --config orchestrator/services/connector/jest.config.cjs --runInBand orchestrator/services/connector/tests/orv14-*.test.ts
+Exit: 0; 6 suites, 28 tests passed.
+Raw output: connector-orv14-tests.log
+
+Connector TypeScript:
+Command: /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node orchestrator/services/connector/node_modules/typescript/bin/tsc --noEmit -p orchestrator/services/connector/tsconfig.json
+Exit: 0; no diagnostics.
+Raw output: connector-typecheck.log
+
+Whitespace check:
+Command: git diff --check -- orchestrator/services/connector orchestrator/packages/contracts/src/connector.ts orchestrator/packages/contracts/src/usage-metrics.ts
+Exit: 0; no diagnostics.
+Raw output: connector-diff-check.log

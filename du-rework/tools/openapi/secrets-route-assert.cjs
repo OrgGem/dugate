@@ -9,7 +9,7 @@ const { createRequire } = require('node:module');
 
 const bffRoot = path.resolve(__dirname, '../../orchestrator/services/orchestrator/src/app/admin/bff');
 const orchRoot = path.resolve(__dirname, '../../orchestrator/services/orchestrator/src');
-const localRequire = createRequire(path.join(orchRoot, '../../package.json'));
+const localRequire = createRequire(path.join(orchRoot, '../package.json'));
 const ts = localRequire('typescript');
 require.extensions['.ts'] = (module, filename) => {
   if (!filename.startsWith(orchRoot + path.sep)) throw new Error('Unexpected source: ' + filename);

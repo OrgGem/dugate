@@ -1,0 +1,11 @@
+{
+  "policyLogEvidence": [
+    {
+      "workerInstanceId": "wfa-private-https-54852aac-a6a3-4b49-a408-284502c8303d",
+      "digest": "sha256:f6dbc90921d2e6a2e9b24654e40995af31ab4e11dc025f3d41c4ef9717641420",
+      "originFieldPresent": false,
+      "mentionsFixtureHostname": false
+    }
+  ],
+  "workerExitCodes": []
+}

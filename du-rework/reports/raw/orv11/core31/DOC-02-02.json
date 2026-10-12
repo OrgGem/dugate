@@ -1,0 +1,36 @@
+{
+  "name": "operations/2b36dfcb-10b2-4d71-a24a-c4c45f392f88",
+  "done": true,
+  "metadata": {
+    "state": "SUCCEEDED",
+    "pipeline": [],
+    "current_step": 0,
+    "progress_percent": 0,
+    "progress_message": "Queued",
+    "create_time": "2026-10-11T16:35:03.960Z",
+    "update_time": "2026-10-11T16:35:04.088Z",
+    "pipeline_steps": []
+  },
+  "result": {
+    "output_format": "json",
+    "content": "{\"title\":\"Master Service Agreement\",\"parties\":[\"Party A\",\"Party B\"],\"effectiveDate\":\"2026-01-01\"}",
+    "extracted_data": {
+      "title": "Master Service Agreement",
+      "parties": [
+        "Party A",
+        "Party B"
+      ],
+      "effectiveDate": "2026-01-01"
+    },
+    "pipeline_steps": [],
+    "usage": {
+      "input_tokens": null,
+      "output_tokens": null,
+      "pages_processed": null,
+      "model_used": null,
+      "cost_usd": null,
+      "breakdown": []
+    },
+    "download_url": "/api/v1/operations/2b36dfcb-10b2-4d71-a24a-c4c45f392f88/download"
+  }
+}

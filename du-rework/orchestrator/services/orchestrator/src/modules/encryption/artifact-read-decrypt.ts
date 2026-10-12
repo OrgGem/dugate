@@ -23,6 +23,7 @@
  * existing object undecryptable, so it is asserted against the gateway rather
  * than duplicated by hand where it can drift.
  */
+import { createHash } from 'node:crypto';
 import { HttpError } from '../../http/errors';
 import { CryptoStorageError } from './crypto-storage-facade';
 import type {
@@ -54,9 +55,9 @@ export interface StoredObjectMetadata {
 /** One stored object plus the way to fetch its sidecar. */
 export interface StoredObjectReader {
   /** Head of the ciphertext object; `null` when the object does not exist. */
-  head(storageKey: string): Promise<StoredObjectMetadata | null>;
+  head(storageKey: string, versionId?: string): Promise<StoredObjectMetadata | null>;
   /** Raw stored bytes. Only called after the caller decided to read. */
-  read(storageKey: string): Promise<Buffer>;
+  read(storageKey: string, versionId?: string): Promise<Buffer>;
   /**
    * Sidecar JSON. When supplied, `versionId` pins the committed manifest
    * generation; `undefined` preserves legacy key-only reads for older rows.
@@ -70,15 +71,23 @@ export interface SealedArtifactRef {
   readonly artifactId: string;
   readonly tenantId: string;
   readonly storageKey: string;
+  /** Immutable storage backend generation recorded on the artifact row. */
+  readonly storageGenerationId?: string | null;
   /** `artifacts.upload_token` — the objectVersion the envelope is pinned to. */
   readonly uploadToken: string | null;
   /** `artifacts.manifest_version_id`; null/undefined retains legacy key-only reads. */
   readonly manifestVersionId?: string | null;
+  /** Trusted committed ciphertext facts from the artifacts row. */
+  readonly storageVersionId?: string | null;
+  readonly ciphertextSha256?: string | null;
+  readonly ciphertextSizeBytes?: number | null;
 }
 
 /** A reader that has no crypto configured at all. */
 export interface ArtifactDecryptDeps {
   readonly reader: StoredObjectReader;
+  /** Resolve the reader for the row's exact immutable storage generation. */
+  readonly readerForArtifact?: (input: { storageGenerationId: string }) => StoredObjectReader | Promise<StoredObjectReader>;
   /** Absent means the deployment stores plaintext; reads pass through. */
   readonly facade?: Pick<CryptoStorageFacade, 'decrypt' | 'decryptStream'>;
   /**
@@ -154,10 +163,31 @@ function decryptContext(ref: SealedArtifactRef): CryptoStorageContext {
   };
 }
 
-function parseManifest(manifest: unknown): EncryptedStorageObject | EncryptedStorageManifest {
+function parseManifest(manifest: unknown, ref: SealedArtifactRef, body: Buffer): EncryptedStorageObject | EncryptedStorageManifest {
   if (!isRecord(manifest)) {
     fail(503, 'STORAGE_FAILURE', 'encrypted artifact manifest is not an object');
   }
+  // Public gateway v1 sidecars are envelopes, while legacy worker sidecars
+  // are raw crypto manifests. A malformed envelope must never fall back to raw.
+  if ('encryption' in manifest || 'kind' in manifest || 'artifactId' in manifest) {
+    if (manifest.version !== 1 || !['single', 'chunked'].includes(String(manifest.kind))
+        || manifest.artifactId !== ref.artifactId || manifest.tenantId !== ref.tenantId
+        || manifest.objectVersion !== ref.uploadToken || !ref.uploadToken
+        || !ref.storageVersionId || ref.storageVersionId === 'null'
+        || !ref.manifestVersionId || ref.manifestVersionId === 'null'
+        || typeof ref.ciphertextSha256 !== 'string' || !/^[a-f0-9]{64}$/.test(ref.ciphertextSha256)
+        || !Number.isSafeInteger(ref.ciphertextSizeBytes) || Number(ref.ciphertextSizeBytes) < 0
+        || manifest.ciphertextSha256 !== ref.ciphertextSha256
+        || manifest.ciphertextSizeBytes !== ref.ciphertextSizeBytes
+        || body.length !== ref.ciphertextSizeBytes
+        || createHash('sha256').update(body).digest('hex') !== ref.ciphertextSha256
+        || !isRecord(manifest.encryption)
+        || (manifest.kind === 'chunked') !== ('chunks' in manifest.encryption)) {
+      fail(503, 'STORAGE_FAILURE', 'encrypted artifact envelope does not match the committed object');
+    }
+    manifest = manifest.encryption;
+  }
+  if (!isRecord(manifest)) fail(503, 'STORAGE_FAILURE', 'encrypted artifact manifest is invalid');
   // The gateway stores the full manifest for chunked objects and a projected
   // EncryptedStorageObject for single-shot. Discriminate on the field the
   // gateway itself uses, so a new shape is a fail-closed error, not a guess.
@@ -193,7 +223,11 @@ export async function decryptStoredArtifact(
   ref: SealedArtifactRef,
   ciphertext?: Buffer,
 ): Promise<DecryptOutcome> {
-  const metadata = await deps.reader.head(ref.storageKey);
+  const reader = ref.storageGenerationId
+    ? await deps.readerForArtifact?.({ storageGenerationId: ref.storageGenerationId })
+    : deps.reader;
+  if (!reader) fail(503, 'STORAGE_FAILURE', 'artifact storage generation reader is unavailable');
+  const metadata = await reader.head(ref.storageKey, ref.storageVersionId ?? undefined);
   if (!metadata) fail(404, 'NOT_FOUND', 'artifact object is missing from storage');
 
   const marker = metadata[ENCRYPTED_OBJECT_MARKER];
@@ -212,7 +246,7 @@ export async function decryptStoredArtifact(
     // Not sealed. The stored bytes ARE the payload, so pass them through. This
     // is the only branch that may return ciphertext-looking bytes, and it is
     // safe because the marker says they are not ciphertext.
-    const bytes = ciphertext ?? await deps.reader.read(ref.storageKey);
+    const bytes = ciphertext ?? await reader.read(ref.storageKey, ref.storageVersionId ?? undefined);
     return { bytes, decrypted: false };
   }
 
@@ -240,12 +274,13 @@ export async function decryptStoredArtifact(
     fail(503, 'STORAGE_FAILURE', 'encrypted artifact manifest pointer does not match the stored object');
   }
 
-  const manifest = parseManifest(await deps.reader.readManifest(
+  const storedManifest = await reader.readManifest(
     expectedManifestKey,
     ref.manifestVersionId ?? undefined,
-  ));
+  );
   const context = decryptContext(ref);
-  const body = ciphertext ?? await deps.reader.read(ref.storageKey);
+  const body = ciphertext ?? await reader.read(ref.storageKey, ref.storageVersionId ?? undefined);
+  const manifest = parseManifest(storedManifest, ref, body);
 
   try {
     if ('chunks' in manifest) {

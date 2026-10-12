@@ -29,6 +29,7 @@ import type {
   ArtifactStorageUploadGrant,
   ArtifactUploadGrantInput,
   ServerObjectWriteInput,
+  ServerObjectStreamWriteInput,
   StoredArtifactVersion,
   VerifyAndPinArtifactInput,
 } from './storage-facade';
@@ -312,6 +313,94 @@ export function createS3ArtifactStorageFacade(
       throw new ArtifactStorageError('OBJECT_VERSION_REQUIRED');
     }
     return { versionId };
+  };
+
+  const putServerObjectStream = async (
+    input: ServerObjectStreamWriteInput,
+  ): Promise<{ versionId: string | null }> => {
+    const Bucket = options.bucket;
+    if (!Bucket || !input.objectKey || !input.artifactId || !input.tenantId || !input.source
+      || !Number.isSafeInteger(input.contentLength) || input.contentLength < 1 || input.contentLength > MAX_S3_MULTIPART_OBJECT_BYTES) {
+      throw new ArtifactStorageError('INVALID_OBJECT_BODY');
+    }
+    const Metadata = { artifactid: input.artifactId, tenantid: input.tenantId, ...(input.metadata ? { ...input.metadata } : {}) };
+    if (input.contentLength <= MAX_SINGLE_PUT_BYTES) {
+      let versionId: string | undefined;
+      let total = 0;
+      const meter = new PassThrough();
+      input.source.on('data', (chunk: Buffer | string) => {
+        total += Buffer.isBuffer(chunk) ? chunk.byteLength : Buffer.byteLength(chunk);
+        if (total > input.contentLength) meter.destroy(new ArtifactStorageError('SIZE_MISMATCH'));
+      });
+      input.source.once('end', () => {
+        if (total !== input.contentLength) meter.destroy(new ArtifactStorageError('SIZE_MISMATCH'));
+      });
+      input.source.once('error', (error) => meter.destroy(error));
+      input.source.pipe(meter);
+      try {
+        const uploaded = await options.client.send(new PutObjectCommand({
+          Bucket,Key:input.objectKey,Body:meter,ContentLength:input.contentLength,ContentType:input.contentType,Metadata,
+        }));
+        versionId = uploaded.VersionId;
+      } catch {
+        throw new ArtifactStorageError('STORAGE_UNAVAILABLE');
+      }
+      if (!versionId || versionId === 'null') {
+        try { await options.client.send(new DeleteObjectCommand({ Bucket,Key:input.objectKey })); } catch { /* best effort */ }
+        throw new ArtifactStorageError('OBJECT_VERSION_REQUIRED');
+      }
+      return { versionId };
+    }
+
+    let uploadId: string | undefined;
+    let completed = false;
+    try {
+      const created = await options.client.send(new CreateMultipartUploadCommand({
+        Bucket,Key:input.objectKey,ContentType:input.contentType,Metadata,ChecksumAlgorithm:'SHA256',
+      }));
+      uploadId = created.UploadId;
+      if (!uploadId) throw new ArtifactStorageError('STORAGE_UNAVAILABLE');
+      const parts: Array<{ PartNumber:number; ETag:string; ChecksumSHA256:string }> = [];
+      let pending: Buffer<ArrayBufferLike> = Buffer.alloc(0);
+      let total = 0;
+      const uploadPart = async (body:Buffer, partNumber:number) => {
+        const checksum = createHash('sha256').update(body).digest('base64');
+        const output = await options.client.send(new UploadPartCommand({
+          Bucket,Key:input.objectKey,UploadId:uploadId!,PartNumber:partNumber,Body:body,
+          ContentLength:body.byteLength,ChecksumSHA256:checksum,
+        }));
+        if (!output.ETag) throw new ArtifactStorageError('STORAGE_UNAVAILABLE');
+        parts.push({PartNumber:partNumber,ETag:output.ETag,ChecksumSHA256:output.ChecksumSHA256 ?? checksum});
+      };
+      for await (const value of input.source) {
+        const chunk = Buffer.isBuffer(value) ? value : Buffer.from(value as Uint8Array);
+        total += chunk.byteLength;
+        if (total > input.contentLength) throw new ArtifactStorageError('SIZE_MISMATCH');
+        pending = pending.length ? Buffer.concat([pending,chunk]) : chunk;
+        while (pending.length >= DEFAULT_S3_MULTIPART_PART_BYTES) {
+          if (parts.length >= MAX_S3_MULTIPART_PARTS) throw new ArtifactStorageError('SIZE_MISMATCH');
+          const part = pending.subarray(0,DEFAULT_S3_MULTIPART_PART_BYTES);
+          pending = pending.subarray(DEFAULT_S3_MULTIPART_PART_BYTES);
+          await uploadPart(part,parts.length+1);
+        }
+      }
+      if (total !== input.contentLength) throw new ArtifactStorageError('SIZE_MISMATCH');
+      if (pending.length) await uploadPart(pending,parts.length+1);
+      if (!parts.length) throw new ArtifactStorageError('INVALID_OBJECT_BODY');
+      const output = await options.client.send(new CompleteMultipartUploadCommand({
+        Bucket,Key:input.objectKey,UploadId:uploadId,MultipartUpload:{Parts:parts},
+      }));
+      completed = true;
+      if (!output.VersionId || output.VersionId === 'null') throw new ArtifactStorageError('OBJECT_VERSION_REQUIRED');
+      return { versionId:output.VersionId };
+    } catch (error) {
+      if (uploadId && !completed) {
+        try { await options.client.send(new AbortMultipartUploadCommand({Bucket,Key:input.objectKey,UploadId:uploadId})); }
+        catch { /* the object remains unpinned and restore is reported unknown */ }
+      }
+      if (error instanceof ArtifactStorageError) throw error;
+      throw new ArtifactStorageError('STORAGE_UNAVAILABLE');
+    }
   };
 
   const openPinnedRead = async (
@@ -1007,6 +1096,7 @@ export function createS3ArtifactStorageFacade(
     openRead: openPinnedRead,
 
     putServerObject,
+    putServerObjectStream,
     readServerObject: readServerObjectBytes,
 
     async delete(version): Promise<void> {

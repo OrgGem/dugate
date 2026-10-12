@@ -1,0 +1,1427 @@
+{"subsystem":"api","timestamp":"2026-10-12T02:49:35.991Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"48f42506-b4c9-4718-a789-7d9d75496f04","operationId":null,"taskId":null,"invocationId":null,"message":"[REDACTED]"}
+{"subsystem":"admin-shell","timestamp":"2026-10-12T02:49:36.005Z","level":"info","service":"orchestrator","version":"unknown","environment":"test","correlationId":"66c03ab0-a816-4c4b-85ac-2baef1d6406a","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled"}
+{"subsystem":"admin-shell","timestamp":"2026-10-12T02:49:36.015Z","level":"info","service":"orchestrator","version":"unknown","environment":"test","correlationId":"52600388-7b9b-4ba2-958c-9dd5f868d84b","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled"}
+  console.warn
+    unknown format "uuid" ignored in schema at path "#/properties/artifacts/items/properties/artifactId"
+
+      619 |       const effectiveInput = profile.mode === 'pinned' ? profile.effectiveInput : ctx.input;
+      620 |       if (ctx.businessId === 'document-core') assertNoLegacyArtifactCount(effectiveInput);
+    > 621 |       const validate = ajv.compile(actionDef.inputSchema as object);
+          |                            ^
+      622 |       if (!validate(effectiveInput)) {
+      623 |         throw unprocessable('INVALID_SCHEMA', 'input failed action schema', {
+      624 |           errors: (validate.errors ?? []).slice(0, 50).map((error) => ({
+
+      at unknownFormat (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:84:23)
+      at validateFormat (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:75:9)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:40:10)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at applyPropertySchema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:45:11)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:32:9)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:122:11
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:614:67
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen._for (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:596:23)
+      at CodeGen.forRange (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:614:17)
+      at validateItems (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:121:9)
+      at validateArray (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:112:5)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/items.ts:17:25)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at applyPropertySchema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:45:11)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:32:9)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:100:5
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:61:45
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.func (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:719:24)
+      at validateFunction (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:60:9)
+      at topSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:94:3)
+      at validateFunctionCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:42:7)
+      at Ajv.compileSchema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/index.ts:163:25)
+      at Ajv._compileSchemaEnv (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/core.ts:738:24)
+      at Ajv.compile (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/core.ts:390:34)
+      at Object.preflightLegacyWorkflow (orchestrator/services/orchestrator/src/modules/operations/submission.ts:621:28)
+      at Object.submitLegacyWorkflow (orchestrator/services/orchestrator/src/compat/legacy-host-adapter.ts:205:7)
+      at handleLegacyRoute (orchestrator/services/orchestrator/src/compat/legacy-http-mount.ts:586:19)
+      at handlePublicRoutes (orchestrator/services/orchestrator/src/http/routes/public.ts:324:20)
+      at Object.route (orchestrator/services/orchestrator/src/server.ts:458:24)
+      at handleHttpRequest (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:1501:22)
+
+  console.warn
+    unknown format "uuid" ignored in schema at path "#/properties/artifacts/items/properties/artifactId"
+
+      619 |       const effectiveInput = profile.mode === 'pinned' ? profile.effectiveInput : ctx.input;
+      620 |       if (ctx.businessId === 'document-core') assertNoLegacyArtifactCount(effectiveInput);
+    > 621 |       const validate = ajv.compile(actionDef.inputSchema as object);
+          |                            ^
+      622 |       if (!validate(effectiveInput)) {
+      623 |         throw unprocessable('INVALID_SCHEMA', 'input failed action schema', {
+      624 |           errors: (validate.errors ?? []).slice(0, 50).map((error) => ({
+
+      at unknownFormat (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:84:23)
+      at validateFormat (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:75:9)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:40:10)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at applyPropertySchema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:45:11)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:32:9)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:122:11
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:614:67
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen._for (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:596:23)
+      at CodeGen.forRange (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:614:17)
+      at validateItems (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:121:9)
+      at validateArray (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:112:5)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/items.ts:17:25)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at applyPropertySchema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:45:11)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:32:9)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:100:5
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:61:45
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.func (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:719:24)
+      at validateFunction (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:60:9)
+      at topSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:94:3)
+      at validateFunctionCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:42:7)
+      at Ajv.compileSchema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/index.ts:163:25)
+      at Ajv._compileSchemaEnv (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/core.ts:738:24)
+      at Ajv.compile (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/core.ts:390:34)
+      at Object.preflightLegacyWorkflow (orchestrator/services/orchestrator/src/modules/operations/submission.ts:621:28)
+      at Object.submitLegacyWorkflow (orchestrator/services/orchestrator/src/compat/legacy-host-adapter.ts:205:7)
+      at handleLegacyRoute (orchestrator/services/orchestrator/src/compat/legacy-http-mount.ts:586:19)
+      at handlePublicRoutes (orchestrator/services/orchestrator/src/http/routes/public.ts:324:20)
+      at Object.route (orchestrator/services/orchestrator/src/server.ts:458:24)
+      at handleHttpRequest (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:1501:22)
+
+  console.warn
+    unknown format "uuid" ignored in schema at path "#/properties/artifactIds/items"
+
+      619 |       const effectiveInput = profile.mode === 'pinned' ? profile.effectiveInput : ctx.input;
+      620 |       if (ctx.businessId === 'document-core') assertNoLegacyArtifactCount(effectiveInput);
+    > 621 |       const validate = ajv.compile(actionDef.inputSchema as object);
+          |                            ^
+      622 |       if (!validate(effectiveInput)) {
+      623 |         throw unprocessable('INVALID_SCHEMA', 'input failed action schema', {
+      624 |           errors: (validate.errors ?? []).slice(0, 50).map((error) => ({
+
+      at unknownFormat (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:84:23)
+      at validateFormat (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:75:9)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:40:10)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:122:11
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:614:67
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen._for (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:596:23)
+      at CodeGen.forRange (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:614:17)
+      at validateItems (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:121:9)
+      at validateArray (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:112:5)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/items.ts:17:25)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at applyPropertySchema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:45:11)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:32:9)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:100:5
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:61:45
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.func (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:719:24)
+      at validateFunction (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:60:9)
+      at topSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:94:3)
+      at validateFunctionCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:42:7)
+      at Ajv.compileSchema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/index.ts:163:25)
+      at Ajv._compileSchemaEnv (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/core.ts:738:24)
+      at Ajv.compile (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/core.ts:390:34)
+      at Object.preflightLegacyWorkflow (orchestrator/services/orchestrator/src/modules/operations/submission.ts:621:28)
+      at Object.submitLegacyWorkflow (orchestrator/services/orchestrator/src/compat/legacy-host-adapter.ts:205:7)
+      at handleLegacyRoute (orchestrator/services/orchestrator/src/compat/legacy-http-mount.ts:586:19)
+      at handlePublicRoutes (orchestrator/services/orchestrator/src/http/routes/public.ts:324:20)
+      at Object.route (orchestrator/services/orchestrator/src/server.ts:458:24)
+      at handleHttpRequest (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:1501:22)
+
+  console.warn
+    unknown format "uuid" ignored in schema at path "#/properties/artifactIds/items"
+
+      619 |       const effectiveInput = profile.mode === 'pinned' ? profile.effectiveInput : ctx.input;
+      620 |       if (ctx.businessId === 'document-core') assertNoLegacyArtifactCount(effectiveInput);
+    > 621 |       const validate = ajv.compile(actionDef.inputSchema as object);
+          |                            ^
+      622 |       if (!validate(effectiveInput)) {
+      623 |         throw unprocessable('INVALID_SCHEMA', 'input failed action schema', {
+      624 |           errors: (validate.errors ?? []).slice(0, 50).map((error) => ({
+
+      at unknownFormat (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:84:23)
+      at validateFormat (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:75:9)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:40:10)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:122:11
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:614:67
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen._for (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:596:23)
+      at CodeGen.forRange (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:614:17)
+      at validateItems (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:121:9)
+      at validateArray (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:112:5)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/items.ts:17:25)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at applyPropertySchema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:45:11)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:32:9)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:100:5
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:61:45
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.func (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:719:24)
+      at validateFunction (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:60:9)
+      at topSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:94:3)
+      at validateFunctionCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:42:7)
+      at Ajv.compileSchema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/index.ts:163:25)
+      at Ajv._compileSchemaEnv (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/core.ts:738:24)
+      at Ajv.compile (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/core.ts:390:34)
+      at Object.preflightLegacyWorkflow (orchestrator/services/orchestrator/src/modules/operations/submission.ts:621:28)
+      at Object.submitLegacyWorkflow (orchestrator/services/orchestrator/src/compat/legacy-host-adapter.ts:205:7)
+      at handleLegacyRoute (orchestrator/services/orchestrator/src/compat/legacy-http-mount.ts:586:19)
+      at handlePublicRoutes (orchestrator/services/orchestrator/src/http/routes/public.ts:324:20)
+      at Object.route (orchestrator/services/orchestrator/src/server.ts:458:24)
+      at handleHttpRequest (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:1501:22)
+
+  console.warn
+    unknown format "uuid" ignored in schema at path "#/properties/artifacts/items/properties/artifactId"
+
+      821 |       // later. The two cases differ only when the client OMITTED a key, which
+      822 |       // is exactly the case where the default decides the outcome.
+    > 823 |       const validate = ajv.compile(actionDef.inputSchema as object);
+          |                            ^
+      824 |       if (!validate(effectiveInput)) {
+      825 |         throw unprocessable('INVALID_SCHEMA', 'input failed action schema', {
+      826 |           errors: (validate.errors ?? []).slice(0, 50).map((e) => ({
+
+      at unknownFormat (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:84:23)
+      at validateFormat (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:75:9)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:40:10)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at applyPropertySchema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:45:11)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:32:9)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:122:11
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:614:67
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen._for (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:596:23)
+      at CodeGen.forRange (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:614:17)
+      at validateItems (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:121:9)
+      at validateArray (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:112:5)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/items.ts:17:25)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at applyPropertySchema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:45:11)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:32:9)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:100:5
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:61:45
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.func (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:719:24)
+      at validateFunction (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:60:9)
+      at topSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:94:3)
+      at validateFunctionCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:42:7)
+      at Ajv.compileSchema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/index.ts:163:25)
+      at Ajv._compileSchemaEnv (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/core.ts:738:24)
+      at Ajv.compile (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/core.ts:390:34)
+      at Object.submit (orchestrator/services/orchestrator/src/modules/operations/submission.ts:823:28)
+      at Object.submitLegacyWorkflow (orchestrator/services/orchestrator/src/compat/legacy-host-adapter.ts:260:24)
+      at handleLegacyRoute (orchestrator/services/orchestrator/src/compat/legacy-http-mount.ts:586:19)
+      at handlePublicRoutes (orchestrator/services/orchestrator/src/http/routes/public.ts:324:20)
+      at Object.route (orchestrator/services/orchestrator/src/server.ts:458:24)
+      at handleHttpRequest (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:1501:22)
+
+  console.warn
+    unknown format "uuid" ignored in schema at path "#/properties/artifacts/items/properties/artifactId"
+
+      821 |       // later. The two cases differ only when the client OMITTED a key, which
+      822 |       // is exactly the case where the default decides the outcome.
+    > 823 |       const validate = ajv.compile(actionDef.inputSchema as object);
+          |                            ^
+      824 |       if (!validate(effectiveInput)) {
+      825 |         throw unprocessable('INVALID_SCHEMA', 'input failed action schema', {
+      826 |           errors: (validate.errors ?? []).slice(0, 50).map((e) => ({
+
+      at unknownFormat (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:84:23)
+      at validateFormat (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:75:9)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:40:10)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at applyPropertySchema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:45:11)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:32:9)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:122:11
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:614:67
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen._for (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:596:23)
+      at CodeGen.forRange (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:614:17)
+      at validateItems (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:121:9)
+      at validateArray (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:112:5)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/items.ts:17:25)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at applyPropertySchema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:45:11)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:32:9)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:100:5
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:61:45
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.func (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:719:24)
+      at validateFunction (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:60:9)
+      at topSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:94:3)
+      at validateFunctionCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:42:7)
+      at Ajv.compileSchema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/index.ts:163:25)
+      at Ajv._compileSchemaEnv (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/core.ts:738:24)
+      at Ajv.compile (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/core.ts:390:34)
+      at Object.submit (orchestrator/services/orchestrator/src/modules/operations/submission.ts:823:28)
+      at Object.submitLegacyWorkflow (orchestrator/services/orchestrator/src/compat/legacy-host-adapter.ts:260:24)
+      at handleLegacyRoute (orchestrator/services/orchestrator/src/compat/legacy-http-mount.ts:586:19)
+      at handlePublicRoutes (orchestrator/services/orchestrator/src/http/routes/public.ts:324:20)
+      at Object.route (orchestrator/services/orchestrator/src/server.ts:458:24)
+      at handleHttpRequest (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:1501:22)
+
+  console.warn
+    unknown format "uuid" ignored in schema at path "#/properties/artifactIds/items"
+
+      821 |       // later. The two cases differ only when the client OMITTED a key, which
+      822 |       // is exactly the case where the default decides the outcome.
+    > 823 |       const validate = ajv.compile(actionDef.inputSchema as object);
+          |                            ^
+      824 |       if (!validate(effectiveInput)) {
+      825 |         throw unprocessable('INVALID_SCHEMA', 'input failed action schema', {
+      826 |           errors: (validate.errors ?? []).slice(0, 50).map((e) => ({
+
+      at unknownFormat (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:84:23)
+      at validateFormat (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:75:9)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:40:10)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:122:11
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:614:67
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen._for (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:596:23)
+      at CodeGen.forRange (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:614:17)
+      at validateItems (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:121:9)
+      at validateArray (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:112:5)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/items.ts:17:25)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at applyPropertySchema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:45:11)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:32:9)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:100:5
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:61:45
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.func (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:719:24)
+      at validateFunction (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:60:9)
+      at topSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:94:3)
+      at validateFunctionCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:42:7)
+      at Ajv.compileSchema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/index.ts:163:25)
+      at Ajv._compileSchemaEnv (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/core.ts:738:24)
+      at Ajv.compile (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/core.ts:390:34)
+      at Object.submit (orchestrator/services/orchestrator/src/modules/operations/submission.ts:823:28)
+      at Object.submitLegacyWorkflow (orchestrator/services/orchestrator/src/compat/legacy-host-adapter.ts:260:24)
+      at handleLegacyRoute (orchestrator/services/orchestrator/src/compat/legacy-http-mount.ts:586:19)
+      at handlePublicRoutes (orchestrator/services/orchestrator/src/http/routes/public.ts:324:20)
+      at Object.route (orchestrator/services/orchestrator/src/server.ts:458:24)
+      at handleHttpRequest (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:1501:22)
+
+  console.warn
+    unknown format "uuid" ignored in schema at path "#/properties/artifactIds/items"
+
+      821 |       // later. The two cases differ only when the client OMITTED a key, which
+      822 |       // is exactly the case where the default decides the outcome.
+    > 823 |       const validate = ajv.compile(actionDef.inputSchema as object);
+          |                            ^
+      824 |       if (!validate(effectiveInput)) {
+      825 |         throw unprocessable('INVALID_SCHEMA', 'input failed action schema', {
+      826 |           errors: (validate.errors ?? []).slice(0, 50).map((e) => ({
+
+      at unknownFormat (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:84:23)
+      at validateFormat (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:75:9)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:40:10)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:122:11
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:614:67
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen._for (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:596:23)
+      at CodeGen.forRange (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:614:17)
+      at validateItems (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:121:9)
+      at validateArray (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:112:5)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/items.ts:17:25)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at applyPropertySchema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:45:11)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:32:9)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:100:5
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:61:45
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.func (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:719:24)
+      at validateFunction (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:60:9)
+      at topSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:94:3)
+      at validateFunctionCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:42:7)
+      at Ajv.compileSchema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/index.ts:163:25)
+      at Ajv._compileSchemaEnv (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/core.ts:738:24)
+      at Ajv.compile (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/core.ts:390:34)
+      at Object.submit (orchestrator/services/orchestrator/src/modules/operations/submission.ts:823:28)
+      at Object.submitLegacyWorkflow (orchestrator/services/orchestrator/src/compat/legacy-host-adapter.ts:260:24)
+      at handleLegacyRoute (orchestrator/services/orchestrator/src/compat/legacy-http-mount.ts:586:19)
+      at handlePublicRoutes (orchestrator/services/orchestrator/src/http/routes/public.ts:324:20)
+      at Object.route (orchestrator/services/orchestrator/src/server.ts:458:24)
+      at handleHttpRequest (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:1501:22)
+
+  console.warn
+    unknown format "uuid" ignored in schema at path "#/properties/artifacts/items/properties/artifactId"
+
+      619 |       const effectiveInput = profile.mode === 'pinned' ? profile.effectiveInput : ctx.input;
+      620 |       if (ctx.businessId === 'document-core') assertNoLegacyArtifactCount(effectiveInput);
+    > 621 |       const validate = ajv.compile(actionDef.inputSchema as object);
+          |                            ^
+      622 |       if (!validate(effectiveInput)) {
+      623 |         throw unprocessable('INVALID_SCHEMA', 'input failed action schema', {
+      624 |           errors: (validate.errors ?? []).slice(0, 50).map((error) => ({
+
+      at unknownFormat (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:84:23)
+      at validateFormat (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:75:9)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:40:10)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at applyPropertySchema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:45:11)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:32:9)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:122:11
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:614:67
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen._for (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:596:23)
+      at CodeGen.forRange (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:614:17)
+      at validateItems (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:121:9)
+      at validateArray (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:112:5)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/items.ts:17:25)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at applyPropertySchema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:45:11)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:32:9)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:100:5
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:61:45
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.func (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:719:24)
+      at validateFunction (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:60:9)
+      at topSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:94:3)
+      at validateFunctionCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:42:7)
+      at Ajv.compileSchema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/index.ts:163:25)
+      at Ajv._compileSchemaEnv (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/core.ts:738:24)
+      at Ajv.compile (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/core.ts:390:34)
+      at Object.preflightLegacyWorkflow (orchestrator/services/orchestrator/src/modules/operations/submission.ts:621:28)
+      at Object.submitLegacyWorkflow (orchestrator/services/orchestrator/src/compat/legacy-host-adapter.ts:205:7)
+      at handleLegacyRoute (orchestrator/services/orchestrator/src/compat/legacy-http-mount.ts:586:19)
+      at handlePublicRoutes (orchestrator/services/orchestrator/src/http/routes/public.ts:324:20)
+      at Object.route (orchestrator/services/orchestrator/src/server.ts:458:24)
+      at handleHttpRequest (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:1501:22)
+
+  console.warn
+    unknown format "uuid" ignored in schema at path "#/properties/artifacts/items/properties/artifactId"
+
+      619 |       const effectiveInput = profile.mode === 'pinned' ? profile.effectiveInput : ctx.input;
+      620 |       if (ctx.businessId === 'document-core') assertNoLegacyArtifactCount(effectiveInput);
+    > 621 |       const validate = ajv.compile(actionDef.inputSchema as object);
+          |                            ^
+      622 |       if (!validate(effectiveInput)) {
+      623 |         throw unprocessable('INVALID_SCHEMA', 'input failed action schema', {
+      624 |           errors: (validate.errors ?? []).slice(0, 50).map((error) => ({
+
+      at unknownFormat (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:84:23)
+      at validateFormat (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:75:9)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:40:10)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at applyPropertySchema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:45:11)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:32:9)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:122:11
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:614:67
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen._for (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:596:23)
+      at CodeGen.forRange (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:614:17)
+      at validateItems (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:121:9)
+      at validateArray (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:112:5)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/items.ts:17:25)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at applyPropertySchema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:45:11)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:32:9)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:100:5
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:61:45
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.func (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:719:24)
+      at validateFunction (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:60:9)
+      at topSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:94:3)
+      at validateFunctionCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:42:7)
+      at Ajv.compileSchema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/index.ts:163:25)
+      at Ajv._compileSchemaEnv (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/core.ts:738:24)
+      at Ajv.compile (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/core.ts:390:34)
+      at Object.preflightLegacyWorkflow (orchestrator/services/orchestrator/src/modules/operations/submission.ts:621:28)
+      at Object.submitLegacyWorkflow (orchestrator/services/orchestrator/src/compat/legacy-host-adapter.ts:205:7)
+      at handleLegacyRoute (orchestrator/services/orchestrator/src/compat/legacy-http-mount.ts:586:19)
+      at handlePublicRoutes (orchestrator/services/orchestrator/src/http/routes/public.ts:324:20)
+      at Object.route (orchestrator/services/orchestrator/src/server.ts:458:24)
+      at handleHttpRequest (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:1501:22)
+
+  console.warn
+    unknown format "uuid" ignored in schema at path "#/properties/artifactIds/items"
+
+      619 |       const effectiveInput = profile.mode === 'pinned' ? profile.effectiveInput : ctx.input;
+      620 |       if (ctx.businessId === 'document-core') assertNoLegacyArtifactCount(effectiveInput);
+    > 621 |       const validate = ajv.compile(actionDef.inputSchema as object);
+          |                            ^
+      622 |       if (!validate(effectiveInput)) {
+      623 |         throw unprocessable('INVALID_SCHEMA', 'input failed action schema', {
+      624 |           errors: (validate.errors ?? []).slice(0, 50).map((error) => ({
+
+      at unknownFormat (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:84:23)
+      at validateFormat (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:75:9)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:40:10)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:122:11
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:614:67
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen._for (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:596:23)
+      at CodeGen.forRange (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:614:17)
+      at validateItems (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:121:9)
+      at validateArray (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:112:5)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/items.ts:17:25)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at applyPropertySchema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:45:11)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:32:9)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:100:5
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:61:45
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.func (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:719:24)
+      at validateFunction (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:60:9)
+      at topSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:94:3)
+      at validateFunctionCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:42:7)
+      at Ajv.compileSchema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/index.ts:163:25)
+      at Ajv._compileSchemaEnv (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/core.ts:738:24)
+      at Ajv.compile (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/core.ts:390:34)
+      at Object.preflightLegacyWorkflow (orchestrator/services/orchestrator/src/modules/operations/submission.ts:621:28)
+      at Object.submitLegacyWorkflow (orchestrator/services/orchestrator/src/compat/legacy-host-adapter.ts:205:7)
+      at handleLegacyRoute (orchestrator/services/orchestrator/src/compat/legacy-http-mount.ts:586:19)
+      at handlePublicRoutes (orchestrator/services/orchestrator/src/http/routes/public.ts:324:20)
+      at Object.route (orchestrator/services/orchestrator/src/server.ts:458:24)
+      at handleHttpRequest (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:1501:22)
+
+  console.warn
+    unknown format "uuid" ignored in schema at path "#/properties/artifactIds/items"
+
+      619 |       const effectiveInput = profile.mode === 'pinned' ? profile.effectiveInput : ctx.input;
+      620 |       if (ctx.businessId === 'document-core') assertNoLegacyArtifactCount(effectiveInput);
+    > 621 |       const validate = ajv.compile(actionDef.inputSchema as object);
+          |                            ^
+      622 |       if (!validate(effectiveInput)) {
+      623 |         throw unprocessable('INVALID_SCHEMA', 'input failed action schema', {
+      624 |           errors: (validate.errors ?? []).slice(0, 50).map((error) => ({
+
+      at unknownFormat (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:84:23)
+      at validateFormat (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:75:9)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:40:10)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:122:11
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:614:67
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen._for (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:596:23)
+      at CodeGen.forRange (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:614:17)
+      at validateItems (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:121:9)
+      at validateArray (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:112:5)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/items.ts:17:25)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at applyPropertySchema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:45:11)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:32:9)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:100:5
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:61:45
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.func (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:719:24)
+      at validateFunction (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:60:9)
+      at topSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:94:3)
+      at validateFunctionCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:42:7)
+      at Ajv.compileSchema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/index.ts:163:25)
+      at Ajv._compileSchemaEnv (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/core.ts:738:24)
+      at Ajv.compile (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/core.ts:390:34)
+      at Object.preflightLegacyWorkflow (orchestrator/services/orchestrator/src/modules/operations/submission.ts:621:28)
+      at Object.submitLegacyWorkflow (orchestrator/services/orchestrator/src/compat/legacy-host-adapter.ts:205:7)
+      at handleLegacyRoute (orchestrator/services/orchestrator/src/compat/legacy-http-mount.ts:586:19)
+      at handlePublicRoutes (orchestrator/services/orchestrator/src/http/routes/public.ts:324:20)
+      at Object.route (orchestrator/services/orchestrator/src/server.ts:458:24)
+      at handleHttpRequest (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:1501:22)
+
+  console.warn
+    unknown format "uuid" ignored in schema at path "#/properties/artifacts/items/properties/artifactId"
+
+      821 |       // later. The two cases differ only when the client OMITTED a key, which
+      822 |       // is exactly the case where the default decides the outcome.
+    > 823 |       const validate = ajv.compile(actionDef.inputSchema as object);
+          |                            ^
+      824 |       if (!validate(effectiveInput)) {
+      825 |         throw unprocessable('INVALID_SCHEMA', 'input failed action schema', {
+      826 |           errors: (validate.errors ?? []).slice(0, 50).map((e) => ({
+
+      at unknownFormat (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:84:23)
+      at validateFormat (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:75:9)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:40:10)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at applyPropertySchema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:45:11)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:32:9)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:122:11
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:614:67
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen._for (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:596:23)
+      at CodeGen.forRange (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:614:17)
+      at validateItems (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:121:9)
+      at validateArray (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:112:5)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/items.ts:17:25)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at applyPropertySchema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:45:11)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:32:9)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:100:5
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:61:45
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.func (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:719:24)
+      at validateFunction (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:60:9)
+      at topSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:94:3)
+      at validateFunctionCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:42:7)
+      at Ajv.compileSchema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/index.ts:163:25)
+      at Ajv._compileSchemaEnv (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/core.ts:738:24)
+      at Ajv.compile (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/core.ts:390:34)
+      at Object.submit (orchestrator/services/orchestrator/src/modules/operations/submission.ts:823:28)
+      at Object.submitLegacyWorkflow (orchestrator/services/orchestrator/src/compat/legacy-host-adapter.ts:260:24)
+      at handleLegacyRoute (orchestrator/services/orchestrator/src/compat/legacy-http-mount.ts:586:19)
+      at handlePublicRoutes (orchestrator/services/orchestrator/src/http/routes/public.ts:324:20)
+      at Object.route (orchestrator/services/orchestrator/src/server.ts:458:24)
+      at handleHttpRequest (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:1501:22)
+
+  console.warn
+    unknown format "uuid" ignored in schema at path "#/properties/artifacts/items/properties/artifactId"
+
+      821 |       // later. The two cases differ only when the client OMITTED a key, which
+      822 |       // is exactly the case where the default decides the outcome.
+    > 823 |       const validate = ajv.compile(actionDef.inputSchema as object);
+          |                            ^
+      824 |       if (!validate(effectiveInput)) {
+      825 |         throw unprocessable('INVALID_SCHEMA', 'input failed action schema', {
+      826 |           errors: (validate.errors ?? []).slice(0, 50).map((e) => ({
+
+      at unknownFormat (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:84:23)
+      at validateFormat (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:75:9)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:40:10)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at applyPropertySchema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:45:11)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:32:9)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:122:11
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:614:67
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen._for (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:596:23)
+      at CodeGen.forRange (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:614:17)
+      at validateItems (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:121:9)
+      at validateArray (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:112:5)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/items.ts:17:25)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at applyPropertySchema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:45:11)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:32:9)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:100:5
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:61:45
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.func (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:719:24)
+      at validateFunction (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:60:9)
+      at topSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:94:3)
+      at validateFunctionCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:42:7)
+      at Ajv.compileSchema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/index.ts:163:25)
+      at Ajv._compileSchemaEnv (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/core.ts:738:24)
+      at Ajv.compile (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/core.ts:390:34)
+      at Object.submit (orchestrator/services/orchestrator/src/modules/operations/submission.ts:823:28)
+      at Object.submitLegacyWorkflow (orchestrator/services/orchestrator/src/compat/legacy-host-adapter.ts:260:24)
+      at handleLegacyRoute (orchestrator/services/orchestrator/src/compat/legacy-http-mount.ts:586:19)
+      at handlePublicRoutes (orchestrator/services/orchestrator/src/http/routes/public.ts:324:20)
+      at Object.route (orchestrator/services/orchestrator/src/server.ts:458:24)
+      at handleHttpRequest (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:1501:22)
+
+  console.warn
+    unknown format "uuid" ignored in schema at path "#/properties/artifactIds/items"
+
+      821 |       // later. The two cases differ only when the client OMITTED a key, which
+      822 |       // is exactly the case where the default decides the outcome.
+    > 823 |       const validate = ajv.compile(actionDef.inputSchema as object);
+          |                            ^
+      824 |       if (!validate(effectiveInput)) {
+      825 |         throw unprocessable('INVALID_SCHEMA', 'input failed action schema', {
+      826 |           errors: (validate.errors ?? []).slice(0, 50).map((e) => ({
+
+      at unknownFormat (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:84:23)
+      at validateFormat (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:75:9)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:40:10)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:122:11
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:614:67
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen._for (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:596:23)
+      at CodeGen.forRange (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:614:17)
+      at validateItems (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:121:9)
+      at validateArray (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:112:5)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/items.ts:17:25)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at applyPropertySchema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:45:11)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:32:9)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:100:5
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:61:45
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.func (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:719:24)
+      at validateFunction (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:60:9)
+      at topSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:94:3)
+      at validateFunctionCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:42:7)
+      at Ajv.compileSchema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/index.ts:163:25)
+      at Ajv._compileSchemaEnv (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/core.ts:738:24)
+      at Ajv.compile (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/core.ts:390:34)
+      at Object.submit (orchestrator/services/orchestrator/src/modules/operations/submission.ts:823:28)
+      at Object.submitLegacyWorkflow (orchestrator/services/orchestrator/src/compat/legacy-host-adapter.ts:260:24)
+      at handleLegacyRoute (orchestrator/services/orchestrator/src/compat/legacy-http-mount.ts:586:19)
+      at handlePublicRoutes (orchestrator/services/orchestrator/src/http/routes/public.ts:324:20)
+      at Object.route (orchestrator/services/orchestrator/src/server.ts:458:24)
+      at handleHttpRequest (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:1501:22)
+
+  console.warn
+    unknown format "uuid" ignored in schema at path "#/properties/artifactIds/items"
+
+      821 |       // later. The two cases differ only when the client OMITTED a key, which
+      822 |       // is exactly the case where the default decides the outcome.
+    > 823 |       const validate = ajv.compile(actionDef.inputSchema as object);
+          |                            ^
+      824 |       if (!validate(effectiveInput)) {
+      825 |         throw unprocessable('INVALID_SCHEMA', 'input failed action schema', {
+      826 |           errors: (validate.errors ?? []).slice(0, 50).map((e) => ({
+
+      at unknownFormat (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:84:23)
+      at validateFormat (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:75:9)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/format/format.ts:40:10)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:122:11
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:614:67
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen._for (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:596:23)
+      at CodeGen.forRange (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:614:17)
+      at validateItems (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:121:9)
+      at validateArray (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/code.ts:112:5)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/items.ts:17:25)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at subSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:147:3)
+      at subschemaCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:124:7)
+      at KeywordCxt.subschema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:500:5)
+      at applyPropertySchema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:45:11)
+      at Object.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/vocabularies/applicator/properties.ts:32:9)
+      at keywordCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:532:9)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:265:9
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at iterateKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:262:7)
+      at groupKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:241:7)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:233:38
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.block (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:700:20)
+      at schemaKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:232:7)
+      at typeAndKeywords (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:161:3)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:100:5
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:61:45
+      at CodeGen.code (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:545:33)
+      at CodeGen.func (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/codegen/index.ts:719:24)
+      at validateFunction (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:60:9)
+      at topSchemaObjCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:94:3)
+      at validateFunctionCode (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/validate/index.ts:42:7)
+      at Ajv.compileSchema (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/compile/index.ts:163:25)
+      at Ajv._compileSchemaEnv (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/core.ts:738:24)
+      at Ajv.compile (orchestrator/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/lib/core.ts:390:34)
+      at Object.submit (orchestrator/services/orchestrator/src/modules/operations/submission.ts:823:28)
+      at Object.submitLegacyWorkflow (orchestrator/services/orchestrator/src/compat/legacy-host-adapter.ts:260:24)
+      at handleLegacyRoute (orchestrator/services/orchestrator/src/compat/legacy-http-mount.ts:586:19)
+      at handlePublicRoutes (orchestrator/services/orchestrator/src/http/routes/public.ts:324:20)
+      at Object.route (orchestrator/services/orchestrator/src/server.ts:458:24)
+      at handleHttpRequest (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:1501:22)
+

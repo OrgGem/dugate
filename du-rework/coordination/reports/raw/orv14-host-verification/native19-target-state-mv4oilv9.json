@@ -1,0 +1,93 @@
+{
+  "schema": "orv14-host-native19-target-state/v1",
+  "command": "/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node tests/workflow-api/orv14-vfy-host/inspect-native19-target.mjs",
+  "cwd": "/workspace/dugate/du-rework",
+  "node": "v24.21.0",
+  "uid": 1000,
+  "startedAt": "2026-10-12T03:15:06.165Z",
+  "fixtureNamespace": "orv14-vfy-host-mv4n6b3b-fe3af002bb",
+  "rawPath": "coordination/reports/raw/orv14-host-verification/native19-target-state-mv4oilv9.json",
+  "sourceWrites": false,
+  "sourceDatabaseConnected": false,
+  "customerData": false,
+  "databases": {
+    "orchestratorTarget": {
+      "clusterName": "orv14-host-orchestrator-restore",
+      "databaseOid": "16384",
+      "migrationLedger": {
+        "count": 62,
+        "first": 1,
+        "last": 65
+      },
+      "activity": {
+        "backup_gate_state": "OPEN",
+        "fence_revision": "0",
+        "live_maintenance_jobs": 0,
+        "live_maintenance_items": 0,
+        "live_rollout_jobs": 0,
+        "unresolved_artifact_effects": 0
+      }
+    },
+    "connectorTarget": {
+      "clusterName": "orv14-host-connector-restore",
+      "databaseOid": "16384",
+      "migrationLedger": {
+        "count": 15,
+        "first": "001_connector",
+        "last": "015_backup_effect_fences"
+      },
+      "activity": {
+        "held_connector_fences": 0,
+        "unresolved_connector_effects": 0,
+        "nonopen_runtime_controls": 0
+      }
+    }
+  },
+  "assertions": [
+    {
+      "name": "orchestratorTarget targets only its pinned synthetic cluster",
+      "status": "passed",
+      "clusterName": "orv14-host-orchestrator-restore",
+      "databaseOid": "16384"
+    },
+    {
+      "name": "connectorTarget targets only its pinned synthetic cluster",
+      "status": "passed",
+      "clusterName": "orv14-host-connector-restore",
+      "databaseOid": "16384"
+    },
+    {
+      "name": "backup snapshot gate is OPEN before the new host interleaving test",
+      "status": "passed",
+      "fenceRevision": "0"
+    },
+    {
+      "name": "no preexisting live maintenance, rollout, or artifact-effect rows contaminate this synthetic target",
+      "status": "passed",
+      "activity": {
+        "backup_gate_state": "OPEN",
+        "fence_revision": "0",
+        "live_maintenance_jobs": 0,
+        "live_maintenance_items": 0,
+        "live_rollout_jobs": 0,
+        "unresolved_artifact_effects": 0
+      }
+    },
+    {
+      "name": "no preexisting Connector fence, permit, or paused control rows contaminate this synthetic target",
+      "status": "passed",
+      "activity": {
+        "held_connector_fences": 0,
+        "unresolved_connector_effects": 0,
+        "nonopen_runtime_controls": 0
+      }
+    }
+  ],
+  "status": "PASSED_READ_ONLY_TARGET_CHECK",
+  "completedAt": "2026-10-12T03:15:06.212Z",
+  "checks": {
+    "passed": 5,
+    "failed": 0,
+    "skipped": 0
+  }
+}

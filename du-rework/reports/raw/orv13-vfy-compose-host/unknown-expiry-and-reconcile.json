@@ -1,0 +1,36 @@
+{
+  "jobId": "973ad44c-eb9d-4125-99da-8082234d0d3a",
+  "competingClaimResults": [
+    "claimed",
+    "empty"
+  ],
+  "runningState": "RUNNING",
+  "expiredState": {
+    "state": "UNKNOWN",
+    "stateVersion": 4,
+    "uncertainReason": "RUNNER_LOST"
+  },
+  "busyFence": {
+    "status": 409,
+    "code": "TARGET_BUSY"
+  },
+  "freshHostObservation": {
+    "runnerExitCode": 0,
+    "availability": "FRESH",
+    "observedServiceCount": 4
+  },
+  "lostReconcileAck": {
+    "upstreamStatus": 200,
+    "clientResponse": "socket response intentionally dropped"
+  },
+  "exactReplay": {
+    "status": 200,
+    "state": "RECONCILED"
+  },
+  "alteredReplay": {
+    "status": 409,
+    "code": "RUNNER_REPORT_REJECTED"
+  },
+  "activeFenceReleasedAfterReconcile": true,
+  "hostContainersUnchanged": true
+}

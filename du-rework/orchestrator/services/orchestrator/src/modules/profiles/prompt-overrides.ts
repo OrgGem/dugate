@@ -1,3 +1,6 @@
+import type { MetadataCrypto } from '../runtime/metadata-crypto';
+import type { MetadataReader } from '../encryption/metadata-read-policy';
+import { openPrompt, sealPrompt } from '../settings/prompt-crypto';
 import { PromptOverrideKey, PromptOverrideRead } from '@du/contracts';
 import { Db } from '../../db/db';
 
@@ -24,6 +27,7 @@ import { Db } from '../../db/db';
 
 interface OverrideRow {
   id: string;
+  tenant_id: string;
   connection_id: string;
   api_key_id: string;
   endpoint_slug: string;
@@ -57,15 +61,17 @@ const UPSERT_SQL = `
   DO UPDATE SET prompt_override = EXCLUDED.prompt_override,
                 is_active       = true,
                 updated_at      = now()
-  RETURNING id, connection_id, api_key_id, endpoint_slug, step_id,
+  RETURNING id, tenant_id, connection_id, api_key_id, endpoint_slug, step_id,
             prompt_override, updated_at
 `;
 
 const ROW_COLUMNS = `
-  id, connection_id, api_key_id, endpoint_slug, step_id, prompt_override, updated_at
+  id, tenant_id, connection_id, api_key_id, endpoint_slug, step_id, prompt_override, updated_at
 `;
 
-export function createPromptOverrideService(db: Db) {
+export function createPromptOverrideService(db: Db, crypto?: MetadataCrypto, reader?: MetadataReader) {
+  const read = async (row: OverrideRow): Promise<PromptOverrideRead> => toRead({ ...row,
+    prompt_override: await openPrompt(row.prompt_override, { tenantId:row.tenant_id,connectionId:row.connection_id,apiKeyId:row.api_key_id,endpointSlug:row.endpoint_slug,stepId:row.step_id },crypto,reader) });
   return {
     /**
      * The override for one step, or `null` when the step has none.
@@ -87,7 +93,7 @@ export function createPromptOverrideService(db: Db) {
         params.push(tenantId);
       }
       const hit = await db.query<OverrideRow>(sql, params);
-      return hit.rowCount ? toRead(hit.rows[0]!) : null;
+      return hit.rowCount ? read(hit.rows[0]!) : null;
     },
 
     /**
@@ -109,7 +115,7 @@ export function createPromptOverrideService(db: Db) {
         params.push(tenantId);
       }
       const hit = await db.query<OverrideRow>(sql, params);
-      return hit.rows.map(toRead);
+      return Promise.all(hit.rows.map(read));
     },
 
     /**
@@ -148,7 +154,7 @@ export function createPromptOverrideService(db: Db) {
         // client's idempotent "turn this off" fail on a second press.
         const row = removed.rows[0];
         return row
-          ? toRead(row)
+          ? read(row)
           : {
               connectionId: params.connectionId,
               apiKeyId: params.apiKeyId,
@@ -166,9 +172,9 @@ export function createPromptOverrideService(db: Db) {
         params.apiKeyId,
         params.endpointSlug,
         params.stepId,
-        content,
+        await sealPrompt(content,{tenantId,...params},crypto),
       ]);
-      return toRead(hit.rows[0]!);
+      return read(hit.rows[0]!);
     },
 
     /**

@@ -1,0 +1,64 @@
+{
+  "draft": {
+    "action": "settings.revision.create",
+    "revision": 1,
+    "state": "DRAFT",
+    "baseActiveRevision": null,
+    "baseProfileRevision": 1,
+    "createdAt": "2026-10-11T16:33:23.964Z",
+    "appliedAt": null,
+    "restoresRevision": null,
+    "changes": {
+      "connectorBindings": {
+        "reasoning": {
+          "connectorId": "9ef19c8c-3a53-45fb-9830-7a259d7c551e",
+          "revision": 1
+        }
+      },
+      "prompts": [
+        {
+          "connectionId": "9ef19c8c-3a53-45fb-9830-7a259d7c551e",
+          "promptOverride": "ORV12 encrypted settings prompt",
+          "stepId": "_default"
+        }
+      ]
+    },
+    "diff": [
+      {
+        "path": "connectorBindings.reasoning",
+        "before": {
+          "connectorId": "aa71e7c2-31ba-4605-9b58-a08f94173db6",
+          "revision": 1
+        },
+        "after": {
+          "connectorId": "9ef19c8c-3a53-45fb-9830-7a259d7c551e",
+          "revision": 1
+        }
+      },
+      {
+        "path": "prompts.9ef19c8c-3a53-45fb-9830-7a259d7c551e:_default",
+        "before": null,
+        "after": "ORV12 encrypted settings prompt"
+      }
+    ],
+    "validation": null
+  },
+  "applied": {
+    "action": "settings.revision.apply",
+    "revision": 1,
+    "activeRevision": 1,
+    "profileRevision": 2,
+    "appliesTo": "new submissions only"
+  },
+  "rollback": {
+    "action": "settings.revision.rollback",
+    "revision": 3,
+    "activeRevision": 3,
+    "profileRevision": 3,
+    "appliesTo": "new submissions only",
+    "restoredFrom": 0
+  },
+  "oldOperation": "ddd08bea-9f70-4416-878e-bf8ff3682861",
+  "newOperation": "b8c5aa23-9393-4907-bb89-4df4ccc25a6d",
+  "restoredOperation": "f6dd9d7b-8fca-43fd-ab21-f1afae2ec587"
+}

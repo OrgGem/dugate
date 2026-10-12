@@ -1,4 +1,4 @@
-import type { InvocationArtifactContent, InvocationArtifactPin } from '@du/contracts';
+import type { ConnectorWorkflowOverrides, InvocationArtifactContent, InvocationArtifactPin, InvocationCostContext, ProviderReportedCost, UsageCostProvenance } from '@du/contracts';
 
 export type AdapterMode = 'json' | 'multipart';
 
@@ -28,6 +28,7 @@ export type ConnectorErrorCode =
   | 'INVOCATION_UNKNOWN'
   | 'INPUT_HASH_MISMATCH'
   | 'QUOTA_EXHAUSTED'
+  | 'BUDGET_LIMIT_EXCEEDED'
   | 'CANCELLED';
 
 export interface InvocationInput {
@@ -37,6 +38,7 @@ export interface InvocationInput {
   language?: string;
   artifacts?: readonly InvocationArtifactContent[];
   outputSchema?: unknown;
+  parameters?: Readonly<Record<string, unknown>>;
 }
 
 export interface InvocationOptions {
@@ -57,6 +59,15 @@ export interface LocalInvocationRequest {
   options?: InvocationOptions;
   sessionRef?: string | null;
   deadlineAt: string;
+  /** Trusted fields copied from the verified grant; never part of the provider payload. */
+  connectorId?: string;
+  connectorRevision?: number;
+  /** Set only by the dedicated, verified admin provider-test path. */
+  adminPurpose?: 'admin-provider-test';
+  /** Deferred signed context is kept with the encrypted invocation for recovery. */
+  costContext?: InvocationCostContext;
+  /** Compiled workflow recipe is pinned separately from ordinary options. */
+  workflowOverrides?: ConnectorWorkflowOverrides;
 }
 
 export interface GrantClaims {
@@ -72,13 +83,22 @@ export interface GrantClaims {
   allowedModel?: string;
   artifactIds?: readonly string[];
   artifactPins?: readonly InvocationArtifactPin[];
+  bindingSlot?: string;
+  costContext?: InvocationCostContext;
+  workflowOverridesDigest?: string;
 }
 
 export interface ProviderUsage {
+  provider?: string;
+  model?: string;
   inputTokens?: number;
   outputTokens?: number;
+  cachedInputTokens?: number;
   pages?: number;
   costMicrousd?: number;
+  costStatus?: 'measured' | 'estimated' | 'unpriced' | 'pending';
+  costProvenance?: UsageCostProvenance;
+  providerReportedCost?: ProviderReportedCost;
   measurement: 'measured' | 'estimated';
 }
 
@@ -89,6 +109,13 @@ export interface NormalizedProviderResult {
   sessionRef?: string | null;
   usage?: ProviderUsage;
   providerRequestId?: string;
+  /** Provider response facts retained for source-bound test recovery. */
+  providerStatusCode?: number;
+  providerLatencyMs?: number;
+  /** Internal marker set only after admin-test result content is redacted with
+   * the resolved revision credential before it is persisted. */
+  providerTestContentSanitized?: true;
+  providerTestContentTruncated?: boolean;
 }
 
 export interface ProviderResponse {
@@ -99,7 +126,7 @@ export interface ProviderResponse {
 
 export interface ProviderRequest {
   url: string;
-  method: 'POST' | 'GET';
+  method: 'POST' | 'GET' | 'PUT';
   headers: Readonly<Record<string, string>>;
   body: string | Uint8Array | FormData;
 }
@@ -167,6 +194,8 @@ export interface InvocationLedger {
     | { kind: 'conflict'; record: InvocationRecord }
   >;
   claimPendingPoll(invocationId: string, inputHash: string, now: number, leaseMs: number): Promise<string | undefined>;
+  /** Recheck the durable backup gate immediately before provider/poll transport. */
+  activateEffect?(invocationId: string, pollLeaseToken?: string): Promise<boolean>;
   complete(
     invocationId: string,
     result: NormalizedProviderResult,

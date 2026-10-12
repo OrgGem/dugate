@@ -95,6 +95,7 @@ function createAdapter(sourceTables, context = {}) {
   let applyCalls = 0;
   const tenantId = 'a0000000-0000-4000-8000-000000000001';
   const adapter = {
+    timezoneEvidence: { verified: true, sourceVersion: 'synthetic-test-v1', timezone: 'UTC', sha256: 'a'.repeat(64) },
     a1Passed: true,
     sourceVersion: 'synthetic-test-v1',
     a1SourceVersion: 'synthetic-test-v1',
@@ -463,6 +464,6 @@ test('workflow duplicate diagnostics use actual AppSetting keys', async () => {
     skipped: 'wb_schema:analyze',
   }]);
   assert.equal(JSON.stringify(result.report.workflowDuplicates).includes('undefined'), false);
-  assert.equal(result.report.perTable.AppSetting.skipped, 2);
+  assert.equal(result.report.perTable.AppSetting.skipped, 1);
   assert.equal(result.report.skips.some((item) => item.table === 'AppSetting'), false);
 });

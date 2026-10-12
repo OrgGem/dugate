@@ -1,0 +1,143 @@
+{
+  "tenantId": "e73f477a-5830-41ab-afcc-54eef302937b",
+  "promptRevisions": {
+    "first": 1,
+    "second": 2
+  },
+  "oldOperationIds": [
+    {
+      "category": "image",
+      "operationId": "2c23e5a4-e270-4222-b207-499e3a18d31a"
+    },
+    {
+      "category": "pdf",
+      "operationId": "fe5b41cd-22f1-4411-a8a0-fa4d59001045"
+    },
+    {
+      "category": "docx",
+      "operationId": "b1968ca8-d521-4b91-90be-b3b6002d37d1"
+    },
+    {
+      "category": "compare",
+      "operationId": "a7d2c1b7-04d2-4070-81e8-a75bf0a22559"
+    },
+    {
+      "category": "generate",
+      "operationId": "09c1db3f-191c-4567-87f2-6902c3c9968a"
+    }
+  ],
+  "newOperationIds": [
+    {
+      "category": "image",
+      "operationId": "1bd1d732-4068-41cf-bf53-042408e86477"
+    },
+    {
+      "category": "pdf",
+      "operationId": "3e3fac45-fc52-42c2-9c0b-3d50de58b038"
+    },
+    {
+      "category": "docx",
+      "operationId": "11a1d83a-3c9a-46ba-8520-b0718dcdfcdc"
+    },
+    {
+      "category": "compare",
+      "operationId": "9776c883-a1fb-4714-92ed-3b808caac076"
+    },
+    {
+      "category": "generate",
+      "operationId": "6085e599-58e8-400d-b6a9-268a5f952e04"
+    }
+  ],
+  "providerObservations": [
+    {
+      "category": "image",
+      "operationId": "2c23e5a4-e270-4222-b207-499e3a18d31a",
+      "promptRevision": 1,
+      "providerTask": "",
+      "observedPromptMarker": "ORV14_PROMPT_A_IMAGE",
+      "promptSha256": "d6d6d66e62b8090fe80349dfe6b91d7d40f536bc9d51e9d445ffd26a78355a5a",
+      "observedModel": null
+    },
+    {
+      "category": "pdf",
+      "operationId": "fe5b41cd-22f1-4411-a8a0-fa4d59001045",
+      "promptRevision": 1,
+      "providerTask": "",
+      "observedPromptMarker": "ORV14_PROMPT_A_PDF",
+      "promptSha256": "b1bfddfbb0c6ea2c2b3e2bd598a7559abe4969506152ae890de77d5cc0d32d38",
+      "observedModel": null
+    },
+    {
+      "category": "docx",
+      "operationId": "b1968ca8-d521-4b91-90be-b3b6002d37d1",
+      "promptRevision": 1,
+      "providerTask": "",
+      "observedPromptMarker": "ORV14_PROMPT_A_DOCX",
+      "promptSha256": "c915820351d2519f343abb0e51245e6c34ea6274703aea5e56f2b7d3fe7678f0",
+      "observedModel": null
+    },
+    {
+      "category": "compare",
+      "operationId": "a7d2c1b7-04d2-4070-81e8-a75bf0a22559",
+      "promptRevision": 1,
+      "providerTask": "compare_semantic",
+      "observedPromptMarker": "ORV14_PROMPT_A_COMPARE",
+      "promptSha256": "12343c6b6a2ca49b039d0ec6d186e30f06ba2b4787eb4318f11f4fa1a14c6394",
+      "observedModel": null
+    },
+    {
+      "category": "generate",
+      "operationId": "09c1db3f-191c-4567-87f2-6902c3c9968a",
+      "promptRevision": 1,
+      "providerTask": "generate_summary",
+      "observedPromptMarker": "ORV14_PROMPT_A_GENERATE",
+      "promptSha256": "328600f95d7c6d6c8033f50a8b309f84971fbe5f413577bea477d9d8264a3f57",
+      "observedModel": null
+    },
+    {
+      "category": "image",
+      "operationId": "1bd1d732-4068-41cf-bf53-042408e86477",
+      "promptRevision": 2,
+      "providerTask": "",
+      "observedPromptMarker": "ORV14_PROMPT_B_IMAGE",
+      "promptSha256": "591dc7243a456eabb9573d7eb2281e2ccf53bcb65cf3c7bb451055f8c434997d",
+      "observedModel": null
+    },
+    {
+      "category": "pdf",
+      "operationId": "3e3fac45-fc52-42c2-9c0b-3d50de58b038",
+      "promptRevision": 2,
+      "providerTask": "",
+      "observedPromptMarker": "ORV14_PROMPT_B_PDF",
+      "promptSha256": "51952fefb4786ca8fbbb2794b0e0e6124f9f2bc2cab019e44d41bfc24a409ad0",
+      "observedModel": null
+    },
+    {
+      "category": "docx",
+      "operationId": "11a1d83a-3c9a-46ba-8520-b0718dcdfcdc",
+      "promptRevision": 2,
+      "providerTask": "",
+      "observedPromptMarker": "ORV14_PROMPT_B_DOCX",
+      "promptSha256": "27b2790e31660e3071762bc3db3e3b32857ca5ac396aea3bd2515801ac6df7a3",
+      "observedModel": null
+    },
+    {
+      "category": "compare",
+      "operationId": "9776c883-a1fb-4714-92ed-3b808caac076",
+      "promptRevision": 2,
+      "providerTask": "compare_semantic",
+      "observedPromptMarker": "ORV14_PROMPT_B_COMPARE",
+      "promptSha256": "aef3e257983fca55e632e1c8cd09a48666c9d6e49ac34bc227ab72e80e8e3325",
+      "observedModel": null
+    },
+    {
+      "category": "generate",
+      "operationId": "6085e599-58e8-400d-b6a9-268a5f952e04",
+      "promptRevision": 2,
+      "providerTask": "generate_summary",
+      "observedPromptMarker": "ORV14_PROMPT_B_GENERATE",
+      "promptSha256": "527942ed0dccca444bdd409faf6ade44b0a1bfd6bbbe5bcfc534e3626bb8578c",
+      "observedModel": null
+    }
+  ]
+}

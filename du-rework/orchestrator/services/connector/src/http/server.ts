@@ -6,7 +6,41 @@ import { requireServiceIdentity } from '../identity';
 import type { ServiceIdentityVerifier } from '../types';
 import { parseContractInvocationRequest, toContractInvocationResponse } from '../contracts';
 import type { DrainableConnectorServer } from '../lifecycle';
-import { CONNECTOR_INVOCATION_MAX_BODY_BYTES, type ConnectorRevisionBinding } from '@du/contracts';
+import {
+  CONNECTOR_INVOCATION_MAX_BODY_BYTES,
+  ConnectorDraftUpsertSchema,
+  ConnectorParityDraftResultSchema,
+  ConnectorParityActivationResultSchema,
+  ConnectorParityRetirementRequestSchema,
+  ConnectorParityRetirementResultSchema,
+  ConnectorParityRevisionSchema,
+  ConnectorProviderTestEvidenceSchema,
+  ConnectorProviderTestEvidenceQuerySchema,
+  type ConnectorProviderTestEvidence,
+  type ConnectorProviderTestEvidenceQuery,
+  ProviderTestResultSchema,
+  ConnectorSignalSnapshotQuerySchema,
+  ConnectorSignalSnapshotSchema,
+  ConnectorReplicaControlCommandSchema,
+  ConnectorReplicaRuntimeObservationSchema,
+  ConnectorReplicaRuntimeReadRequestSchema,
+  ConnectorBackupEffectFenceCommandSchema,
+  ConnectorBackupEffectFenceObservationRequestSchema,
+  ConnectorBackupEffectFenceObservationSchema,
+  TenantActiveConnectorCatalogQuerySchema,
+  TenantActiveConnectorCatalogPageSchema,
+  type ConnectorRevisionBinding,
+  type ConnectorReplicaControlAck,
+  type ConnectorReplicaControlCommand,
+  type ConnectorReplicaIdentity,
+  type ConnectorReplicaRuntimeObservation,
+  type ConnectorBackupEffectFenceCommand,
+  type ConnectorBackupEffectFenceObservation,
+  type ConnectorBackupEffectFenceObservationRequest,
+  type ConnectorSignalSnapshot,
+  type ConnectorSignalSnapshotQuery,
+} from '@du/contracts';
+import type { ConnectorInternalRollbackDraft, ConnectorInternalDraftUpsert, ConnectorParityManagementPort } from '../modules/parity-management';
 
 export interface HttpInvocationResult {
   invocationId: string;
@@ -56,11 +90,46 @@ export interface ConnectorRuntime {
   invoke(body: unknown): Promise<HttpInvocationResult>;
   get(invocationId: string, invocationGrant?: string): Promise<HttpInvocationResult | undefined>;
   cancel(invocationId: string, reason: string, invocationGrant?: string): Promise<HttpInvocationResult>;
+  testExactRevision?(body: unknown): Promise<unknown>;
+  getProviderTestEvidence?(query: ConnectorProviderTestEvidenceQuery): Promise<ConnectorProviderTestEvidence | undefined>;
+  getSignalSnapshot?(query: ConnectorSignalSnapshotQuery): Promise<ConnectorSignalSnapshot>;
+}
+
+export interface ConnectorReplicaRuntimeControlPort {
+  observe(
+    expected: ConnectorReplicaIdentity,
+    isReady: () => Promise<boolean>,
+    dependencyHealth?: () => Promise<{
+      observedAt: string;
+      postgres: { state: 'HEALTHY' | 'UNAVAILABLE' | 'UNKNOWN'; observedAt: string };
+      redis: { state: 'HEALTHY' | 'UNAVAILABLE' | 'UNKNOWN'; observedAt: string };
+    }>,
+    externalEffects?: ConnectorReplicaRuntimeObservation['externalEffects'],
+  ): Promise<ConnectorReplicaRuntimeObservation>;
+  requestDrain(command: ConnectorReplicaControlCommand): Promise<ConnectorReplicaControlAck>;
+  requestResume(command: ConnectorReplicaControlCommand): Promise<ConnectorReplicaControlAck>;
+}
+
+export interface ConnectorBackupEffectFencePort {
+  hold(command: ConnectorBackupEffectFenceCommand): Promise<ConnectorBackupEffectFenceObservation>;
+  release(command: ConnectorBackupEffectFenceCommand): Promise<{ released: true; fenceRevision: number }>;
+  observe(request: ConnectorBackupEffectFenceObservationRequest): Promise<ConnectorBackupEffectFenceObservation>;
 }
 
 export interface ConnectorHttpDependencies {
   management: ConnectorHttpStore;
+  parityManagement?: ConnectorParityManagementPort;
   runtime: ConnectorRuntime;
+  replicaRuntimeControl?: ConnectorReplicaRuntimeControlPort;
+  /** Independent dependency probes used only by trusted runtime-control observation. */
+  runtimeHealth?: () => Promise<{
+    observedAt: string;
+    postgres: { state: 'HEALTHY' | 'UNAVAILABLE' | 'UNKNOWN'; observedAt: string };
+    redis: { state: 'HEALTHY' | 'UNAVAILABLE' | 'UNKNOWN'; observedAt: string };
+  }>;
+  /** Live isolated-mode control state; absent for ordinary Connector processes. */
+  restoreExternalEffects?: () => NonNullable<ConnectorReplicaRuntimeObservation['externalEffects']>;
+  backupEffectFence?: ConnectorBackupEffectFencePort;
   capabilities: () => unknown;
   ready: () => Promise<boolean>;
   identityVerifier?: ServiceIdentityVerifier;
@@ -74,6 +143,9 @@ export interface ConnectorHttpDependencies {
    */
   allowUnauthenticatedTestTraffic?: boolean;
   acceptingInvocations?: () => boolean;
+  /** Restore-only listener: GETs and exact control observations are allowed;
+   * every other mutation is rejected before any route side effect. */
+  isolatedReadOnly?: boolean;
   maxBodyBytes?: number;
 }
 
@@ -173,6 +245,18 @@ export function createConnectorServer(dependencies: ConnectorHttpDependencies): 
   });
 }
 
+/** A restore-rehearsal process remains queryable for read/decrypt probes but
+ * cannot invoke, poll, cancel, test providers, or mutate Connector state. */
+export function isolatedConnectorRequestAllowed(method: string, path: string): boolean {
+  // GET invocation is a state-advancing poll: it may contact the provider and
+  // settle a pending result. Restore rehearsal keeps durable invocation
+  // history readable through the Orchestrator, but never polls this service.
+  if (method === 'GET' && path.startsWith('/invocations/')) return false;
+  return method === 'GET'
+    || (method === 'POST' && (path === '/internal/admin/runtime-control/observe'
+      || path === '/internal/admin/runtime-control/backup-effect-fence/observe'));
+}
+
 async function route(
   request: IncomingMessage,
   response: ServerResponse,
@@ -183,14 +267,18 @@ async function route(
   const url = new URL(request.url ?? '/', 'http://connector.local');
   const path = url.pathname;
   if (identityVerifier && path !== '/health/live' && path !== '/health/ready') {
+    const requiredScope = requiredInternalScope(path);
     await requireServiceIdentity(
       {
         authorization: request.headers.authorization,
         'x-service-scope': headerValue(request.headers['x-service-scope']),
       },
       identityVerifier,
-      path.startsWith('/connectors') ? 'connector:manage' : 'connector:invoke',
+      requiredScope,
     );
+  }
+  if (dependencies.isolatedReadOnly === true && !isolatedConnectorRequestAllowed(method, path)) {
+    throw new ConnectorError('CONNECTOR_DISABLED', 'Connector is in isolated restore read-only mode.');
   }
 
   function headerValue(value: string | string[] | undefined): string | undefined {
@@ -215,6 +303,302 @@ async function route(
     return writeJson(response, ready ? 200 : 503, { ok: ready });
   }
   if (method === 'GET' && path === '/capabilities') return writeJson(response, 200, dependencies.capabilities());
+  if (method === 'GET' && path === '/internal/admin/signals/usage') {
+    if (!dependencies.runtime.getSignalSnapshot) {
+      throw new ConnectorError('PROVIDER_UNAVAILABLE', 'Connector signal projection is not configured.');
+    }
+    const query = ConnectorSignalSnapshotQuerySchema.safeParse({
+      tenantId: singleQueryValue(url, 'tenantId'),
+      from: singleQueryValue(url, 'from'),
+      to: singleQueryValue(url, 'to'),
+    });
+    if (!query.success) throw new ConnectorError('INVALID_INPUT', 'Connector signal query is invalid.');
+    const snapshot = await dependencies.runtime.getSignalSnapshot(query.data);
+    const parsed = ConnectorSignalSnapshotSchema.safeParse(snapshot);
+    if (!parsed.success) throw new ConnectorError('INVALID_PROVIDER_RESPONSE', 'Connector signal projection is invalid.');
+    return writeJson(response, 200, parsed.data);
+  }
+  if (method === 'POST' && path === '/internal/admin/runtime-control/observe') {
+    if (!dependencies.replicaRuntimeControl) {
+      throw new ConnectorError('PROVIDER_UNAVAILABLE', 'Connector replica runtime-control is not configured.');
+    }
+    const expected = ConnectorReplicaRuntimeReadRequestSchema.safeParse(
+      await readJson(request, dependencies.maxBodyBytes ?? 16_384),
+    );
+    if (!expected.success) throw new ConnectorError('INVALID_INPUT', 'Connector replica identity is invalid.');
+    const restoreExternalEffects = dependencies.isolatedReadOnly === true
+      ? dependencies.restoreExternalEffects?.()
+      : undefined;
+    if (dependencies.isolatedReadOnly === true && !restoreExternalEffects) {
+      throw new ConnectorError('PROVIDER_UNAVAILABLE', 'Isolated Connector effect observations are unavailable.');
+    }
+    const observation = await dependencies.replicaRuntimeControl.observe(
+      expected.data,
+      dependencies.ready,
+      dependencies.runtimeHealth,
+      restoreExternalEffects,
+    );
+    const parsed = ConnectorReplicaRuntimeObservationSchema.safeParse(observation);
+    if (!parsed.success) throw new ConnectorError('INVALID_PROVIDER_RESPONSE', 'Connector replica observation is invalid.');
+    return writeJson(response, 200, parsed.data);
+  }
+  if (method === 'POST' && path === '/internal/admin/runtime-control/backup-effect-fence/observe') {
+    if (!dependencies.backupEffectFence) {
+      throw new ConnectorError('PROVIDER_UNAVAILABLE', 'Connector backup effect-fence observer is not configured.');
+    }
+    const requestBody = ConnectorBackupEffectFenceObservationRequestSchema.safeParse(
+      await readJson(request, dependencies.maxBodyBytes ?? 16_384),
+    );
+    if (!requestBody.success) throw new ConnectorError('INVALID_INPUT', 'Connector backup effect-fence observation request is invalid.');
+    const result = await dependencies.backupEffectFence.observe(requestBody.data);
+    const parsed = ConnectorBackupEffectFenceObservationSchema.safeParse(result);
+    if (!parsed.success) throw new ConnectorError('INVALID_PROVIDER_RESPONSE', 'Connector backup effect-fence observation is invalid.');
+    return writeJson(response, 200, parsed.data);
+  }
+  if (method === 'POST' && path === '/internal/admin/runtime-control/backup-effect-fence/hold') {
+    if (!dependencies.backupEffectFence) {
+      throw new ConnectorError('PROVIDER_UNAVAILABLE', 'Connector backup effect-fence controller is not configured.');
+    }
+    const command = ConnectorBackupEffectFenceCommandSchema.safeParse(
+      await readJson(request, dependencies.maxBodyBytes ?? 16_384),
+    );
+    if (!command.success || command.data.action !== 'HOLD') throw new ConnectorError('INVALID_INPUT', 'Connector backup effect-fence hold command is invalid.');
+    const result = await dependencies.backupEffectFence.hold(command.data);
+    const parsed = ConnectorBackupEffectFenceObservationSchema.safeParse(result);
+    if (!parsed.success) throw new ConnectorError('INVALID_PROVIDER_RESPONSE', 'Connector backup effect-fence hold response is invalid.');
+    return writeJson(response, 200, parsed.data);
+  }
+  if (method === 'POST' && path === '/internal/admin/runtime-control/backup-effect-fence/release') {
+    if (!dependencies.backupEffectFence) {
+      throw new ConnectorError('PROVIDER_UNAVAILABLE', 'Connector backup effect-fence controller is not configured.');
+    }
+    const command = ConnectorBackupEffectFenceCommandSchema.safeParse(
+      await readJson(request, dependencies.maxBodyBytes ?? 16_384),
+    );
+    if (!command.success || command.data.action !== 'RELEASE') throw new ConnectorError('INVALID_INPUT', 'Connector backup effect-fence release command is invalid.');
+    const result = await dependencies.backupEffectFence.release(command.data);
+    return writeJson(response, 200, result);
+  }
+  if (method === 'POST' && path === '/internal/admin/runtime-control/drain') {
+    if (!dependencies.replicaRuntimeControl) {
+      throw new ConnectorError('PROVIDER_UNAVAILABLE', 'Connector replica runtime-control is not configured.');
+    }
+    const command = ConnectorReplicaControlCommandSchema.safeParse(
+      await readJson(request, dependencies.maxBodyBytes ?? 16_384),
+    );
+    if (!command.success) throw new ConnectorError('INVALID_INPUT', 'Connector drain command is invalid.');
+    const ack = await dependencies.replicaRuntimeControl.requestDrain(command.data);
+    return writeJson(response, 200, ack);
+  }
+  if (method === 'POST' && path === '/internal/admin/runtime-control/resume') {
+    if (!dependencies.replicaRuntimeControl) {
+      throw new ConnectorError('PROVIDER_UNAVAILABLE', 'Connector replica runtime-control is not configured.');
+    }
+    const command = ConnectorReplicaControlCommandSchema.safeParse(
+      await readJson(request, dependencies.maxBodyBytes ?? 16_384),
+    );
+    if (!command.success) throw new ConnectorError('INVALID_INPUT', 'Connector resume command is invalid.');
+    const ack = await dependencies.replicaRuntimeControl.requestResume(command.data);
+    return writeJson(response, 200, ack);
+  }
+  if (method === 'GET' && path === '/internal/admin/connector-revisions/active') {
+    if (!dependencies.parityManagement) {
+      throw new ConnectorError('PROVIDER_UNAVAILABLE', 'Typed Connector recipe management is not configured.');
+    }
+    const queryValues = (name: string): string | undefined => {
+      const values = url.searchParams.getAll(name);
+      if (values.length > 1) throw new ConnectorError('INVALID_INPUT', `Connector catalog query parameter ${name} must appear once.`);
+      return values[0];
+    };
+    const rawQuery: Record<string, unknown> = { tenantId: queryValues('tenantId') };
+    const q = queryValues('q');
+    const cursor = queryValues('cursor');
+    const limit = queryValues('limit');
+    if (q !== undefined) rawQuery['q'] = q;
+    if (cursor !== undefined) rawQuery['cursor'] = cursor;
+    if (limit !== undefined) rawQuery['limit'] = limit;
+    const parsedQuery = TenantActiveConnectorCatalogQuerySchema.safeParse(rawQuery);
+    if (!parsedQuery.success) throw new ConnectorError('INVALID_INPUT', 'Tenant Connector catalog query is invalid.');
+    const page = await dependencies.parityManagement.listActiveConnectorRevisions(parsedQuery.data);
+    const parsedPage = TenantActiveConnectorCatalogPageSchema.safeParse(page);
+    if (!parsedPage.success) throw new ConnectorError('INVALID_PROVIDER_RESPONSE', 'Tenant Connector catalog response is invalid.');
+    return writeJson(response, 200, parsedPage.data);
+  }
+  if (method === 'POST' && path === '/internal/admin/provider-tests') {
+    if (dependencies.acceptingInvocations && !dependencies.acceptingInvocations()) {
+      throw new ConnectorError('PROVIDER_UNAVAILABLE', 'Connector is draining and is not accepting provider tests.');
+    }
+    if (!dependencies.runtime.testExactRevision) {
+      throw new ConnectorError('PROVIDER_UNAVAILABLE', 'Provider-test runtime is not configured.');
+    }
+    const result = await dependencies.runtime.testExactRevision(
+      await readJson(request, dependencies.maxBodyBytes ?? CONNECTOR_INVOCATION_MAX_BODY_BYTES),
+    );
+    const parsed = ProviderTestResultSchema.safeParse(result);
+    if (!parsed.success) throw new ConnectorError('INVALID_PROVIDER_RESPONSE', 'Provider-test runtime returned an invalid result.');
+    return writeJson(response, 200, parsed.data);
+  }
+  {
+    const base = /^\/internal\/admin\/connector-revisions\/([^/]+)(?:\/(.*))?$/.exec(path);
+    if (base) {
+      if (!dependencies.parityManagement) {
+        throw new ConnectorError('PROVIDER_UNAVAILABLE', 'Typed Connector recipe management is not configured.');
+      }
+      let connectorId: string;
+      try { connectorId = decodeURIComponent(base[1] ?? ''); }
+      catch { throw new ConnectorError('INVALID_INPUT', 'Connector identifier is invalid.'); }
+      const tail = base[2] ?? '';
+      if (method === 'POST' && tail === 'claim') {
+        const body = await readJson(request, dependencies.maxBodyBytes ?? 16_384);
+        if (!isRecord(body) || !hasExactly(body, ['tenantId', 'expectedHeadRevision', 'idempotencyKey'])
+          || typeof body.tenantId !== 'string'
+          || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.tenantId)
+          || typeof body.expectedHeadRevision !== 'number'
+          || !Number.isSafeInteger(body.expectedHeadRevision) || body.expectedHeadRevision < 0
+          || typeof body.idempotencyKey !== 'string' || body.idempotencyKey.length < 8 || body.idempotencyKey.length > 200) {
+          throw new ConnectorError('INVALID_INPUT', 'Connector draft claim is invalid.');
+        }
+        const result = await dependencies.parityManagement.claimRecipeDraft({
+          tenantId: body.tenantId,
+          connectorId,
+          expectedHeadRevision: body.expectedHeadRevision,
+          idempotencyKey: body.idempotencyKey,
+        });
+        return writeJson(response, 200, result);
+      }
+      if (method === 'GET' && /^\d+$/.test(tail)) {
+        const tenantId = singleQueryValue(url, 'tenantId');
+        if (!tenantId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(tenantId)) {
+          throw new ConnectorError('INVALID_INPUT', 'Tenant scope is invalid.');
+        }
+        const revision = Number(tail);
+        const value = await dependencies.parityManagement.getRevision(tenantId, connectorId, revision);
+        if (!value) return writeJson(response, 404, { error: { code: 'NOT_FOUND', message: 'Connector recipe revision was not found.' } });
+        const parsed = ConnectorParityRevisionSchema.safeParse(value);
+        if (!parsed.success) throw new ConnectorError('INVALID_PROVIDER_RESPONSE', 'Connector recipe revision is invalid.');
+        return writeJson(response, 200, parsed.data);
+      }
+      if (method === 'PUT' && tail === 'draft') {
+        const raw = await readJson(request, dependencies.maxBodyBytes ?? CONNECTOR_INVOCATION_MAX_BODY_BYTES);
+        if (!isRecord(raw) || !hasOnly(raw, ['tenantId', 'expectedHeadRevision', 'recipe', 'credentialChange', 'idempotencyKey', 'credentialImportSource'])) {
+          throw new ConnectorError('INVALID_INPUT', 'Connector recipe draft request is invalid.');
+        }
+        const credentialImportSource = raw.credentialImportSource;
+        const publicBody = { ...raw };
+        delete publicBody.credentialImportSource;
+        const parsed = ConnectorDraftUpsertSchema.safeParse(publicBody);
+        if (!parsed.success) throw new ConnectorError('INVALID_INPUT', 'Connector recipe draft request is invalid.');
+        if (credentialImportSource !== undefined) {
+          if (!isRecord(credentialImportSource) || !hasExactly(credentialImportSource, ['catalogVersionRef', 'catalogKeyVersion'])
+            || typeof credentialImportSource.catalogVersionRef !== 'string'
+            || !/^[0-9a-f-]{36}@[1-9][0-9]{0,8}$/i.test(credentialImportSource.catalogVersionRef)
+            || typeof credentialImportSource.catalogKeyVersion !== 'string'
+            || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(credentialImportSource.catalogKeyVersion)
+            || parsed.data.credentialChange.action !== 'replace') {
+            throw new ConnectorError('INVALID_INPUT', 'Catalog import provenance is invalid.');
+          }
+        }
+        const input: ConnectorInternalDraftUpsert = {
+          tenantId: parsed.data.tenantId,
+          connectorId,
+          expectedHeadRevision: parsed.data.expectedHeadRevision,
+          recipe: parsed.data.recipe,
+          credentialChange: parsed.data.credentialChange,
+          ...(credentialImportSource === undefined ? {} : {
+            credentialImportSource: {
+              catalogVersionRef: credentialImportSource.catalogVersionRef as string,
+              catalogKeyVersion: credentialImportSource.catalogKeyVersion as string,
+            },
+          }),
+          idempotencyKey: parsed.data.idempotencyKey,
+        };
+        const result = await dependencies.parityManagement.upsertDraft(input);
+        const checked = ConnectorParityDraftResultSchema.safeParse(result);
+        if (!checked.success) throw new ConnectorError('INVALID_PROVIDER_RESPONSE', 'Connector draft result is invalid.');
+        return writeJson(response, 201, checked.data);
+      }
+      const activate = /^(\d+)\/activate$/.exec(tail);
+      if (method === 'POST' && activate) {
+        const body = await readJson(request, dependencies.maxBodyBytes ?? 16_384);
+        if (!isRecord(body) || !hasExactly(body, ['tenantId', 'expectedCurrentRevision'])
+          || typeof body.tenantId !== 'string'
+          || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.tenantId)
+          || typeof body.expectedCurrentRevision !== 'number'
+          || !Number.isSafeInteger(body.expectedCurrentRevision) || body.expectedCurrentRevision < 0) {
+          throw new ConnectorError('INVALID_INPUT', 'Connector activation request is invalid.');
+        }
+        const result = await dependencies.parityManagement.activateRevision(
+          body.tenantId,
+          connectorId,
+          Number(activate[1]),
+          body.expectedCurrentRevision,
+        );
+        const checked = ConnectorParityActivationResultSchema.safeParse(result);
+        if (!checked.success) throw new ConnectorError('INVALID_PROVIDER_RESPONSE', 'Connector activation result is invalid.');
+        return writeJson(response, checked.data.activated ? 200 : 409, checked.data);
+      }
+      const retire = /^(\d+)\/retire$/.exec(tail);
+      if (method === 'POST' && retire) {
+        const raw = await readJson(request, dependencies.maxBodyBytes ?? 16_384);
+        const parsed = ConnectorParityRetirementRequestSchema.safeParse(raw);
+        if (!parsed.success) throw new ConnectorError('INVALID_INPUT', 'Connector recipe retirement request is invalid.');
+        const result = await dependencies.parityManagement.retireRevision({
+          ...parsed.data,
+          connectorId,
+          revision: Number(retire[1]),
+        });
+        const checked = ConnectorParityRetirementResultSchema.safeParse(result);
+        if (!checked.success) throw new ConnectorError('INVALID_PROVIDER_RESPONSE', 'Connector retirement result is invalid.');
+        return writeJson(response, checked.data.retired ? 200 : 409, checked.data);
+      }
+      if (method === 'POST' && tail === 'rollback/draft') {
+        const body = await readJson(request, dependencies.maxBodyBytes ?? 16_384);
+        if (!isRecord(body) || !hasExactly(body, ['tenantId', 'sourceRevision', 'expectedHeadRevision', 'idempotencyKey'])
+          || typeof body.tenantId !== 'string'
+          || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.tenantId)
+          || typeof body.sourceRevision !== 'number' || !Number.isSafeInteger(body.sourceRevision) || body.sourceRevision < 1
+          || typeof body.expectedHeadRevision !== 'number' || !Number.isSafeInteger(body.expectedHeadRevision) || body.expectedHeadRevision < 0
+          || typeof body.idempotencyKey !== 'string' || body.idempotencyKey.length < 8 || body.idempotencyKey.length > 200) {
+          throw new ConnectorError('INVALID_INPUT', 'Connector rollback request is invalid.');
+        }
+        const input: ConnectorInternalRollbackDraft = {
+          tenantId: body.tenantId,
+          connectorId,
+          sourceRevision: body.sourceRevision,
+          expectedHeadRevision: body.expectedHeadRevision,
+          idempotencyKey: body.idempotencyKey,
+        };
+        const result = await dependencies.parityManagement.createRollbackDraft(input);
+        const checked = ConnectorParityDraftResultSchema.safeParse(result);
+        if (!checked.success) throw new ConnectorError('INVALID_PROVIDER_RESPONSE', 'Connector rollback result is invalid.');
+        return writeJson(response, 201, checked.data);
+      }
+      return writeJson(response, 404, { error: { code: 'NOT_FOUND', message: 'Route not found.' } });
+    }
+  }
+  const providerTestEvidencePath = /^\/internal\/admin\/provider-test-invocations\/([^/]+)$/.exec(path);
+  if (method === 'GET' && providerTestEvidencePath) {
+    if (!dependencies.runtime.getProviderTestEvidence) {
+      throw new ConnectorError('PROVIDER_UNAVAILABLE', 'Provider-test evidence is not configured.');
+    }
+    const rawInvocationId = decodeURIComponent(providerTestEvidencePath[1] ?? '');
+    const rawRevision = singleQueryValue(url, 'revision');
+    const revision = rawRevision === null ? Number.NaN : Number(rawRevision);
+    const query = ConnectorProviderTestEvidenceQuerySchema.safeParse({
+      tenantId: singleQueryValue(url, 'tenantId'),
+      operationId: singleQueryValue(url, 'operationId'),
+      taskId: singleQueryValue(url, 'taskId'),
+      invocationId: rawInvocationId,
+      connectorId: singleQueryValue(url, 'connectorId'),
+      revision,
+    });
+    if (!query.success) throw new ConnectorError('INVALID_INPUT', 'Provider-test evidence query is invalid.');
+    const evidence = await dependencies.runtime.getProviderTestEvidence(query.data);
+    if (!evidence) return writeJson(response, 404, { error: { code: 'INVOCATION_UNKNOWN', message: 'Provider-test evidence was not found.' } });
+    const parsed = ConnectorProviderTestEvidenceSchema.safeParse(evidence);
+    if (!parsed.success) throw new ConnectorError('INVALID_PROVIDER_RESPONSE', 'Provider-test evidence is invalid.');
+    return writeJson(response, 200, parsed.data);
+  }
   if (method === 'GET' && path === '/connectors') {
     const revisions = await dependencies.management.list();
     return writeJson(response, 200, revisions.map(redactConnectorRevision));
@@ -407,6 +791,36 @@ async function route(
   writeJson(response, 404, { error: { code: 'NOT_FOUND', message: 'Route not found.' } });
 }
 
+function requiredInternalScope(path: string): string {
+  if (path.startsWith('/internal/admin/runtime-control/')) return 'connector:runtime-control';
+  if (path === '/internal/admin/provider-tests' || path.startsWith('/internal/admin/provider-test-invocations/')) {
+    return 'connector:provider-test';
+  }
+  if (path.startsWith('/internal/admin/connector-revisions/')) return 'connector:management';
+  if (path.startsWith('/internal/admin/signals')) return 'connector:signals:read';
+  if (path.startsWith('/connectors')) return 'connector:manage';
+  return 'connector:invoke';
+}
+
+function singleQueryValue(url: URL, name: string): string | null {
+  const values = url.searchParams.getAll(name);
+  if (values.length !== 1) return null;
+  return values[0] ?? null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function hasOnly(value: Record<string, unknown>, keys: readonly string[]): boolean {
+  const allow = new Set(keys);
+  return Object.keys(value).every((key) => allow.has(key));
+}
+
+function hasExactly(value: Record<string, unknown>, keys: readonly string[]): boolean {
+  return Object.keys(value).length === keys.length && hasOnly(value, keys);
+}
+
 async function readJson(request: IncomingMessage, maxBytes: number): Promise<unknown> {
   const chunks: Buffer[] = [];
   let size = 0;
@@ -444,6 +858,7 @@ function writeJson(response: ServerResponse, status: number, body: unknown): voi
       case 'INPUT_HASH_MISMATCH':
         return 409;
       case 'QUOTA_EXHAUSTED':
+      case 'BUDGET_LIMIT_EXCEEDED':
       case 'PROVIDER_RATE_LIMITED':
         return 429;
       case 'CREDENTIAL_INVALID':
@@ -481,6 +896,7 @@ function errorStatus(error: ConnectorError): number {
     case 'CANCELLED':
       return 409;
     case 'QUOTA_EXHAUSTED':
+    case 'BUDGET_LIMIT_EXCEEDED':
     case 'PROVIDER_RATE_LIMITED':
       return 429;
     case 'CREDENTIAL_INVALID':

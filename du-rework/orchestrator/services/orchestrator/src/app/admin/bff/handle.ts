@@ -1,3 +1,4 @@
+import { handleMigrationReadinessRoute, matchMigrationReadinessRoute } from './legacy-migration';
 /**
  * Admin Web BFF — `/admin/api/*` (AWEB-02/04/05).
  *
@@ -50,6 +51,16 @@ import { handleSettingsRoute, matchSettingsRoute } from './settings';
 import { handleIdentityRoute, matchIdentityRoute } from './identity';
 import { handleSecretsRoute, matchSecretsRoute } from './secrets';
 import { handleHealthRoute } from './health';
+import { handleComposeRoute, matchComposeRoute } from './compose';
+import { handleGlobalSettingsRoute, matchGlobalSettingsRoute } from './global-settings';
+import { handleIncidentsRoute, matchIncidentsRoute } from './incidents';
+import { handleWorkflowImportRoute, matchWorkflowImportRoute } from './workflow-import';
+import { handleAdminWorkbenchRoute, matchAdminWorkbenchRoute } from './admin-workbench';
+import { handleParityRoute, matchParityRoute } from './parity';
+import { handleMaintenanceRoute, matchMaintenanceRoute } from './maintenance';
+import { handleCostControlRoute, matchCostControlRoute } from './cost-control';
+import { handleCostAdjustmentRoute, matchCostAdjustmentRoute } from './cost-adjustments';
+import { handleCostAlertsRoute, matchCostAlertsRoute } from './cost-alerts';
 
 const logger = createLogger({ service: 'orchestrator', baseFields: { subsystem: 'admin-bff' } });
 
@@ -96,6 +107,42 @@ export async function handleBffRequest(
       assertMethod(method, ['GET']);
       return await handleHealthRoute(res, request, config, runtime, correlationId);
     }
+    const globalSettingsRoute = matchGlobalSettingsRoute(relative);
+    if (globalSettingsRoute !== null) {
+      return await handleGlobalSettingsRoute(req, res, request, globalSettingsRoute, query, config, runtime, correlationId);
+    }
+    const incidentsRoute = matchIncidentsRoute(relative);
+    if (incidentsRoute !== null) {
+      return await handleIncidentsRoute(req, res, request, incidentsRoute, query, config, runtime, correlationId);
+    }
+    const workflowImportRoute = matchWorkflowImportRoute(relative);
+    if (workflowImportRoute !== null) {
+      return await handleWorkflowImportRoute(req, res, request, workflowImportRoute, query, config, runtime, correlationId);
+    }
+    const adminWorkbenchRoute = matchAdminWorkbenchRoute(relative);
+    if (adminWorkbenchRoute !== null) {
+      return await handleAdminWorkbenchRoute(req, res, request, adminWorkbenchRoute, query, config, runtime, correlationId);
+    }
+    const parityRoute = matchParityRoute(relative);
+    if (parityRoute !== null) {
+      return await handleParityRoute(req, res, request, parityRoute, query, config, runtime, correlationId);
+    }
+    const maintenanceRoute = matchMaintenanceRoute(relative);
+    if (maintenanceRoute !== null) {
+      return await handleMaintenanceRoute(req, res, request, maintenanceRoute, query, config, runtime, correlationId);
+    }
+    const costControlRoute = matchCostControlRoute(relative);
+    if (costControlRoute !== null) {
+      return await handleCostControlRoute(req, res, request, costControlRoute, query, config, runtime, correlationId);
+    }
+    const costAdjustmentRoute = matchCostAdjustmentRoute(relative);
+    if (costAdjustmentRoute !== null) {
+      return await handleCostAdjustmentRoute(req, res, request, costAdjustmentRoute, query, config, runtime, correlationId);
+    }
+    const costAlertsRoute = matchCostAlertsRoute(relative);
+    if (costAlertsRoute !== null) {
+      return await handleCostAlertsRoute(req, res, request, costAlertsRoute, query, config, runtime, correlationId);
+    }
     if (relative === '/audit') {
       assertMethod(method, ['GET']);
       return await handleAudit(res, request, query, config, runtime, correlationId);
@@ -112,27 +159,8 @@ export async function handleBffRequest(
       assertMethod(method, ['GET']);
       return await handleWorkflowsRead(res, request, relative, query, config, runtime, correlationId);
     }
-    // BIZ-09: the worker-instance read. The platform route exists (admin.ts)
-    // but there was no BFF hop for it, so the cockpit and the overview worker
-    // strip both got a 404 here with the upstream never contacted.
-    //
-    // The profiles LIST is deliberately NOT matched here: bff/profiles.ts
-    // already owns `/profiles` (kind: list), and matching it a second time
-    // here would shadow that route - which is exactly what the AWEB-04 list
-    // tests caught.
-    if (relative === '/worker-instances') {
-      assertMethod(method, ['GET']);
-      return await handleAdminGetRelay(
-        res,
-        request,
-        relative,
-        query,
-        config,
-        runtime,
-        correlationId,
-        ['limit', 'cursor', 'businessId', 'state'],
-      );
-    }
+    // Worker inventory is matched by operations.ts below, which enforces
+    // platform-admin scope before forwarding credentials.
     // CONNECTOR-WIRE-B: connector management reads. Matched BEFORE the
     // revision pattern so `/connectors/capabilities` can never be read as a
     // connector id.
@@ -173,6 +201,10 @@ export async function handleBffRequest(
         correlationId,
       );
     }
+    const composeRoute = matchComposeRoute(relative);
+    if (composeRoute !== null) {
+      return await handleComposeRoute(req, res, request, composeRoute, query, config, runtime, correlationId);
+    }
     const operationsRoute = matchOperationsRoute(relative);
     if (operationsRoute !== null) {
       return await handleOperationsRoute(
@@ -199,6 +231,8 @@ export async function handleBffRequest(
         correlationId,
       );
     }
+    const migrationRoute = matchMigrationReadinessRoute(relative);
+    if(migrationRoute !== null) return await handleMigrationReadinessRoute(req,res,request,migrationRoute,query,config,runtime,correlationId);
     const settingsRoute = matchSettingsRoute(relative);
     if (settingsRoute !== null) {
       return await handleSettingsRoute(
@@ -285,6 +319,7 @@ async function handleSession(
       principal: { kind: ctx.principal.kind, tenantId: principalTenant(ctx) },
       scope: scopeOf(ctx),
       displayName: ctx.displayName,
+      localUser: ctx.plane === 'oidc' && ctx.issuer === 'du-local' && ctx.role === 'operator',
       csrfToken: ctx.csrfToken,
     },
     correlationId,
@@ -685,7 +720,9 @@ async function handleActions(
     writeProblem(res, 401, 'UNAUTHENTICATED', 'sign in to use the Admin API', correlationId);
     return;
   }
-  if (ctx.role !== 'admin' || ctx.principal.kind !== 'platform') {
+  const platformAdmin=ctx.role === 'admin' && ctx.principal.kind === 'platform';
+  const callbackOperator=ctx.role === 'operator' && ctx.principal.kind === 'tenant_operator';
+  if (!platformAdmin && !callbackOperator) {
     writeProblem(res, 403, 'PERMISSION_DENIED', 'administrator role is required', correlationId);
     return;
   }
@@ -721,6 +758,9 @@ async function handleActions(
     writeProblem(res, 422, 'INVALID_SCHEMA', 'action must be a dotted lowercase identifier', correlationId);
     return;
   }
+  if(!platformAdmin && !['operations.cancel','operations.resume','operations.callback.retry'].includes(action)) {
+    writeProblem(res,403,'PERMISSION_DENIED','administrator role is required for this action',correlationId);return;
+  }
   const rawParams = (parsed as { params?: unknown }).params;
   if (rawParams !== undefined && (typeof rawParams !== 'object' || rawParams === null || Array.isArray(rawParams))) {
     writeProblem(res, 422, 'INVALID_SCHEMA', 'params must be a JSON object when present', correlationId);
@@ -732,7 +772,7 @@ async function handleActions(
   // whose raw value rides this wire; everything else is forwarded untouched.
   const forwardedParams = withMintedRawKey(action, params);
 
-  const credential = runtime.adminToken;
+  const credential = ctx.principal.kind === 'unscoped' ? null : credentialFor(ctx.principal,runtime);
   if (typeof credential !== 'string' || credential.length === 0) {
     writeProblem(res, 503, 'UPSTREAM_UNAVAILABLE', 'the admin API is not configured', correlationId);
     return;

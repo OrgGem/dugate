@@ -1,0 +1,34 @@
+{
+  "operationId": "145d082f-3f89-4f63-a273-7c3c067676fb",
+  "waitingState": "WAITING_INPUT",
+  "resumeStatus": 200,
+  "terminalState": "SUCCEEDED",
+  "publicDownloadStatus": 200,
+  "listenerEvents": [
+    {
+      "kind": "request",
+      "listener": "san-match",
+      "method": "GET",
+      "path": "/file.txt",
+      "host": "172-26-91-253.sslip.io:38609",
+      "sni": "172-26-91-253.sslip.io"
+    },
+    {
+      "kind": "request",
+      "listener": "san-match",
+      "method": "POST",
+      "path": "/callback",
+      "host": "172-26-91-253.sslip.io:38609",
+      "sni": "172-26-91-253.sslip.io",
+      "bodyBytes": 66,
+      "bodySha256": "089f8b2fe84dbb5a9b7929c49ed5eb30efdcea3f227f2c2df6895c71e0aa1d5b",
+      "bodyRawBytes": 66,
+      "bodySha256Recomputed": "089f8b2fe84dbb5a9b7929c49ed5eb30efdcea3f227f2c2df6895c71e0aa1d5b",
+      "bodyRawText": "{\"effect\":\"none\",\"syntheticRun\":\"orv14-private-https-hitl-resume\"}",
+      "bodyJson": {
+        "effect": "none",
+        "syntheticRun": "orv14-private-https-hitl-resume"
+      }
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+ts-jest[ts-jest-transformer] (WARN) Define `ts-jest` config under `globals` is deprecated. Please do
+transform: {
+    <transform_regex>: ['ts-jest', { /* ts-jest config goes here in Jest */ }],
+},
+See more at https://kulshekhar.github.io/ts-jest/docs/getting-started/presets#advanced
+PASS businesses/document-core/tests/orv14-worker-private-https-owner.test.ts
+PASS businesses/document-core/tests/p745-carrier-impl-b2.test.ts
+PASS businesses/document-core/tests/wfa-runtime-join-merge.test.ts
+PASS businesses/document-core/tests/config.test.ts
+
+Test Suites: 4 passed, 4 total
+Tests:       59 passed, 59 total
+Snapshots:   0 total
+Time:        4.625 s
+Ran all test suites matching /businesses\/document-core\/tests\/orv14-worker-private-https-owner.test.ts|businesses\/document-core\/tests\/config.test.ts|businesses\/document-core\/tests\/p745-carrier-impl-b2.test.ts|businesses\/document-core\/tests\/wfa-runtime-join-merge.test.ts/i.
+{"error":{"kind":"UNEXPECTED_ERROR","message":"Unexpected error; details redacted."},"timestamp":"2026-10-12T00:09:03.967Z","level":"error","service":"document-core","version":"unknown","environment":"test","correlationId":"0101fa3e-9ce3-49bc-b0b6-a1fc08d09fed","operationId":null,"taskId":null,"invocationId":null,"message":"Failed to parse worker environment configuration"}
+{"concurrency":4,"heartbeatIntervalMs":5000,"workerInstanceId":"worker-doc-test-1","shutdownGraceMs":10000,"workflowPrivateHttpsPolicyDigest":"sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945","timestamp":"2026-10-12T00:09:03.969Z","level":"info","service":"document-core","version":"unknown","environment":"test","correlationId":"a08d9fba-eefd-4eb8-81fe-c24ce36a1de5","operationId":null,"taskId":null,"invocationId":null,"message":"Starting Document Core Worker service"}
+{"error":{"kind":"UNEXPECTED_ERROR","message":"Unexpected error; details redacted."},"timestamp":"2026-10-12T00:09:03.969Z","level":"error","service":"document-core","version":"unknown","environment":"test","correlationId":"3df61d30-7f5a-4426-ae42-8a9042703564","operationId":null,"taskId":null,"invocationId":null,"message":"Worker failed to start"}
+{"concurrency":4,"heartbeatIntervalMs":5000,"workerInstanceId":"worker-doc-test-1","shutdownGraceMs":10000,"workflowPrivateHttpsPolicyDigest":"sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945","timestamp":"2026-10-12T00:09:03.970Z","level":"info","service":"document-core","version":"unknown","environment":"test","correlationId":"11c672e1-140d-4493-94aa-94ac78dd3a49","operationId":null,"taskId":null,"invocationId":null,"message":"Starting Document Core Worker service"}
+{"workerInstanceId":"inst-1","queueName":"q-1","timestamp":"2026-10-12T00:09:03.970Z","level":"info","service":"document-core","version":"unknown","environment":"test","correlationId":"29189845-6c7b-4a78-95ab-6bb79923122a","operationId":null,"taskId":null,"invocationId":null,"message":"Document Core Worker successfully registered and listening"}
+{"graceMs":10000,"timestamp":"2026-10-12T00:09:03.970Z","level":"info","service":"document-core","version":"unknown","environment":"test","correlationId":"b9a6a945-80f1-472f-98c0-ea36cc9ce2fb","operationId":null,"taskId":null,"invocationId":null,"message":"Shutting down worker gracefully..."}
+{"timestamp":"2026-10-12T00:09:03.970Z","level":"info","service":"document-core","version":"unknown","environment":"test","correlationId":"5e50f9d5-f742-44ec-8d9f-abb8ea88528a","operationId":null,"taskId":null,"invocationId":null,"message":"Worker shutdown completed cleanly"}

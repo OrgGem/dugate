@@ -1,0 +1,20 @@
+started_precheck_utc=2026-10-11T22:45:32Z
+cwd=/workspace/dugate/du-rework
+node=/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node; version=v24.21.0
+jest=/workspace/dugate/du-rework/orchestrator/node_modules/.pnpm/node_modules/jest/bin/jest.js
+NODE_PATH=/workspace/dugate/du-rework/orchestrator/node_modules/.pnpm/node_modules
+NODE_EXTRA_CA_CERTS was SET and readable. A unique temporary CA bundle contained the existing CA file plus a newline and verifier-generated local CA; the original CA file was not modified. The temporary bundle was positively removed after execution (directory absent).
+fixture=tests/workflow-api/orv14-vfy/https-fixture; host=orv14-vfy.test; SAN=DNS:orv14-vfy.test; synthetic TLS server bound to 127.0.0.1 on an ephemeral port
+command=NODE_EXTRA_CA_CERTS=/tmp/orv14-vfy-tls-ca.ze9mSi/combined-ca-bundle.pem NODE_PATH=/workspace/dugate/du-rework/orchestrator/node_modules/.pnpm/node_modules /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node /workspace/dugate/du-rework/orchestrator/node_modules/.pnpm/node_modules/jest/bin/jest.js --config tests/workflow-api/jest.config.cjs --runInBand --detectOpenHandles --runTestsByPath tests/workflow-api/orv14-vfy-tls-egress-harness.test.ts
+verifier_test_sha256=b548dd14a0721fcf6855f8e5aa801572991a614bf53936238274ed76cecd4883
+pinned_fetch_sha256=8fd4b2116e868338ff150a69f51bf762ac5a4ce88bebfa823589625c48d4543a
+cost_alert_contract_sha256_pre=9814205425ae20dfe00dde4b55cc783eaa3d11cbdd5417d0648e1b53e1ede64f
+cost_alert_contract_sha256_post=9814205425ae20dfe00dde4b55cc783eaa3d11cbdd5417d0648e1b53e1ede64f (unchanged during this harness run only)
+fixture_ca_sha256=919927a14a13a868ff3a0dc265fcef4ec0b27bb148ef7a7c9625739026de532e
+fixture_server_key_sha256=401edc648f4efa8f047434828a0489d0829fd21a69aeb9898859e8eb6c4999f9
+result=1 suite passed; 1 test passed; 0 failed/skipped; Jest exit code 0
+raw_log=tls-egress-fixture-harness-02.log
+
+Assertions: default pinned fetch resolves once and denies the private address before reaching the fixture; the explicitly test-opted local transport pins exactly 127.0.0.1 while preserving host/SNI `orv14-vfy.test`, verified the generated certificate through Node TLS trust, fetched the synthetic body over GET, sent a no-secret/no-external-effect POST to the local callback receiver, and rejected a mismatched hostname. Jest reported no open-handle warning; HTTPS server closed in afterAll. No PostgreSQL/Redis/Compose container used in this fixture-only test. Temporary combined CA bundle path was `/tmp/orv14-vfy-tls-ca.ze9mSi/combined-ca-bundle.pem`, then unlinked; owning directory was removed and verified ABSENT.
+
+Important scope limit: this proves the fixture and `@du/egress` transport under its explicit local-test `allowPrivateNetworks` option; it is not an actual workflow callback/download execution and does not satisfy positive WFA T01/T02 acceptance. The production workflow runtime still calls pinned fetch with default private-address denial. No source behavior was weakened.

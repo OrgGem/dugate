@@ -1,0 +1,47 @@
+{
+  "policyLogEvidence": [
+    {
+      "workerInstanceId": "wfa-private-https-c80d2c67-b53a-46fc-8176-15a0f857598e",
+      "digest": "sha256:a9ba40e8e900e3ffb77105b58b71f73e774d6c0210db097f57bf8c9539e2954d",
+      "originFieldPresent": false,
+      "mentionsFixtureHostname": false
+    },
+    {
+      "workerInstanceId": "wfa-private-https-79068d8a-62d8-4855-b81d-43d75b51092e",
+      "digest": "sha256:a9ba40e8e900e3ffb77105b58b71f73e774d6c0210db097f57bf8c9539e2954d",
+      "originFieldPresent": false,
+      "mentionsFixtureHostname": false
+    },
+    {
+      "workerInstanceId": "wfa-private-https-687ddd02-430c-4ebf-9c41-66be08cacb7c",
+      "digest": "sha256:a9ba40e8e900e3ffb77105b58b71f73e774d6c0210db097f57bf8c9539e2954d",
+      "originFieldPresent": false,
+      "mentionsFixtureHostname": false
+    },
+    {
+      "workerInstanceId": "wfa-private-https-9ec979c1-0dd2-4d59-9f90-3d29031c722d",
+      "digest": "sha256:a9ba40e8e900e3ffb77105b58b71f73e774d6c0210db097f57bf8c9539e2954d",
+      "originFieldPresent": false,
+      "mentionsFixtureHostname": false
+    },
+    {
+      "workerInstanceId": "wfa-private-https-17baa156-948d-4dd5-9c1f-5fdbc0a14893",
+      "digest": "sha256:c8d14493a00567a373ce3956bd5f4d2ee2ed3299f91dd7bd5d5a55082fd18538",
+      "originFieldPresent": false,
+      "mentionsFixtureHostname": false
+    },
+    {
+      "workerInstanceId": "wfa-private-https-90969484-0017-4648-bcb5-69571e9e95f3",
+      "digest": "sha256:a9ba40e8e900e3ffb77105b58b71f73e774d6c0210db097f57bf8c9539e2954d",
+      "originFieldPresent": false,
+      "mentionsFixtureHostname": false
+    }
+  ],
+  "workerExitCodes": [
+    0,
+    0,
+    0,
+    0,
+    0
+  ]
+}

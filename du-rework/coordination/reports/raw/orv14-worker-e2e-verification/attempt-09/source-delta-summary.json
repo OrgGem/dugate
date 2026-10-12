@@ -1,0 +1,23 @@
+{
+  "dependencyInputsBefore": {
+    "sha256": "a405db31349e264fc2fd3c4cfc046b2692e73877420fca05d97acd1227fc7810",
+    "files": 943,
+    "missing": []
+  },
+  "dependencyInputsAfter": {
+    "sha256": "ec7c9d6b027ad16bcccf9163cb326599cc96ccfd7edd7b8f429c88b3ba204d02",
+    "files": 943,
+    "missing": []
+  },
+  "createAppSha256Before": "d4096d0b607610d8e6d6571e5a20c7d906aa3989a4225151a3c320b493e6820b",
+  "createAppSha256After": "d4096d0b607610d8e6d6571e5a20c7d906aa3989a4225151a3c320b493e6820b",
+  "contractsSourceManifestSha256": "fd6f92da8c6948f42b28b5126b6de4d8feb801140a8c5f73d448444a16f81934",
+  "contractsDistManifestSha256": "4880c7cc7e0da0e01e3a0895078096c7a4009f7fa47be45f32727d4f1eb85b44",
+  "changedInputs": [
+    {
+      "path": "orchestrator/services/orchestrator/src/modules/operations/ingestion-storage-s3.ts",
+      "before": "81e0d53cabbe4f83d30a7e2af5a93c291dcb66cd270a694c5935509ef88af17a",
+      "after": "69b0c756c5d19c0c882b953850e8b49768ac6e789aff365fc5b1a16409ea10ff"
+    }
+  ]
+}

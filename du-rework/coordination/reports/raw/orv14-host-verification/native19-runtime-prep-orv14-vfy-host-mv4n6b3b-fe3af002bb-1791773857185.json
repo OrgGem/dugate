@@ -1,0 +1,27 @@
+{
+  "schema": "orv14-native19-runtime-preparation/v1",
+  "command": "/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node tests/workflow-api/orv14-vfy-host/prepare-native19-runtime.mjs /tmp/orv14-vfy-host-mv4n6b3b-fe3af002bb-vSYC3e/native19-state.json",
+  "cwd": "/workspace/dugate/du-rework",
+  "node": "v24.21.0",
+  "verifierUid": 1000,
+  "startedAt": "2026-10-12T02:57:37.098Z",
+  "stateFile": "/tmp/orv14-vfy-host-mv4n6b3b-fe3af002bb-vSYC3e/native19-state.json",
+  "stateModeVerified": true,
+  "fixtureNamespace": "orv14-vfy-host-mv4n6b3b-fe3af002bb",
+  "ownedComposeContainers": 10,
+  "providerBaseline": {
+    "count": 0,
+    "requestMethods": null
+  },
+  "vaultOrigin": "http://127.0.0.1:33042",
+  "storageOrigin": "http://127.0.0.1:33040",
+  "providerOrigin": "http://127.0.0.1:41503",
+  "transit": null,
+  "s3": null,
+  "secretsFile": "/tmp/orv14-vfy-host-mv4n6b3b-fe3af002bb-vSYC3e/native19-runtime-secrets.json",
+  "secretValuesRecorded": false,
+  "status": "FAILED",
+  "errorCode": null,
+  "error": "Error: VAULT_HTTP_400\n    at vaultRequest (file:///workspace/dugate/du-rework/tests/workflow-api/orv14-vfy-host/prepare-native19-runtime.mjs:77:27)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async verifyTransitMount (file:///workspace/dugate/du-rework/tests/workflow-api/orv14-vfy-host/prepare-native19-runtime.mjs:88:3)\n    at async file:///workspace/dugate/du-rework/tests/workflow-api/orv14-vfy-host/prepare-native19-runtime.mjs:214:24",
+  "completedAt": "2026-10-12T02:57:37.185Z"
+}

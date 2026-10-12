@@ -1,0 +1,9 @@
+ORV14 incident SQL alias owner regression
+Command:
+  /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node node_modules/jest/bin/jest.js --runInBand --config jest.unit.config.cjs tests/orv14-incident-upsert-alias-owner.test.ts
+Working directory:
+  orchestrator/services/orchestrator
+Result:
+  PASS, 1 suite / 1 test
+Source SHA-256:
+  6c259cb19dda2af013c1fd6d7423c9eb525d9512679e915cdb8487fe87749556  src/modules/incidents/service.ts

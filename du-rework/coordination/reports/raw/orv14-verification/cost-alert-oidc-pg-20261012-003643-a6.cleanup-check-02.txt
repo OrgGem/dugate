@@ -1,0 +1,5 @@
+postgres_schema_absent=true
+redis_db=14 owned_oidc_prefix_keys=0
+cleanup_exit=0
+owned_app_ports=44889,40907,34745,44841; listeners=none
+artifact_dir=absent

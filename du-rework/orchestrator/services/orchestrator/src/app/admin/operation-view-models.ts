@@ -190,7 +190,7 @@ function toArtifactDisplayRow(ref: ArtifactRef): ArtifactDisplayRow {
  *
  * Pure function: no I/O, no mutation.
  *
- * @param operation - Wire operation detail (from GET /api/v1/operations/:id).
+ * @param operation - Wire operation detail (from GET /api/internal/operations/:id).
  * @param artifacts - Artifact refs attached to this operation (may be empty).
  * @param now       - Current ISO timestamp for expired-wait detection (defaults to Date.now).
  */
@@ -286,7 +286,7 @@ function buildEnumOptions(schema: Record<string, unknown>): { value: string; lab
  * types fall back to `'text'`. No data from `uiSchema` is surfaced verbatim
  * (only `title`, `description`, `placeholder`, and `ui:widget` are consulted).
  *
- * @param waitRow - HumanWaitView from the wire (GET /api/v1/operations/:id).
+ * @param waitRow - HumanWaitView from the wire (GET /api/internal/operations/:id).
  * @param now     - Current ISO timestamp for expiry detection.
  */
 export function renderHumanWaitForm(

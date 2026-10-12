@@ -1,0 +1,4 @@
+Command: docker ps --all --filter 'label=orv14.vfy.run-id=orv14_vfy_generation_1791779208538_90425-a-gen-b' --format '{{.Names}} {{.Status}}'
+Command: docker ps --all --filter 'label=orv14.vfy.owner=orv14_verification' --format '{{.Names}} {{.Status}}'
+Command: docker volume ls --filter 'label=orv14.vfy.owner=orv14_verification' --format '{{.Name}}'
+All three commands returned empty output.

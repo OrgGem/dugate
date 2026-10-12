@@ -20,9 +20,12 @@ import {
   type TaskDisposition,
 } from '@du/contracts';
 import type { TaskContext as SdkTaskContext } from '@du/worker-sdk';
-import { createPinnedFetch } from '@du/egress';
 import { DocumentFormatDetector, DocumentParserFactory, SafeArchiveExtractor } from '@du/document-kit';
 import { applyPinnedStepPrompt } from '../../../actions/prompt-application';
+import {
+  createWorkflowPrivateHttpsEgressPolicy,
+  type WorkflowPrivateHttpsEgressPolicy,
+} from '../../../workflow-private-https-policy';
 
 const MAX_RESULT_BYTES = 8 * 1024 * 1024;
 const MAX_BRANCH_RESULT_BYTES = 4 * 1024 * 1024;
@@ -112,22 +115,25 @@ export class LegacyWorkflowRuntimeError extends Error {
 export async function handleLegacyWorkflowSchema(
   context: SdkTaskContext,
   payload?: Record<string, unknown>,
+  privateEgressPolicy: WorkflowPrivateHttpsEgressPolicy = createWorkflowPrivateHttpsEgressPolicy(),
 ): Promise<TaskDisposition> {
-  return executeLegacyWorkflow(context, payload ?? context.input, 'root');
+  return executeLegacyWorkflow(context, payload ?? context.input, 'root', privateEgressPolicy);
 }
 
 /** Child handler for one parallel branch; each branch yields its own queue slot. */
 export async function handleLegacyWorkflowBranch(
   context: SdkTaskContext,
   payload?: Record<string, unknown>,
+  privateEgressPolicy: WorkflowPrivateHttpsEgressPolicy = createWorkflowPrivateHttpsEgressPolicy(),
 ): Promise<TaskDisposition> {
-  return executeLegacyWorkflow(context, payload ?? context.input, 'branch');
+  return executeLegacyWorkflow(context, payload ?? context.input, 'branch', privateEgressPolicy);
 }
 
 async function executeLegacyWorkflow(
   context: SdkTaskContext,
   raw: Record<string, unknown>,
   expectedTaskKind: 'root' | 'branch',
+  privateEgressPolicy: WorkflowPrivateHttpsEgressPolicy,
 ): Promise<TaskDisposition> {
   const state = await restoreOrPinExecution(context, raw);
   if (Object.hasOwn(raw, 'resumeInput') && typeof raw.waitId !== 'string' && context.waitResponse === undefined) {
@@ -291,7 +297,7 @@ async function executeLegacyWorkflow(
         || node.type === 'callback' || node.type === 'archive_compress' || node.type === 'archive_extract') {
       const nodeResult = await context.step.run(checkpointKey, inputHash, async () => {
         const resolved = resolveNodeBindings(node, state.payload.input, results);
-        const result = await executeLeaf(context, state.pin, state.payload.input, node, resolved, results, checkpointKey);
+        const result = await executeLeaf(context, state.pin, state.payload.input, node, resolved, results, checkpointKey, privateEgressPolicy);
         assertSingleNodeResultBudget(result);
         return result;
       });
@@ -386,7 +392,14 @@ async function restoreOrPinExecution(
   } catch {
     throw new LegacyWorkflowRuntimeError('LEGACY_WORKFLOW_PIN_INVALID', 'Admitted workflow egress policy is invalid.');
   }
-  const digest = `sha256:${createHash('sha256').update(canonicalLegacyWorkflowPinBytes(validatedSchema, connectorSlotMap, approvedEgressOrigins)).digest('hex')}`;
+  const connectorRecipePins = pin.connectorRecipePins;
+  validateConnectorRecipePins(context, validatedSchema, connectorSlotMap, connectorRecipePins);
+  const digest = `sha256:${createHash('sha256').update(canonicalLegacyWorkflowPinBytes(
+    validatedSchema,
+    connectorSlotMap,
+    approvedEgressOrigins,
+    connectorRecipePins,
+  )).digest('hex')}`;
   if (digest !== pin.digest) {
     throw new LegacyWorkflowRuntimeError('LEGACY_WORKFLOW_PIN_INVALID', 'Admitted workflow schema digest does not match.');
   }
@@ -421,6 +434,44 @@ async function restoreOrPinExecution(
   }
   const checkpointPayload = rawPayload as LegacyExecutionPayload;
   return { pin, payload: checkpointPayload };
+}
+
+function validateConnectorRecipePins(
+  context: SdkTaskContext,
+  schema: LegacyWorkflowSchema,
+  connectorSlotMap: Readonly<Record<string, string>>,
+  connectorRecipePins: LegacyWorkflowSchemaPin['connectorRecipePins'],
+): void {
+  const visit = (nodes: readonly LegacyWorkflowNode[]): void => {
+    for (const node of nodes) {
+      if (node.type === 'connector') {
+        const record = node as Record<string, unknown>;
+        const override = isRecord(record.overrideConnector) ? record.overrideConnector : {};
+        const needsCompiledRecipe = ['extraHeaders', 'staticFormFields'].some((key) =>
+          typeof override[key] === 'string' && (override[key] as string).trim().length > 0,
+        );
+        const compiled = connectorRecipePins?.[node.id];
+        if (needsCompiledRecipe && !compiled) {
+          throw new LegacyWorkflowRuntimeError(
+            'LEGACY_WORKFLOW_CONNECTOR_OVERRIDE_UNPINNED',
+            'Workflow connector overrides were not compiled against an admitted immutable Connector recipe.',
+          );
+        }
+        if (compiled) {
+          const slot = typeof node.connector === 'string' ? connectorSlotMap[node.connector] : undefined;
+          const expected = `${compiled.connectorId}@${compiled.connectorRevision}`;
+          if (!slot || context.connectorBindings[slot] !== expected) {
+            throw new LegacyWorkflowRuntimeError(
+              'LEGACY_WORKFLOW_CONNECTOR_OVERRIDE_BINDING_MISMATCH',
+              'Workflow connector override does not match the admitted Profile Connector revision.',
+            );
+          }
+        }
+      }
+      if (node.type === 'parallel') for (const branch of node.branches ?? []) visit(branch);
+    }
+  };
+  visit(schema.nodes);
 }
 
 function parseBranchInput(value: Record<string, unknown>): LegacyBranchInput {
@@ -716,6 +767,7 @@ async function executeLeaf(
   resolved: Record<string, unknown>,
   results: Record<string, LegacyWorkflowNodeResult>,
   stepKey: string,
+  privateEgressPolicy: WorkflowPrivateHttpsEgressPolicy,
 ): Promise<LegacyWorkflowNodeResult> {
   const nodeRecord = node as Record<string, unknown>;
   const permitted = permittedArtifactRefs(workflowInput, results);
@@ -725,9 +777,9 @@ async function executeLeaf(
     case 'file_parse':
       return executeFileParseNode(context, node, nodeRecord, resolved.source, permitted);
     case 'file_url_download':
-      return executeFileUrlDownloadNode(context, pin, node, nodeRecord, resolved.urls);
+      return executeFileUrlDownloadNode(context, pin, node, nodeRecord, resolved.urls, privateEgressPolicy);
     case 'callback':
-      return executeCallbackNode(context, pin, node, nodeRecord, resolved, results);
+      return executeCallbackNode(context, pin, node, nodeRecord, resolved, results, privateEgressPolicy);
     case 'archive_compress':
       return executeArchiveCompressNode(context, node, nodeRecord, resolved.source, permitted);
     case 'archive_extract':
@@ -759,11 +811,22 @@ async function executeConnectorNode(
   }
 
   const override = isRecord(nodeRecord.overrideConnector) ? nodeRecord.overrideConnector : {};
-  if (typeof override.extraHeaders === 'string' && override.extraHeaders.length > 0) {
-    throw new LegacyWorkflowRuntimeError('LEGACY_WORKFLOW_CONNECTOR_OVERRIDE_UNSUPPORTED', 'Workflow connector extraHeaders require an approved connector revision.');
+  const workflowOverrides = pin.connectorRecipePins?.[node.id];
+  const hasRecipeOverride = ['extraHeaders', 'staticFormFields'].some((key) =>
+    typeof override[key] === 'string' && (override[key] as string).trim().length > 0,
+  );
+  if (hasRecipeOverride && !workflowOverrides) {
+    throw new LegacyWorkflowRuntimeError(
+      'LEGACY_WORKFLOW_CONNECTOR_OVERRIDE_UNPINNED',
+      'Workflow connector overrides were not compiled against an admitted immutable Connector recipe.',
+    );
   }
-  if (typeof override.staticFormFields === 'string' && override.staticFormFields.length > 0) {
-    throw new LegacyWorkflowRuntimeError('LEGACY_WORKFLOW_CONNECTOR_OVERRIDE_UNSUPPORTED', 'Workflow connector staticFormFields require an approved connector revision.');
+  const binding = context.connectorBindings[slot];
+  if (workflowOverrides && binding !== `${workflowOverrides.connectorId}@${workflowOverrides.connectorRevision}`) {
+    throw new LegacyWorkflowRuntimeError(
+      'LEGACY_WORKFLOW_CONNECTOR_OVERRIDE_BINDING_MISMATCH',
+      'Workflow connector override does not match the admitted Profile Connector revision.',
+    );
   }
 
   const inputs = isRecord(nodeRecord.inputs) ? resolved : {};
@@ -787,6 +850,10 @@ async function executeConnectorNode(
   const invokeInput = {
     task: node.id,
     prompt,
+    // Preserve the resolved, schema-admitted node inputs as structured
+    // invocation parameters. `text` remains for legacy Connector recipes;
+    // the bounded SDK input contract validates this separate map.
+    parameters: inputs,
     ...(contextText ? { text: contextText } : {}),
     ...(artifacts.length > 0 ? { artifacts } : {}),
   };
@@ -798,7 +865,13 @@ async function executeConnectorNode(
 
   let response: InvocationResponse;
   try {
-    response = await context.connector.invoke(slot, invokeInput, options, deadlineAt ? { deadlineAt } : undefined);
+    response = await context.connector.invoke(
+      slot,
+      invokeInput,
+      options,
+      deadlineAt ? { deadlineAt } : undefined,
+      workflowOverrides,
+    );
   } catch (error: unknown) {
     const wrapped = new LegacyWorkflowRuntimeError(
       'LEGACY_WORKFLOW_CONNECTOR_FAILED',
@@ -912,6 +985,7 @@ async function executeFileUrlDownloadNode(
   node: LegacyWorkflowNode,
   nodeRecord: Record<string, unknown>,
   resolvedUrls: unknown,
+  privateEgressPolicy: WorkflowPrivateHttpsEgressPolicy,
 ): Promise<LegacyWorkflowNodeResult> {
   const entries = normalizeUrlEntries(resolvedUrls, node.id);
   if (entries.length > MAX_URL_DOWNLOADS) {
@@ -926,7 +1000,7 @@ async function executeFileUrlDownloadNode(
     const url = applyQueryAuth(approvedUrl, auth);
     const controller = makeBoundedAbortController(context, 30_000);
     try {
-      const response = await createPinnedFetch({ timeoutMs: 15_000 })(url, {
+      const response = await privateEgressPolicy.createPinnedFetchForOrigin(new URL(approvedUrl).origin)(url, {
         method: 'GET',
         headers: authHeaders(auth),
         signal: controller.signal,
@@ -973,6 +1047,7 @@ async function executeCallbackNode(
   nodeRecord: Record<string, unknown>,
   resolved: Record<string, unknown>,
   results: Record<string, LegacyWorkflowNodeResult>,
+  privateEgressPolicy: WorkflowPrivateHttpsEgressPolicy,
 ): Promise<LegacyWorkflowNodeResult> {
   if (typeof resolved.url !== 'string') {
     throw new LegacyWorkflowRuntimeError('LEGACY_WORKFLOW_CALLBACK_INVALID', 'Workflow callback destination is invalid.');
@@ -990,7 +1065,7 @@ async function executeCallbackNode(
   const requestUrl = method === 'GET' && auth.type === 'query' ? applyQueryAuth(url, auth) : url;
   const controller = makeBoundedAbortController(context, 30_000);
   try {
-    const response = await createPinnedFetch({ timeoutMs: 15_000 })(requestUrl, {
+    const response = await privateEgressPolicy.createPinnedFetchForOrigin(new URL(url).origin)(requestUrl, {
       method,
       headers,
       signal: controller.signal,

@@ -1,0 +1,1 @@
+Canonical copies of the original reports under orchestrator/coordination; original files remain unchanged. Source and dist paths in manifests are relative to orchestrator root.

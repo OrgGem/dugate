@@ -1,0 +1,8 @@
+cleanup check UTC: 2026-10-12T01:24:03.230253+00:00
+namespace=du_test_wfa_1791768060933_3e2ed8d4c5
+postgresSchemaQueryExit=0 postgresSchemaExists=f
+redisScanExit=0/0 redisNamespaceKeyCount=0 redisQueueNamespaceKeyCount=0
+positive cleanup of test-owned DB schema and Redis prefixes verified; artifact directories reported below
+Compose stack left running; no foreign/customer resources deleted
+artifactDirectory=artifactDirectory existsAfter=False
+connectorArtifactDirectory=connectorArtifactDirectory existsAfter=False

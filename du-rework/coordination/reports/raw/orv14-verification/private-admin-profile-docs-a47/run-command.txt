@@ -1,0 +1,5 @@
+CWD: /workspace/dugate/du-rework
+Runtime: /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node v24.21.0
+Private bundle JS SHA-256: 5e4e18179e093adc1e0406acb3f2d1ed6d743e17bb4eb4557c2425f3bae6c762
+Preflight unchanged: private-admin-profile-docs-a46/preflight-v2.log (12 response shapes pass)
+Selected only the two corrected assertions; the other four cases from a46 are not rerun.

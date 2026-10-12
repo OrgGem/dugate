@@ -1,0 +1,16 @@
+{
+  "checkedAtUtc": "2026-10-12T03:24:32.121Z",
+  "nodeVersion": "v24.21.0",
+  "module": "orchestrator/packages/contracts/dist/index.js",
+  "moduleSha256": "c319606e305affe6a08c7a7df8efa62e56ff1172699550fcf956d348761a969a",
+  "sourceManifestSha256": "d33d0ce970a4f7620dde4854b0df2ddb272d824baf3efda84bafb36d99cde916",
+  "distManifestSha256": "27cb417f246da2c9b31820af54d310163aaf8d657532c6cacb21b6c9a722c91a",
+  "checks": {
+    "validWorkflowSchema": true,
+    "undeclaredHeaderWorkflowImportShapeValid": true,
+    "undeclaredStaticWorkflowImportShapeValid": true,
+    "compiledConnectorRecipePinValid": true,
+    "undeclaredLeavesRemainBoundedWireShape": true,
+    "compiledExportsAvailable": true
+  }
+}

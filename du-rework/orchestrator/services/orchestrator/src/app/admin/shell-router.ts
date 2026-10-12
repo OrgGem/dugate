@@ -1,3 +1,4 @@
+import { handleLocalLoginGet, handleLocalLoginPost, handleLocalLogout } from './auth-dispatch';
 /**
  * Pure route matcher for the Admin shell (P6-01).
  *
@@ -314,6 +315,23 @@ export async function dispatchShellRequestAsync(
   request: AdminShellRequest,
   config: ShellRuntimeConfig
 ): Promise<{ response: AdminShellResponse; routeId: string }> {
+  if (config.localAuth && !config.oidcFlow) {
+    const method = request.method.toUpperCase();
+    if (request.pathname === '/admin/login') {
+      return { routeId: 'local-login', response: method === 'POST' ? await handleLocalLoginPost(request, config) : handleLocalLoginGet(request, config) };
+    }
+    if (request.pathname === '/admin/logout' && method === 'POST') return { routeId: 'local-logout', response: await handleLocalLogout(request, config) };
+    const session = await resolveOpaqueSession(config, request);
+    if (session.state === 'live') {
+      const mutation = await handleAdminMutationPost(request, config, session.claims, session.csrfToken);
+      const result = mutation ?? dispatchShellRequest(request, config, session.claims, session.csrfToken);
+      result.response.body = result.response.body.replace(/(<form[^>]*action="\/admin\/logout"[^>]*>)/g, `$1<input type="hidden" name="csrf" value="${session.csrfToken}" />`);
+      return result;
+    }
+    if (session.state === 'dead') config.securityAudit?.({ kind: 'auth.session_revoked', reason: 'absent_or_revoked', pathname: request.pathname, method });
+    const fallback = request.cookies['du_admin'];
+    if (request.cookies[SESSION_COOKIE_NAME] || !fallback || !verifyCookie(config.cookieSecret, fallback, config.nowMs?.())) return { routeId: 'local-session-gate', response: { status: 302, headers: { location: '/admin/login', 'cache-control': 'no-store' }, body: '' } };
+  }
   const flow = config.oidcFlow;
   if (flow) {
     const m = request.method.toUpperCase();

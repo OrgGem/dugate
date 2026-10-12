@@ -40,6 +40,7 @@ function fakeDb(rows: unknown[]): FakeDb {
     pool: {},
     query: async (text: string, params: unknown[] = []): Promise<unknown> => {
       calls.push({ text, params });
+      if (text.includes('FROM usage_financial_adjustments')) return { rows: [], rowCount: 0 };
       return { rows, rowCount: rows.length };
     },
     tx: async (): Promise<never> => {
@@ -64,6 +65,8 @@ const wirePayload = (over: Record<string, unknown> = {}): Record<string, unknown
 });
 
 const summaryRow = (payload: Record<string, unknown>, operationId: string) => ({
+  event_id: String(payload['eventId']),
+  tenant_id: TENANT,
   payload,
   operation_id: operationId,
 });
@@ -137,10 +140,10 @@ describe('getUsageSummary - contracts money law, zero drift on legacy path', () 
       from: FROM.toISOString(),
       to: TO.toISOString(),
       rows: [
-        { provider: 'acme', model: 'x-1', operations: 1, inputTokens: 30, outputTokens: 6, pages: 0, costMicrousd: 10, measurement: 'mixed' },
-        { provider: 'other', model: 'y-2', operations: 1, inputTokens: 4, outputTokens: 4, pages: 3, costMicrousd: 2, measurement: 'measured' },
+        { provider: 'acme', model: 'x-1', operations: 1, inputTokens: 30, outputTokens: 6, pages: 0, costMicrousd: 10, measurement: 'mixed', costStatus: 'estimated' },
+        { provider: 'other', model: 'y-2', operations: 1, inputTokens: 4, outputTokens: 4, pages: 3, costMicrousd: 2, measurement: 'measured', costStatus: 'measured' },
       ],
-      totals: { operations: 2, inputTokens: 34, outputTokens: 10, pages: 3, costMicrousd: 12 },
+      totals: { operations: 2, inputTokens: 34, outputTokens: 10, pages: 3, costMicrousd: 12, costStatus: 'estimated' },
     });
   });
 

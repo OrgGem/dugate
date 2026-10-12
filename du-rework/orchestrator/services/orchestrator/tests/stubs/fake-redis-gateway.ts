@@ -1,4 +1,5 @@
 import type { RedisSessionGateway } from '../../src/modules/auth/redis-session-repository';
+import type { SessionRecord } from '../../src/modules/auth/session-store';
 
 /**
  * In-process Redis stand-in for the SESSION repository suites ONLY
@@ -52,6 +53,37 @@ export class FakeRedisSessionGateway implements RedisSessionGateway {
       return null;
     }
     return e.value;
+  }
+
+  /** Atomic test mirror for the production one-time Cost Alerts session pin. */
+  async pinCostAlertRecipient(
+    sessionKey: string,
+    expected: SessionRecord,
+    principalId: string,
+    authorizationVersion: number,
+    ttlSeconds: number,
+  ): Promise<string | null> {
+    this.calls += 1;
+    const entry = this.strings.get(sessionKey);
+    if (!entry || entry.expiresAt <= this.clock()) return null;
+    let current: SessionRecord;
+    try {
+      current = JSON.parse(entry.value) as SessionRecord;
+    } catch {
+      return null;
+    }
+    if (current.sessionId !== expected.sessionId || current.issuer !== expected.issuer
+      || current.sub !== expected.sub || current.tenantId !== null || current.role !== 'admin'
+      || current.createdAt !== expected.createdAt || current.expiresAt !== expected.expiresAt
+      || current.csrfToken !== expected.csrfToken || current.issuer === 'du-local'
+      || current.costAlertPrincipalId !== undefined || current.costAlertAuthorizationVersion !== undefined) return null;
+    const updated: SessionRecord = {
+      ...current,
+      costAlertPrincipalId: principalId,
+      costAlertAuthorizationVersion: authorizationVersion,
+    };
+    this.strings.set(sessionKey, { value: JSON.stringify(updated), expiresAt: this.clock() + ttlSeconds * 1000 });
+    return JSON.stringify(updated);
   }
 
   async set(key: string, value: string, ttlSeconds: number): Promise<void> {

@@ -240,3 +240,35 @@ describe('OIDC-02 store config sanity', () => {
     expect(() => createSessionStore({ repo: createMemorySessionRepository(), absoluteTtlMs: 1000, idleTtlMs: 5000 })).toThrow(/idleTtlMs/);
   });
 });
+
+describe('Cost Alerts OIDC session pin', () => {
+  const principalId = 'd7dbe239-6b17-4df6-9fdc-dfd6a8a632a1';
+
+  it('pins only an external platform Admin session and permits only the same exact replay', async () => {
+    const repo = createMemorySessionRepository();
+    const store = createSessionStore({ repo, now: () => T0 });
+    const session = await store.create({ issuer: 'https://idp.test/realm', sub: 'external-admin', role: 'admin', tenantId: null });
+
+    const pinned = await store.pinCostAlertRecipient(session.sessionId, principalId, 4);
+    expect(pinned).toMatchObject({ costAlertPrincipalId: principalId, costAlertAuthorizationVersion: 4 });
+    expect(await store.pinCostAlertRecipient(session.sessionId, principalId, 4)).toMatchObject({
+      costAlertPrincipalId: principalId,
+      costAlertAuthorizationVersion: 4,
+    });
+    expect(await store.pinCostAlertRecipient(session.sessionId, principalId, 5)).toBeNull();
+    expect(await store.get(session.sessionId)).toMatchObject({ costAlertPrincipalId: principalId, costAlertAuthorizationVersion: 4 });
+  });
+
+  it('does not pin local, tenant-scoped, missing, or malformed session identities', async () => {
+    const repo = createMemorySessionRepository();
+    const store = createSessionStore({ repo, now: () => T0 });
+    const local = await store.create({ issuer: 'du-local', sub: 'local-admin', role: 'admin', tenantId: null });
+    const tenantScoped = await store.create({ issuer: 'https://idp.test/realm', sub: 'tenant-admin', role: 'admin', tenantId: 'tenant-a' });
+
+    expect(await store.pinCostAlertRecipient(local.sessionId, principalId, 1)).toBeNull();
+    expect(await store.pinCostAlertRecipient(tenantScoped.sessionId, principalId, 1)).toBeNull();
+    expect(await store.pinCostAlertRecipient('invalid', principalId, 1)).toBeNull();
+    expect(await store.pinCostAlertRecipient(local.sessionId, 'not-a-uuid', 1)).toBeNull();
+    expect(await store.pinCostAlertRecipient(local.sessionId, principalId, 0)).toBeNull();
+  });
+});

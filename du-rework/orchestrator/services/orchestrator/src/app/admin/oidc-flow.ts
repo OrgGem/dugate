@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { buildSessionClearCookie, buildSessionCookie, SESSION_COOKIE_NAME, isValidSessionId, type SessionRecord } from '../../modules/auth/session-store';
 import { createPkcePair, type OidcClient, type VerifiedToken } from '../../modules/auth/oidc-client';
+import type { ObservedCostAlertOidcLogin, VerifiedCostAlertOidcLogin } from '../../modules/cost-alerts/oidc-recipients';
 
 /**
  * OIDC-04 — the Authorization-Code + PKCE login flow for the Admin
@@ -74,7 +75,7 @@ export interface OidcChallengeStore {
 }
 
 export interface OidcFlowSessionStore {
-  create(identity: { issuer: string; sub: string; tenantId?: string | null; role: 'admin' | 'operator' | 'viewer' }): Promise<SessionRecord>;
+  create(identity: { issuer: string; sub: string; tenantId?: string | null; role: 'admin' | 'operator' | 'viewer'; costAlertPrincipalId?: string; costAlertAuthorizationVersion?: number }): Promise<SessionRecord>;
   get(sessionId: string): Promise<SessionRecord | null>;
   destroy(sessionId: string): Promise<boolean>;
 }
@@ -100,6 +101,7 @@ export interface OidcFlowOptions {
   cookie?: { trustProxyProtocol?: boolean; requireSecure?: boolean };
   now?: () => number;
   challengeTtlMs?: number;
+  observeVerifiedLogin?: (input: VerifiedCostAlertOidcLogin) => Promise<ObservedCostAlertOidcLogin | null>;
 }
 
 const DEFAULT_RETURN = '/admin';
@@ -149,6 +151,7 @@ export function forwardedProtoProvesHttps(raw: string | undefined): boolean {
 }
 
 export function createOidcFlow(options: OidcFlowOptions) {
+  let observeVerifiedLogin = options.observeVerifiedLogin;
   const now = options.now ?? ((): number => Date.now());
   const challengeTtlMs = options.challengeTtlMs ?? 10 * 60_000;
   const origin = new URL(options.publicOrigin); // constructor throws on garbage config
@@ -222,9 +225,30 @@ export function createOidcFlow(options: OidcFlowOptions) {
       return deny;
     }
     const { role, tenantId } = roleFor(tokens.idToken);
+    let costAlertPin: { costAlertPrincipalId: string; costAlertAuthorizationVersion: number } | undefined;
+    if (observeVerifiedLogin) {
+      try {
+        const observed = await observeVerifiedLogin({
+          issuer: tokens.idToken.iss,
+          sub: tokens.idToken.sub,
+          role,
+          tenantId,
+          verifiedAt: new Date(now()).toISOString(),
+        });
+        if (observed?.sessionEligible) {
+          costAlertPin = {
+            costAlertPrincipalId: observed.principal.principalId,
+            costAlertAuthorizationVersion: observed.principal.authorizationVersion,
+          };
+        }
+      } catch {
+        // Cost Alerts recipient enrollment is an independent feature. A directory
+        // outage closes its recipient access while preserving verified app login.
+      }
+    }
     let session;
     try {
-      session = await options.sessions.create({ issuer: tokens.idToken.iss, sub: tokens.idToken.sub, tenantId, role });
+      session = await options.sessions.create({ issuer: tokens.idToken.iss, sub: tokens.idToken.sub, tenantId, role, ...costAlertPin });
     } catch {
       return deny; // e.g. claims shape the store refuses — fail closed
     }
@@ -259,7 +283,13 @@ export function createOidcFlow(options: OidcFlowOptions) {
     };
   }
 
-  return { handleLogin, handleCallback, handleLogout, sanitizeReturnTo: safeReturnTo };
+  return {
+    handleLogin,
+    handleCallback,
+    handleLogout,
+    sanitizeReturnTo: safeReturnTo,
+    setVerifiedLoginObserver(observer: typeof observeVerifiedLogin) { observeVerifiedLogin = observer; },
+  };
 }
 
 export type OidcFlow = ReturnType<typeof createOidcFlow>;

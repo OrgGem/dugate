@@ -1,0 +1,40 @@
+{
+  "name": "operations/b4c459b6-c875-4edb-9204-899b0360c712",
+  "done": true,
+  "metadata": {
+    "state": "SUCCEEDED",
+    "pipeline": [],
+    "current_step": 0,
+    "progress_percent": 0,
+    "progress_message": "Queued",
+    "create_time": "2026-10-12T00:37:44.732Z",
+    "update_time": "2026-10-12T00:37:44.781Z",
+    "pipeline_steps": []
+  },
+  "result": {
+    "output_format": "json",
+    "content": "{\"transformedText\":\"Call [REDACTED:PHONE] or email [REDACTED:EMAIL]\",\"outputFormat\":\"text\",\"metadata\":{\"redactionsCount\":2,\"countsByPattern\":{\"EMAIL\":1,\"PHONE\":1},\"method\":\"local_pii_redactor\"}}",
+    "extracted_data": {
+      "transformedText": "Call [REDACTED:PHONE] or email [REDACTED:EMAIL]",
+      "outputFormat": "text",
+      "metadata": {
+        "redactionsCount": 2,
+        "countsByPattern": {
+          "EMAIL": 1,
+          "PHONE": 1
+        },
+        "method": "local_pii_redactor"
+      }
+    },
+    "pipeline_steps": [],
+    "usage": {
+      "input_tokens": null,
+      "output_tokens": null,
+      "pages_processed": null,
+      "model_used": null,
+      "cost_usd": null,
+      "breakdown": []
+    },
+    "download_url": "/api/v1/operations/b4c459b6-c875-4edb-9204-899b0360c712/download"
+  }
+}

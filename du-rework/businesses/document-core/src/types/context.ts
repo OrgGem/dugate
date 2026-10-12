@@ -1,4 +1,9 @@
-import { ArtifactRef, type PinnedProfilePolicy, type PinnedPromptOverride } from '@du/contracts';
+import {
+  ArtifactRef,
+  type PinnedProfilePolicy,
+  type PinnedPromptOverride,
+  type TenantDefaultsSnapshot,
+} from '@du/contracts';
 import type { SupportedFormat } from '@du/document-kit';
 import type { TaskArtifactCrypto } from '@du/worker-sdk';
 import type { Readable } from 'node:stream';
@@ -131,6 +136,8 @@ export interface TaskContext {
    * their shape; absent means no binding is resolvable (profile level skips).
    */
   readonly connectorBindings?: Readonly<Record<string, string>>;
+  /** Optional immutable tenant defaults opened from the operation claim. */
+  readonly tenantDefaults?: TenantDefaultsSnapshot | null;
 
   // Artifact operations
   artifacts: {

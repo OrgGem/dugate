@@ -14,16 +14,34 @@ import type { AuditService } from '../modules/audit/audit';
 import type { createSubmissionService } from '../modules/operations/submission';
 import type { createRuntimeService, QueueIntegrityHealth } from '../modules/runtime/runtime';
 import type { createUsageService } from '../modules/usage/usage';
+import type { ComposeOperationsService } from '../modules/compose-operations/service';
+import type { GlobalSettingsService } from '../modules/global-settings/service';
+import type { createMaintenanceService } from '../modules/maintenance/maintenance-service';
+import type { BackupSnapshotWriteGate } from '../modules/maintenance/backup-effect-fence';
+import type { CostControlService } from '../modules/cost-control/service';
+import type {
+  CostAdjustmentCommand,
+  CostAdjustmentCommandResult,
+  CostAdjustmentEvidenceQuery,
+  CostAdjustmentEvidencePage,
+  CostAdjustmentHistoryPage,
+  CostAdjustmentQuery,
+} from '@du/contracts';
+import type { AdjustmentReader } from '../modules/cost-control/adjustments';
+import type { createAdminIdentityService } from '../modules/identity/service';
+import type { ProfileSelfService } from '../modules/profiles/self-service';
 import type { ArtifactService } from '../modules/artifacts/artifacts';
 import type { MultipartService } from '../modules/artifacts/multipart-service';
 import type { DeliveryEncryptionService, PublicUploadGateway } from '../modules/public-api';
 import type { GrantService } from '../modules/grants/grants';
 import type { ConnectorProxy } from '../modules/connectors/connectors';
 import type { ConnectorManagementStore } from '../modules/connectors/connector-management-store';
+import type { createConnectorSecretImportService } from '../modules/connectors/connector-secret-imports';
 import type { MetadataCrypto } from '../modules/runtime/metadata-crypto';
 import type { MetadataReader } from '../modules/encryption/metadata-read-policy';
 import type { createLifecycleService } from '../modules/lifecycle/lifecycle';
 import type { createDispatcher } from '../modules/queue/dispatcher';
+import type { ServiceRuntime } from '../modules/service-runtime/service-runtime';
 import type { CredentialWorkflow } from '../modules/connector-credentials/workflow';
 import type { ArtifactDecryptDeps } from '../modules/encryption/artifact-read-decrypt';
 import type { CryptoConfigServiceOptions } from '../app/admin/crypto-config-api';
@@ -36,6 +54,12 @@ export interface RouteResult {
   body?: unknown;
   headers?: Record<string, string>;
   raw?: Buffer | Readable;
+}
+
+export interface CostAdjustmentServicePort {
+  getHistory(query: CostAdjustmentQuery, actor: AdjustmentReader): Promise<CostAdjustmentHistoryPage>;
+  listEvidence(query: CostAdjustmentEvidenceQuery, actor: AdjustmentReader): Promise<CostAdjustmentEvidencePage>;
+  adjust(command: CostAdjustmentCommand, actor: AdjustmentReader, idempotencyKey: string): Promise<CostAdjustmentCommandResult>;
 }
 
 export interface RouteContext {
@@ -63,6 +87,24 @@ export interface RouteContext {
   submission: ReturnType<typeof createSubmissionService>;
   runtime: ReturnType<typeof createRuntimeService>;
   usage: ReturnType<typeof createUsageService>;
+  /** Bounded Admin + dedicated host-runner Compose control plane. */
+  composeOperations: ComposeOperationsService;
+  /** ORV14 tenant/platform settings revisions and immutable effective snapshots. */
+  globalSettings?: GlobalSettingsService;
+  /** ORV14 durable maintenance jobs over the real runtime/artifact/retention ports. */
+  maintenanceService: ReturnType<typeof createMaintenanceService>;
+  /** ORV14 shared cost-control policy and invocation reservation service. */
+  costControl: CostControlService;
+  /** Backup snapshot singleton gate shared by all same-transaction snapshot writers. */
+  backupSnapshotWriteGate?: BackupSnapshotWriteGate;
+  /** COST-01 append-only adjustment commands and protected evidence reads. */
+  costAdjustments?: CostAdjustmentServicePort;
+  /** ORV14 per-replica durable control, readiness and accepted-work tracker. */
+  serviceRuntime?: ServiceRuntime;
+  /** ORV14 trusted local identity grants for internal owner selectors/fences. */
+  identity?: ReturnType<typeof createAdminIdentityService>;
+  /** ORV14 shared same-process assigned-Profile self-service command. */
+  profileSelfService?: ProfileSelfService;
   artifacts: ArtifactService;
   /** DATA-02 client-driven multipart upload lifecycle. */
   multipart: MultipartService;
@@ -83,6 +125,8 @@ export interface RouteContext {
    * management surface fails closed (503) and capabilities report false.
    */
   connectorManagement?: ConnectorManagementStore;
+  /** Server-only encrypted Catalog→Connector import; never a plaintext read path. */
+  connectorSecretImports?: ReturnType<typeof createConnectorSecretImportService>;
   /**
    * ENCMETA-RESULTREF-IMPL: the metadata seam for sealed control-plane reads
    * that happen in routes (the public /result route opens the operation's

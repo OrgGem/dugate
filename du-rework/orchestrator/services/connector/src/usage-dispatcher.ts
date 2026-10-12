@@ -183,7 +183,15 @@ export class UsageOutboxDispatcher {
       cancel: () => rejectCancelled(new ConnectorError('PROVIDER_TIMEOUT', 'Usage sink delivery was cancelled during drain.')),
     };
     this.activeSends.add(activeSend);
+    let sendStarted = false;
     try {
+      if (row.deliveryToken !== undefined) {
+        const activated = await this.outbox.activateDelivery?.(row.eventId, row.deliveryToken);
+        if (!activated) return;
+      }
+      // From this point onward the sink may have received the stable event,
+      // even if its promise rejects or the local connection is aborted.
+      sendStarted = true;
       await Promise.race([
         this.sink.send(row.payload, controller.signal),
         new Promise<void>((_resolve, reject) => {
@@ -194,8 +202,17 @@ export class UsageOutboxDispatcher {
         }),
         cancelled,
       ]);
-      await this.outbox.markDelivered(row.eventId);
+      await this.outbox.markDelivered(row.eventId, row.deliveryToken);
     } catch {
+      if (row.deliveryToken !== undefined) {
+        if (sendStarted) {
+          await this.outbox.markUnknownDelivery?.(row.eventId, row.deliveryToken, 'USAGE_SEND_OUTCOME_UNKNOWN');
+        }
+        // Durable claims are never blindly retried after the send boundary.
+        // A pre-send database/activation failure remains a held permit for
+        // reconciliation; the sink is not called again by this loop.
+        return;
+      }
       const delay = Math.min(
         this.options.maxRetryMs,
         this.options.baseRetryMs * 2 ** Math.max(0, Math.min(row.attempts - 1, 16)),
@@ -205,7 +222,7 @@ export class UsageOutboxDispatcher {
       const retryAt = row.attempts >= this.options.maxAttempts
         ? new Date(Date.now() + this.options.poisonRetryMs)
         : next;
-      await this.outbox.defer(row.eventId, retryAt.toISOString());
+      await this.outbox.defer(row.eventId, retryAt.toISOString(), 'USAGE_SINK_DELIVERY_FAILED');
     } finally {
       if (timeout) clearTimeout(timeout);
       this.activeSends.delete(activeSend);

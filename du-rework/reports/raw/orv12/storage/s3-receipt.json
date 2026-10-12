@@ -1,0 +1,25 @@
+{
+  "implementation": "Moto 5.1.12 local S3 HTTP emulator; versioning enabled, not cloud IAM",
+  "uploadStatus": 201,
+  "downloadStatus": 200,
+  "otherKeyStatus": 404,
+  "plaintextSha256": "723103309d70097fbe345458b3dbf096ee99f6537793705f050b3ad1db3e5f16",
+  "ciphertextSha256": "4923a4f57337e8c13038fcc6bd983a4103cdbc1b7dd9dd6ffe7d744d3f052684",
+  "pinnedObjectVersion": "c7f903db-b740-4a3f-9fc6-67a71d69b6a7",
+  "pinnedManifestVersion": "66ae4468-2d0f-42ef-a9e4-98eb51652040",
+  "newerVersionIgnored": true,
+  "tamperedHashAndVersion": {
+    "sha256": {
+      "status": 503,
+      "body": "{\"type\":\"urn:du:error:storage_failure\",\"title\":\"encrypted artifact envelope does not match the committed object\",\"status\":503,\"code\":\"STORAGE_FAILURE\",\"correlationId\":\"454bf6ff-c98b-4543-bdfc-aef9b922e14e\"}"
+    },
+    "manifest_version_id": {
+      "status": 500,
+      "body": "{\"type\":\"urn:du:error:temporary_unavailable\",\"title\":\"internal error\",\"status\":500,\"code\":\"TEMPORARY_UNAVAILABLE\",\"detail\":\"internal error (correlationId e5bf5e52-5c5a-4462-835d-016ad00e9dde)\",\"correlationId\":\"e5bf5e52-5c5a-4462-835d-016ad00e9dde\"}"
+    },
+    "storage_version_id": {
+      "status": 404,
+      "body": "{\"type\":\"urn:du:error:not_found\",\"title\":\"artifact object is missing from storage\",\"status\":404,\"code\":\"NOT_FOUND\",\"correlationId\":\"644450e8-ea1e-4d97-81ad-33fc0d08b1f7\"}"
+    }
+  }
+}

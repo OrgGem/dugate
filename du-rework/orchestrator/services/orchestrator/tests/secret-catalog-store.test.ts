@@ -12,6 +12,7 @@ import {
 
 describe('SecretCatalogStore (SC-01 / SC-03)', () => {
   const testKey = resolveSecretStoreKey('test-encryption-key-for-secrets');
+  const writeGate = { assertWriteAllowed: jest.fn(async () => undefined) };
 
   it('encrypts and decrypts secret value correctly with AES-256-GCM', () => {
     const rawSecret = 'sk-live-synthetic-secret-value-12345';
@@ -63,6 +64,8 @@ describe('SecretCatalogStore (SC-01 / SC-03)', () => {
         }
         return { rowCount: 0, rows: [] };
       }),
+      tx: async <T>(run: (client: { query: (sql: string, params: unknown[]) => Promise<unknown> }) => Promise<T>) =>
+        run({ query: mockDb.query as never }),
     };
 
     const tenantId = randomUUID();
@@ -73,7 +76,7 @@ describe('SecretCatalogStore (SC-01 / SC-03)', () => {
       services: ['orchestrator', 'connector'],
       provider: { kind: 'managed_value' },
       value: { kind: 'literal', value: 'secret-token-to-encrypt' },
-    }, 'test-encryption-key-for-secrets');
+    }, 'test-encryption-key-for-secrets', undefined, writeGate as never);
 
     expect(result.name).toBe('prod-api-key');
     expect(result.valueConfigured).toBe(true);
@@ -107,6 +110,9 @@ describe('SecretCatalogStore (SC-01 / SC-03)', () => {
 
     const mockDb = {
       query: jest.fn(async (sql: string, params: unknown[]) => {
+        if (sql.includes('SELECT tenant_id::text AS tenant_id FROM secret_catalog')) {
+          return { rowCount: 1, rows: [{ tenant_id: tenantId }] };
+        }
         if (sql.includes('SELECT * FROM secret_catalog')) {
           return { rowCount: 1, rows: [currentRow] };
         }
@@ -121,6 +127,8 @@ describe('SecretCatalogStore (SC-01 / SC-03)', () => {
         }
         return { rowCount: 0, rows: [] };
       }),
+      tx: async <T>(run: (client: { query: (sql: string, params: unknown[]) => Promise<unknown> }) => Promise<T>) =>
+        run({ query: mockDb.query as never }),
     };
 
     // Stale expectedRevision throws 409
@@ -128,14 +136,14 @@ describe('SecretCatalogStore (SC-01 / SC-03)', () => {
       secretId,
       expectedRevision: 99,
       value: { kind: 'literal', value: 'new-val' },
-    }, 'test-encryption-key-for-secrets')).rejects.toThrow(/revision conflict/);
+    }, 'test-encryption-key-for-secrets', undefined, writeGate as never)).rejects.toThrow(/revision conflict/);
 
     // Matching revision rotates
     const rotated = await rotateSecretInDb(mockDb as never, secretId, {
       secretId,
       expectedRevision: 1,
       value: { kind: 'literal', value: 'new-val' },
-    }, 'test-encryption-key-for-secrets');
+    }, 'test-encryption-key-for-secrets', undefined, writeGate as never);
 
     expect(rotated.revision).toBe(2);
   });

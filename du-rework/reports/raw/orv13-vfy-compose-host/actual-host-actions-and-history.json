@@ -1,0 +1,56 @@
+{
+  "sequence": [
+    {
+      "jobId": "6f1614a4-b5ea-46ac-b080-6c8e91060ad4",
+      "action": "restart_service",
+      "state": "SUCCEEDED",
+      "replaySameKeyReturnedSameJob": true,
+      "replayAuditRows": 1,
+      "divergentIdempotencyCode": "IDEMPOTENCY_CONFLICT",
+      "competingTargetCode": "TARGET_BUSY",
+      "webStartedAtChanged": true
+    },
+    {
+      "jobId": "e4f2b0e8-d7b5-45a8-bc59-8100eef6da3e",
+      "action": "apply_release",
+      "releaseId": "release-b",
+      "state": "SUCCEEDED",
+      "sharedWebContainerIdsPreserved": true,
+      "desiredReleaseId": "release-b",
+      "observedReleaseId": "release-b"
+    },
+    {
+      "jobId": "7d7efd18-0f28-42d6-ac19-d687e6907fc9",
+      "action": "rollback_release",
+      "releaseId": "release-a",
+      "state": "SUCCEEDED"
+    },
+    {
+      "jobId": "d5c91b8f-b259-4c1c-994f-27543dccf73f",
+      "action": "apply_release",
+      "releaseId": "release-partial",
+      "state": "PARTIAL",
+      "expectedMissingWorkerDigest": "registry.example.invalid/orv13-missing@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  ],
+  "auditFailureRollback": {
+    "failingAuditInsertSurfacedAsGateway502": 502,
+    "problemCode": "UPSTREAM_ERROR",
+    "jobCountBefore": 4,
+    "jobCountAfter": 4,
+    "samePreviewAndIdempotencyRetryCreatedJob": true
+  },
+  "postgresMicrosecondCursor": {
+    "inputMicros": 5,
+    "limit": 1,
+    "returnedCount": 5,
+    "returnedEachOnce": true,
+    "jobIdsDescending": [
+      "d5c91b8f-b259-4c1c-994f-27543dccf73f",
+      "7d7efd18-0f28-42d6-ac19-d687e6907fc9",
+      "e4f2b0e8-d7b5-45a8-bc59-8100eef6da3e",
+      "6f1614a4-b5ea-46ac-b080-6c8e91060ad4",
+      "e986a52d-ce1e-42a0-87e0-e8f129510433"
+    ]
+  }
+}

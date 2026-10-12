@@ -254,20 +254,20 @@ describe('Bounded Input Enforcement (WORKLOAD-REBALANCE-04, P5-05)', () => {
       }).toThrow(expect.objectContaining({ code: 'TOO_MANY_ARTIFACTS' }));
     });
 
-    test('Extract rejects >10 artifacts with TOO_MANY_ARTIFACTS', () => {
-      const validArtifacts = Array.from({ length: 10 }, (_, i) => `art-${i + 1}`);
+    test('Extract rejects >20 artifacts with TOO_MANY_ARTIFACTS', () => {
+      const validArtifacts = Array.from({ length: 20 }, (_, i) => `art-${i + 1}`);
       expect(() => {
         InputNormalizer.normalizeExtract({ type: 'invoice', artifactIds: validArtifacts });
       }).not.toThrow();
 
-      const excessiveArtifacts = Array.from({ length: 11 }, (_, i) => `art-${i + 1}`);
+      const excessiveArtifacts = Array.from({ length: 21 }, (_, i) => `art-${i + 1}`);
       expect(() => {
         InputNormalizer.normalizeExtract({ type: 'invoice', artifactIds: excessiveArtifacts });
       }).toThrow(expect.objectContaining({ code: 'TOO_MANY_ARTIFACTS' }));
     });
 
-    test('Analyze, Transform, and Generate reject >10 artifacts with TOO_MANY_ARTIFACTS', () => {
-      const excessiveArtifacts = Array.from({ length: 11 }, (_, i) => `art-${i + 1}`);
+    test('Analyze, Transform, and Generate reject >20 artifacts with TOO_MANY_ARTIFACTS', () => {
+      const excessiveArtifacts = Array.from({ length: 21 }, (_, i) => `art-${i + 1}`);
 
       expect(() => {
         InputNormalizer.normalizeAnalyze({ task: 'classify', artifactIds: excessiveArtifacts });

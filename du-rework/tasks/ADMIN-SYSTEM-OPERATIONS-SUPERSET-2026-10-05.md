@@ -1,5 +1,7 @@
 # Admin Durework: đầy đủ DUGate và chuyên biệt cho điều hành hệ thống
 
+> **ORV14 full implementation — IN PROGRESS, 2026-10-11:** Người dùng đã yêu cầu triển khai toàn bộ chức năng còn lại. [Execution/leases](../coordination/ORV14-FULL-ADMIN-EXECUTION-2026-10-11.md), [architecture/coverage](../coordination/reports/orv14-architecture-review.md). Sáu lane Luna6 max triển khai settings/runtime defaults/storage generations, rich COST+all-scope budgets, workflow XML/Profile/Test/Wizard, incidents+ops UI, queue/maintenance/backup-restore/HA và Identity/Connector/key parity. Các chức năng required giữ nguyên; scoped ORV13 không thay full CFGADM/AOPS. Chưa có independent full verification hoặc final acceptance; production data/credential/ingress proof tách riêng.
+
 **Yêu cầu người dùng ngày 2026-10-05:** quản trị trên Durework phải có đầy đủ chức năng quản trị đang hoạt động trong DUGate ở root, nhiều khả năng hơn và UI tối ưu cho quản lý hệ thống, điều hành services.
 
 **Trạng thái: SPECIFIED; đối chiếu source, chưa xác nhận runtime hoặc nghiệm thu sản phẩm.** Phạm vi lần này là review và bổ sung plan. Không sửa source sản phẩm, dispatch, active ledger, checkbox cũ hoặc triển khai production. Snapshot là working tree ngày 2026-10-05; source đang được nhiều lane phát triển. Evidence lịch sử chỉ có hiệu lực đúng slice/build được ghi trong receipt.

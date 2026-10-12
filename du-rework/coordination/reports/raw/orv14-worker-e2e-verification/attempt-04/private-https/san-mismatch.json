@@ -1,0 +1,13 @@
+{
+  "operationId": "66cd9611-6898-40e4-ae0c-9112728f92a5",
+  "state": "FAILED",
+  "errorCode": "LEGACY_WORKFLOW_URL_DOWNLOAD_FAILED",
+  "listenerEvents": [
+    {
+      "kind": "tls-error",
+      "listener": "san-mismatch",
+      "sni": "172-31-10-238.sslip.io",
+      "errorCode": "ECONNRESET"
+    }
+  ]
+}

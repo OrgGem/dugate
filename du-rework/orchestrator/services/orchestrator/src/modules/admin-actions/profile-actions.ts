@@ -1,3 +1,4 @@
+import type { ConnectorManagementStore } from '../connectors/connector-management-store';
 import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import {
@@ -7,7 +8,7 @@ import {
   type ProfileUpsertCommand,
 } from '@du/contracts';
 import type { Db } from '../../db/db';
-import { conflict, notFound } from '../../http/errors';
+import { conflict, notFound, HttpError } from '../../http/errors';
 import { createProfileRevisionService, isUnknownRevisionError } from '../profiles/publish';
 import type { ProfileService } from '../profiles/profiles';
 
@@ -49,6 +50,7 @@ export const PROFILE_ACTIONS: Record<string, ProfileActionDef> = {
 export interface ProfileActionDeps {
   db: Db;
   profiles: ProfileService;
+  connectorManagement?: ConnectorManagementStore;
 }
 
 /** Dispatcher's tenant gate: throws HttpError on a foreign/denied tenant. */
@@ -205,6 +207,14 @@ export async function runProfileUpsert(
   const key = await resolveApiKey(client, cmd.apiKey);
   fence(key.tenant_id);
 
+  if(cmd.connectorBindings && Object.keys(cmd.connectorBindings).length) {
+    if(!deps.connectorManagement) throw new HttpError(503,'TEMPORARY_UNAVAILABLE','connector management is required to validate explicit profile pins');
+    for(const pin of Object.values(cmd.connectorBindings)) {
+      const connector=await deps.connectorManagement.getRevision(pin.connectorId,pin.revision);
+      if(!connector || connector.state !== 'ACTIVE' || (connector.tenantId && connector.tenantId !== key.tenant_id)) throw new HttpError(422,'INVALID_SCHEMA','connector revision is not ACTIVE or available in this tenant');
+    }
+  }
+
   const action = cmd.action ?? cmd.profileName;
   const { profileId, created } = await ensureProfileId(client, key, {
     businessId: cmd.businessId,
@@ -214,6 +224,7 @@ export async function runProfileUpsert(
   });
   await assertUpsertCas(client, profileId, created, cmd.expectedRevision);
 
+  const currentPins = cmd.connectorBindings === undefined && !created ? await client.query('SELECT p.connector_bindings FROM profile_active_revisions a JOIN profile_bindings p ON p.profile_id=a.profile_id AND p.revision=a.revision WHERE a.profile_id=$1',[profileId]) : undefined;
   return deps.profiles.createRevision(
     {
       profileId,
@@ -221,7 +232,8 @@ export async function runProfileUpsert(
       businessId: cmd.businessId,
       businessVersion: cmd.businessVersion,
       action,
-      connectorBindings: {},
+      connectorBindings: cmd.connectorBindings ?? currentPins?.rows[0]?.connector_bindings ?? {},
+      endpointSlug: cmd.endpointSlug,
       policy: cmd.policy as Record<string, unknown>,
     },
     client

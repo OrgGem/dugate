@@ -1,0 +1,32 @@
+{
+  "positiveControl": {
+    "operationId": "200c85e6-212e-479e-9432-8ed75f2d6a7a",
+    "state": "SUCCEEDED",
+    "listenerEvents": [
+      {
+        "kind": "tls",
+        "listener": "san-match-alt",
+        "sni": "172-26-91-253.sslip.io"
+      },
+      {
+        "kind": "request",
+        "listener": "san-match-alt",
+        "method": "GET",
+        "path": "/file.txt",
+        "host": "172-26-91-253.sslip.io:37951",
+        "sni": "172-26-91-253.sslip.io"
+      }
+    ]
+  },
+  "excludedTenantOrigin": "https://172-26-91-253.sslip.io:37951",
+  "operationId": "0b51de00-1e65-40cf-9e8c-d7ba708f990b",
+  "state": "FAILED",
+  "errorCode": "LEGACY_WORKFLOW_EGRESS_ORIGIN_DENIED",
+  "listenerEvents": [],
+  "workerPolicyLog": {
+    "workerInstanceId": "wfa-private-https-42c913cd-922d-456b-8e97-96cba6609824",
+    "digest": "sha256:55a63aaf6a70ed081c96f3999d827aeca52f7391135e547dbcebf75a3e232adc",
+    "originFieldPresent": false,
+    "mentionsFixtureHostname": false
+  }
+}

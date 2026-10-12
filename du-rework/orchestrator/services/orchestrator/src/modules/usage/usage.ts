@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto';
 import {
-  UsageEventSchema,
   UsageIngestBatchSchema,
   aggregateUsageEvents,
   calculateOperationCost,
@@ -12,6 +11,9 @@ import {
   UsageEventDrilldownCursorSchema,
   UsageEventDrilldownQuerySchema,
   UsageEventExportPageSchema,
+  UsageEventSchema,
+  ProviderReportedCostSchema,
+  USAGE_ATTRIBUTION_ID_PATTERN,
 } from '@du/contracts';
 import type {
   BudgetConfigInput,
@@ -24,13 +26,19 @@ import type {
   UsageAggregation,
   UsageEventDrilldownQueryInput,
   UsageEventExportPage,
+  ProviderReportedCost,
 } from '@du/contracts';
 import type { Usage, UsageEvent, UsageIngestAck } from '@du/contracts';
 import type { Db } from '../../db/db';
 import { HttpError, zodIssuesToProblem } from '../../http/errors';
+import { z } from 'zod';
 import { validateBudgetEvaluation } from './budget-evaluation-validator';
 import { createBudgetReservationService } from './budget-reservations';
 import type { BudgetReservationService } from './budget-reservations';
+import { appendLocalUserUsageFence, usageReadScopeFingerprint, type LocalUserUsageReadScope } from './read-scope';
+import { lockCostUsageSettlement, settleCostReservationGroup } from '../cost-control/reservation-groups';
+import { loadEffectiveCharges } from './effective-charges';
+import type { BackupSnapshotWriteGate } from '../maintenance/backup-effect-fence';
 
 export interface UsageService {
   /** COST-04 durable pre-call holds and post-call reconciliation. */
@@ -43,6 +51,7 @@ export interface UsageService {
     from: Date,
     to: Date,
     options?: UsageSummaryOptions,
+    readScope?: LocalUserUsageReadScope,
   ): Promise<UsageSummary>;
   /** COST-03 reconciliation view over ledger-shaped rows (contracts core). */
   getReconciliationSummary(
@@ -55,8 +64,155 @@ export interface UsageService {
   getUsageEventExportPage(
     tenantId: string,
     query?: UsageEventDrilldownQueryInput,
+    readScope?: LocalUserUsageReadScope,
   ): Promise<UsageEventExportPage>;
+  /** BASIC_ADMIN_USAGE_V1 page over persisted runtime UsageEvent rows. */
+  getAdminUsageEventPage(
+    tenantId: string,
+    query: AdminUsageEventQueryInput,
+    readScope?: LocalUserUsageReadScope,
+  ): Promise<AdminUsageEventPage>;
 }
+
+export interface UsageServiceOptions {
+  /** Shared process gate; ingestion/settlement fails closed when absent. */
+  backupSnapshotWriteGate?: BackupSnapshotWriteGate;
+}
+
+export const AdminUsageEventQuerySchema = z.object({
+  tenantId: z.string().regex(USAGE_ATTRIBUTION_ID_PATTERN).optional(),
+  from: z.string().datetime({ offset: true }),
+  to: z.string().datetime({ offset: true }),
+  timeField: z.literal('receivedAt').default('receivedAt'),
+  limit: z.number().int().min(1).max(100).default(50),
+  cursor: z.string().min(1).max(2048).regex(/^[A-Za-z0-9_-]+$/).optional(),
+  operationId: z.string().uuid().optional(),
+  provider: z.string().regex(USAGE_ATTRIBUTION_ID_PATTERN).optional(),
+  model: z.string().regex(USAGE_ATTRIBUTION_ID_PATTERN).optional(),
+}).strict().superRefine((query, ctx) => {
+  const from = Date.parse(query.from);
+  const to = Date.parse(query.to);
+  if (!(to > from)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'to must be after from', path: ['to'] });
+  } else if (to - from > 366 * 24 * 60 * 60 * 1000) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'usage event window cannot exceed 366 days', path: ['to'] });
+  }
+  if ((query.provider === undefined) !== (query.model === undefined)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'provider and model filters must be supplied together',
+      path: [query.provider === undefined ? 'provider' : 'model'],
+    });
+  }
+});
+
+// The basic projection intentionally skips event IDs longer than the public
+// record limit (128), but still needs to carry those stored keys through its
+// cursor so scanning can make bounded forward progress. Keep this separate
+// from the frozen rich-export cursor schema and bounded by the query's 2 KiB
+// cursor limit.
+const AdminUsageEventCursorSchema = z.object({
+  version: z.literal(1),
+  tenantId: z.string().regex(USAGE_ATTRIBUTION_ID_PATTERN),
+  queryHash: z.string().regex(/^[a-f0-9]{64}$/),
+  after: z.string().datetime({ offset: true }),
+  afterEventKey: z.string().regex(/^[a-f0-9]{64}$/),
+}).strict();
+
+export type AdminUsageEventQueryInput = z.input<typeof AdminUsageEventQuerySchema>;
+
+export interface AdminUsageEventRecord {
+  eventId: string;
+  operationId: string;
+  taskId: string;
+  invocationId: string;
+  provider: string | null;
+  model: string | null;
+  units: { inputTokens: number; outputTokens: number; cachedInputTokens?: number; pages?: number };
+  /** Null means this persisted runtime event had no reported cost field. */
+  costMicrousd: number | null;
+  /** Null means the event predates explicit cost provenance. */
+  costStatus: 'measured' | 'estimated' | 'unpriced' | 'pending' | null;
+  /** Provider-reported amount is retained for diagnosis only; it never
+   * contributes to trusted cost, reservations, or budget evaluation. */
+  providerReportedCost?: ProviderReportedCost;
+  financialAccounting: {
+    rootEventId: string;
+    initialChargeMicrousd: number | null;
+    grossChargeMicrousd: number | null;
+    refundedMicrousd: number | null;
+    netChargeMicrousd: number | null;
+    adjustmentRevision: number;
+    headAdjustmentEventId: string | null;
+    semantics: 'initial-charge-plus-direct-root-adjustments-v1';
+  };
+  measurement: 'measured' | 'estimated';
+  occurredAt: string;
+  receivedAt: string;
+}
+
+export interface AdminUsageEventPage {
+  tenantId: string;
+  events: AdminUsageEventRecord[];
+  limit: number;
+  hasMore: boolean;
+  nextCursor?: string;
+  skippedInvalidEvents: number;
+  timeSemantics: { field: 'receivedAt'; order: 'asc'; timezone: 'UTC' };
+}
+
+const SAFE_USAGE_AMOUNT = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
+export const AdminUsageEventRecordSchema = z.object({
+  eventId: z.string().min(1).max(128),
+  operationId: z.string().uuid(),
+  taskId: z.string().uuid(),
+  invocationId: z.string().min(1).max(128),
+  provider: z.string().regex(USAGE_ATTRIBUTION_ID_PATTERN).nullable(),
+  model: z.string().regex(USAGE_ATTRIBUTION_ID_PATTERN).nullable(),
+  units: z.object({
+    inputTokens: SAFE_USAGE_AMOUNT,
+    outputTokens: SAFE_USAGE_AMOUNT,
+    cachedInputTokens: SAFE_USAGE_AMOUNT.optional(),
+    pages: SAFE_USAGE_AMOUNT.optional(),
+  }).strict(),
+  costMicrousd: SAFE_USAGE_AMOUNT.nullable(),
+  costStatus: z.enum(['measured', 'estimated', 'unpriced', 'pending']).nullable(),
+  providerReportedCost: ProviderReportedCostSchema.optional(),
+  financialAccounting: z.object({
+    rootEventId: z.string().min(1).max(128),
+    initialChargeMicrousd: SAFE_USAGE_AMOUNT.nullable(),
+    grossChargeMicrousd: SAFE_USAGE_AMOUNT.nullable(),
+    refundedMicrousd: SAFE_USAGE_AMOUNT.nullable(),
+    netChargeMicrousd: SAFE_USAGE_AMOUNT.nullable(),
+    adjustmentRevision: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
+    headAdjustmentEventId: z.string().uuid().nullable(),
+    semantics: z.literal('initial-charge-plus-direct-root-adjustments-v1'),
+  }).strict(),
+  measurement: z.enum(['measured', 'estimated']),
+  occurredAt: z.string().datetime({ offset: true }),
+  receivedAt: z.string().datetime({ offset: true }),
+}).strict();
+
+export const AdminUsageEventPageSchema = z.object({
+  tenantId: z.string().regex(USAGE_ATTRIBUTION_ID_PATTERN),
+  events: z.array(AdminUsageEventRecordSchema).max(100),
+  limit: z.number().int().min(1).max(100),
+  hasMore: z.boolean(),
+  nextCursor: z.string().min(1).max(2048).regex(/^[A-Za-z0-9_-]+$/).optional(),
+  skippedInvalidEvents: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
+  timeSemantics: z.object({
+    field: z.literal('receivedAt'),
+    order: z.literal('asc'),
+    timezone: z.literal('UTC'),
+  }).strict(),
+}).strict().superRefine((page, ctx) => {
+  if (page.events.length > page.limit) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'events cannot exceed the requested limit', path: ['events'] });
+  }
+  if (page.hasMore !== (page.nextCursor !== undefined)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'nextCursor must be present exactly when hasMore is true', path: ['nextCursor'] });
+  }
+});
 
 /**
  * Usage summary projection (P2-07, W39-C), aggregated by provider and model.
@@ -97,6 +253,7 @@ export interface UsageSummaryRow {
   pages: number;
   costMicrousd: number;
   measurement: 'measured' | 'estimated' | 'mixed' | 'pending';
+  costStatus?: 'measured' | 'estimated' | 'unpriced' | 'pending';
 }
 
 export interface UsageSummary {
@@ -110,6 +267,7 @@ export interface UsageSummary {
     outputTokens: number;
     pages: number;
     costMicrousd: number;
+    costStatus?: 'measured' | 'estimated' | 'unpriced' | 'pending';
   };
   /** Present only when getUsageSummary was called with options.budget
    * (COST-04 evaluateBudgetStatus result over the window totals). */
@@ -148,6 +306,7 @@ export interface UsageReconciliationView {
     pricedEvents: number;
     unpricedEvents: number;
     costMicrousd: number;
+    costStatus?: 'measured' | 'estimated' | 'unpriced' | 'pending';
   };
   /** Present when COST-03 group levels were requested. */
   aggregation?: UsageAggregation;
@@ -218,6 +377,33 @@ function decodeUsageEventCursor(value: string): {
   } catch {
     throw new HttpError(422, 'INVALID_ARGUMENT', 'usage event cursor is invalid for this query');
   }
+}
+
+function decodeAdminUsageEventCursor(value: string): {
+  tenantId: string;
+  queryHash: string;
+  after: string;
+  afterEventKey: string;
+} {
+  try {
+    const decoded = Buffer.from(value, 'base64url');
+    if (decoded.toString('base64url') !== value) throw new Error('non-canonical cursor');
+    const parsed = AdminUsageEventCursorSchema.safeParse(JSON.parse(decoded.toString('utf8')) as unknown);
+    if (!parsed.success) throw new Error('invalid cursor payload');
+    const { tenantId, queryHash, after, afterEventKey } = parsed.data;
+    return { tenantId, queryHash, after, afterEventKey };
+  } catch {
+    throw new HttpError(422, 'INVALID_ARGUMENT', 'usage event cursor is invalid for this query');
+  }
+}
+
+function encodeAdminUsageEventCursor(input: {
+  tenantId: string;
+  queryHash: string;
+  after: string;
+  afterEventKey: string;
+}): string {
+  return Buffer.from(JSON.stringify({ version: 1, ...input }), 'utf8').toString('base64url');
 }
 
 function toIsoTimestamp(value: Date | string, field: string): string {
@@ -313,8 +499,17 @@ export function reconcileUsageRows(
 
 const UNATTRIBUTED = '(unattributed)';
 
-export function createUsageService(db: Db): UsageService {
-  const budgetReservations = createBudgetReservationService(db);
+function summarizedCostStatus(statuses: ReadonlySet<string>): UsageSummaryRow['costStatus'] | undefined {
+  if (statuses.has('pending')) return 'pending';
+  if (statuses.has('unpriced')) return 'unpriced';
+  if (statuses.has('estimated')) return 'estimated';
+  return statuses.has('measured') ? 'measured' : undefined;
+}
+
+export function createUsageService(db: Db, options: UsageServiceOptions = {}): UsageService {
+  const budgetReservations = createBudgetReservationService(db, {
+    backupSnapshotWriteGate: options.backupSnapshotWriteGate,
+  });
   return {
     budgetReservations,
     async ingest(input) {
@@ -324,7 +519,7 @@ export function createUsageService(db: Db): UsageService {
       if (!batch.success) throw zodIssuesToProblem(batch.error.issues);
       for (const event of batch.data.events) {
         const amounts = [event.units.inputTokens, event.units.outputTokens, event.units.pages ?? 0, event.costMicrousd];
-        if (amounts.some((value) => !Number.isSafeInteger(value)) || !Number.isFinite(Date.parse(event.occurredAt))) {
+        if ((event.costStatus === 'unpriced' && event.costMicrousd !== 0) || amounts.some((value) => !Number.isSafeInteger(value)) || !Number.isFinite(Date.parse(event.occurredAt))) {
           throw new HttpError(422, 'INVALID_SCHEMA', 'usage requires safe integer amounts and a valid timestamp');
         }
       }
@@ -333,21 +528,64 @@ export function createUsageService(db: Db): UsageService {
       return db.tx(async (tx) => {
         const ack: UsageIngestAck = { accepted: [], duplicates: [] };
         const events = [...batch.data.events].sort((a, b) => a.eventId.localeCompare(b.eventId));
+        let trustedTenantId: string | null = null;
         for (const event of events) {
-          const task = await tx.query('SELECT id FROM tasks WHERE id=$1 AND operation_id=$2', [event.taskId, event.operationId]);
-          if (!task.rowCount) throw new HttpError(422, 'INVALID_ARGUMENT', 'usage task does not belong to operation');
-          const inserted = await tx.query(
-            `INSERT INTO usage_events (event_id, operation_id, task_id, payload)
-             VALUES ($1,$2,$3,$4::jsonb) ON CONFLICT (event_id) DO NOTHING RETURNING event_id`,
-            [event.eventId, event.operationId, event.taskId, JSON.stringify(event)]
+          const task = await tx.query<{ tenant_id: string }>(
+            `SELECT o.tenant_id::text AS tenant_id FROM operations o
+              JOIN tasks t ON t.operation_id=o.id WHERE o.id=$1 AND t.id=$2`,
+            [event.operationId, event.taskId],
           );
+          const rowTenantId = task.rows[0]?.tenant_id;
+          if (!rowTenantId) throw new HttpError(422, 'INVALID_ARGUMENT', 'usage task does not belong to operation');
+          if (event.costProvenance && event.costProvenance.tenantId !== rowTenantId) {
+            throw new HttpError(422, 'INVALID_ARGUMENT', 'usage provenance tenant does not match its operation');
+          }
+          if (trustedTenantId !== null && trustedTenantId !== rowTenantId) {
+            throw new HttpError(422, 'INVALID_ARGUMENT', 'usage batch must contain one tenant only');
+          }
+          trustedTenantId = rowTenantId;
+        }
+        if (!trustedTenantId || !options.backupSnapshotWriteGate) {
+          throw new HttpError(503, 'BACKUP_WRITE_GATE_UNAVAILABLE', 'usage settlement is disabled because its backup write gate is unavailable');
+        }
+        await options.backupSnapshotWriteGate.assertWriteAllowed(tx, {
+          tenantId: trustedTenantId,
+          domain: 'usage-settlement',
+          requestKey: createHash('sha256').update(canonicalize({
+            purpose: 'usage-ingest', tenantId: trustedTenantId,
+            events: events.map((event) => ({ eventId: event.eventId, payloadDigest: createHash('sha256').update(canonicalize(event)).digest('hex') })),
+          })).digest('hex'),
+        });
+        for (const event of events) {
+          // Enter the same tenant quota-population fence before an event INSERT
+          // can take its reservation-group FK KEY SHARE lock. Otherwise a
+          // concurrent preflight could hold the tenant fence and wait on this
+          // group's row while this transaction waits on the tenant fence.
+          // Append and settle remain in one transaction, so alert evaluation
+          // can read the immutable event row before commit.
+          await lockCostUsageSettlement(tx, event);
+          const inserted = await tx.query(
+            `INSERT INTO usage_events (event_id, operation_id, task_id, payload, cost_reservation_group_id)
+             VALUES ($1,$2,$3,$4::jsonb,$5) ON CONFLICT (event_id) DO NOTHING RETURNING event_id`,
+            [event.eventId, event.operationId, event.taskId, JSON.stringify(event), event.costProvenance?.reservationGroupId ?? null]
+          ).catch((error: unknown) => {
+            const pgError = error as { code?: unknown; constraint?: unknown };
+            if (pgError.code === '23505' && pgError.constraint === 'usage_events_cost_group_settled_unique') {
+              throw new HttpError(409, 'IDEMPOTENCY_CONFLICT', 'reservation group already has a different settled usage event');
+            }
+            throw error;
+          });
           if (inserted.rowCount) {
+            await settleCostReservationGroup(tx, event);
             ack.accepted.push(event.eventId);
           } else {
-            const existing = await tx.query<{ payload: UsageEvent }>('SELECT payload FROM usage_events WHERE event_id=$1', [event.eventId]);
-            if (canonicalize(existing.rows[0]!.payload) !== canonicalize(event)) {
+            const existing = await tx.query<{ payload: UsageEvent; cost_reservation_group_id: string | null }>(
+              'SELECT payload,cost_reservation_group_id::text AS cost_reservation_group_id FROM usage_events WHERE event_id=$1', [event.eventId]);
+            if (canonicalize(existing.rows[0]!.payload) !== canonicalize(event)
+                || (existing.rows[0]!.cost_reservation_group_id ?? null) !== (event.costProvenance?.reservationGroupId ?? null)) {
               throw new HttpError(409, 'IDEMPOTENCY_CONFLICT', 'usage event ID already has a different payload');
             }
+            await settleCostReservationGroup(tx, event);
             ack.duplicates.push(event.eventId);
           }
         }
@@ -355,43 +593,85 @@ export function createUsageService(db: Db): UsageService {
       });
     },
     async project(operationId) {
-      const result = await db.query<{
-        count: string; input_tokens: string; output_tokens: string; cost: string; estimated: boolean | null;
-      }>(
-        `SELECT count(*)::text AS count,
-                COALESCE(sum((payload->'units'->>'inputTokens')::numeric),0)::text AS input_tokens,
-                COALESCE(sum((payload->'units'->>'outputTokens')::numeric),0)::text AS output_tokens,
-                COALESCE(sum((payload->>'costMicrousd')::numeric),0)::text AS cost,
-                bool_or(payload->>'measurement' = 'estimated') AS estimated
-         FROM usage_events WHERE operation_id=$1`, [operationId]
+      const result = await db.query<{ event_id: string; tenant_id: string; payload: unknown; model: string | null }>(
+        `SELECT ue.event_id,o.tenant_id::text AS tenant_id,ue.payload,ue.payload->>'model' AS model
+           FROM usage_events ue JOIN operations o ON o.id=ue.operation_id
+          WHERE ue.operation_id=$1 ORDER BY ue.event_id`,
+        [operationId],
       );
-      const row = result.rows[0]!;
-      const amounts = [Number(row.input_tokens), Number(row.output_tokens), Number(row.cost)];
-      if (amounts.some((value) => !Number.isSafeInteger(value))) {
-        throw new HttpError(503, 'TEMPORARY_UNAVAILABLE', 'usage totals exceed the wire integer range');
+      const charges = await loadEffectiveCharges(db, result.rows.map((row) => ({
+        event_id: row.event_id, tenant_id: row.tenant_id, payload: row.payload,
+      })));
+      let inputTokens = 0n;
+      let outputTokens = 0n;
+      let pages = 0n;
+      let costMicrousd = 0n;
+      const measurements = new Set<string>();
+      const statuses = new Set<string>();
+      const models = new Set<string>();
+      for (const row of result.rows) {
+        const parsed = UsageEventSchema.safeParse(row.payload);
+        if (!parsed.success || parsed.data.eventId !== row.event_id || parsed.data.operationId !== operationId) {
+          throw new HttpError(503, 'TEMPORARY_UNAVAILABLE', 'usage row is invalid for operation projection');
+        }
+        const event = parsed.data;
+        inputTokens += BigInt(event.units.inputTokens);
+        outputTokens += BigInt(event.units.outputTokens);
+        pages += BigInt(event.units.pages ?? 0);
+        const projected = charges.get(row.event_id);
+        const amount = projected?.netChargeMicrousd ?? event.costMicrousd;
+        if (amount !== null) costMicrousd += BigInt(amount);
+        measurements.add(event.measurement ?? (event.costStatus === 'estimated' ? 'estimated' : 'measured'));
+        statuses.add(projected?.costStatus ?? event.costStatus ?? (event.costMicrousd === undefined ? 'pending' : 'measured'));
+        if (typeof event.model === 'string') models.add(event.model);
       }
+      for (const amount of [inputTokens, outputTokens, pages, costMicrousd]) {
+        if (amount > MAX_SAFE_BIG) throw new HttpError(503, 'TEMPORARY_UNAVAILABLE', 'usage totals exceed the wire integer range');
+      }
+      const status = summarizedCostStatus(statuses);
+      const measurement = measurements.has('estimated')
+        ? (measurements.has('measured') ? 'estimated' : 'estimated')
+        : measurements.size === 0 ? 'pending' : 'measured';
       return {
-        inputTokens: amounts[0]!, outputTokens: amounts[1]!, costMicrousd: amounts[2]!,
-        measurement: row.count === '0' ? 'pending' : row.estimated ? 'estimated' : 'measured',
+        inputTokens: Number(inputTokens), outputTokens: Number(outputTokens), costMicrousd: Number(costMicrousd),
+        measurement: result.rows.length === 0 ? 'pending' : measurement,
+        costStatus: result.rows.length === 0 ? 'pending' : status ?? 'pending',
+        pages: Number(pages),
+        ...(models.size === 1 ? { model: [...models][0] } : {}),
       };
     },
-    async getUsageSummary(tenantId, from, to, options) {
+    async getUsageSummary(tenantId, from, to, options, readScope) {
       if (!(from instanceof Date) || Number.isNaN(from.getTime()) || !(to instanceof Date) || Number.isNaN(to.getTime())) {
         throw new HttpError(422, 'INVALID_SCHEMA', 'getUsageSummary requires valid from/to dates');
       }
       if (from > to) {
         throw new HttpError(422, 'INVALID_ARGUMENT', 'getUsageSummary requires from <= to');
       }
+      if (readScope && readScope.tenantId !== tenantId) {
+        throw new HttpError(403, 'PERMISSION_DENIED', 'local-user usage scope does not match tenant');
+      }
+      const params: unknown[] = [tenantId, from.toISOString(), to.toISOString()];
+      const where = ['o.tenant_id = $1', 'ue.received_at >= $2', 'ue.received_at < $3'];
+      const add = (value: unknown): string => {
+        params.push(value);
+        return `$${params.length}`;
+      };
+      appendLocalUserUsageFence(where, add, readScope);
       const result = await db.query<{
+        event_id: string;
+        tenant_id: string;
         payload: Record<string, unknown>;
         operation_id: string;
       }>(
-        `SELECT ue.payload, ue.operation_id
+        `SELECT ue.event_id, o.tenant_id::text AS tenant_id, ue.payload, ue.operation_id
          FROM usage_events ue
          JOIN operations o ON o.id = ue.operation_id
-         WHERE o.tenant_id = $1 AND ue.received_at >= $2 AND ue.received_at < $3`,
-        [tenantId, from.toISOString(), to.toISOString()]
+         WHERE ${where.join(' AND ')}`,
+        params
       );
+      const charges = await loadEffectiveCharges(db, result.rows.map((row) => ({
+        event_id: row.event_id, tenant_id: row.tenant_id, payload: row.payload,
+      })));
       // Money law (contracts): every group sums in BigInt with safe-integer
       // ceilings. Absent/non-number values are skipped exactly as the legacy
       // loop did; a PRESENT but non-integer/negative/unsafe amount is corrupt
@@ -406,7 +686,7 @@ export function createUsageService(db: Db): UsageService {
       const groups = new Map<string, {
         provider: string; model: string; operations: Set<string>;
         inputTokens: bigint; outputTokens: bigint; pages: bigint; costMicrousd: bigint;
-        events: number; measurements: Set<string>;
+        events: number; measurements: Set<string>; costStatuses: Set<string>;
       }>();
       for (const row of result.rows) {
         const payload = row.payload ?? {};
@@ -420,7 +700,7 @@ export function createUsageService(db: Db): UsageService {
         const key = `${provider}${String.fromCharCode(0)}${model}`;
         let group = groups.get(key);
         if (!group) {
-          group = { provider, model, operations: new Set(), inputTokens: 0n, outputTokens: 0n, pages: 0n, costMicrousd: 0n, events: 0, measurements: new Set() };
+          group = { provider, model, operations: new Set(), inputTokens: 0n, outputTokens: 0n, pages: 0n, costMicrousd: 0n, events: 0, measurements: new Set(), costStatuses: new Set() };
           groups.set(key, group);
         }
         group.operations.add(row.operation_id);
@@ -428,8 +708,14 @@ export function createUsageService(db: Db): UsageService {
         group.inputTokens += BigInt(safeAmount(units.inputTokens, 'inputTokens'));
         group.outputTokens += BigInt(safeAmount(units.outputTokens, 'outputTokens'));
         group.pages += BigInt(safeAmount(units.pages, 'pages'));
-        group.costMicrousd += BigInt(safeAmount(payload['costMicrousd'], 'costMicrousd'));
+        const charge = charges.get(row.event_id);
+        const unavailableCharge = charge?.costStatus === 'pending' || charge?.costStatus === 'unpriced';
+        const effectiveCost = charge?.netChargeMicrousd ?? (unavailableCharge ? undefined : payload['costMicrousd']);
+        group.costMicrousd += BigInt(safeAmount(effectiveCost, 'costMicrousd'));
         if (typeof payload['measurement'] === 'string') group.measurements.add(payload['measurement'] as string);
+        const status = charge?.costStatus ?? payload['costStatus'];
+        if (typeof status === 'string') group.costStatuses.add(status);
+        else if (!Object.hasOwn(payload, 'costMicrousd')) group.costStatuses.add('pending');
       }
       const toInt = (value: bigint, field: string): number => {
         if (value > MAX_SAFE_BIG) {
@@ -455,6 +741,7 @@ export function createUsageService(db: Db): UsageService {
           return {
             provider: g.provider,
             model: g.model,
+            ...(summarizedCostStatus(g.costStatuses) ? { costStatus: summarizedCostStatus(g.costStatuses) } : {}),
             operations: g.operations.size,
             inputTokens,
             outputTokens,
@@ -474,6 +761,12 @@ export function createUsageService(db: Db): UsageService {
         }),
         { operations: 0, inputTokens: 0, outputTokens: 0, pages: 0, costMicrousd: 0 },
       );
+      for (const [field, value] of Object.entries(totals)) {
+        if (!Number.isSafeInteger(value)) throw new HttpError(503, 'TEMPORARY_UNAVAILABLE', 'usage window exceeds the wire integer range in ' + field);
+      }
+      const statuses = new Set(rows.flatMap(row => row.costStatus ? [row.costStatus] : []));
+      const totalsStatus = summarizedCostStatus(statuses);
+      const totalsWithStatus = { ...totals, ...(totalsStatus ? { costStatus: totalsStatus } : {}) };
       let budget: BudgetEvaluation | undefined;
       if (options?.budget !== undefined) {
         const windowSummary = UsageSummarySchema.parse({
@@ -495,7 +788,7 @@ export function createUsageService(db: Db): UsageService {
         from: from.toISOString(),
         to: to.toISOString(),
         rows,
-        totals,
+        totals: totalsWithStatus,
         ...(budget !== undefined ? { budget } : {}),
       };
     },
@@ -523,12 +816,15 @@ export function createUsageService(db: Db): UsageService {
         throw err;
       }
     },
-    async getUsageEventExportPage(tenantId, queryInput) {
+    async getUsageEventExportPage(tenantId, queryInput, readScope) {
       const parsed = UsageEventDrilldownQuerySchema.safeParse(queryInput ?? {});
       if (!parsed.success) throw zodIssuesToProblem(parsed.error.issues);
       const query = parsed.data;
       if (query.tenantId !== undefined && query.tenantId !== tenantId) {
         throw new HttpError(403, 'PERMISSION_DENIED', 'tenantId does not match authorized usage scope');
+      }
+      if (readScope && readScope.tenantId !== tenantId) {
+        throw new HttpError(403, 'PERMISSION_DENIED', 'local-user usage scope does not match tenant');
       }
 
       // Cursor reuse with another tenant, filter, time window, sort clock, or
@@ -546,6 +842,7 @@ export function createUsageService(db: Db): UsageService {
         to: query.to ?? null,
         timeField: query.timeField,
         limit: query.limit,
+        readScope: usageReadScopeFingerprint(readScope),
       };
       const queryHash = createHash('sha256').update(JSON.stringify({ tenantId, binding })).digest('hex');
       const cursor = query.cursor === undefined ? undefined : decodeUsageEventCursor(query.cursor);
@@ -562,6 +859,7 @@ export function createUsageService(db: Db): UsageService {
         params.push(value);
         return `$${params.length}`;
       };
+      appendLocalUserUsageFence(where, add, readScope);
       for (const [field, value] of [
         ['apiKeyId', query.apiKeyId],
         ['businessId', query.businessId],
@@ -633,6 +931,161 @@ export function createUsageService(db: Db): UsageService {
         ...(nextCursor !== undefined ? { nextCursor } : {}),
         skippedInvalidEvents,
         timeSemantics: { field: query.timeField, order: 'asc', timezone: 'UTC' },
+      });
+    },
+    async getAdminUsageEventPage(tenantId, queryInput, readScope) {
+      const parsed = AdminUsageEventQuerySchema.safeParse(queryInput);
+      if (!parsed.success) throw zodIssuesToProblem(parsed.error.issues);
+      const query = parsed.data;
+      if (query.tenantId !== undefined && query.tenantId !== tenantId) {
+        throw new HttpError(403, 'PERMISSION_DENIED', 'tenantId does not match authorized usage scope');
+      }
+      if (readScope && readScope.tenantId !== tenantId) {
+        throw new HttpError(403, 'PERMISSION_DENIED', 'local-user usage scope does not match tenant');
+      }
+
+      // The summary window is based on received_at, so this basic Admin view
+      // uses that same persisted clock. Unlike the rich COST exporter, this
+      // projection reads the actual UsageEvent wire records without claiming
+      // attribution fields those records do not contain.
+      const binding = {
+        from: query.from,
+        to: query.to,
+        timeField: query.timeField,
+        limit: query.limit,
+        operationId: query.operationId ?? null,
+        provider: query.provider ?? null,
+        model: query.model ?? null,
+        readScope: usageReadScopeFingerprint(readScope),
+      };
+      const queryHash = createHash('sha256').update(JSON.stringify({ tenantId, binding })).digest('hex');
+      const cursor = query.cursor === undefined ? undefined : decodeAdminUsageEventCursor(query.cursor);
+      if (cursor && (cursor.tenantId !== tenantId || cursor.queryHash !== queryHash)) {
+        throw new HttpError(422, 'INVALID_ARGUMENT', 'usage event cursor is invalid for this query');
+      }
+
+      const params: unknown[] = [tenantId, query.from, query.to];
+      const where = ['o.tenant_id = $1', 'ue.received_at >= $2::timestamptz', 'ue.received_at < $3::timestamptz'];
+      const add = (value: unknown): string => {
+        params.push(value);
+        return `$${params.length}`;
+      };
+      appendLocalUserUsageFence(where, add, readScope);
+      if (query.operationId !== undefined) where.push(`ue.operation_id = ${add(query.operationId)}::uuid`);
+      if (query.provider !== undefined) {
+        where.push(`ue.payload->>'provider' = ${add(query.provider)}`);
+        where.push(`ue.payload->>'model' = ${add(query.model)}`);
+      }
+      if (cursor) {
+        const after = add(cursor.after);
+        const eventKey = add(cursor.afterEventKey);
+        where.push(`(ue.received_at, encode(sha256(convert_to(ue.event_id, 'UTF8')), 'hex')) > (${after}::timestamptz, ${eventKey}::text)`);
+      }
+      const limit = add(query.limit + 1);
+      const result = await db.query<{
+        event_id: string;
+        operation_id: string;
+        task_id: string;
+        matched_task_id: string | null;
+        tenant_id: string;
+        payload: Record<string, unknown> | null;
+        received_at: Date | string;
+        cursor_received_at: string;
+      }>(
+        `SELECT ue.event_id, ue.operation_id, ue.task_id, o.tenant_id::text AS tenant_id, ue.payload, ue.received_at,
+                t.id AS matched_task_id,
+                to_char(ue.received_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_received_at
+         FROM usage_events ue
+         JOIN operations o ON o.id = ue.operation_id
+         LEFT JOIN tasks t ON t.id = ue.task_id AND t.operation_id = ue.operation_id
+         WHERE ${where.join(' AND ')}
+         ORDER BY ue.received_at ASC, encode(sha256(convert_to(ue.event_id, 'UTF8')), 'hex') ASC
+         LIMIT ${limit}`,
+        params,
+      );
+
+      const charges = await loadEffectiveCharges(db, result.rows.map((row) => ({
+        event_id: row.event_id, tenant_id: row.tenant_id, payload: row.payload,
+      })));
+
+      const hasMore = result.rows.length > query.limit;
+      const scanned = result.rows.slice(0, query.limit);
+      const events: AdminUsageEventRecord[] = [];
+      let skippedInvalidEvents = 0;
+      for (const row of scanned) {
+        const raw = row.payload;
+        const projected = UsageEventSchema.safeParse(raw);
+        if (!projected.success || row.matched_task_id !== row.task_id) {
+          skippedInvalidEvents += 1;
+          continue;
+        }
+        const event = projected.data;
+        const charge = charges.get(row.event_id);
+        if (!charge) throw new HttpError(503, 'FINANCIAL_ACCOUNTING_UNAVAILABLE', 'usage accounting projection is missing a selected event');
+        if (
+          event.eventId !== row.event_id ||
+          event.operationId !== row.operation_id ||
+          event.taskId !== row.task_id ||
+          (raw && typeof raw['tenantId'] === 'string' && raw['tenantId'] !== tenantId) ||
+          !Number.isSafeInteger(event.units.inputTokens) ||
+          !Number.isSafeInteger(event.units.outputTokens) ||
+          (event.units.pages !== undefined && !Number.isSafeInteger(event.units.pages)) ||
+          (Object.prototype.hasOwnProperty.call(raw, 'costMicrousd') && !Number.isSafeInteger(event.costMicrousd))
+        ) {
+          skippedInvalidEvents += 1;
+          continue;
+        }
+        const receivedAt = toIsoTimestamp(row.received_at, 'receivedAt');
+        const record = AdminUsageEventRecordSchema.safeParse({
+          eventId: event.eventId,
+          operationId: event.operationId,
+          taskId: event.taskId,
+          invocationId: event.invocationId,
+          provider: event.provider ?? null,
+          model: event.model ?? null,
+          units: event.units,
+          // `costMicrousd` remains the immutable initial charge. Adjusted
+          // gross/refund/net values are a separate, explicit projection.
+          costMicrousd: charge.initialChargeMicrousd,
+          costStatus: event.costStatus ?? null,
+          ...(event.providerReportedCost !== undefined ? { providerReportedCost: event.providerReportedCost } : {}),
+          financialAccounting: {
+            rootEventId: charge.rootEventId,
+            initialChargeMicrousd: charge.initialChargeMicrousd,
+            grossChargeMicrousd: charge.grossChargeMicrousd,
+            refundedMicrousd: charge.refundedMicrousd,
+            netChargeMicrousd: charge.netChargeMicrousd,
+            adjustmentRevision: charge.adjustmentRevision,
+            headAdjustmentEventId: charge.headAdjustmentEventId,
+            semantics: 'initial-charge-plus-direct-root-adjustments-v1',
+          },
+          measurement: event.measurement,
+          occurredAt: event.occurredAt,
+          receivedAt,
+        });
+        if (!record.success) {
+          skippedInvalidEvents += 1;
+          continue;
+        }
+        events.push(record.data);
+      }
+      const lastScanned = scanned[scanned.length - 1];
+      const nextCursor = hasMore && lastScanned
+        ? encodeAdminUsageEventCursor({
+          tenantId,
+          queryHash,
+          after: lastScanned.cursor_received_at,
+          afterEventKey: createHash('sha256').update(lastScanned.event_id, 'utf8').digest('hex'),
+        })
+        : undefined;
+      return AdminUsageEventPageSchema.parse({
+        tenantId,
+        events,
+        limit: query.limit,
+        hasMore,
+        ...(nextCursor !== undefined ? { nextCursor } : {}),
+        skippedInvalidEvents,
+        timeSemantics: { field: 'receivedAt', order: 'asc', timezone: 'UTC' },
       });
     },
   };

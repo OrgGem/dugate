@@ -1,0 +1,77 @@
+import { createHash, randomUUID } from 'node:crypto';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import type { AddressInfo } from 'node:net';
+import { createApp, type App } from '../../orchestrator/services/orchestrator/src/server';
+import { createDb } from '../../orchestrator/services/orchestrator/src/db/db';
+import { documentCoreManifest } from '../../businesses/document-core/src/manifest/document-core.manifest';
+import { createWorkflowApiIsolation, syntheticMetadataKeyProvider } from './isolation';
+process.env.LDBA03_ADAPTER_LIBRARY = '1';
+const { createAdapter } = require('../../orchestrator/services/orchestrator/scripts/ldba-03-production-adapter.cjs');
+const { runBackfill, LEGACY_TABLES } = require('../../orchestrator/services/orchestrator/scripts/ldba-03-backfill.cjs');
+const provider = require('../../orchestrator/services/orchestrator/scripts/ldba-context-provider.cjs');
+const isolation = createWorkflowApiIsolation();
+const db = createDb(isolation.baseDatabaseUrl);
+const sourceSchema = `${isolation.context.dbSchema}_source`;
+const keyId = randomUUID(), operationId = randomUUID(), fileId = randomUUID();
+const rawKey = `orv11-migrated-${randomUUID()}`;
+const fixtureTime = '2026-01-02 03:04:05.006';
+const fileBytes = Buffer.alloc(9 * 1024 * 1024, 'v');
+let app: App | undefined;
+let publicUrl = '';
+let schemaCreated = false;
+const tables: Record<string, Record<string, unknown>[]> = Object.fromEntries(LEGACY_TABLES.map((name: string) => [name, []]));
+tables.ApiKey = [{ id:keyId,name:'legacy fixture',keyHash:createHash('sha256').update(rawKey).digest('hex'),prefix:'orv11',role:'STANDARD',note:null,spendingLimit:'12.340000',totalUsed:'1.200000',status:'active',createdAt:fixtureTime,updatedAt:fixtureTime }];
+tables.Operation = [{ id:operationId,apiKeyId:keyId,createdByUserId:null,idempotencyKey:null,done:true,state:'SUCCEEDED',progressPercent:100,progressMessage:'Complete',endpointSlug:'ingest:parse',pipelineJson:'[]',currentStep:0,failedAtStep:null,filesJson:JSON.stringify([{fileCacheId:fileId,path:'orv11-history.txt'}]),outputFormat:'text',outputContent:null,outputFilePath:'orv11-history.txt',extractedData:null,stepsResultJson:null,totalInputTokens:0,totalOutputTokens:0,pagesProcessed:1,modelUsed:null,totalCostUsd:'0.000000',usageBreakdown:null,webhookUrl:null,webhookSentAt:null,errorCode:null,errorMessage:null,filesDeleted:false,createdAt:fixtureTime,updatedAt:fixtureTime,deletedAt:null }];
+tables.FileCache = [{id:fileId,md5Hash:createHash('md5').update(fileBytes).digest('hex'),s3Key:'orv11-history.txt',fileName:'history.txt',mimeType:'text/plain',size:fileBytes.length,refCount:1,createdAt:fixtureTime,lastAccessedAt:fixtureTime}];
+tables.ProfileEndpoint = [true,false].map((enabled,i)=>({id:randomUUID(),apiKeyId:keyId,endpointSlug:i?'ingest:ocr':'ingest:parse',enabled,parameters:'{}',connectionsOverride:'[]',jobPriority:'MEDIUM',fileUrlAuthConfig:null,allowedFileExtensions:'.txt',rateLimitPerMin:null,maxConcurrent:null,createdAt:fixtureTime,updatedAt:fixtureTime}));
+
+beforeAll(async () => {
+  process.env.DU_SEED_DEV_FALLBACK = 'false';
+  await db.query(`CREATE SCHEMA "${isolation.context.dbSchema}"`);
+  await db.query(`CREATE SCHEMA "${sourceSchema}"`);
+  schemaCreated = true;
+  for(const table of LEGACY_TABLES as string[]) {
+    const rows = tables[table]!;
+    const example = rows[0] ?? (table==='AppSetting'?{key:'unused'}:{ id:'unused' });
+    const fields = Object.keys(example);
+    const type = (v: unknown, field: string) => ['createdAt','updatedAt','lastAccessedAt'].includes(field)?'timestamp without time zone':typeof v === 'boolean' ? 'boolean' : typeof v === 'number' ? 'integer' : 'text';
+    await db.query(`CREATE TABLE "${sourceSchema}"."${table}" (${fields.map(field => `"${field}" ${type(example[field], field)}`).join(',')})`);
+    for(const row of rows) await db.query(`INSERT INTO "${sourceSchema}"."${table}" (${fields.map(f=>`"${f}"`).join(',')}) VALUES (${fields.map((_,i)=>`$${i+1}`).join(',')})`, fields.map(f=>row[f]));
+  }
+  app = await createApp({ host:'127.0.0.1',port:0,internalHost:'127.0.0.1',internalPort:0,databaseUrl:isolation.databaseUrl,redisUrl:isolation.redisUrl,autoMigrate:true,autoDispatch:false,leaseRecoveryIntervalMs:0,metadataEncryption:{keyProvider:syntheticMetadataKeyProvider(),keyRef:'du-orch-metadata-v1'} });
+  const server = await app.listen();
+  publicUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  await app.db.query(`INSERT INTO tenants (name) VALUES ('legacy-default')`);
+  await app.db.query(`INSERT INTO business_versions (business_id,version,status,is_active,digest,queue,manifest) VALUES ('document-core',$1,'ENABLED',true,'orv11-migration','orv11-migration',$2)`,[documentCoreManifest.version,JSON.stringify(documentCoreManifest)]);
+},120000);
+afterAll(async()=>{await app?.close({timeoutMs:0,pollIntervalMs:10});if(schemaCreated){await db.query(`DROP SCHEMA "${sourceSchema}" CASCADE`);await db.query(`DROP SCHEMA "${isolation.context.dbSchema}" CASCADE`);}await db.close();isolation.context.cleanupArtifactDir();},30000);
+
+test('production snapshot adapter imports, replays idempotently and preserves old-key policy plus 9MiB historical file bytes',async()=>{
+  if(!app) throw new Error('app missing');
+  const env:Record<string,string> = {LDBA_A1_PASSED:'1',LDBA03_SOURCE_VERSION:'orv11-vfy-source-v1',LDBA_A1_SOURCE_VERSION:'orv11-vfy-source-v1',LDBA03_SOURCE_SCHEMA:sourceSchema};
+  const options = {sourcePool:db.pool,targetPool:app.db.pool,env,context:{...provider,readFileCacheBytes:async()=>fileBytes}};
+  const preflightAdapter = createAdapter(options);
+  const blocked=await runBackfill(preflightAdapter,{apply:true,skipPolicy:'fail'});
+  expect(blocked.status).toBe('BLOCKED_TIMEZONE_UNVERIFIED');
+  expect((await app.db.query('SELECT * FROM api_keys')).rowCount).toBe(0);
+  const sourceRows = await preflightAdapter.source.scan('Operation');
+  const dir=resolve('reports/raw/orv11/migration');mkdirSync(dir,{recursive:true});
+  const proof={sourceVersion:env.LDBA03_SOURCE_VERSION,timezone:'UTC',sourceDataSha256:preflightAdapter.sourceSnapshot.sha256,reviewedBy:'independent synthetic fixture author',observations:[{table:'Operation',sourceKey:operationId,field:'createdAt',naive:sourceRows[0].createdAt,utc:'2026-01-02T03:04:05.006Z',reference:'Fixture construction timestamp literal; not customer timezone evidence'}]};
+  const proofBytes=Buffer.from(JSON.stringify(proof)); const proofPath=resolve(dir,'timezone-proof.json');writeFileSync(proofPath,proofBytes);
+  env.LDBA03_TIMEZONE_EVIDENCE_FILE=proofPath;env.LDBA03_TIMEZONE_EVIDENCE_SHA256=createHash('sha256').update(proofBytes).digest('hex');
+  const adapter=createAdapter(options);
+  const first=await runBackfill(adapter,{apply:true,skipPolicy:'fail'});writeFileSync(resolve(dir,'first.json'),JSON.stringify(first,null,2));
+  if(first.status!=='APPLIED')throw new Error(`first import ${first.status}: ${JSON.stringify(first.failures)}`);
+  const second=await runBackfill(createAdapter(options),{apply:true,skipPolicy:'fail'});writeFileSync(resolve(dir,'replay.json'),JSON.stringify(second,null,2));
+  expect(second.status).toBe('APPLIED');expect(second.destinationRows.written).toBe(0);
+  expect((await app.db.query('SELECT * FROM profile_api_keys WHERE api_key_id=$1',[keyId])).rowCount).toBe(2);
+  const history=await fetch(`${publicUrl}/api/v1/operations/${operationId}`,{headers:{'x-api-key':rawKey}});expect(history.status).toBe(200);
+  const download=await fetch(`${publicUrl}/api/v1/operations/${operationId}/download`,{headers:{'x-api-key':rawKey}});expect(download.status).toBe(200);
+  expect(createHash('sha256').update(Buffer.from(await download.arrayBuffer())).digest('hex')).toBe(createHash('sha256').update(fileBytes).digest('hex'));
+  const badProof={...proof,observations:[{...proof.observations[0],utc:'2026-01-02T04:04:05.006Z'}]};
+  const badBytes=Buffer.from(JSON.stringify(badProof));const badPath=resolve(dir,'rejected-timezone-proof.json');writeFileSync(badPath,badBytes);
+  await expect(createAdapter({...options,env:{...env,LDBA03_TIMEZONE_EVIDENCE_FILE:badPath,LDBA03_TIMEZONE_EVIDENCE_SHA256:createHash('sha256').update(badBytes).digest('hex')}}).source.scan('Operation')).rejects.toMatchObject({code:'TIMEZONE_OBSERVATION_MISMATCH'});
+  const rejectedBody=new FormData();rejectedBody.append('mode','ocr');rejectedBody.append('text','test');
+  const disabled=await fetch(`${publicUrl}/api/v1/docs/ingest`,{method:'POST',headers:{'x-api-key':rawKey},body:rejectedBody});expect(disabled.status).toBe(403);
+});

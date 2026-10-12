@@ -1,0 +1,427 @@
+[
+  {
+    "schemaSlug": "wfa-private-https-positive",
+    "operationId": "6672298e-c16e-4f10-9369-5bc60f457a5d",
+    "terminal": {
+      "state": "SUCCEEDED",
+      "errorCode": null
+    },
+    "publicOperation": {
+      "name": "operations/6672298e-c16e-4f10-9369-5bc60f457a5d",
+      "done": true,
+      "metadata": {
+        "state": "SUCCEEDED",
+        "pipeline": [
+          "ext-classifier"
+        ],
+        "current_step": 1,
+        "progress_percent": 100,
+        "progress_message": null,
+        "create_time": "2026-10-12T01:36:49.569Z",
+        "update_time": "2026-10-12T01:36:59.830Z",
+        "pipeline_steps": [
+          {
+            "step": 1,
+            "stepName": "download_file",
+            "processor": "file_url_download",
+            "content_preview": null,
+            "extracted_data": null
+          },
+          {
+            "step": 2,
+            "stepName": "send_callback",
+            "processor": "callback",
+            "content_preview": "callback sent",
+            "extracted_data": null
+          }
+        ],
+        "workflow": "wfa-private-https-positive",
+        "schema_revision": 1,
+        "schema_digest": "sha256:d5e31bca4b640c8c289c5bcfa64f200824b40df59d57ea67fb935b543649fee2"
+      },
+      "result": {
+        "output_format": "json",
+        "content": "callback sent",
+        "extracted_data": [
+          {
+            "artifactId": "f481dbc2-2e91-46a6-ba76-06785e27f67c",
+            "fileName": "secure.txt",
+            "mimeType": "text/plain",
+            "role": "intermediate"
+          }
+        ],
+        "pipeline_steps": [
+          {
+            "step": 1,
+            "stepName": "download_file",
+            "processor": "file_url_download",
+            "content_preview": null,
+            "extracted_data": null
+          },
+          {
+            "step": 2,
+            "stepName": "send_callback",
+            "processor": "callback",
+            "content_preview": "callback sent",
+            "extracted_data": null
+          }
+        ],
+        "usage": {
+          "input_tokens": null,
+          "output_tokens": null,
+          "pages_processed": null,
+          "model_used": null,
+          "cost_usd": null,
+          "breakdown": []
+        },
+        "download_url": "/api/v1/operations/6672298e-c16e-4f10-9369-5bc60f457a5d/download"
+      }
+    },
+    "listenerEvents": [
+      {
+        "kind": "tls",
+        "listener": "san-match",
+        "sni": "172-26-91-253.sslip.io"
+      },
+      {
+        "kind": "request",
+        "listener": "san-match",
+        "method": "GET",
+        "path": "/file.txt",
+        "host": "172-26-91-253.sslip.io:38609",
+        "sni": "172-26-91-253.sslip.io"
+      },
+      {
+        "kind": "tls",
+        "listener": "san-match",
+        "sni": "172-26-91-253.sslip.io"
+      },
+      {
+        "kind": "request",
+        "listener": "san-match",
+        "method": "POST",
+        "path": "/callback",
+        "host": "172-26-91-253.sslip.io:38609",
+        "sni": "172-26-91-253.sslip.io",
+        "bodyBytes": 54,
+        "bodySha256": "cd800c744bb1fb3294ee9db655508b40c9e9375fd9fc84f85e0b0fd1868b3df7",
+        "bodyRawBytes": 54,
+        "bodySha256Recomputed": "cd800c744bb1fb3294ee9db655508b40c9e9375fd9fc84f85e0b0fd1868b3df7",
+        "bodyRawText": "{\"effect\":\"none\",\"syntheticRun\":\"orv14-private-https\"}",
+        "bodyJson": {
+          "effect": "none",
+          "syntheticRun": "orv14-private-https"
+        }
+      }
+    ],
+    "workerErrorFrames": []
+  },
+  {
+    "schemaSlug": "wfa-private-https-branch",
+    "operationId": "f72eba34-73c0-4c28-adbc-a71811e44834",
+    "terminal": {
+      "state": "SUCCEEDED",
+      "errorCode": null
+    },
+    "publicOperation": {
+      "name": "operations/f72eba34-73c0-4c28-adbc-a71811e44834",
+      "done": true,
+      "metadata": {
+        "state": "SUCCEEDED",
+        "pipeline": [
+          "ext-classifier"
+        ],
+        "current_step": 0,
+        "progress_percent": 100,
+        "progress_message": null,
+        "create_time": "2026-10-12T01:36:59.960Z",
+        "update_time": "2026-10-12T01:37:05.378Z",
+        "pipeline_steps": [
+          {
+            "step": 1,
+            "stepName": "parallel_egress",
+            "processor": "parallel",
+            "content_preview": null,
+            "extracted_data": null
+          }
+        ],
+        "workflow": "wfa-private-https-branch",
+        "schema_revision": 1,
+        "schema_digest": "sha256:77724cdba958a2509af3fc89d9e49caa92f4f5f797b6cdd52753a60b10124b1a"
+      },
+      "result": {
+        "output_format": "json",
+        "content": "[\"branch_download\",\"branch_callback\"]",
+        "extracted_data": null,
+        "pipeline_steps": [
+          {
+            "step": 1,
+            "stepName": "parallel_egress",
+            "processor": "parallel",
+            "content_preview": null,
+            "extracted_data": null
+          }
+        ],
+        "usage": {
+          "input_tokens": null,
+          "output_tokens": null,
+          "pages_processed": null,
+          "model_used": null,
+          "cost_usd": null,
+          "breakdown": []
+        },
+        "download_url": "/api/v1/operations/f72eba34-73c0-4c28-adbc-a71811e44834/download"
+      }
+    },
+    "listenerEvents": [
+      {
+        "kind": "request",
+        "listener": "san-match",
+        "method": "GET",
+        "path": "/file.txt",
+        "host": "172-26-91-253.sslip.io:38609",
+        "sni": "172-26-91-253.sslip.io"
+      },
+      {
+        "kind": "tls",
+        "listener": "san-match",
+        "sni": "172-26-91-253.sslip.io"
+      },
+      {
+        "kind": "request",
+        "listener": "san-match",
+        "method": "POST",
+        "path": "/callback",
+        "host": "172-26-91-253.sslip.io:38609",
+        "sni": "172-26-91-253.sslip.io",
+        "bodyBytes": 81,
+        "bodySha256": "fb6482a2478bc897bd7c8b9bb842e33a7c07a8f9206ad8a75582ecc5e99f0b7c",
+        "bodyRawBytes": 81,
+        "bodySha256Recomputed": "fb6482a2478bc897bd7c8b9bb842e33a7c07a8f9206ad8a75582ecc5e99f0b7c",
+        "bodyRawText": "{\"branch\":\"callback\",\"effect\":\"none\",\"syntheticRun\":\"orv14-private-https-branch\"}",
+        "bodyJson": {
+          "branch": "callback",
+          "effect": "none",
+          "syntheticRun": "orv14-private-https-branch"
+        }
+      }
+    ],
+    "workerErrorFrames": []
+  },
+  {
+    "schemaSlug": "wfa-private-https-hitl",
+    "operationId": "145d082f-3f89-4f63-a273-7c3c067676fb",
+    "phase": "admitted"
+  },
+  {
+    "schemaSlug": "wfa-private-https-schema-only-b",
+    "operationId": "d2cabe1b-c4ad-4c15-8203-e9156ffcebd5",
+    "terminal": {
+      "state": "SUCCEEDED",
+      "errorCode": null
+    },
+    "publicOperation": {
+      "name": "operations/d2cabe1b-c4ad-4c15-8203-e9156ffcebd5",
+      "done": true,
+      "metadata": {
+        "state": "SUCCEEDED",
+        "pipeline": [
+          "ext-classifier"
+        ],
+        "current_step": 0,
+        "progress_percent": 100,
+        "progress_message": null,
+        "create_time": "2026-10-12T01:37:05.806Z",
+        "update_time": "2026-10-12T01:37:11.094Z",
+        "pipeline_steps": [
+          {
+            "step": 1,
+            "stepName": "download_file",
+            "processor": "file_url_download",
+            "content_preview": null,
+            "extracted_data": null
+          }
+        ],
+        "workflow": "wfa-private-https-schema-only-b",
+        "schema_revision": 1,
+        "schema_digest": "sha256:69cce31efb998c563313cdf43146233a9843911f38fcf3f636b3ffd9d07adc70"
+      },
+      "result": {
+        "output_format": "json",
+        "content": "[{\"artifactId\":\"4d94b52f-b922-4365-8bf0-37024de5d498\",\"fileName\":\"secure.txt\",\"mimeType\":\"text/plain\",\"role\":\"intermediate\"}]",
+        "extracted_data": null,
+        "pipeline_steps": [
+          {
+            "step": 1,
+            "stepName": "download_file",
+            "processor": "file_url_download",
+            "content_preview": null,
+            "extracted_data": null
+          }
+        ],
+        "usage": {
+          "input_tokens": null,
+          "output_tokens": null,
+          "pages_processed": null,
+          "model_used": null,
+          "cost_usd": null,
+          "breakdown": []
+        },
+        "download_url": "/api/v1/operations/d2cabe1b-c4ad-4c15-8203-e9156ffcebd5/download"
+      }
+    },
+    "listenerEvents": [
+      {
+        "kind": "tls",
+        "listener": "san-match-alt",
+        "sni": "172-26-91-253.sslip.io"
+      },
+      {
+        "kind": "request",
+        "listener": "san-match-alt",
+        "method": "GET",
+        "path": "/file.txt",
+        "host": "172-26-91-253.sslip.io:45759",
+        "sni": "172-26-91-253.sslip.io"
+      }
+    ],
+    "workerErrorFrames": []
+  },
+  {
+    "schemaSlug": "wfa-private-https-schema-only-a",
+    "operationId": "f17881e0-a7c3-4c53-a16c-4e48c589c2c8",
+    "terminal": {
+      "state": "FAILED",
+      "errorCode": "LEGACY_WORKFLOW_EGRESS_ORIGIN_DENIED"
+    },
+    "publicOperation": {
+      "name": "operations/f17881e0-a7c3-4c53-a16c-4e48c589c2c8",
+      "done": true,
+      "metadata": {
+        "state": "FAILED",
+        "pipeline": [
+          "ext-classifier"
+        ],
+        "current_step": 0,
+        "progress_percent": 0,
+        "progress_message": "Processing workflow...",
+        "create_time": "2026-10-12T01:37:11.220Z",
+        "update_time": "2026-10-12T01:37:11.313Z",
+        "pipeline_steps": [],
+        "workflow": "wfa-private-https-schema-only-a",
+        "schema_revision": 1,
+        "schema_digest": "sha256:4c20b3ce279c6301ce22eb6f7483ef0992f22bc29824ed4903dd7b24002a622c"
+      },
+      "error": {
+        "code": "LEGACY_WORKFLOW_EGRESS_ORIGIN_DENIED",
+        "message": null,
+        "failed_step": null
+      }
+    },
+    "listenerEvents": [],
+    "workerErrorFrames": []
+  },
+  {
+    "schemaSlug": "wfa-private-https-schema-only-b",
+    "operationId": "73153ddb-2dc3-4509-a994-113aa71b0838",
+    "terminal": {
+      "state": "SUCCEEDED",
+      "errorCode": null
+    },
+    "publicOperation": {
+      "name": "operations/73153ddb-2dc3-4509-a994-113aa71b0838",
+      "done": true,
+      "metadata": {
+        "state": "SUCCEEDED",
+        "pipeline": [
+          "ext-classifier"
+        ],
+        "current_step": 0,
+        "progress_percent": 100,
+        "progress_message": null,
+        "create_time": "2026-10-12T01:37:11.440Z",
+        "update_time": "2026-10-12T01:37:11.517Z",
+        "pipeline_steps": [
+          {
+            "step": 1,
+            "stepName": "download_file",
+            "processor": "file_url_download",
+            "content_preview": null,
+            "extracted_data": null
+          }
+        ],
+        "workflow": "wfa-private-https-schema-only-b",
+        "schema_revision": 1,
+        "schema_digest": "sha256:69cce31efb998c563313cdf43146233a9843911f38fcf3f636b3ffd9d07adc70"
+      },
+      "result": {
+        "output_format": "json",
+        "content": "[{\"artifactId\":\"c72a5bde-4f69-4986-93ee-bbc3b1acd1fe\",\"fileName\":\"secure.txt\",\"mimeType\":\"text/plain\",\"role\":\"intermediate\"}]",
+        "extracted_data": null,
+        "pipeline_steps": [
+          {
+            "step": 1,
+            "stepName": "download_file",
+            "processor": "file_url_download",
+            "content_preview": null,
+            "extracted_data": null
+          }
+        ],
+        "usage": {
+          "input_tokens": null,
+          "output_tokens": null,
+          "pages_processed": null,
+          "model_used": null,
+          "cost_usd": null,
+          "breakdown": []
+        },
+        "download_url": "/api/v1/operations/73153ddb-2dc3-4509-a994-113aa71b0838/download"
+      }
+    },
+    "listenerEvents": [
+      {
+        "kind": "request",
+        "listener": "san-match-alt",
+        "method": "GET",
+        "path": "/file.txt",
+        "host": "172-26-91-253.sslip.io:45759",
+        "sni": "172-26-91-253.sslip.io"
+      }
+    ],
+    "workerErrorFrames": []
+  },
+  {
+    "schemaSlug": "wfa-private-https-schema-only-b",
+    "operationId": "3d600f83-b359-4cc2-9bdd-8d01e2a5a9b3",
+    "terminal": {
+      "state": "FAILED",
+      "errorCode": "LEGACY_WORKFLOW_URL_DOWNLOAD_FAILED"
+    },
+    "publicOperation": {
+      "name": "operations/3d600f83-b359-4cc2-9bdd-8d01e2a5a9b3",
+      "done": true,
+      "metadata": {
+        "state": "FAILED",
+        "pipeline": [
+          "ext-classifier"
+        ],
+        "current_step": 0,
+        "progress_percent": 0,
+        "progress_message": "Processing workflow...",
+        "create_time": "2026-10-12T01:37:11.656Z",
+        "update_time": "2026-10-12T01:37:11.723Z",
+        "pipeline_steps": [],
+        "workflow": "wfa-private-https-schema-only-b",
+        "schema_revision": 1,
+        "schema_digest": "sha256:69cce31efb998c563313cdf43146233a9843911f38fcf3f636b3ffd9d07adc70"
+      },
+      "error": {
+        "code": "LEGACY_WORKFLOW_URL_DOWNLOAD_FAILED",
+        "message": null,
+        "failed_step": null
+      }
+    },
+    "listenerEvents": [],
+    "workerErrorFrames": []
+  }
+]

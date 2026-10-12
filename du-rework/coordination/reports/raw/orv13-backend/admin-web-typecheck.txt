@@ -1,0 +1,12 @@
+src/features/operations/operations-screen.tsx(5,1): error TS6133: 'ConfirmDialog' is declared but its value is never read.
+src/features/operations/operations-screen.tsx(61,10): error TS6133: 'pendingControl' is declared but its value is never read.
+src/features/operations/operations-screen.tsx(314,18): error TS6133: 'control' is declared but its value is never read.
+src/features/operations/operations-screen.tsx(354,18): error TS6133: 'deleteOperation' is declared but its value is never read.
+src/features/operations/operations-screen.tsx(915,22): error TS2304: Cannot find name 'detailTasks'.
+src/features/operations/operations-screen.tsx(917,26): error TS2304: Cannot find name 'detailTasks'.
+src/features/operations/operations-screen.tsx(917,43): error TS7006: Parameter 'task' implicitly has an 'any' type.
+src/features/operations/operations-screen.tsx(917,49): error TS7006: Parameter 'idx' implicitly has an 'any' type.
+src/features/operations/operations-screen.tsx(921,50): error TS2304: Cannot find name 'detailTasks'.
+src/features/system-operations/state.ts(80,75): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/features/system-operations/system-operations-screen.tsx(560,12): error TS6133: 'updateSource' is declared but its value is never read.

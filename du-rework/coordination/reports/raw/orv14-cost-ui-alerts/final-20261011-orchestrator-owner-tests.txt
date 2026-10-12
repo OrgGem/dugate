@@ -1,0 +1,11 @@
+PASS orchestrator/services/orchestrator/tests/orv14-cost-alerts-bff-owner.test.ts (5.01 s)
+PASS orchestrator/services/orchestrator/tests/orv14-cost-alerts-oidc-owner.test.ts
+PASS orchestrator/services/orchestrator/tests/orv14-cost-alerts-enqueue-owner.test.ts
+PASS orchestrator/services/orchestrator/tests/orv14-cost-alerts-delivery-owner.test.ts
+PASS orchestrator/services/orchestrator/tests/orv14-cost-alerts-scope-catalog-owner.test.ts
+
+Test Suites: 5 passed, 5 total
+Tests:       21 passed, 21 total
+Snapshots:   0 total
+Time:        5.698 s, estimated 6 s
+Ran all test suites matching /orchestrator\/services\/orchestrator\/tests\/orv14-cost-alerts-bff-owner.test.ts|orchestrator\/services\/orchestrator\/tests\/orv14-cost-alerts-delivery-owner.test.ts|orchestrator\/services\/orchestrator\/tests\/orv14-cost-alerts-enqueue-owner.test.ts|orchestrator\/services\/orchestrator\/tests\/orv14-cost-alerts-oidc-owner.test.ts|orchestrator\/services\/orchestrator\/tests\/orv14-cost-alerts-scope-catalog-owner.test.ts/i.

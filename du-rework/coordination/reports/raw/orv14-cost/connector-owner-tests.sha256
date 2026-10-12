@@ -1,0 +1,6 @@
+57edb18b55eaf0334d3f4fee8444a022dbb163f6c2183c73ee24a50450e02209  orchestrator/services/connector/tests/orv14-connector-runtime-control.test.ts
+413e052f2f48884422e2fee760bf9d5520adae5f015c8a08f67eac9714f5ba80  orchestrator/services/connector/tests/orv14-cost-dispatch-owner.test.ts
+8711643758c4f723677e9f79296fd52a21b36ad5d2f249cfd5dbfdeb3a03bd70  orchestrator/services/connector/tests/orv14-cost-provider-test-evidence.test.ts
+63d1b1d73c54c3737325b60853efee2a51ca1515bf15a4ac845d473706911e0d  orchestrator/services/connector/tests/orv14-provider-test-content-sanitization.test.ts
+d71f31cc899bc721acf3cad8f4f23ccd21c5b9133c800b7ae1764f20ea1b58d2  orchestrator/services/connector/tests/orv14-typed-recipes-owner.test.ts
+9f2eb91b8a5915419788883053676549a871caaa297e22afce27e5b067848e86  orchestrator/services/connector/tests/orv14-typed-retirement-owner.test.ts

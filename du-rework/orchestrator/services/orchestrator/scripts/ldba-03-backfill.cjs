@@ -36,6 +36,11 @@ const OPERATION_STATE = Object.freeze({
   RUNNING: 'RUNNING',
   SUCCEEDED: 'SUCCEEDED',
   FAILED: 'FAILED',
+  CANCELLED: 'CANCELLED',
+  WAITING_FOR_USER: 'WAITING_FOR_USER',
+  WAITING_USER_INPUT: 'WAITING_FOR_USER',
+  PENDING: 'QUEUED',
+  QUEUED: 'QUEUED',
 });
 
 const TIMEZONE_BYPASS_ENV = 'LDBA_ALLOW_UNVERIFIED_TIMEZONE';
@@ -65,6 +70,7 @@ const DESTINATION_ORDER = Object.freeze({
   profile_bindings: 4,
   profile_active_revisions: 5,
   profile_names: 6,
+  profile_api_keys: 6,
   operations: 7,
   connector_prompt_overrides: 8,
   artifacts: 9,
@@ -72,6 +78,7 @@ const DESTINATION_ORDER = Object.freeze({
   admin_local_users: 11,
   user_profile_assignments: 12,
   legacy_workflow_schemas: 13,
+  legacy_app_settings: 14,
 });
 
 const SCRYPT_HASH = /^scrypt\$32768\$8\$1\$[A-Za-z0-9_-]{22}\$[A-Za-z0-9_-]{43}$/;
@@ -363,31 +370,46 @@ function mapOperation(row, context, report, tenantId) {
   if (row.done !== expectedDone) {
     fail('Operation', row, 'done', 'DONE_STATE_MISMATCH', 'legacy done value disagrees with the target terminal-state projection');
   }
+  if (!expectedDone) {
+    fail('Operation', row, 'state', 'DRAIN_REQUIRED', 'drain running/queued/HITL operations in the legacy system before freezing the source; no executable task snapshot can be reconstructed');
+  }
   const business = resolveBusiness('Operation', row, context);
   const pipelineJson = parseJsonField('Operation', row, 'pipelineJson', row.pipelineJson, true);
   const stepsResultJson = parseJsonField('Operation', row, 'stepsResultJson', row.stepsResultJson, false);
   const extractedData = parseJsonField('Operation', row, 'extractedData', row.extractedData, false);
   const usageBreakdown = parseJsonField('Operation', row, 'usageBreakdown', row.usageBreakdown, false);
   const filesJson = parseJsonField('Operation', row, 'filesJson', row.filesJson, false);
-  if (filesJson !== null && (!Array.isArray(filesJson) || filesJson.length !== 0)) {
-    fail('Operation', row, 'filesJson', 'FILE_REFERENCE_MAPPING_REQUIRED', 'non-empty legacy file references need a separately verified artifact map');
+  if (filesJson !== null && !Array.isArray(filesJson)) {
+    fail('Operation', row, 'filesJson', 'INVALID_FILE_REFERENCES', 'legacy filesJson must be an array');
   }
-  if (row.webhookUrl !== null && row.webhookUrl !== undefined && row.webhookUrl !== '') {
-    fail('Operation', row, 'webhookUrl', 'CALLBACK_POLICY_UNRESOLVED', 'LDBA-01 L3 requires a separate semantic decision');
-  }
-  if (row.webhookSentAt !== null && row.webhookSentAt !== undefined) {
-    fail('Operation', row, 'webhookSentAt', 'CALLBACK_POLICY_UNRESOLVED', 'legacy delivery timestamp has no complete delivery row mapping');
-  }
-  if (row.filesDeleted === true) {
-    fail('Operation', row, 'filesDeleted', 'FILE_DELETE_POLICY_UNRESOLVED', 'legacy file deletion flag has no target field');
-  }
-  if (row.createdByUserId !== null && row.createdByUserId !== undefined) {
-    addOmission(report, 'Operation', row, 'createdByUserId', 'no persisted target field; per-user operation scoping is a documented behavior loss');
+  // Historical callbacks are retained, never scheduled again during import.
+  const history = {
+    files: filesJson || [], filesDeleted: row.filesDeleted === true,
+    webhookUrl: row.webhookUrl ?? null, webhookSentAt: row.webhookSentAt ?? null,
+    createdByUserId: row.createdByUserId ?? null,
+    idempotencyKey: row.idempotencyKey ?? null,
+  };
+  if (row.webhookUrl && !row.webhookSentAt) {
+    addOmission(report, 'Operation', row, 'webhookUrl', 'undelivered historical callback retained for operator reconciliation; not replayed');
   }
   if (row.idempotencyKey !== null && row.idempotencyKey !== undefined && row.idempotencyKey !== '') {
     addOmission(report, 'Operation', row, 'idempotencyKey', 'not enough source values to reconstruct submission_keys safely');
   }
   addOmission(report, 'Operation', row, 'done', 'target compatibility projection derives done from terminal state');
+  const cachedFiles = context.legacyFileCache || [];
+  const resolveFile = (file) => cachedFiles.find((cached) =>
+    (file.fileCacheId && cached.id === file.fileCacheId) || cached.s3Key === (file.s3Key || file.path));
+  const artifacts = [];
+  if (!history.filesDeleted) for (const file of history.files) {
+    if (!isPlainObject(file)) fail('Operation', row, 'filesJson', 'INVALID_FILE_REFERENCES', 'file entry must be an object');
+    const cached = resolveFile(file);
+    if (!cached) fail('Operation', row, 'filesJson', 'FILE_REFERENCE_MAPPING_REQUIRED', 'live file reference has no verified FileCache entry');
+    artifacts.push({ artifactId: uuid('FileCache', cached, 'id', cached.id), role: 'input' });
+  }
+  const outputCache = row.outputFilePath && cachedFiles.find((cached) => cached.s3Key === row.outputFilePath);
+  if (row.outputFilePath && !history.filesDeleted && !outputCache) {
+    fail('Operation', row, 'outputFilePath', 'OUTPUT_FILE_MAPPING_REQUIRED', 'output bytes must be present in the verified FileCache snapshot');
+  }
   const createdAt = timestampUtc('Operation', row, 'createdAt', row.createdAt);
   const updatedAt = timestampUtc('Operation', row, 'updatedAt', row.updatedAt);
   const deletedAt = row.deletedAt === null || row.deletedAt === undefined
@@ -406,6 +428,7 @@ function mapOperation(row, context, report, tenantId) {
     correlation_id: 'legacy-operation:' + id,
     created_at: createdAt,
     updated_at: updatedAt,
+    legacy_history: history,
     pipeline_json: pipelineJson,
     steps_result_json: stepsResultJson,
     current_step: integer('Operation', row, 'currentStep', row.currentStep, false),
@@ -415,7 +438,8 @@ function mapOperation(row, context, report, tenantId) {
     output_format: row.outputFormat,
     output_content: row.outputContent ?? null,
     extracted_data: extractedData,
-    output_file_path: row.outputFilePath ?? null,
+    output_file_path: outputCache && !history.filesDeleted ? 'legacy-filecache/' + outputCache.id : null,
+    submit_artifacts: artifacts,
     total_input_tokens: integer('Operation', row, 'totalInputTokens', row.totalInputTokens, false),
     total_output_tokens: integer('Operation', row, 'totalOutputTokens', row.totalOutputTokens, false),
     pages_processed: integer('Operation', row, 'pagesProcessed', row.pagesProcessed, false),
@@ -539,9 +563,12 @@ async function mapConnector(row, context, report) {
     fail('ExternalApiConnection', row, 'credential_source', 'CONNECTOR_BINDING_POLICY_REQUIRED', 'legacy connector revision must retain the legacy-db credential reference without an account binding');
   }
   addOmission(report, 'ExternalApiConnection', row, 'updatedAt', 'connector_revisions has no updated_at destination');
+  // Context policy shares the legacy adapter's camelCase DTO; persist SQL columns.
+  const persistedRevision = { ...revision };
+  if (Object.hasOwn(persistedRevision, 'createdAt')) { persistedRevision.created_at = persistedRevision.createdAt; delete persistedRevision.createdAt; }
   const connectorKey = connectorId + '|' + revision.tenant_id + '|1';
   return [
-    write('connector_revisions', connectorKey, revision, 'ExternalApiConnection', row),
+    write('connector_revisions', connectorKey, persistedRevision, 'ExternalApiConnection', row),
     write('secret_versions', secret.id, secret, 'ExternalApiConnection', row),
   ];
 }
@@ -608,6 +635,9 @@ function mapProfile(row, context, report, tenantId) {
   });
   const createdAt = timestampUtc('ProfileEndpoint', row, 'createdAt', row.createdAt);
   const cipher = parseFileUrlAuthCipher('ProfileEndpoint', row, row.fileUrlAuthConfig);
+  const connectorBindings = typeof context.resolveProfileConnectors === 'function' ? context.resolveProfileConnectors(row, business) : {};
+  if (!isPlainObject(connectorBindings)) fail('ProfileEndpoint', row, 'connectionsOverride', 'INVALID_CONNECTOR_PINS', 'reviewed connector slot map must be an object');
+  if (row.enabled && Object.keys(connectorBindings).length === 0) addOmission(report, 'ProfileEndpoint', row, 'connector_bindings', 'no reviewed connector slot mapping; establish and test effective bindings before cutover');
   const binding = {
     profile_id: id,
     revision: 1,
@@ -616,7 +646,8 @@ function mapProfile(row, context, report, tenantId) {
     business_id: business.businessId,
     business_version: business.businessVersion,
     action: business.action,
-    connector_bindings: {},
+    endpoint_slug: row.endpointSlug,
+    connector_bindings: connectorBindings,
     created_at: createdAt,
     enabled: row.enabled,
     parameters,
@@ -646,6 +677,7 @@ function mapProfile(row, context, report, tenantId) {
     write('profile_bindings', id + '|1', binding, 'ProfileEndpoint', row),
     write('profile_names', id, nameRow, 'ProfileEndpoint', row),
     write('profile_active_revisions', id, activePointer, 'ProfileEndpoint', row),
+    write('profile_api_keys', id + '|' + apiKeyId, { profile_id: id, api_key_id: apiKeyId, tenant_id: tenantId, state: 'ACTIVE', created_at: createdAt }, 'ProfileEndpoint', row),
   ];
 }
 
@@ -788,15 +820,36 @@ function mapUser(row, context, report, tenantId) {
   ) {
     fail('User', row, 'password', 'INVALID_IDENTITY_ADAPTER_OUTPUT', 'identity adapter must return a scrypt hash and explicit enabled state');
   }
-  addOmission(report, 'User', row, 'provider/providerSub/email/displayName', 'target local-user table has no columns for legacy external identity metadata');
+  const hasSourceBoolean = (names) => {
+    for (const name of names) if (Object.hasOwn(row, name) && typeof row[name] === 'boolean') return { known: true, value: row[name] };
+    return { known: false, value: null };
+  };
+  const sourceEnabled = hasSourceBoolean(['isEnabled', 'is_enabled', 'enabled']);
+  const sourceDisabled = hasSourceBoolean(['isDisabled', 'is_disabled', 'disabled']);
+  const sourceLocked = hasSourceBoolean(['isLocked', 'is_locked', 'locked']);
+  const providerIdentity = (typeof row.provider === 'string' && row.provider.length > 0)
+    || (typeof row.providerSub === 'string' && row.providerSub.length > 0);
+  const originallyDisabled = (sourceEnabled.known && sourceEnabled.value === false)
+    || (sourceDisabled.known && sourceDisabled.value === true);
+  const requiredAdminReset = !providerIdentity && !originallyDisabled && auth.is_enabled === false;
+  const preservedLock = auth.is_locked === true || sourceLocked.value === true || providerIdentity;
+  if (requiredAdminReset) addOmission(report, 'User', row, 'password', 'local identity and assignments retained disabled with an unusable verifier; platform Admin must set a new password to activate it');
+  else if (originallyDisabled) addOmission(report, 'User', row, 'enabled', 'source-disabled state is preserved; password reset does not enable this account');
+  else if (providerIdentity) addOmission(report, 'User', row, 'provider/providerSub', 'OIDC identity remains disabled and locked until an explicit provider mapping is reconciled');
+  addOmission(report, 'User', row, 'provider/providerSub/email/displayName', 'identity metadata retained for reconciliation; external-provider login mapping is not automatically enabled');
   const target = {
     id,
     tenant_id: tenantId,
     username_normalized: username,
+    legacy_identity_metadata: {
+      provider: row.provider ?? null, providerSub: row.providerSub ?? null, email: row.email ?? null, displayName: row.displayName ?? null,
+      sourcePolicy: { enabledKnown: sourceEnabled.known || sourceDisabled.known, enabled: sourceEnabled.known ? sourceEnabled.value : sourceDisabled.known ? !sourceDisabled.value : null, lockedKnown: sourceLocked.known, locked: sourceLocked.known ? sourceLocked.value : null },
+    },
     password_hash: auth.password_hash,
-    role,
+    role: { ADMIN: 'admin', USER: 'operator', VIEWER: 'viewer' }[role],
     is_enabled: auth.is_enabled,
-    is_locked: auth.is_locked === true,
+    is_locked: preservedLock,
+    legacy_password_reset_required: requiredAdminReset,
     created_at: timestampUtc('User', row, 'createdAt', row.createdAt),
     updated_at: timestampUtc('User', row, 'updatedAt', row.updatedAt),
     version: 1,
@@ -871,9 +924,7 @@ function selectWorkflowWinners(rows, report) {
   for (const row of rows) {
     const slug = appSettingSlug(row);
     if (slug === null) {
-      report.sourceRows.skipped += 1;
-      report.perTable.AppSetting.skipped += 1;
-      addOmission(report, 'AppSetting', row, 'key/value', 'non-workflow setting is deployment configuration with no generic target');
+      // Non-workflow settings are retained separately as non-effective archive rows.
       continue;
     }
     if (!slug) {
@@ -935,8 +986,12 @@ function sourceVersionFailure(report, adapter) {
   return false;
 }
 
-function timezoneGuardFailure(report, options) {
-  if (options.apply === false || process.env[TIMEZONE_BYPASS_ENV] === '1') return false;
+function timezoneGuardFailure(report, options, adapter) {
+  if (options.apply === false) return false;
+  if (adapter.timezoneEvidence && adapter.timezoneEvidence.verified === true
+      && adapter.timezoneEvidence.sourceVersion === adapter.sourceVersion
+      && adapter.timezoneEvidence.timezone === 'UTC'
+      && /^[a-f0-9]{64}$/.test(adapter.timezoneEvidence.sha256 || '')) return false;
   report.status = 'BLOCKED_TIMEZONE_UNVERIFIED';
   report.failures.push({
     table: '<preflight>',
@@ -954,7 +1009,14 @@ async function transform(table, row, context, report, workflowSlug, tenantId) {
   if (table === 'ExternalApiConnection') return mapConnector(row, context, report);
   if (table === 'ExternalApiOverride') return mapOverride(row, report, tenantId);
   if (table === 'ProfileEndpoint') return mapProfile(row, context, report, tenantId);
-  if (table === 'AppSetting') return mapWorkflowSetting(row, workflowSlug, context, report, tenantId);
+  if (table === 'AppSetting') {
+    if (workflowSlug !== undefined) return mapWorkflowSetting(row, workflowSlug, context, report, tenantId);
+    if (['ai_api_key', 'openai_api_key', 'api_secret_key', 's3_access_key', 's3_secret_key'].includes(row.key) && row.value) {
+      parseFileUrlAuthCipher('AppSetting', row, row.value);
+    }
+    addOmission(report, 'AppSetting', row, 'value', 'archived only; map into effective deployment/connector/profile configuration before cutover');
+    return [write('legacy_app_settings', tenantId + '|' + row.key, { tenant_id: tenantId, key: requireText('AppSetting', row, 'key', row.key), value: row.value, updated_at: timestampUtc('AppSetting', row, 'updatedAt', row.updatedAt) }, 'AppSetting', row)];
+  }
   if (table === 'FileCache') return mapFileCache(row, context, report, tenantId);
   if (table === 'User') return mapUser(row, context, report, tenantId);
   if (table === 'UserProfileAssignment') return mapAssignment(row, report);
@@ -997,7 +1059,6 @@ async function runBackfill(adapter, options = {}) {
     return report;
   }
   if (sourceVersionFailure(report, adapter)) return report;
-  if (timezoneGuardFailure(report, options)) return report;
   if (typeof adapter.source.scan !== 'function') {
     report.status = 'BLOCKED_ADAPTER';
     report.failures.push({
@@ -1027,6 +1088,24 @@ async function runBackfill(adapter, options = {}) {
     return report;
   }
 
+  if (typeof adapter.sink.assertTargetSeparation === 'function') {
+    try {
+      await adapter.sink.assertTargetSeparation();
+    } catch (error) {
+      report.status = 'BLOCKED_TARGET_IDENTITY';
+      report.failures.push({
+        table: '<target>',
+        sourceKey: '<none>',
+        field: 'targetDatabaseIdentity',
+        code: error && error.code ? String(error.code) : 'TARGET_IDENTITY_UNAVAILABLE',
+        message: String(error && error.message || error),
+      });
+      report.cutoverReady = false;
+      report.cutoverGate = 'Orchestrator and Connector targets must be independently verified before A2 source reads or writes';
+      return report;
+    }
+  }
+
   const tables = {};
   for (const table of LEGACY_TABLES) {
     try {
@@ -1046,6 +1125,9 @@ async function runBackfill(adapter, options = {}) {
       return report;
     }
   }
+
+  report.sourceSnapshot = adapter.sourceSnapshot || null;
+  if (timezoneGuardFailure(report, options, adapter)) return report;
 
   // The sink must resolve every matching name and serialize seed with an advisory lock.
   // Its seed operation inserts only the name column and lets the database generate the UUID.
@@ -1103,6 +1185,7 @@ async function runBackfill(adapter, options = {}) {
     return report;
   }
 
+  const transformContext = { ...adapter.context, legacyFileCache: tables.FileCache };
   const writes = [];
   const sourceGroups = new Map();
   const workflowWinners = selectWorkflowWinners(tables.AppSetting, report);
@@ -1124,14 +1207,14 @@ async function runBackfill(adapter, options = {}) {
 
   for (const table of LEGACY_TABLES) {
     let rows = tables[table];
-    if (table === 'AppSetting') rows = workflowWinners.map((item) => item.row);
+    if (table === 'AppSetting') rows = [...workflowWinners.map((item) => item.row), ...tables.AppSetting.filter((row) => appSettingSlug(row) === null)];
     for (const row of rows) {
       if (table === 'User' && collisionIds.has(String(row.id))) continue;
       const ref = { table, sourceKey: String(SOURCE_KEY[table](row)) };
       const startingFailures = report.failures.length;
       try {
         const workflowSlug = table === 'AppSetting' ? workflowByKey.get(row.key) : undefined;
-        const planned = await transform(table, row, adapter.context, report, workflowSlug, report.tenant.id);
+        const planned = await transform(table, row, transformContext, report, workflowSlug, report.tenant.id);
         if (report.failures.length !== startingFailures) continue;
         if (!Array.isArray(planned) || planned.length === 0) {
           report.sourceRows.skipped += 1;
@@ -1268,17 +1351,34 @@ async function runBackfill(adapter, options = {}) {
   try {
     applied = await adapter.sink.applyImmutableBatch(writes);
   } catch (error) {
-    report.status = 'BLOCKED_TARGET_WRITE';
+    const crossPlanePartial = error && error.code === 'CROSS_PLANE_PARTIAL';
+    report.status = crossPlanePartial ? 'PARTIAL_CROSS_PLANE_HOLD' : 'BLOCKED_TARGET_WRITE';
     const failedWrite = error && error.write;
     const table = failedWrite && failedWrite.source ? failedWrite.source.table : '<target>';
     const sourceKey = failedWrite && failedWrite.source ? failedWrite.source.sourceKey : '<batch>';
-    report.failures.push({
+    const failure = {
       table,
       sourceKey,
       field: failedWrite ? failedWrite.entity : '<transaction>',
       code: error && error.code ? String(error.code) : 'ATOMIC_BATCH_FAILED',
       message: String(error && error.message || error),
-    });
+    };
+    if (crossPlanePartial && error && error.phaseFailureCode) failure.phaseFailureCode = String(error.phaseFailureCode);
+    report.failures.push(failure);
+    if (crossPlanePartial) {
+      report.crossPlane = {
+        state: 'PARTIAL_HOLD',
+        committedPlane: 'connector',
+        pendingPlane: 'orchestrator',
+        connectorRowsCommitted: Number.isSafeInteger(error.connectorRowsCommitted) ? error.connectorRowsCommitted : null,
+        replayRequired: error.replayRequired !== false,
+        phaseFailureCode: error.phaseFailureCode ? String(error.phaseFailureCode) : null,
+      };
+      report.cutoverReady = false;
+      report.cutoverGate = error.replayRequired === false
+        ? 'Cross-plane A2 apply is held because Orchestrator source provenance conflicts; retain source and resolve the immutable provenance conflict before cutover'
+        : 'Cross-plane A2 apply is partial; retain source and hold cutover until exact same-version replay completes both planes';
+    }
     report.sourceRows.failed += 1;
     if (report.perTable[table]) report.perTable[table].failed += 1;
     return report;
@@ -1329,6 +1429,9 @@ async function runBackfill(adapter, options = {}) {
     }
   }
   report.status = 'APPLIED';
+  report.importProvenance = adapter.importProvenance || null;
+  report.cutoverReady = false;
+  report.cutoverGate = 'Independent rehearsal, effective settings/profile reconciliation, identity activation and source freeze approval required; APPLIED only means immutable rows were written';
   return report;
 }
 
@@ -1341,11 +1444,6 @@ async function runCli() {
   }
   if (process.env.LDBA_A1_PASSED !== '1') {
     process.stderr.write('Refusing A2: LDBA_A1_PASSED must equal 1.\n');
-    process.exitCode = 2;
-    return;
-  }
-  if (mode === '--execute' && process.env[TIMEZONE_BYPASS_ENV] !== '1') {
-    process.stderr.write('Refusing A2: legacy timestamp timezone is unverified; LDBA_ALLOW_UNVERIFIED_TIMEZONE=1 is an unsafe bypass and must not be set in a real environment.\n');
     process.exitCode = 2;
     return;
   }

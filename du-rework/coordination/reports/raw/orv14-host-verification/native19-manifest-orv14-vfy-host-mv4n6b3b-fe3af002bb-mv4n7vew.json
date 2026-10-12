@@ -1,0 +1,207 @@
+{
+  "schema": "orv14-native19-manifest/v1",
+  "command": "/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node tests/workflow-api/orv14-vfy-host/make-native19-manifest.mjs /tmp/orv14-vfy-host-mv4n6b3b-fe3af002bb-vSYC3e/native19-state.json",
+  "cwd": "/workspace/dugate/du-rework",
+  "node": "v24.21.0",
+  "verifierUid": 1000,
+  "startedAt": "2026-10-12T02:38:45.318Z",
+  "stateFileModeVerified": true,
+  "fixtureNamespace": "orv14-vfy-host-mv4n6b3b-fe3af002bb",
+  "sourceHashesBefore": {
+    "services/orchestrator/scripts/ldba-03-backfill.cjs": "11fd332907b1e3111b1ff285ef1f96076f9300a0424bb3024b59f5d3dbfd045c",
+    "services/orchestrator/scripts/ldba-03-production-adapter.cjs": "dbba7dadb8c1872d9770db677f0f1ffc2d2d69a9f8ef4542399c6266b60255a9",
+    "services/orchestrator/scripts/ldba-context-provider.cjs": "c0208013748da82a14cf8548859413f51057f87f75d67889fd0d70dbd3a0b34e",
+    "services/orchestrator/scripts/ldba-inventory.cjs": "ce7ea6cbc6b2ec491c18395891d8d2490a12aa58157ba2a1db3ac8edc569cd7c",
+    "services/orchestrator/scripts/ldba-continuity-plan.cjs": "469f96228377e2db95ed772f25044de31e04559bb3c549cf604a1631cd92b47e",
+    "services/orchestrator/scripts/ldba-continuity-mappings.cjs": "e7bcec2d3ff9d565672e4b04ff5e2a77a8610ffe92a7c8e4ea43413a0fa3b306",
+    "services/orchestrator/scripts/ldba-continuity-source.cjs": "2f7830ee3bf7258604b1c6f6a3b4f49375daa77e2301bb0d0da31ca1f9b348f8",
+    "services/orchestrator/scripts/ldba-continuity-runner.cjs": "8bca7f6ff96d47a8e9cb01243055c91088ad1949fc342f36557eda123dd08bec",
+    "services/orchestrator/scripts/ldba-continuity-runtime.cjs": "8a6d9b7717d5d78bae7ecbe6059b2635322c4d64a9a5281eac94626d7cee1f73",
+    "services/orchestrator/src/modules/connectors/connector-secret-imports.ts": "7727838458212df71fe877dc3e486840b33d77f718f06dea6ebd45e8a5cf321c",
+    "services/orchestrator/src/modules/connectors/connector-management-store.ts": "89a649c9ae37df485d055318afb40e0f956f541f4d0589235f141845db1392bc",
+    "services/orchestrator/src/http/routes/internal-parity.ts": "8e298a128acf9f40ab92438b2ef0ac957a7b82f7f1bc275715a88be89e799386",
+    "services/orchestrator/src/modules/global-settings/service.ts": "6f60272612c7b5c6bae341f2f569bbf0c7809df4cd090ad1d4eb8a94f4190035",
+    "services/orchestrator/src/app/bootstrap/create-app.ts": "2913288498cfd4ffcb3ddb6b03b2f1d8fa7fde336e3a7d27c70a42a5a3b81626",
+    "services/connector/src/db/migrations/014_connector_recipe_retirement.sql": "1cd0845a9ce99dac8e818274124ebf7cbbed51b08d21d9db65b0a1e00a45fc36",
+    "services/connector/src/db/migrations/015_backup_effect_fences.sql": "fa61d2514a0e688789537557aed5156d594ab3410859d61d6105fe219443ff6e",
+    "packages/contracts/src/connector.ts": "582df049a558c9ea5492f9676817bc60a3b65f716ce7123377f30855b59bef81",
+    "packages/contracts/src/parity.ts": "ea77f06d89ba5f8c2549524fab6f4b2ba837096f6d3d18da0474ef83b6f7c119",
+    "lib/settings.ts": "3276d1f80d115611d3858d3e94658d818e6c2fdcb91b0bbcc98a9b57ec5e2500"
+  },
+  "sourceHashesAfter": {
+    "services/orchestrator/scripts/ldba-03-backfill.cjs": "11fd332907b1e3111b1ff285ef1f96076f9300a0424bb3024b59f5d3dbfd045c",
+    "services/orchestrator/scripts/ldba-03-production-adapter.cjs": "dbba7dadb8c1872d9770db677f0f1ffc2d2d69a9f8ef4542399c6266b60255a9",
+    "services/orchestrator/scripts/ldba-context-provider.cjs": "c0208013748da82a14cf8548859413f51057f87f75d67889fd0d70dbd3a0b34e",
+    "services/orchestrator/scripts/ldba-inventory.cjs": "ce7ea6cbc6b2ec491c18395891d8d2490a12aa58157ba2a1db3ac8edc569cd7c",
+    "services/orchestrator/scripts/ldba-continuity-plan.cjs": "469f96228377e2db95ed772f25044de31e04559bb3c549cf604a1631cd92b47e",
+    "services/orchestrator/scripts/ldba-continuity-mappings.cjs": "e7bcec2d3ff9d565672e4b04ff5e2a77a8610ffe92a7c8e4ea43413a0fa3b306",
+    "services/orchestrator/scripts/ldba-continuity-source.cjs": "2f7830ee3bf7258604b1c6f6a3b4f49375daa77e2301bb0d0da31ca1f9b348f8",
+    "services/orchestrator/scripts/ldba-continuity-runner.cjs": "8bca7f6ff96d47a8e9cb01243055c91088ad1949fc342f36557eda123dd08bec",
+    "services/orchestrator/scripts/ldba-continuity-runtime.cjs": "8a6d9b7717d5d78bae7ecbe6059b2635322c4d64a9a5281eac94626d7cee1f73",
+    "services/orchestrator/src/modules/connectors/connector-secret-imports.ts": "7727838458212df71fe877dc3e486840b33d77f718f06dea6ebd45e8a5cf321c",
+    "services/orchestrator/src/modules/connectors/connector-management-store.ts": "89a649c9ae37df485d055318afb40e0f956f541f4d0589235f141845db1392bc",
+    "services/orchestrator/src/http/routes/internal-parity.ts": "8e298a128acf9f40ab92438b2ef0ac957a7b82f7f1bc275715a88be89e799386",
+    "services/orchestrator/src/modules/global-settings/service.ts": "6f60272612c7b5c6bae341f2f569bbf0c7809df4cd090ad1d4eb8a94f4190035",
+    "services/orchestrator/src/app/bootstrap/create-app.ts": "2913288498cfd4ffcb3ddb6b03b2f1d8fa7fde336e3a7d27c70a42a5a3b81626",
+    "services/connector/src/db/migrations/014_connector_recipe_retirement.sql": "1cd0845a9ce99dac8e818274124ebf7cbbed51b08d21d9db65b0a1e00a45fc36",
+    "services/connector/src/db/migrations/015_backup_effect_fences.sql": "fa61d2514a0e688789537557aed5156d594ab3410859d61d6105fe219443ff6e",
+    "packages/contracts/src/connector.ts": "582df049a558c9ea5492f9676817bc60a3b65f716ce7123377f30855b59bef81",
+    "packages/contracts/src/parity.ts": "ea77f06d89ba5f8c2549524fab6f4b2ba837096f6d3d18da0474ef83b6f7c119",
+    "lib/settings.ts": "3276d1f80d115611d3858d3e94658d818e6c2fdcb91b0bbcc98a9b57ec5e2500"
+  },
+  "sourceRows": {
+    "sha256": "04177bfc76c7b568c308631546be39c7d9a12d738cdb646c7491e26870d0cf87",
+    "counts": {
+      "Operation": 1,
+      "ApiKey": 1,
+      "ExternalApiConnection": 2,
+      "ExternalApiOverride": 1,
+      "ProfileEndpoint": 1,
+      "AppSetting": 19,
+      "FileCache": 2,
+      "User": 1,
+      "UserProfileAssignment": 1
+    },
+    "settings": 19,
+    "connectorRows": 2,
+    "profileRows": 1,
+    "apiKeys": 1,
+    "overrides": 1,
+    "users": 1,
+    "assignments": 1
+  },
+  "settingsDispositions": [
+    {
+      "key": "ai_provider",
+      "disposition": "MAPPED_TENANT_AI_DEFAULT",
+      "sourceValuePresent": true,
+      "sourceValueSha256": "1ca01ef65fd94a3fb6ba2d1966819780836fdc735a4225ab060a95545c623a6e"
+    },
+    {
+      "key": "ai_model",
+      "disposition": "MAPPED_TENANT_AI_DEFAULT",
+      "sourceValuePresent": true,
+      "sourceValueSha256": "9b98bdaf66c6869fe78f96107052fca62c45e8386b8ea9047695808c6c0a3508"
+    },
+    {
+      "key": "ai_api_key",
+      "disposition": "MAPPED_APPROVED_CONNECTOR_REVISION",
+      "sourceValuePresent": true,
+      "sourceValueSha256": "e9834df9eebaa3e5030b251d85cfdc7f3adf5c76910144309b32cd28ee2b0abd"
+    },
+    {
+      "key": "ai_image_prompt",
+      "disposition": "MAPPED_TENANT_PROMPT_DEFAULT",
+      "sourceValuePresent": true,
+      "sourceValueSha256": "f03341c5c7b02ab9381be63817fd36bc94f06739143ed399ba0779663b02f303"
+    },
+    {
+      "key": "ai_pdf_prompt",
+      "disposition": "MAPPED_TENANT_PROMPT_DEFAULT",
+      "sourceValuePresent": true,
+      "sourceValueSha256": "a779ab0b424015ff718ad877f1df68a750b8be5ff3cb8f0c52361a9c8e62e712"
+    },
+    {
+      "key": "ai_docx_prompt",
+      "disposition": "MAPPED_TENANT_PROMPT_DEFAULT",
+      "sourceValuePresent": true,
+      "sourceValueSha256": "0f272e37863e3570e0db3c38c1663b32db1a9a4adeb7092a2b05dbe8e58f907b"
+    },
+    {
+      "key": "ai_compare_prompt",
+      "disposition": "MAPPED_TENANT_PROMPT_DEFAULT",
+      "sourceValuePresent": true,
+      "sourceValueSha256": "3a0bd7e6b74a1949082d8d178e804fa14b0e63f0fca79e54929941542bda5ae8"
+    },
+    {
+      "key": "ai_generate_prompt",
+      "disposition": "MAPPED_TENANT_PROMPT_DEFAULT",
+      "sourceValuePresent": true,
+      "sourceValueSha256": "7319ff11127dedf237bdec9d8f666bc52f290d36c93f72a92dc035e3ddaed058"
+    },
+    {
+      "key": "openai_api_key",
+      "disposition": "MAPPED_APPROVED_CONNECTOR_REVISION",
+      "sourceValuePresent": true,
+      "sourceValueSha256": "9ef28fb89124d8aceff20051bc86ef657bad5aabd21309c5dd1fe781a8217a82"
+    },
+    {
+      "key": "openai_base_url",
+      "disposition": "MAPPED_APPROVED_CONNECTOR_REVISION",
+      "sourceValuePresent": true,
+      "sourceValueSha256": "a96a698e0f3a5edfc830da7ef19628a5a1f35fbc9d93b932a70431cb23dae4b9"
+    },
+    {
+      "key": "api_secret_key",
+      "disposition": "RETIRED_NO_CURRENT_RUNTIME_CONSUMER",
+      "sourceValuePresent": true,
+      "sourceValueSha256": "ba2b5e7ff02f2950bdd35b189bee2f060589482589dceb81a9960338b259fd02"
+    },
+    {
+      "key": "s3_endpoint",
+      "disposition": "MAPPED_STORAGE_GENERATION",
+      "sourceValuePresent": true,
+      "sourceValueSha256": "42b18e312d7517d4ab88f2ebc23ef2ac911ea74ce30483fd4f370e6b78d6e1f3"
+    },
+    {
+      "key": "s3_bucket",
+      "disposition": "MAPPED_STORAGE_GENERATION",
+      "sourceValuePresent": true,
+      "sourceValueSha256": "824718d2b204f337e638481e6f54ba532fc7a7a31b65b8f2d346e0b9dce799cf"
+    },
+    {
+      "key": "s3_access_key",
+      "disposition": "MAPPED_STORAGE_GENERATION",
+      "sourceValuePresent": true,
+      "sourceValueSha256": "9cb456c2975c5bbf3262b72df5a5552e72f8d023512da6cf84df824deea1951a"
+    },
+    {
+      "key": "s3_secret_key",
+      "disposition": "MAPPED_STORAGE_GENERATION",
+      "sourceValuePresent": true,
+      "sourceValueSha256": "16dc46e00c89b227cad1bc450524567bb90372a21f2abc8a94c9265eb08b5ad1"
+    },
+    {
+      "key": "s3_region",
+      "disposition": "MAPPED_STORAGE_GENERATION",
+      "sourceValuePresent": true,
+      "sourceValueSha256": "57fc100527546ef06a91ff1e3c01bd7ab0c0ddca4f2847cccf998689957783c5"
+    },
+    {
+      "key": "s3_cache_ttl_hours",
+      "disposition": "MAPPED_RETENTION_REVISION",
+      "sourceValuePresent": true,
+      "sourceValueSha256": "9df59c3d4c39c130062ef9655dac0f0c4179a19c69f40b8db0c0d0ff2c0cc11b"
+    },
+    {
+      "key": "docx_conversion_mode",
+      "disposition": "RETIRED_NO_CURRENT_RUNTIME_CONSUMER",
+      "sourceValuePresent": true,
+      "sourceValueSha256": "c6e160f0b38b87e97c414b237288c64874b238d02798f8f9d1997c42d000418c"
+    },
+    {
+      "key": "docx_intermediate_format",
+      "disposition": "RETIRED_NO_CURRENT_RUNTIME_CONSUMER",
+      "sourceValuePresent": true,
+      "sourceValueSha256": "0f6bc09bc7265aa941842be74c0642e714c9a9af0451e5903accdbc2bd3568e5"
+    }
+  ],
+  "targetInventorySha256": "0fa65496c5f6ea5727050216fff1c89b40c11eb1d768f5a666321f2f9deabad6",
+  "continuityEvidenceKinds": [],
+  "manifestSha256": "09b49df68799b0032fd6ae663ba1452e84e6a7950a6524b3637298f3404465d3",
+  "mappingCounts": {
+    "connectorRows": 2,
+    "active": 1,
+    "retired": 1,
+    "profiles": 1,
+    "canonicalSettings": 17,
+    "extensionSettings": 2,
+    "functionalSettings": 16,
+    "retiredSettings": 3
+  },
+  "outputFile": "/tmp/orv14-vfy-host-mv4n6b3b-fe3af002bb-vSYC3e/native19-manifest.json",
+  "credentialsOrPlaintextRecorded": false,
+  "status": "PASSED_MANIFEST_PREPARATION",
+  "completedAt": "2026-10-12T02:38:45.703Z",
+  "attemptId": "mv4n7vew"
+}

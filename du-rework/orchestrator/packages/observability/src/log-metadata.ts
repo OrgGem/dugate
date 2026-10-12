@@ -47,6 +47,10 @@ export function metadataLogRecord(value: unknown): unknown {
       out[key] = safeErrorForLog(child);
     } else if ((COUNTERS.has(key) || COUNTER_SUFFIX.test(key)) && typeof child === 'number' && Number.isFinite(child)) {
       out[key] = child;
+    } else if (key === 'workflowPrivateHttpsPolicyDigest'
+      && typeof child === 'string'
+      && /^sha256:[a-f0-9]{64}$/.test(child)) {
+      out[key] = child;
     } else if (PAYLOAD.test(key)) {
       // Content is omitted even if its value happens to look like metadata.
     } else if (key === 'event' && child !== null && typeof child === 'object' && !Array.isArray(child)) {

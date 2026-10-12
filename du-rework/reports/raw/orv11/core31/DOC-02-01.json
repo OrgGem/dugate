@@ -1,0 +1,33 @@
+{
+  "name": "operations/211d0b54-24d9-4215-9e8e-b7300f9825b0",
+  "done": true,
+  "metadata": {
+    "state": "SUCCEEDED",
+    "pipeline": [],
+    "current_step": 0,
+    "progress_percent": 0,
+    "progress_message": "Queued",
+    "create_time": "2026-10-11T16:35:03.710Z",
+    "update_time": "2026-10-11T16:35:03.823Z",
+    "pipeline_steps": []
+  },
+  "result": {
+    "output_format": "json",
+    "content": "{\"invoiceNumber\":\"INV-101\",\"supplier\":\"Acme Corp\",\"total\":\"$500.00\"}",
+    "extracted_data": {
+      "invoiceNumber": "INV-101",
+      "supplier": "Acme Corp",
+      "total": "$500.00"
+    },
+    "pipeline_steps": [],
+    "usage": {
+      "input_tokens": null,
+      "output_tokens": null,
+      "pages_processed": null,
+      "model_used": null,
+      "cost_usd": null,
+      "breakdown": []
+    },
+    "download_url": "/api/v1/operations/211d0b54-24d9-4215-9e8e-b7300f9825b0/download"
+  }
+}

@@ -1,0 +1,163 @@
+Skip to content
+Orchestrator Portal
+10/11/2026, 3:53:35 PM UTC
+legacy:admin · Profile
+Logout
+System health: ok
+Database: Healthy
+Redis: Healthy
+Queue integrity: Unavailable
+Active leases: 0
+Outbox backlog: Unavailable
+Sampled 0s ago
+Health details
+ACTIVE TENANT
+ACTIVE
+ORV11 verification tenant
+c2be615e-a238-42cd…
+
+Workspace
+
+Overview
+Operations
+Trace
+Usage
+
+Configuration
+
+Businesses
+Profiles
+Connectors
+Workflows
+
+Administration
+
+Audit
+Security
+Secrets
+Identity
+Settings
+
+Resources
+
+API Reference
+Documentation
+Bootstrap
+Settings & Deployment
+Effective deployment
+
+Read from the running orchestrator. Storage changes require deployment configuration and restart.
+
+backend
+postgres
+bucket
+Not explicitly configured
+region
+Not explicitly configured
+endpoint
+Not explicitly configured
+managedBy
+deployment
+restartRequired
+true
+Metadata encryption: configured
+Connector management: not configured
+Credential management: not configured
+Prompt editing: configured
+
+Configured capability does not prove provider health. Test the selected connection in Connectors.
+
+Prompt overrides for new requests
+
+Overrides target an existing API key, endpoint and connection. The exact step wins over _default. An empty prompt clears the override. Provider and model changes use profile and connector revisions.
+
+API key
+Choose an active API key
+Browser legacy key · orv11
+Endpoint slug
+Load current overrides
+Profile connection
+Load overrides, then choose a pinned connection
+reasoning · revision 1 · 67b11aa8-476f-42cb-b3aa-f98356a2d0fd
+
+Only the active profile's pinned connections can receive overrides. Named connector IDs require migration to the legacy connection UUID before using this editor.
+
+Scope: connection fallback (_default). Exact-step overrides remain read-only and keep precedence over this fallback; code-provided prompts also take precedence.
+
+Prompt
+
+Revision: new override · Saves are audited. A concurrent edit requires a reload.
+
+Save prompt override
+Legacy global settings need explicit mapping
+Global AI and format prompt defaults are not automatically applied to every business. Map them to the applicable profile and connector revision. Storage cache TTL is not the artifact retention policy; migration must reconcile these separately. Credentials are managed through Secrets.
+AI defaults (CFGADM-01)
+AI provider ai_provider
+
+aiDefaults.provider · tenant policy + Connector binding revision
+
+AI account credential ai_api_key
+
+Gemini account credential (Vault secret-ref) · tenant/account Vault
+
+AI model ai_model
+
+aiDefaults.model · tenant default + Profile permitted override
+
+OpenAI-compatible account credential openai_api_key
+
+OpenAI-compatible account credential (Vault secret-ref) · tenant/account
+
+OpenAI-compatible base URL openai_base_url
+
+OpenAI-compatible Connector config revision · tenant/account
+
+Legacy API secret key api_secret_key
+
+retire pending consumer inventory · not managed here
+
+Prompt defaults (CFGADM-02)
+Image prompt default ai_image_prompt
+
+promptDefaults.image · versioned business/tenant defaults
+
+PDF prompt default ai_pdf_prompt
+
+promptDefaults.pdf · versioned business/tenant defaults
+
+DOCX prompt default ai_docx_prompt
+
+promptDefaults.docx · versioned business/tenant defaults
+
+Compare prompt default ai_compare_prompt
+
+promptDefaults.compare · versioned business/tenant defaults
+
+Generate prompt default ai_generate_prompt
+
+promptDefaults.generate · versioned business/tenant defaults
+
+Storage and retention (CFGADM-03/04)
+S3 endpoint s3_endpoint
+
+storageConfig.endpoint · platform storage generation
+
+S3 bucket s3_bucket
+
+storageConfig.bucket · platform storage generation
+
+S3 access key ID s3_access_key
+
+storage identity/access ID (secret-ref metadata) · platform secret owner
+
+S3 secret key s3_secret_key
+
+storage credential (deployment secret manager/Vault ref) · platform secret owner
+
+S3 region s3_region
+
+storageConfig.region · platform storage generation
+
+Cache TTL (hours) s3_cache_ttl_hours
+
+retentionPolicy.cacheTtlHours · platform/tenant per storage ownership

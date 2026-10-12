@@ -445,7 +445,7 @@ export function extensionDeniedReason(csv: string, fileName: string): string | n
  */
 export function fileUrlEntryName(entry: unknown): string | null {
   if (typeof entry !== 'object' || entry === null) return null;
-  const declared = (entry as { filename?: unknown }).filename;
+  const declared = (entry as { fileName?: unknown; filename?: unknown }).fileName ?? (entry as { filename?: unknown }).filename;
   if (typeof declared === 'string' && declared.trim().length > 0) return declared.trim();
 
   const url = (entry as { url?: unknown }).url;

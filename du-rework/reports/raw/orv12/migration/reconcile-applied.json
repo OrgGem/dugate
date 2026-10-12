@@ -1,0 +1,42 @@
+{
+  "version": "ldba-reconciliation-v1",
+  "tenantId": "54d7d298-8ae1-4607-bac0-d54f4a4b9921",
+  "sourceVersion": "orv12-vfy-source-v1",
+  "sourceSha256": "db5acb8fcaef145dab74760885fcdd0f93385a96f517b30eb0cae7d10203246a",
+  "manifestSha256": "ca465eea0d67f9e8aece838e6c84b819b1aecf2bbeb25c4274b428b4660510df",
+  "baselineInventorySha256": "c6d5ee057bb58388208b74efc85d1714f86c051ac9ba4220fe967168ac29b771",
+  "currentInventorySha256": "c6d5ee057bb58388208b74efc85d1714f86c051ac9ba4220fe967168ac29b771",
+  "resuming": false,
+  "diffs": [
+    {
+      "sourceKey": "ai_generate_prompt",
+      "scope": {
+        "tenantId": "54d7d298-8ae1-4607-bac0-d54f4a4b9921",
+        "apiKeyId": "9306a552-a62f-4351-a198-9ee0dfe8c8a6",
+        "endpointSlug": "generate:summary"
+      },
+      "consumer": "connector_prompt_overrides",
+      "connectionId": "2c1040d0-46a8-4757-910c-21ba8d8150ee",
+      "valueSha256": "65f861ec4e9751ecbbb15fb9f1e4b33b31fc78523cc4fbc8e98e9f0b02183885"
+    }
+  ],
+  "holds": [
+    {
+      "sourceKey": "ai_model",
+      "disposition": "manual",
+      "code": "EXTERNAL_CONFIGURATION_RECONCILIATION_REQUIRED"
+    }
+  ],
+  "cutoverReady": false,
+  "outcomes": [
+    {
+      "scope": {
+        "tenantId": "54d7d298-8ae1-4607-bac0-d54f4a4b9921",
+        "apiKeyId": "9306a552-a62f-4351-a198-9ee0dfe8c8a6",
+        "endpointSlug": "generate:summary"
+      },
+      "revision": 1,
+      "status": "APPLIED_AND_ACTIVE"
+    }
+  ]
+}

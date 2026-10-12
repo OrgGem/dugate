@@ -1,0 +1,11 @@
+d19c724e562c9675bc05ce57406e4c2a75d2aab328d9351f16d9ec3a07d3be0c  orchestrator/apps/admin-web/src/app-shell/app-shell.tsx
+987c3c7989abb1e8ba18942b369ef4ee6518faa47555a7a145aed595835f5b78  orchestrator/apps/admin-web/src/app-shell/session-events.ts
+39adff8b381d39d3ddb760a60f2c5a6d7a170e8f0ececda4d821277c6e3e9d2a  orchestrator/apps/admin-web/src/router.tsx
+77b3940ebc02cbe5364732dd5e57a9af8fac99d5e0891ac1b8333b8b420ba8c5  orchestrator/apps/admin-web/src/routes/system-operations.tsx
+5e8eb24b93e0bff791337a612e87ba58daf911ef45271f3ab095303e61df7e69  orchestrator/apps/admin-web/src/features/overview/overview-screen.tsx
+8b608bf94c5fdf966ad68a7409fd68a681e76f46f676eba239783b7cb5c55d59  orchestrator/apps/admin-web/src/features/system-operations/state.ts
+b5bff3bd75b50e420097507de50c22f99a67a2331f3266e919612a535a5e3d33  orchestrator/apps/admin-web/src/features/system-operations/system-operations-screen.tsx
+904a491a0a2b979967d605ddfe95f5e4a7df01995cccc75a857f563910be9de7  orchestrator/apps/admin-web/src/features/system-operations/compose-state.ts
+52a766ed65d7224c06eaf90939cbf0689dd865e23fb8302175dabaf2be7b4dc0  orchestrator/apps/admin-web/src/features/system-operations/compose-operations-panel.tsx
+64870f7cedf7759ef2e94685a672971141db948108ada0c68c6a937deb5a603a  orchestrator/apps/admin-web/tests/orv13-cockpit-owner.test.mjs
+63ff65c935076049c159c8196623c4b56cb337b1f8aeedb76e3564c39bd298cd  orchestrator/apps/admin-web/tests/orv13-compose-ui-owner.test.mjs

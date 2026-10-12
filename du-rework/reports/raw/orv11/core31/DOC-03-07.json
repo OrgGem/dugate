@@ -1,0 +1,35 @@
+{
+  "name": "operations/3c8d785e-d01a-4c14-a295-cc5d12b9d791",
+  "done": true,
+  "metadata": {
+    "state": "SUCCEEDED",
+    "pipeline": [],
+    "current_step": 0,
+    "progress_percent": 0,
+    "progress_message": "Queued",
+    "create_time": "2026-10-11T16:35:05.699Z",
+    "update_time": "2026-10-11T16:35:05.801Z",
+    "pipeline_steps": []
+  },
+  "result": {
+    "output_format": "json",
+    "content": "{\"summary\":\"The proposal improves transit access through phased investment and measurable service targets.\",\"evaluation\":{\"overallAssessment\":\"The argument is structured around practical, measurable outcomes.\",\"authorPerspective\":\"The author favors incremental investment tied to public-service results.\"}}",
+    "extracted_data": {
+      "summary": "The proposal improves transit access through phased investment and measurable service targets.",
+      "evaluation": {
+        "overallAssessment": "The argument is structured around practical, measurable outcomes.",
+        "authorPerspective": "The author favors incremental investment tied to public-service results."
+      }
+    },
+    "pipeline_steps": [],
+    "usage": {
+      "input_tokens": null,
+      "output_tokens": null,
+      "pages_processed": null,
+      "model_used": null,
+      "cost_usd": null,
+      "breakdown": []
+    },
+    "download_url": "/api/v1/operations/3c8d785e-d01a-4c14-a295-cc5d12b9d791/download"
+  }
+}

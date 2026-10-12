@@ -1,0 +1,35 @@
+FAIL tests/workflow-api/orv14-vfy-core31.test.ts
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › legacy workflow overrides are provider-observed under exact typed Connector pins and reject undeclared leaves
+
+    workflow override submit returned {"stage":"first-public-workflow-submit","status":404,"responseProblem":{"title":"Not Found","status":404,"correlationId":"2722a57f-8e1e-45c3-82f9-3bdc6386e150"},"expectedIdentity":{"tenantId":"11f9d8ea-07dd-44ad-903a-34ca62c38dad","schemaSlug":"orv14-workflow-recipe-963f27732c0c","profileId":"4784e750-4fcd-45d7-9d5f-c44d65ca5e20"},"apiKey":{"rowCount":1,"tenantMatches":true,"active":true},"schemaCatalog":{"rowCount":1,"exactTenantSlugRows":1,"activeRows":1,"revisions":[{"revision":1,"status":"active"}]},"profile":{"rowCount":1,"actions":["schema-workflow"],"activeRevisions":[1],"membershipRows":1},"operationRows":0}
+
+      2422 |       mkdirSync(diagnosticDirectory, { recursive: true });
+      2423 |       writeFileSync(resolve(diagnosticDirectory, 'first-submit-error-diagnostics.json'), JSON.stringify(diagnostic, null, 2));
+    > 2424 |       throw new Error(`workflow override submit returned ${JSON.stringify(diagnostic)}`);
+           |             ^
+      2425 |     }
+      2426 |     expect(submitted1.response.status).toBe(202);
+      2427 |     const operationId1 = submitted1.body.name;
+
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:2424:13)
+
+
+  ● Test suite failed to run
+
+    WFA owned cleanup failed for owned-minio
+
+      1616 |       cleanupFailures,
+      1617 |     }, null, 2));
+    > 1618 |     if (cleanupFailures.length) throw new Error(`WFA owned cleanup failed for ${cleanupFailures.join(', ')}`);
+           |                                       ^
+      1619 |   }, 60_000);
+      1620 |
+      1621 |
+
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:1618:39)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 49 skipped, 50 total
+Snapshots:   0 total
+Time:        4.414 s, estimated 5 s
+Ran all test suites within paths "tests/workflow-api/orv14-vfy-core31.test.ts".

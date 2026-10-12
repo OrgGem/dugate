@@ -1,0 +1,41 @@
+{
+  "schema": "orv14-host-connector-restore-slice/v1",
+  "disposition": "FAILED_PARTIAL_HOST_CONNECTOR_SLICE_ONLY",
+  "completedAt": "2026-10-11T23:34:23.923Z",
+  "error": "null value in column \"credential_source\" of relation \"connector_revisions\" violates not-null constraint",
+  "cleanup": {
+    "projectId": "orv14-vfy-host-mv4gm9uq-99c11f394c",
+    "removed": {
+      "containers": [
+        "228ab0b7d8e4",
+        "f6c23d5d1847",
+        "b8e35345533d",
+        "f31110e067f4",
+        "938932d8b30e",
+        "bf89266eea13",
+        "598cfcdbe9dc",
+        "732bf5e13410",
+        "0e4e817efdbc",
+        "5885b03b7623"
+      ],
+      "volumes": [
+        "orv14-vfy-host-mv4gm9uq-99c11f394c_connector-restore-data",
+        "orv14-vfy-host-mv4gm9uq-99c11f394c_connector-source-data",
+        "orv14-vfy-host-mv4gm9uq-99c11f394c_minio-data",
+        "orv14-vfy-host-mv4gm9uq-99c11f394c_minio-restore-data",
+        "orv14-vfy-host-mv4gm9uq-99c11f394c_orchestrator-restore-data",
+        "orv14-vfy-host-mv4gm9uq-99c11f394c_orchestrator-source-data"
+      ],
+      "networks": [
+        "0f0aa0ee9c5a"
+      ]
+    },
+    "remaining": {
+      "containers": [],
+      "volumes": [],
+      "networks": []
+    },
+    "temporaryFixtureRemoved": true
+  },
+  "acceptance": "not claimed; source checkpoint and cross-family restore verification remain outstanding"
+}

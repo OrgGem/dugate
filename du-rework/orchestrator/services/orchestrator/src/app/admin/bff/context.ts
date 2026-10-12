@@ -39,6 +39,15 @@ export interface BffContext {
   role: BffRole;
   /** Stored tenant for opaque sessions; legacy token sessions carry none. */
   tenantId: string | null;
+  /** Trusted server-side identity from the validated opaque session. */
+  issuer: string | null;
+  sub: string | null;
+  /** Local account row version, resolved and checked by local-auth-boot. */
+  roleVersion: number | null;
+  /** Internal server-side Cost Alerts recipient pin; never included in the browser session DTO. */
+  costAlertPrincipalId: string | null;
+  costAlertAuthorizationVersion: number | null;
+  sessionCreatedAt: number | null;
   /** Server-side CSRF proof the browser must echo in `x-csrf-token`. */
   csrfToken: string;
   principal: BffPrincipal;
@@ -65,6 +74,12 @@ export async function resolveBffContext(
         plane: 'oidc',
         role: record.role,
         tenantId,
+        issuer: record.issuer ?? null,
+        sub: record.sub ?? null,
+        roleVersion: record.roleVersion ?? null,
+        costAlertPrincipalId: record.costAlertPrincipalId ?? null,
+        costAlertAuthorizationVersion: record.costAlertAuthorizationVersion ?? null,
+        sessionCreatedAt: record.createdAt ?? null,
         csrfToken,
         principal: principalFor(record.role, tenantId),
         displayName: record.issuer ? `oidc:${record.issuer}` : 'oidc session',
@@ -100,6 +115,12 @@ function legacyContext(config: ShellRuntimeConfig, cookie: string): BffContext |
     role: claims.role,
     // The self-contained legacy cookie carries no identity/tenant binding.
     tenantId: null,
+    issuer: null,
+    sub: null,
+    roleVersion: null,
+    costAlertPrincipalId: null,
+    costAlertAuthorizationVersion: null,
+    sessionCreatedAt: null,
     csrfToken: deriveCsrfToken(config.cookieSecret, cookie),
     principal: claims.role === 'admin' ? { kind: 'platform' } : { kind: 'unscoped' },
     displayName: `legacy:${claims.role}`,

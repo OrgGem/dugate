@@ -22,5 +22,11 @@ export default defineConfig({
     emptyOutDir: true,
     sourcemap: false,
     target: 'es2022',
+    // @du/contracts is a linked workspace package. Vite resolves its CommonJS
+    // dist outside node_modules, so include only that package in conversion
+    // while retaining the default dependency handling.
+    commonjsOptions: {
+      include: [/node_modules/, /packages\/contracts\/dist\//],
+    },
   },
 });

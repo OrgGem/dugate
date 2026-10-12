@@ -1,0 +1,15 @@
+{
+  "attempt": "07",
+  "cleanupObservedUtc": "2026-10-12T01:38:53Z",
+  "namespace": "wfa_1791768904198_acc6bef98e",
+  "postgresSchemaExists": false,
+  "redisDatabase": 2,
+  "redisTestPrefixKeyCount": 0,
+  "redisQueuePrefixKeyCount": 0,
+  "apiArtifactDirectoryExists": false,
+  "connectorArtifactDirectoryExists": false,
+  "composeProject": "orv14-vfy-20261011-a1",
+  "composeStack": "left running",
+  "foreignResources": "untouched",
+  "verification": "read-only container-native PostgreSQL/Redis checks plus exact unique artifact-directory existence checks"
+}

@@ -1,3 +1,4 @@
+import { assertKeySpendAvailable } from '../usage/spend-admission';
 import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { conflict, notFound } from '../../http/errors';
@@ -15,6 +16,20 @@ export async function retryOperation(
   if (!['FAILED', 'CANCELLED', 'TIMED_OUT'].includes(String(op.state))) {
     throw conflict('STATE_CONFLICT', 'retry requires a failed, stopped or timed-out operation');
   }
+  // Coalesce double clicks/concurrent retries while the child is active.
+  const existing = await client.query(
+    "SELECT id, state FROM operations WHERE retry_of=$1 AND state NOT IN ('SUCCEEDED','FAILED','CANCELLED','TIMED_OUT') ORDER BY created_at DESC LIMIT 1", [operationId],
+  );
+  if (existing.rowCount) return { operationId: existing.rows[0].id, state: existing.rows[0].state, retryOf: operationId, replayed: true };
+
+  // A replay returns the existing execution, but a fresh request must never
+  // turn an uncertain provider outcome into a duplicate charge/side effect.
+  const tasks = await client.query('SELECT id, state, error_code FROM tasks WHERE operation_id=$1 FOR UPDATE', [operationId]);
+  const uncertain = (value: unknown): boolean => typeof value === 'string' && /(?:INVOCATION|OUTCOME|REASONING).*UNKNOWN|UNKNOWN.*(?:INVOCATION|OUTCOME)/.test(value);
+  if (uncertain(op.error_code) || op.state === 'UNKNOWN' || tasks.rows.some(t => uncertain(t.error_code) || t.state === 'UNKNOWN')) {
+    throw conflict('INVOCATION_UNKNOWN', 'Provider outcome is unknown. Reconcile the original invocation before starting another execution.');
+  }
+  await assertKeySpendAvailable(client, String(op.api_key_id), tenantId);
   const root = await client.query('SELECT * FROM tasks WHERE id=$1 FOR UPDATE', [op.root_task_id]);
   const task = root.rows[0] as Record<string, unknown> | undefined;
   if (!task || op.input_ref == null) throw conflict('RETRY_INPUT_UNAVAILABLE', 'original request input is unavailable');
@@ -54,12 +69,6 @@ export async function retryOperation(
     );
     if (!artifact.rowCount) throw conflict('RETRY_INPUT_UNAVAILABLE', 'request input has expired or is unavailable; submit a new request');
   }
-  // Coalesce double clicks/concurrent retries while the child is active.
-  const existing = await client.query(
-    "SELECT id, state FROM operations WHERE retry_of=$1 AND state NOT IN ('SUCCEEDED','FAILED','CANCELLED','TIMED_OUT') ORDER BY created_at DESC LIMIT 1", [operationId],
-  );
-  if (existing.rowCount) return { operationId: existing.rows[0].id, state: existing.rows[0].state, retryOf: operationId, replayed: true };
-
   const newId = randomUUID();
   const taskId = randomUUID();
   const correlationId = randomUUID();
@@ -81,10 +90,10 @@ export async function retryOperation(
   await client.query(
     `INSERT INTO operations (id,tenant_id,api_key_id,business_id,business_version,action,state,root_task_id,input_ref,
       correlation_id,callback_url,profile_id,profile_revision,connector_bindings,submit_artifacts,profile_policy_snapshot,
-      callback_policy,prompt_revisions_pin,prompt_overrides_ref,retry_of,deadline_at)
+      callback_policy,prompt_revisions_pin,prompt_overrides_ref,retry_of,deadline_at,endpoint_slug,pipeline_json,output_format)
      SELECT $2,tenant_id,api_key_id,business_id,business_version,action,$3,$4,$5,$6,callback_url,profile_id,profile_revision,
        connector_bindings,submit_artifacts,profile_policy_snapshot,callback_policy,prompt_revisions_pin,$7,id,
-       CASE WHEN deadline_at>created_at THEN now()+(deadline_at-created_at) ELSE NULL END
+       CASE WHEN deadline_at>created_at THEN now()+(deadline_at-created_at) ELSE NULL END,endpoint_slug,pipeline_json,output_format
      FROM operations WHERE id=$1`,
     [operationId, newId, state, taskId, sealedInput, correlationId, prompts],
   );

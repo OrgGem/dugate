@@ -20,6 +20,8 @@ export function canonicalInput(request: LocalInvocationRequest): string {
     bindingSlot: request.bindingSlot,
     input: request.input,
     options: request.options,
+    workflowOverrides: request.workflowOverrides,
+    purpose: request.adminPurpose,
     sessionRef: request.sessionRef,
     deadlineAt: request.deadlineAt,
   });

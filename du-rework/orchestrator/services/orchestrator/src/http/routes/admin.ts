@@ -1,3 +1,5 @@
+import { z } from 'zod';
+import { readMigrationReadiness } from '../../modules/legacy-migration/readiness';
 /**
  * CONV-02: the admin audience (`/api/v1/admin/...`, bearer/CSRF/RBAC-gated),
  * moved verbatim out of server.ts route() — read pages, action dispatcher,
@@ -5,6 +7,7 @@
  * "no admin token configured => 401" rule.
  */
 import { HttpError, isHttpError } from '../errors';
+import { readEffectiveSettings } from '../../modules/settings/settings';
 import {
   ADMIN_BUSINESS_LIST_QUERY_PARAMS,
   ADMIN_BUSINESS_VERSION_LIST_QUERY_PARAMS,
@@ -17,6 +20,7 @@ import {
   createSecretInDb,
   disableSecretInDb,
   listSecretsFromDb,
+  parseSecretCatalogListQuery,
   rotateSecretInDb,
   testSecretInDb,
 } from '../../modules/secrets/secret-catalog-store';
@@ -55,6 +59,7 @@ import {
   EMPTY_PROFILE_POLICY_READ,
   loadProfileDetail,
   profileDetailCurrentValues,
+  profileDetailConnectorBindingsRead,
   profileDetailPolicyRead,
 } from '../../modules/admin-read/profile-detail';
 import { loadTenantProfileDetail } from '../../modules/admin-read/tenant-profile-detail';
@@ -78,6 +83,45 @@ function assertAdminAuth(ctx: RouteContext) {
   if (auth !== `Bearer ${ctx.config.adminToken}`) {
     throw new HttpError(401, 'UNAUTHENTICATED', 'invalid admin bearer token');
   }
+}
+
+function assertPlatformSecretMutation(ctx: RouteContext): void {
+  assertAdminAuth(ctx);
+  const principal = resolveAdminPrincipal(ctx.config, ctx.headers['authorization']);
+  if (!principal || principal.role !== 'platform') {
+    throw new HttpError(403, 'PERMISSION_DENIED', 'secret catalog lifecycle mutations require platform Admin access');
+  }
+}
+
+async function validateGlobalManagedSecretCreate(ctx: RouteContext, input: import('@du/contracts').SecretCatalogCreate): Promise<void> {
+  if (input.purpose !== 'storage.credential' && input.purpose !== 'maintenance.backup_encryption') return;
+  if (!ctx.config.secretCatalogKeyring) {
+    throw new HttpError(503, 'SECRET_KEYRING_UNAVAILABLE', 'exact-version secret encryption is not configured');
+  }
+  if (input.provider.kind !== 'managed_value' || input.services.length !== 1 || input.services[0] !== 'orchestrator') {
+    throw new HttpError(422, 'INVALID_SCHEMA', 'global storage and backup secrets require an encrypted Orchestrator-only managed value');
+  }
+  assertPlatformSecretMutation(ctx);
+  const tenant = await ctx.db.query('SELECT id FROM tenants WHERE id=$1', [input.tenantId]);
+  if (!tenant.rowCount) throw new HttpError(404, 'NOT_FOUND', 'secret owner tenant was not found');
+}
+
+async function assertGlobalSecretLifecycle(ctx: RouteContext, secretId: string, action: 'rotate' | 'disable' | 'test'): Promise<boolean> {
+  const current = await ctx.db.query<{ purpose: string; tenant_id: string; services: string[] }>(
+    'SELECT purpose,tenant_id,services FROM secret_catalog WHERE secret_id=$1', [secretId],
+  );
+  const row = current.rows[0];
+  if (!row) return false;
+  const globalPurpose = row.purpose === 'storage.credential' || row.purpose === 'maintenance.backup_encryption';
+  if (!globalPurpose) return false;
+  if (action === 'test' && !ctx.config.secretCatalogKeyring) {
+    throw new HttpError(503, 'SECRET_KEYRING_UNAVAILABLE', 'exact-version secret decryption is not configured');
+  }
+  if (action !== 'test') assertPlatformSecretMutation(ctx);
+  if (row.services.length !== 1 || row.services[0] !== 'orchestrator') {
+    throw new HttpError(409, 'SECRET_SCOPE_INVALID', 'global secret does not have the required Orchestrator-only scope');
+  }
+  return globalPurpose;
 }
 
 /**
@@ -109,6 +153,21 @@ function decodeBusinessPathSegment(raw: string, name: string): string {
 
 export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult | null> {
   const { method, pathname } = ctx;
+  if (pathname === '/api/v1/admin/legacy-migration/readiness') {
+    if(method !== 'GET') throw new HttpError(405,'METHOD_NOT_ALLOWED','readiness accepts GET only');
+    const principal = resolveAdminPrincipal(ctx.config, ctx.headers['authorization']);
+    if(!principal) throw new HttpError(401,'UNAUTHENTICATED','admin credential required');
+    const tenantId = authorizeAuditTenantRead(principal,ctx.searchParams.get('tenantId') ?? '');
+    if(!z.string().uuid().safeParse(tenantId).success) throw new HttpError(422,'INVALID_SCHEMA','tenantId must be a UUID');
+    return {status:200,body:await readMigrationReadiness(ctx.db,tenantId)};
+  }
+  if (pathname === '/api/v1/admin/settings') {
+    if (method !== 'GET') throw new HttpError(405, 'METHOD_NOT_ALLOWED', 'settings read accepts GET only');
+    const principal = resolveAdminPrincipal(ctx.config, ctx.headers['authorization']);
+    if (!principal) throw new HttpError(401, 'UNAUTHENTICATED', 'admin credential required');
+    const scope = authorizeAuditTenantRead(principal, ctx.searchParams.get('tenantId') ?? '');
+    return { status: 200, body: await readEffectiveSettings(ctx, scope || null) };
+  }
 
   // BIZ-11: tenant-fenced, read-only dependency preview for one business version.
   {
@@ -422,6 +481,7 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult 
     const result = await dispatchAdminAction(
       {
         db: ctx.db,
+        submission: ctx.submission,
         audit: ctx.audit,
         registry: ctx.registry,
         profiles: ctx.profiles,
@@ -433,6 +493,9 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult 
         hashApiKey: hashKey,
         correlationId: ctx.correlationId,
         metadataCrypto: ctx.metadataCrypto,
+        metadataReader: ctx.metadataReader,
+        identity: ctx.identity,
+        callbackDeliveryCapabilities:{dispatcherConfigured:!!ctx.config.webhookSecret && (ctx.config.webhookDispatchIntervalMs ?? (ctx.config.autoDispatch !== false ? 5000 : 0)) > 0,authResolverConfigured:!!ctx.config.resolveCallbackSecret},
       },
       actionAuth,
       { action, params, idempotencyKey: readIdempotencyKey(ctx.headers) }
@@ -755,6 +818,7 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult 
             policy: EMPTY_PROFILE_POLICY_READ,
             manifest: { actions: row.manifest?.actions ?? [] },
             capabilities: [],
+            connectorBindings: {},
           },
         };
       }
@@ -790,6 +854,7 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult 
             policy: EMPTY_PROFILE_POLICY_READ,
             manifest: { actions: row.manifest?.actions ?? [] },
             capabilities: [],
+            connectorBindings: {},
           },
         };
       }
@@ -804,6 +869,7 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult 
           policy: profileDetailPolicyRead(detail.row),
           manifest: { actions: row.manifest?.actions ?? [] },
           capabilities: [],
+          connectorBindings: profileDetailConnectorBindingsRead(detail.row),
           apiKeyId: detail.row.api_key_id,
           // NOT profileId: ProfileDetailReadSchema is strict and this read is
           // frozen to the write identity the client already needs. The 0039
@@ -1213,19 +1279,17 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult 
   // GET /api/v1/admin/secrets
   if (method === 'GET' && pathname === '/api/v1/admin/secrets') {
     assertAdminAuth(ctx);
-    const tenantId = ctx.searchParams.get('tenantId') ?? undefined;
-    const limit = ctx.searchParams.get('limit') ? Number(ctx.searchParams.get('limit')) : undefined;
-    const cursor = ctx.searchParams.get('cursor') ?? undefined;
-    const state = ctx.searchParams.get('state') ?? undefined;
-    const purpose = ctx.searchParams.get('purpose') ?? undefined;
-
-    const page = await listSecretsFromDb(ctx.db, {
-      tenantId,
-      limit,
-      cursor,
-      state,
-      purpose,
-    });
+    const query = parseSecretCatalogListQuery(ctx.searchParams);
+    const tenantTokenSeed = Object.entries(ctx.config.tenantAdminTokens ?? {})
+      .filter(([, token]) => typeof token === 'string' && token.length > 0)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([tenantId, token]) => `${tenantId}:${token}`)
+      .join('\n');
+    const cursorSecret = ctx.config.adminShellCookieSecret || ctx.config.adminToken || tenantTokenSeed;
+    if (!cursorSecret) {
+      throw new HttpError(503, 'TEMPORARY_UNAVAILABLE', 'secret catalog cursor signing is unavailable');
+    }
+    const page = await listSecretsFromDb(ctx.db, query, cursorSecret);
     return { status: 200, body: page };
   }
 
@@ -1236,7 +1300,8 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult 
     if (!parsed.success) {
       throw new HttpError(422, 'INVALID_SCHEMA', parsed.error.issues[0]?.message ?? 'invalid secret create payload');
     }
-    const created = await createSecretInDb(ctx.db, parsed.data);
+    await validateGlobalManagedSecretCreate(ctx, parsed.data);
+    const created = await createSecretInDb(ctx.db, parsed.data, undefined, ctx.config.secretCatalogKeyring, ctx.backupSnapshotWriteGate);
     return { status: 201, body: created };
   }
 
@@ -1246,11 +1311,12 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult 
     if (m && method === 'POST') {
       assertAdminAuth(ctx);
       const secretId = decodeURIComponent(m[1]!);
+      await assertGlobalSecretLifecycle(ctx, secretId, 'rotate');
       const parsed = SecretCatalogRotateSchema.safeParse({ ...(ctx.body as object), secretId });
       if (!parsed.success) {
         throw new HttpError(422, 'INVALID_SCHEMA', parsed.error.issues[0]?.message ?? 'invalid secret rotate payload');
       }
-      const rotated = await rotateSecretInDb(ctx.db, secretId, parsed.data);
+      const rotated = await rotateSecretInDb(ctx.db, secretId, parsed.data, undefined, ctx.config.secretCatalogKeyring, ctx.backupSnapshotWriteGate);
       return { status: 200, body: rotated };
     }
   }
@@ -1261,11 +1327,12 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult 
     if (m && method === 'POST') {
       assertAdminAuth(ctx);
       const secretId = decodeURIComponent(m[1]!);
+      await assertGlobalSecretLifecycle(ctx, secretId, 'disable');
       const parsed = SecretCatalogDisableSchema.safeParse({ ...(ctx.body as object), secretId });
       if (!parsed.success) {
         throw new HttpError(422, 'INVALID_SCHEMA', parsed.error.issues[0]?.message ?? 'invalid secret disable payload');
       }
-      const disabled = await disableSecretInDb(ctx.db, secretId, parsed.data);
+      const disabled = await disableSecretInDb(ctx.db, secretId, parsed.data, ctx.backupSnapshotWriteGate);
       return { status: 200, body: disabled };
     }
   }
@@ -1276,7 +1343,8 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult 
     if (m && method === 'POST') {
       assertAdminAuth(ctx);
       const secretId = decodeURIComponent(m[1]!);
-      const probe = await testSecretInDb(ctx.db, secretId);
+      await assertGlobalSecretLifecycle(ctx, secretId, 'test');
+      const probe = await testSecretInDb(ctx.db, secretId, undefined, ctx.config.secretCatalogKeyring);
       return { status: 200, body: probe };
     }
   }

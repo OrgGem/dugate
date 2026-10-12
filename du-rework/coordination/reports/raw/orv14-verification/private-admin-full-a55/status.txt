@@ -1,0 +1,1 @@
+Admin tsc exited 0. Vite output records a failed Rollup named-export analysis at ConnectorRecipeSchema. The set -e shell stopped before writing a direct vite exit-code artifact; this receipt does not claim an exit code beyond observed build failure.

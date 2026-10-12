@@ -1,0 +1,105 @@
+{
+  "schema": "orv14-host-current-migrations/v1",
+  "command": "/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node tests/workflow-api/orv14-vfy-host/verify-native-current-migrations.mjs /tmp/orv14-vfy-host-native-mv4kecuu-c0811e6e73",
+  "cwd": "/workspace/dugate/du-rework",
+  "node": "v24.21.0",
+  "verifierUid": 1000,
+  "startedAt": "2026-10-12T01:24:35.324Z",
+  "fixtureNamespace": "orv14-vfy-host-mv4kkhhb-70248501b7",
+  "sourceHashesBefore": {
+    "orchestrator/src/db/migrations.ts": "519fd20731acac579acde4f5908844ddf98c4948661e408ad64e1c74852d5eed",
+    "connector/src/db/pg-client.ts": "1046b417be4e0902bffa909142deb8bb57f2a1855d48640803cf12fa13c13227",
+    "orchestrator/migrations/0064_cost_financial_adjustments.sql": "7e0e33aff73afd019bcfabc57e8833bdbc9ca91a939e3c9f57d3f9bb76230070",
+    "orchestrator/migrations/0065_cost_adjustment_object_pins.sql": "d1b02bfed455ebb6fb508b0cb307159c89d024192d1f8c88cba148d50bd4b0b4",
+    "connector/src/db/migrations/015_backup_effect_fences.sql": "186d3400831302fc6d1ec311cc5f0897faae7080ce6365a9da0e934e59ef2d86"
+  },
+  "sourceHashesAfter": {},
+  "assertions": [
+    {
+      "name": "current migration integration completed",
+      "status": "failed",
+      "code": "CURRENT_MIGRATION_ASSERTION_FAILED"
+    }
+  ],
+  "sharedDistWritten": false,
+  "productSourceWritten": false,
+  "databaseScope": "only unique synthetic orchestrator-restore and connector-restore databases",
+  "externalEffects": {
+    "legacySourceRead": false,
+    "providerRequests": 0,
+    "customerCredentials": false
+  },
+  "cleanup": {
+    "projectId": "orv14-vfy-host-mv4kkhhb-70248501b7",
+    "removed": {
+      "containers": [
+        "1b8550d93dc0",
+        "feff5573f5b3",
+        "86ee168ca141",
+        "7eb440e6b550",
+        "9232f42c786c",
+        "00002aa87539",
+        "e8c1d5259a7e",
+        "28a190ad14d7",
+        "2d4118deb304",
+        "5199226f27f9"
+      ],
+      "volumes": [
+        "orv14-vfy-host-mv4kkhhb-70248501b7_connector-restore-data",
+        "orv14-vfy-host-mv4kkhhb-70248501b7_connector-source-data",
+        "orv14-vfy-host-mv4kkhhb-70248501b7_minio-data",
+        "orv14-vfy-host-mv4kkhhb-70248501b7_minio-restore-data",
+        "orv14-vfy-host-mv4kkhhb-70248501b7_orchestrator-restore-data",
+        "orv14-vfy-host-mv4kkhhb-70248501b7_orchestrator-source-data"
+      ],
+      "networks": [
+        "f4875116a9ab"
+      ]
+    },
+    "remaining": {
+      "containers": [],
+      "volumes": [],
+      "networks": []
+    },
+    "temporaryFixtureRemoved": true
+  },
+  "status": "FAILED",
+  "composeFileSha256": "7e18e4f71e1211331bca91af270ef50bdd24f1609876201b593a0afdd9a2f1d0",
+  "imageIds": {
+    "postgres": "sha256:81bd698b4594e751a3269e4dcd3e03a4a0ec0daf7b72e7aa1abd43cce9887542",
+    "redis": "sha256:f84b0c4678011602b9b98c227a4dcd5468bf8b088b02fdd4165cb7758bad8058",
+    "vault": "sha256:20bce4b1fc21ee5ccc659e3a13fd479894cfffcf650d8ca3c0c4ae7eaecc2c81",
+    "minio": "sha256:ff768636ea5c1b7bd295ddae1505506ae91a3beff613b14be377d23734cd2915"
+  },
+  "migrationFiles": {
+    "orchestratorFileCount": 62,
+    "connectorFileCount": 15,
+    "currentOrchestratorMigrations": [
+      {
+        "filename": "0063_backup_effect_fences.sql",
+        "sha256": "6d7c285fbe4ccf697baf62ad6835949615924e1e182d2757333c89d21ac7749a"
+      },
+      {
+        "filename": "0064_cost_financial_adjustments.sql",
+        "sha256": "7e0e33aff73afd019bcfabc57e8833bdbc9ca91a939e3c9f57d3f9bb76230070"
+      },
+      {
+        "filename": "0065_cost_adjustment_object_pins.sql",
+        "sha256": "d1b02bfed455ebb6fb508b0cb307159c89d024192d1f8c88cba148d50bd4b0b4"
+      }
+    ],
+    "currentConnectorBackupFence": [
+      {
+        "filename": "015_backup_effect_fences.sql",
+        "sha256": "186d3400831302fc6d1ec311cc5f0897faae7080ce6365a9da0e934e59ef2d86"
+      }
+    ]
+  },
+  "error": "ReferenceError: require is not defined\n    at main (file:///workspace/dugate/du-rework/tests/workflow-api/orv14-vfy-host/verify-native-current-migrations.mjs:93:27)\n    at async file:///workspace/dugate/du-rework/tests/workflow-api/orv14-vfy-host/verify-native-current-migrations.mjs:179:3",
+  "completedAt": "2026-10-12T01:24:55.762Z",
+  "checks": {
+    "passed": 0,
+    "failed": 1,
+    "skipped": 0
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "composeProject": "orv14-vfy-20261011-a1",
+  "postgresPort": 25414,
+  "redisPort": 26414,
+  "test": "only six failed attempt-04 slices rerun with richer per-operation TLS evidence",
+  "foreignResources": "untouched",
+  "composeStack": "left running"
+}

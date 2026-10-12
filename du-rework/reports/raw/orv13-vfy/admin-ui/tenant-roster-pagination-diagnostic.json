@@ -1,0 +1,715 @@
+{
+  "currentTenant": "fce8768c-d518-4e02-a3e5-a70d9847d7bb",
+  "usageEventId": "orv13-vfy-event-4f1dca32-9f07-4461-a5dc-d98289fa1c39",
+  "bodyText": "Skip to content\nOrchestrator Portal\n10/11/2026, 6:51:12 PM UTC\noidc:orv13-vfy · Profile\nLogout\nPlatform health: ok\nDatabase: Healthy\nRedis: Healthy\nQueue integrity: Unknown\nActive leases: 0\nOutbox backlog: Unknown\nSampled 0s ago\nHealth details\nACTIVE TENANT\nACTIVE\nORV13 tenant alpha\nORV13 tenant beta\nzzzz ORV13 VFY roster 000\nzzzz ORV13 VFY roster 001\nzzzz ORV13 VFY roster 002\nzzzz ORV13 VFY roster 003\nzzzz ORV13 VFY roster 004\nzzzz ORV13 VFY roster 005\nzzzz ORV13 VFY roster 006\nzzzz ORV13 VFY roster 007\nzzzz ORV13 VFY roster 008\nzzzz ORV13 VFY roster 009\nzzzz ORV13 VFY roster 010\nzzzz ORV13 VFY roster 011\nzzzz ORV13 VFY roster 012\nzzzz ORV13 VFY roster 013\nzzzz ORV13 VFY roster 014\nzzzz ORV13 VFY roster 015\nzzzz ORV13 VFY roster 016\nzzzz ORV13 VFY roster 017\nzzzz ORV13 VFY roster 018\nzzzz ORV13 VFY roster 019\nzzzz ORV13 VFY roster 020\nzzzz ORV13 VFY roster 021\nzzzz ORV13 VFY roster 022\nzzzz ORV13 VFY roster 023\nzzzz ORV13 VFY roster 024\nzzzz ORV13 VFY roster 025\nzzzz ORV13 VFY roster 026\nzzzz ORV13 VFY roster 027\nzzzz ORV13 VFY roster 028\nzzzz ORV13 VFY roster 029\nzzzz ORV13 VFY roster 030\nzzzz ORV13 VFY roster 031\nzzzz ORV13 VFY roster 032\nzzzz ORV13 VFY roster 033\nzzzz ORV13 VFY roster 034\nzzzz ORV13 VFY roster 035\nzzzz ORV13 VFY roster 036\nzzzz ORV13 VFY roster 037\nzzzz ORV13 VFY roster 038\nzzzz ORV13 VFY roster 039\nzzzz ORV13 VFY roster 040\nzzzz ORV13 VFY roster 041\nzzzz ORV13 VFY roster 042\nzzzz ORV13 VFY roster 043\nzzzz ORV13 VFY roster 044\nzzzz ORV13 VFY roster 045\nzzzz ORV13 VFY roster 046\nzzzz ORV13 VFY roster 047\nzzzz ORV13 VFY roster 048\nzzzz ORV13 VFY roster 049\nzzzz ORV13 VFY roster 050\nzzzz ORV13 VFY roster 051\nzzzz ORV13 VFY roster 052\nzzzz ORV13 VFY roster 053\nzzzz ORV13 VFY roster 054\nzzzz ORV13 VFY roster 055\nzzzz ORV13 VFY roster 056\nzzzz ORV13 VFY roster 057\nzzzz ORV13 VFY roster 058\nzzzz ORV13 VFY roster 059\nzzzz ORV13 VFY roster 060\nzzzz ORV13 VFY roster 061\nzzzz ORV13 VFY roster 062\nzzzz ORV13 VFY roster 063\nzzzz ORV13 VFY roster 064\nzzzz ORV13 VFY roster 065\nzzzz ORV13 VFY roster 066\nzzzz ORV13 VFY roster 067\nzzzz ORV13 VFY roster 068\nzzzz ORV13 VFY roster 069\nzzzz ORV13 VFY roster 070\nzzzz ORV13 VFY roster 071\nzzzz ORV13 VFY roster 072\nzzzz ORV13 VFY roster 073\nzzzz ORV13 VFY roster 074\nzzzz ORV13 VFY roster 075\nzzzz ORV13 VFY roster 076\nzzzz ORV13 VFY roster 077\nzzzz ORV13 VFY roster 078\nzzzz ORV13 VFY roster 079\nzzzz ORV13 VFY roster 080\nzzzz ORV13 VFY roster 081\nzzzz ORV13 VFY roster 082\nzzzz ORV13 VFY roster 083\nzzzz ORV13 VFY roster 084\nzzzz ORV13 VFY roster 085\nzzzz ORV13 VFY roster 086\nzzzz ORV13 VFY roster 087\nzzzz ORV13 VFY roster 088\nzzzz ORV13 VFY roster 089\nzzzz ORV13 VFY roster 090\nzzzz ORV13 VFY roster 091\nzzzz ORV13 VFY roster 092\nzzzz ORV13 VFY roster 093\nzzzz ORV13 VFY roster 094\nzzzz ORV13 VFY roster 095\nzzzz ORV13 VFY roster 096\nzzzz ORV13 VFY roster 097\nzzzz ORV13 VFY roster 098\nzzzz ORV13 VFY roster 099\nzzzz ORV13 VFY roster 100\nzzzz ORV13 VFY roster 101\nzzzz ORV13 VFY roster 102\nzzzz ORV13 VFY roster 103\nzzzz ORV13 VFY roster 104\nzzzz ORV13 VFY roster 105\nzzzz ORV13 VFY roster 106\nzzzz ORV13 VFY roster 107\nzzzz ORV13 VFY roster 108\nzzzz ORV13 VFY roster 109\nzzzz ORV13 VFY roster 110\nzzzz ORV13 VFY roster 111\nzzzz ORV13 VFY roster 112\nzzzz ORV13 VFY roster 113\nzzzz ORV13 VFY roster 114\nzzzz ORV13 VFY roster 115\nzzzz ORV13 VFY roster 116\nzzzz ORV13 VFY roster 117\nzzzz ORV13 VFY roster 118\nzzzz ORV13 VFY roster 119\nzzzz ORV13 VFY roster 120\nzzzz ORV13 VFY roster 121\nzzzz ORV13 VFY roster 122\nzzzz ORV13 VFY roster 123\nzzzz ORV13 VFY roster 124\nfce8768c-d518-4e02…\n\nWorkspace\n\nOverview\nOperations\nTrace\nUsage\n\nSystem operations\n\nCockpit\nServices\nWorkers & Queues\nIncidents\nDeployments\nMaintenance\n\nConfiguration\n\nBusinesses\nProfiles\nConnectors\nWorkflows\n\nAdministration\n\nAudit\nSecurity\nSecrets\nIdentity\nSettings\n\nResources\n\nAPI Reference\nDocumentation\nBootstrap\nUsage & Cost\ntenant scoped\nScope and filters\n\nSummary totals cover the full tenant window. Provider, model and operation filters apply to the event ledger below. Window bounds are UTC; the ledger window uses the persisted received time.\n\nActive tenant\nzzzz ORV13 VFY roster 124\nfce8768c-d518-4e02-a3e5-a70d9847d7bb\nACTIVE\nFrom (UTC)\nTo (UTC, exclusive)\nProvider (ledger)\nModel (ledger)\nOperation ID (ledger)\nRows per page\n25 rows\n50 rows\n100 rows\nLast 24 hours\nLast 7 days\nLast 30 days\nApply filters\nClear filters\nRefresh now\nAuto refresh: Off\nRefreshes the current tenant and applied filters every 10 seconds.\nWindow totals\n\nKnown accrued spend comes from recorded costs; unpriced or missing amounts are not treated as free usage.\n\nData age: 0s\nOperations\n1\nTokens in / out\n73 / 19\nPages\n0\nKnown accrued spend\nMeasured cost\n0.000000 USD\n\nRecorded provider cost for received usage. Token measurement and cost measurement are independent; this is not a final invoice. Cost status can be measured, estimated, pending, unpriced, or unavailable in older rows.\n\nProvider and model breakdown\n\nRows preserve the status reported by the summary service. Unit measurement and cost status are shown separately.\n\nPROVIDER / MODEL\tOPERATIONS\tTOKENS IN / OUT\tPAGES\tUNIT MEASUREMENT\tCOST STATUS / AMOUNT\n\nroster-scope-fixture\npage-two-selection\n\t1\t73 / 19\t0\tMeasured units\t\nMeasured\nMeasured · 0.000000 USD\nUsage event ledger\n\nReceived-time order, oldest first. Timestamps are UTC. A missing amount or status is unavailable, and a reported zero is not an invoice. Operation links open the tenant-scoped operation record.\n\nData age: 0s\nExport this page CSV (1)\nEVENT / RECEIVED\tOPERATION\tPROVIDER / MODEL\tUNITS\tCOST STATUS / AMOUNT\n\norv13-vfy-event-4f1dca32-9f07-4461-a5dc-d98289fa1c39\nReceived 2026-10-11 18:49:11 UTC\nOccurred 2026-10-11 18:49:11 UTC\n\t24f9370c-cab9-4aa9-9263-f365955cca76\nTask 37ecee53-92f2-4abf-8344-c51c26597a2a\nInvocation orv13-vfy-invocation-a06c84d5-298b-4aad-9513-4fbdcf0057df\n\t\nroster-scope-fixture\npage-two-selection\n\t\nIn 73\nOut 19\nMeasured units\n\t\nMeasured\nMeasured · 0.000000 USD\nPage 1 · up to 50 rows · export contains this page only.\nPrevious page\nNext page",
+  "actualRosterResponses": [
+    {
+      "url": "http://127.0.0.1:42907/admin/api/tenants?limit=100",
+      "status": 503,
+      "source": "single injected transient failure",
+      "body": {
+        "type": "about:blank",
+        "title": "Synthetic roster endpoint outage for retry verification",
+        "status": 503,
+        "code": "UPSTREAM_UNAVAILABLE"
+      }
+    },
+    {
+      "url": "http://127.0.0.1:42907/admin/api/tenants?limit=100",
+      "status": 200,
+      "source": "actual mounted Admin BFF response",
+      "body": {
+        "items": [
+          {
+            "id": "39652bcc-9412-43f0-bb13-b3d3fb8c0292",
+            "name": "ORV13 tenant alpha",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "ef4fd936-669d-49f2-9370-aebde5f910c5",
+            "name": "ORV13 tenant beta",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "f72de0cd-d804-4f4a-a005-04465ab6a028",
+            "name": "zzzz ORV13 VFY roster 000",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "300e39dd-0d21-4032-805c-58762b136992",
+            "name": "zzzz ORV13 VFY roster 001",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "b110b554-7b3e-42cf-ab23-84bed0afb489",
+            "name": "zzzz ORV13 VFY roster 002",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "2fc83291-3409-4cfb-b381-ab4ebb89ebca",
+            "name": "zzzz ORV13 VFY roster 003",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "7b117e4d-81b8-41ec-8166-d8a89f4f4190",
+            "name": "zzzz ORV13 VFY roster 004",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "802fd512-2069-4a99-9140-1470b3fdbfdd",
+            "name": "zzzz ORV13 VFY roster 005",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "1712df3e-cec0-4f01-b3a1-e940c1f47f05",
+            "name": "zzzz ORV13 VFY roster 006",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "c77e726d-194e-4873-83ea-33ab82000808",
+            "name": "zzzz ORV13 VFY roster 007",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "18a71aab-db62-4ecd-a2e2-a3e7f98d6ad0",
+            "name": "zzzz ORV13 VFY roster 008",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "5f63048f-eeba-40df-af57-88d2c3e0ac30",
+            "name": "zzzz ORV13 VFY roster 009",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "56a3d1ea-217e-4772-b315-7c96877378a1",
+            "name": "zzzz ORV13 VFY roster 010",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "7e24bf24-88e5-4e93-ac0e-5b1c302ae008",
+            "name": "zzzz ORV13 VFY roster 011",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "674c08cd-c5a2-47f0-a6dc-46266d94f301",
+            "name": "zzzz ORV13 VFY roster 012",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "f3820779-abd8-4608-8fcf-2a3ed5ac7898",
+            "name": "zzzz ORV13 VFY roster 013",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "b8b38c7b-3d2a-4d6e-b782-cd8b17664ca1",
+            "name": "zzzz ORV13 VFY roster 014",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "a6e5e569-bd03-4f23-a7b4-5d1792290ff4",
+            "name": "zzzz ORV13 VFY roster 015",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "5b9d7c75-d3ac-43ab-a5e8-7b22b771c033",
+            "name": "zzzz ORV13 VFY roster 016",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "30a0d1ce-0311-4221-b697-34063b2e132a",
+            "name": "zzzz ORV13 VFY roster 017",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "2c963312-41f6-4778-b301-2f122d8ae074",
+            "name": "zzzz ORV13 VFY roster 018",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "ad394eda-8ec4-4e77-9204-d510bfc3f75a",
+            "name": "zzzz ORV13 VFY roster 019",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "d7b018bd-98de-4926-80c9-baf08f551737",
+            "name": "zzzz ORV13 VFY roster 020",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "2a20667e-56b4-4eb4-9ba2-1b9dca0fdee9",
+            "name": "zzzz ORV13 VFY roster 021",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "9fbb7097-d61b-4583-9168-591caf548621",
+            "name": "zzzz ORV13 VFY roster 022",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "58d284e6-5b74-4359-9772-871b6300f635",
+            "name": "zzzz ORV13 VFY roster 023",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "f1234d64-1c5c-4f18-8953-2d53dcdb20dc",
+            "name": "zzzz ORV13 VFY roster 024",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "6d7a5dbf-d0cd-4f7b-ac32-804b41fe41af",
+            "name": "zzzz ORV13 VFY roster 025",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "8a4b0867-31e1-4d2a-8a2b-15f0370a67f6",
+            "name": "zzzz ORV13 VFY roster 026",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "102806e5-5799-4448-a17c-a77c57c7c770",
+            "name": "zzzz ORV13 VFY roster 027",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "b7647e5e-9500-4626-b4e8-2e964cc839bd",
+            "name": "zzzz ORV13 VFY roster 028",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "0af94e85-5303-4bb0-af62-73a971fdf645",
+            "name": "zzzz ORV13 VFY roster 029",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "9f3b588b-2bdf-48f8-9548-af4b1a409415",
+            "name": "zzzz ORV13 VFY roster 030",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "68c84012-3f22-45a9-b971-60f2bcdf826e",
+            "name": "zzzz ORV13 VFY roster 031",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "fc8194dc-a5d8-467a-afd1-f6f9c6469b51",
+            "name": "zzzz ORV13 VFY roster 032",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "26622fd7-8673-4358-8b48-a1732224697e",
+            "name": "zzzz ORV13 VFY roster 033",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "c71061c3-9603-4c65-ab78-d89a88ac941b",
+            "name": "zzzz ORV13 VFY roster 034",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "6fea540a-6d54-4341-aa9f-e0c49ab7f67a",
+            "name": "zzzz ORV13 VFY roster 035",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "6a9b65ec-54dc-4e3a-913d-1c86024c64f9",
+            "name": "zzzz ORV13 VFY roster 036",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "62621aa4-90f2-4545-a0f7-d44b6aeef62e",
+            "name": "zzzz ORV13 VFY roster 037",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "b968e32d-0492-468f-bdea-70520c08b89c",
+            "name": "zzzz ORV13 VFY roster 038",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "3d1139fe-2ae5-476f-a677-e92883dfa1c5",
+            "name": "zzzz ORV13 VFY roster 039",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "6b1217b2-4104-4eef-83ef-4b5f5c9d3900",
+            "name": "zzzz ORV13 VFY roster 040",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "40122fe9-c876-42d6-a91e-b11918bdd738",
+            "name": "zzzz ORV13 VFY roster 041",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "e26ce8f3-8ab9-4a2f-abba-90c754eedb15",
+            "name": "zzzz ORV13 VFY roster 042",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "47e7e0ac-2278-4523-8396-fdee4bf5ffad",
+            "name": "zzzz ORV13 VFY roster 043",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "bc882080-643f-4661-9b3d-272788ced28d",
+            "name": "zzzz ORV13 VFY roster 044",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "120f68d0-0ecd-473e-9fee-02f18bec769e",
+            "name": "zzzz ORV13 VFY roster 045",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "2c11e902-a9d0-4be3-a51f-11e3074ba266",
+            "name": "zzzz ORV13 VFY roster 046",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "445dc9de-f4ff-4541-b937-bc28ea09e6c3",
+            "name": "zzzz ORV13 VFY roster 047",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "2fbe5136-be40-4b60-b2fd-2afb18ff253d",
+            "name": "zzzz ORV13 VFY roster 048",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "4f71d5ec-e159-491a-8049-c81efd050e2b",
+            "name": "zzzz ORV13 VFY roster 049",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "3f1cd2ed-13a6-4847-9479-150474dd854a",
+            "name": "zzzz ORV13 VFY roster 050",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "7d0d6f2e-b61a-4300-9abc-48ae8c592819",
+            "name": "zzzz ORV13 VFY roster 051",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "3e88900a-ec21-4c1c-b245-76ee4e82c83e",
+            "name": "zzzz ORV13 VFY roster 052",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "56a3d62f-543a-426a-99b6-2394fea109a3",
+            "name": "zzzz ORV13 VFY roster 053",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "466fe72e-ccf3-4520-937f-9ab51f6ad0dd",
+            "name": "zzzz ORV13 VFY roster 054",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "b2866eb3-eacc-4faa-9e5d-feba867f3004",
+            "name": "zzzz ORV13 VFY roster 055",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "b45b1c08-7a47-4b2a-adc0-34dfd38c9898",
+            "name": "zzzz ORV13 VFY roster 056",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "37a88729-498e-478e-afea-4d058dcbd077",
+            "name": "zzzz ORV13 VFY roster 057",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "b3f20a7a-a4de-42e3-a8a2-7cc482fca0b4",
+            "name": "zzzz ORV13 VFY roster 058",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "2e4c25de-523d-43bf-8232-8d5fde93201b",
+            "name": "zzzz ORV13 VFY roster 059",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "46668eff-8292-4cbf-87af-d16512bceada",
+            "name": "zzzz ORV13 VFY roster 060",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "73dc3f3c-e6d8-43a5-89be-94d7c9031904",
+            "name": "zzzz ORV13 VFY roster 061",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "5ffffa80-be52-4c27-90c8-69e9d7da6dff",
+            "name": "zzzz ORV13 VFY roster 062",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "5408bb72-8927-4fd3-8b92-7d4ab02b401c",
+            "name": "zzzz ORV13 VFY roster 063",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "955d4599-4145-4a35-b0b5-4193089dce0a",
+            "name": "zzzz ORV13 VFY roster 064",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "d8911224-66c3-4506-8143-95193460d9e0",
+            "name": "zzzz ORV13 VFY roster 065",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "bead0707-64b6-4c37-bd86-1222925d4aeb",
+            "name": "zzzz ORV13 VFY roster 066",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "ede59b56-8d8a-4e6e-8632-4ae88821ca69",
+            "name": "zzzz ORV13 VFY roster 067",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "a6c12e50-6293-43a6-b2c7-95de1b23efa6",
+            "name": "zzzz ORV13 VFY roster 068",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "032899d1-b190-4186-bd81-e82e4716749d",
+            "name": "zzzz ORV13 VFY roster 069",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "41d27a7a-4095-490c-a850-759de5c4fab6",
+            "name": "zzzz ORV13 VFY roster 070",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "efa4c3c9-ce72-4078-b2b5-488ef3d02f3c",
+            "name": "zzzz ORV13 VFY roster 071",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "e4cbd2e2-259a-4a82-b9a0-f4fa2d98a999",
+            "name": "zzzz ORV13 VFY roster 072",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "5689a674-71ef-4111-8e6d-5516fcf2debd",
+            "name": "zzzz ORV13 VFY roster 073",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "13a9ae19-74e9-4ce4-a076-ef1cbb14ce3f",
+            "name": "zzzz ORV13 VFY roster 074",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "5bf8fc41-f623-4250-955b-d1edd9c4f66a",
+            "name": "zzzz ORV13 VFY roster 075",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "d51af8b4-4546-42d6-ad01-4e290b97d98d",
+            "name": "zzzz ORV13 VFY roster 076",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "91bf73f4-f68e-470f-b82e-5a416762df95",
+            "name": "zzzz ORV13 VFY roster 077",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "d3d26b20-dfcb-4cad-87b4-e58bcefa4800",
+            "name": "zzzz ORV13 VFY roster 078",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "25d7addf-935f-4006-bb54-294d45b13e59",
+            "name": "zzzz ORV13 VFY roster 079",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "52e35cf7-7001-43ed-9502-589ec328b537",
+            "name": "zzzz ORV13 VFY roster 080",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "b75ac763-7637-4f9c-ae64-6d020383ef36",
+            "name": "zzzz ORV13 VFY roster 081",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "82bab42b-4ab8-4666-9bd0-69f402f7af79",
+            "name": "zzzz ORV13 VFY roster 082",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "2e058c49-518b-4e73-a41f-c0d97c2b678c",
+            "name": "zzzz ORV13 VFY roster 083",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "7ef8e899-f4b6-44b2-8517-2ebe73183a4d",
+            "name": "zzzz ORV13 VFY roster 084",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "74d42d49-1c9f-400e-b098-3311f1d2092a",
+            "name": "zzzz ORV13 VFY roster 085",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "64a01b69-d381-457f-a25d-c6909d8370c8",
+            "name": "zzzz ORV13 VFY roster 086",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "c5f6d7b9-adfe-4aea-8aaf-f035c258a629",
+            "name": "zzzz ORV13 VFY roster 087",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "415c1559-97af-4935-aa3e-77b04cd5a04f",
+            "name": "zzzz ORV13 VFY roster 088",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "8755e67c-607d-431c-9b08-83859e92042b",
+            "name": "zzzz ORV13 VFY roster 089",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "28a91330-3df6-4943-9907-4c1d1ea68ec5",
+            "name": "zzzz ORV13 VFY roster 090",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "f42b0a5e-f3dd-4fb5-957c-5d56cf0abf58",
+            "name": "zzzz ORV13 VFY roster 091",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "5e70a611-e4be-46d6-8011-34fd6002c920",
+            "name": "zzzz ORV13 VFY roster 092",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "ea3bf8dd-28bc-4663-84af-b93242520055",
+            "name": "zzzz ORV13 VFY roster 093",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "790c413c-0cbc-4a8c-b973-782994d7fd3b",
+            "name": "zzzz ORV13 VFY roster 094",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "9a8102ff-4946-4417-9303-55a96cd02f8f",
+            "name": "zzzz ORV13 VFY roster 095",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "617acffc-84dd-4953-99cb-ec1484333613",
+            "name": "zzzz ORV13 VFY roster 096",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "7c4500b5-3929-450f-8ccf-1c45a9aa897d",
+            "name": "zzzz ORV13 VFY roster 097",
+            "state": "ACTIVE"
+          }
+        ],
+        "nextCursor": "N2M0NTAwYjUtMzkyOS00NTBmLThjY2YtMWM0NWE5YWE4OTdk",
+        "prevCursor": null,
+        "total": 127,
+        "limit": 100
+      }
+    },
+    {
+      "url": "http://127.0.0.1:42907/admin/api/tenants?limit=100&cursor=N2M0NTAwYjUtMzkyOS00NTBmLThjY2YtMWM0NWE5YWE4OTdk",
+      "status": 200,
+      "source": "actual mounted Admin BFF response",
+      "body": {
+        "items": [
+          {
+            "id": "98abe323-c495-4810-b7cf-1da3376876aa",
+            "name": "zzzz ORV13 VFY roster 098",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "9d125680-58b9-40cd-a93e-2a39b9b6e48b",
+            "name": "zzzz ORV13 VFY roster 099",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "ac0a5f35-d199-42eb-a41b-b1e6fb6cf7bd",
+            "name": "zzzz ORV13 VFY roster 100",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "dff28a56-f5c4-4936-b8dc-10fa2a5da089",
+            "name": "zzzz ORV13 VFY roster 101",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "6a4a9768-d2d0-45a4-b041-94ffbce50716",
+            "name": "zzzz ORV13 VFY roster 102",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "def3e8fa-9429-4741-9c97-335fab0be7c4",
+            "name": "zzzz ORV13 VFY roster 103",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "a168ed23-af86-45e9-808a-9180fcf789be",
+            "name": "zzzz ORV13 VFY roster 104",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "553f987d-89e3-428a-bd20-dc8dd82bd3c1",
+            "name": "zzzz ORV13 VFY roster 105",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "ba2d5cc2-1635-47be-8426-283ec30ae03b",
+            "name": "zzzz ORV13 VFY roster 106",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "9ef4dd1e-078d-4837-8a41-dcc36ac567fb",
+            "name": "zzzz ORV13 VFY roster 107",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "44a3c678-1f2f-4c70-8103-7923630df33d",
+            "name": "zzzz ORV13 VFY roster 108",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "50127817-3570-4240-839a-4a3d3f784393",
+            "name": "zzzz ORV13 VFY roster 109",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "6b7537c2-59c3-4c0d-b248-e57a7dc1c31f",
+            "name": "zzzz ORV13 VFY roster 110",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "ba45753b-ac54-4d0e-a656-68f303d08480",
+            "name": "zzzz ORV13 VFY roster 111",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "b620fa56-1321-4819-b3b1-250553e720b4",
+            "name": "zzzz ORV13 VFY roster 112",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "9835a90d-4de6-4cda-9b5f-8e764905ca80",
+            "name": "zzzz ORV13 VFY roster 113",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "0d24ebfa-c05f-40fe-99b3-99e1d8d7f161",
+            "name": "zzzz ORV13 VFY roster 114",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "48073bb8-d2d4-4b74-b42e-eafcb4acd1a7",
+            "name": "zzzz ORV13 VFY roster 115",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "bedd8bed-55ae-407f-b515-a48ba111504d",
+            "name": "zzzz ORV13 VFY roster 116",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "65ac5dec-1256-4a72-b90a-b626a57af83f",
+            "name": "zzzz ORV13 VFY roster 117",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "be8adb34-5b39-4917-b280-ea59489d0410",
+            "name": "zzzz ORV13 VFY roster 118",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "73c17b27-1b88-449a-93e1-26a195a168d4",
+            "name": "zzzz ORV13 VFY roster 119",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "3aa90dba-3a62-4e8c-9296-0a500a3f7b7b",
+            "name": "zzzz ORV13 VFY roster 120",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "9213b624-6c9b-44ba-aec1-ab8fbb3e4f7a",
+            "name": "zzzz ORV13 VFY roster 121",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "f1545a2d-0634-4bc1-be3d-41476991023a",
+            "name": "zzzz ORV13 VFY roster 122",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "1b3b6760-a3f6-47e9-814c-70c2a947ee71",
+            "name": "zzzz ORV13 VFY roster 123",
+            "state": "ACTIVE"
+          },
+          {
+            "id": "fce8768c-d518-4e02-a3e5-a70d9847d7bb",
+            "name": "zzzz ORV13 VFY roster 124",
+            "state": "ACTIVE"
+          }
+        ],
+        "nextCursor": null,
+        "prevCursor": "OThhYmUzMjMtYzQ5NS00ODEwLWI3Y2YtMWRhMzM3Njg3NmFhfHA",
+        "total": 127,
+        "limit": 100
+      }
+    }
+  ],
+  "usageResponses": [
+    {
+      "url": "http://127.0.0.1:42907/admin/api/usage/events?tenantId=fce8768c-d518-4e02-a3e5-a70d9847d7bb&from=2026-10-10T18%3A51%3A00.000Z&to=2026-10-11T18%3A51%3A00.000Z&timeField=receivedAt&limit=50",
+      "status": 200,
+      "body": {
+        "tenantId": "fce8768c-d518-4e02-a3e5-a70d9847d7bb",
+        "events": [
+          {
+            "eventId": "orv13-vfy-event-4f1dca32-9f07-4461-a5dc-d98289fa1c39",
+            "operationId": "24f9370c-cab9-4aa9-9263-f365955cca76",
+            "taskId": "37ecee53-92f2-4abf-8344-c51c26597a2a",
+            "invocationId": "orv13-vfy-invocation-a06c84d5-298b-4aad-9513-4fbdcf0057df",
+            "provider": "roster-scope-fixture",
+            "model": "page-two-selection",
+            "units": {
+              "inputTokens": 73,
+              "outputTokens": 19
+            },
+            "costMicrousd": 0,
+            "costStatus": "measured",
+            "measurement": "measured",
+            "occurredAt": "2026-10-11T18:49:11.758Z",
+            "receivedAt": "2026-10-11T18:49:11.769Z"
+          }
+        ],
+        "limit": 50,
+        "hasMore": false,
+        "skippedInvalidEvents": 0,
+        "timeSemantics": {
+          "field": "receivedAt",
+          "order": "asc",
+          "timezone": "UTC"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,65 @@
+{
+  "wire": {
+    "name": "operations/0c8d79d3-5908-4e9a-aa1a-c19d7614f800",
+    "done": true,
+    "metadata": {
+      "state": "SUCCEEDED",
+      "pipeline": [],
+      "current_step": 0,
+      "progress_percent": 0,
+      "progress_message": "Queued",
+      "create_time": "2026-10-11T16:33:23.128Z",
+      "update_time": "2026-10-11T16:33:23.294Z",
+      "pipeline_steps": []
+    },
+    "result": {
+      "output_format": "json",
+      "content": "{\"invoiceNumber\":\"INV-101\",\"supplier\":\"Acme Corp\",\"total\":\"$500.00\"}",
+      "extracted_data": {
+        "invoiceNumber": "INV-101",
+        "supplier": "Acme Corp",
+        "total": "$500.00"
+      },
+      "pipeline_steps": [],
+      "usage": {
+        "input_tokens": 2,
+        "output_tokens": 3,
+        "pages_processed": 3,
+        "model_used": "orv12-priced",
+        "cost_usd": 0.000725,
+        "breakdown": []
+      },
+      "download_url": "/api/v1/operations/0c8d79d3-5908-4e9a-aa1a-c19d7614f800/download"
+    }
+  },
+  "usageBody": {
+    "object": "billing_usage",
+    "start_date": "2026-09-11",
+    "end_date": "2026-10-11",
+    "total_cost_usd": 0.000725,
+    "total_input_tokens": 2,
+    "total_output_tokens": 3,
+    "total_operations": 1,
+    "usage": [
+      {
+        "model": "orv12-priced",
+        "prompt_tokens": 2,
+        "completion_tokens": 3,
+        "pages_processed": 3,
+        "cost_usd": 0.000725
+      }
+    ]
+  },
+  "balanceBody": {
+    "object": "billing_balance",
+    "api_key_id": "ef22b1d1-f771-4ab4-8033-991b6cd4f5ae",
+    "api_key_name": null,
+    "currency": "USD",
+    "details": {
+      "spending_limit": null,
+      "total_used": 0.000725,
+      "balance": null
+    },
+    "updated_at": "2026-10-11T16:33:23.483Z"
+  }
+}

@@ -1,0 +1,90 @@
+FAIL tests/workflow-api/orv14-vfy-core31.test.ts (5.407 s)
+  ORV14 independent public HTTP compatibility with real outbox, worker, and Connector
+    ✕ legacy workflow overrides are provider-observed under exact typed Connector pins and reject undeclared leaves (700 ms)
+    ✕ parallel legacy workflow branch Connector overrides use exact admitted checkpoint keys and reach the provider (487 ms)
+    ○ skipped legacy multipart ingest parses exact bytes, projects/downloads result and replays without duplicate blobs
+    ○ skipped sync submit waits for real worker and returns terminal result within its budget
+    ○ skipped imports and publishes XML through the normal workflow catalog, runs a real Worker workflow, and resumes HITL
+    ○ skipped imports and publishes JSON branch/join workflow and executes the immutable admitted pin in the real Worker
+    ○ skipped browser uploads a document and submits workflow.test to real worker, then polls success
+    31 public multipart variants through production outbox/Redis/worker/Connector
+      ○ skipped DOC-01-01 ingest/parse
+      ○ skipped DOC-01-02 ingest/ocr
+      ○ skipped DOC-01-03 ingest/digitize
+      ○ skipped DOC-01-04 ingest/split
+      ○ skipped DOC-02-01 extract/invoice
+      ○ skipped DOC-02-02 extract/contract
+      ○ skipped DOC-02-03 extract/receipt
+      ○ skipped DOC-02-04 extract/table
+      ○ skipped DOC-02-05 extract/custom
+      ○ skipped DOC-02-06 extract/id-card
+      ○ skipped DOC-03-01 analyze/classify
+      ○ skipped DOC-03-02 analyze/sentiment
+      ○ skipped DOC-03-03 analyze/compliance
+      ○ skipped DOC-03-04 analyze/quality
+      ○ skipped DOC-03-05 analyze/risk
+      ○ skipped DOC-03-06 analyze/fact-check
+      ○ skipped DOC-03-07 analyze/summarize-eval
+      ○ skipped DOC-04-01 transform/convert
+      ○ skipped DOC-04-02 transform/translate
+      ○ skipped DOC-04-03 transform/rewrite
+      ○ skipped DOC-04-04 transform/redact
+      ○ skipped DOC-04-05 transform/template
+      ○ skipped DOC-05-01 generate/summary
+      ○ skipped DOC-05-02 generate/outline
+      ○ skipped DOC-05-03 generate/report
+      ○ skipped DOC-05-04 generate/email
+      ○ skipped DOC-05-05 generate/minutes
+      ○ skipped DOC-05-06 generate/qa
+      ○ skipped DOC-06-01 compare/diff
+      ○ skipped DOC-06-02 compare/semantic
+      ○ skipped DOC-06-03 compare/version
+    ORV14 native tenant prompt and AI defaults observed by real Connector calls
+      ○ skipped published tenant prompt revisions reach real PNG/PDF/DOCX, compare, and generate provider calls with old/new operation pins
+      ○ skipped Gemini and OpenAI-compatible AI model defaults reach native provider tests and real Worker calls, with immutable old/new pins and Profile precedence
+    configured Worker private HTTPS
+      ○ skipped configured Worker receives exact private HTTPS policy, validates DNS/SNI/CA, executes callback and download, and exposes public result
+      ○ skipped parallel branch children share the configured private HTTPS policy
+      ○ skipped a resumed HITL workflow keeps the Worker policy for its later HTTPS callback
+      ○ skipped an explicit operation retry reuses the admitted schema pin and reaches HTTPS on the next attempt
+      ○ skipped worker default deny rejects a tenant-approved private origin when the operator list is empty
+      ○ skipped tenant schema approval blocks an origin absent from that immutable pin
+      ○ skipped operator list and tenant pin intersect; operator-only origin cannot be reached
+      ○ skipped verified TLS rejects a SAN mismatch while preserving the requested SNI
+      ○ skipped redirects are not followed and oversized file responses fail at the worker byte limit
+      ○ skipped operation cancellation aborts the active pinned HTTPS request
+      ○ skipped metadata, link-local, CGNAT, multicast, and reserved IP literals stay blocked with private opt-in
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › legacy workflow overrides are provider-observed under exact typed Connector pins and reject undeclared leaves
+
+    old workflow/Connector pin ended FAILED; structured safe diagnostics saved
+
+      2755 |       mkdirSync(diagnosticsDirectory, { recursive: true });
+      2756 |       writeFileSync(resolve(diagnosticsDirectory, 'old-pin-worker-failure-diagnostics.json'), JSON.stringify(failureEvidence, null, 2));
+    > 2757 |       throw new Error(`old workflow/Connector pin ended ${terminal1.state}; structured safe diagnostics saved`);
+           |             ^
+      2758 |     }
+      2759 |     const terminal2 = await dispatchUntilState(id2, ['SUCCEEDED'], 90_000);
+      2760 |     if (terminal2.state !== 'SUCCEEDED') {
+
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:2757:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › parallel legacy workflow branch Connector overrides use exact admitted checkpoint keys and reach the provider
+
+    parallel workflow operation ended FAILED; structured safe diagnostics saved
+
+      2895 |       mkdirSync(evidenceDirectory, { recursive: true });
+      2896 |       writeFileSync(resolve(evidenceDirectory, 'parallel-branch-worker-failure-diagnostics.json'), JSON.stringify(diagnostics, null, 2));
+    > 2897 |       throw new Error(`parallel workflow operation ended ${terminal.state}; structured safe diagnostics saved`);
+           |             ^
+      2898 |     }
+      2899 |
+      2900 |     const taskStates = await app.db.query<{
+
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:2897:13)
+
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 49 skipped, 51 total
+Snapshots:   0 total
+Time:        5.601 s, estimated 6 s
+Ran all test suites within paths "tests/workflow-api/orv14-vfy-core31.test.ts".

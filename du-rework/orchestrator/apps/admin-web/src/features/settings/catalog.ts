@@ -3,13 +3,9 @@
  *
  * Source of truth: tasks/ADMIN-LEGACY-CONFIG-PARITY-2026-10-04.md section 3
  * ("Mapping toan bo 17 legacy settings"). The replacement ids are LOGICAL ids: the parity
- * task states the service owner freezes DTO/schema/path before code, so none of them is
- * asserted to exist as a route or a column today.
- *
- * There is NO frozen settings wire in this tree - packages/contracts has no Settings schema
- * at all. So every row is deployment-mechanism until a wire lands, and the screen renders
- * the honest disabled state instead of a fake write. Secrets are never rendered and never
- * echoed: a read wire does not exist, and a write path needs a Vault secret-ref adapter.
+ * task records the logical mapping. The scoped native revision editor is
+ * separate from tenant AI/prompt defaults, platform retention and storage
+ * generation. Secrets are never rendered or echoed from this catalog.
  */
 
 export type SettingsGroup = 'ai' | 'prompt' | 'storage';
@@ -21,11 +17,11 @@ export interface SettingsCatalogRow {
   label: string;
   /** Logical replacement id from the parity mapping. */
   replacement: string;
-  /** Where the value lives once a wire exists. */
+  /** Scope of the owning versioned writer. */
   scope: string;
   /** True when the value is a credential: never rendered, never echoed. */
   secret: boolean;
-  /** Who owns the write path once it exists. */
+  /** UI section that owns the write path. */
   owner: string;
   group: SettingsGroup;
   /** retire = the parity task says retire pending a consumer inventory. */
@@ -63,19 +59,17 @@ export function settingsRowsByGroup(group: SettingsGroup): SettingsCatalogRow[] 
   return SETTINGS_CATALOG.filter((row) => row.group === group);
 }
 
-/** The honest reason a write control is disabled. Never a fake success. */
+/** Why the legacy key is represented by its owning typed form. */
 export function settingsWriteReason(row: SettingsCatalogRow): string {
   if (row.disposition === 'retire') {
     return 'Retire decision is owned by the CONT architect; this row is not a write target on this surface.';
   }
-  if (row.secret) {
-    return 'Secret values are never read into the browser and no read wire exists; a write path needs a Vault secret-ref adapter that is not shipped.';
-  }
-  return 'No settings wire and no writer action are shipped for this key yet; the value is boot-time deployment config.';
+  if (row.secret) return 'The owning typed form writes secret material once and reads back only masked metadata and an opaque immutable revision reference.';
+  return 'The owning typed form writes a versioned draft with review, effective state and rollback.';
 }
 
 export const SETTINGS_GROUPS: Array<{ id: SettingsGroup; title: string; blurb: string }> = [
-  { id: 'ai', title: 'AI defaults (CFGADM-01)', blurb: 'Provider, model and base URL. Credentials live in Vault as secret-refs; the browser never holds them.' },
-  { id: 'prompt', title: 'Prompt defaults (CFGADM-02)', blurb: 'Five versioned prompt slots (image, PDF, DOCX, compare, generate) with per-business override.' },
-  { id: 'storage', title: 'Storage and retention (CFGADM-03/04)', blurb: 'S3 endpoint/bucket/region, credentials as secret-refs, and cache TTL under retention policy.' },
+  { id: 'ai', title: 'Legacy AI settings map (CFGADM-01)', blurb: 'Use Tenant AI defaults above to choose an active tenant Connector revision and model. Manage endpoint recipes and write-only credentials in Connectors; scoped Profile and key settings remain separate.' },
+  { id: 'prompt', title: 'Legacy prompt settings map (CFGADM-02)', blurb: 'Use Tenant AI defaults above for five versioned prompt slots, EN/VI presets, placeholder checks and rollback. Per-key, per-endpoint overrides remain in the scoped editor.' },
+  { id: 'storage', title: 'Legacy storage and retention map (CFGADM-03/04)', blurb: 'Use Storage generation for platform endpoint, bucket, region, exact managed credential revision and lifecycle; use Platform retention for cache TTL, output retention and cleanup. Presign URL lifetime is separate.' },
 ];

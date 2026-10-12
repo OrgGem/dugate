@@ -1,0 +1,5 @@
+CWD=/workspace/dugate/du-rework
+Pinned Node: /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node v24.21.0
+Admin no-emit: /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node orchestrator/apps/admin-web/node_modules/typescript/bin/tsc --noEmit -p orchestrator/apps/admin-web/tsconfig.json (exit 0)
+Private Vite build: ORV14_ADMIN_PRIVATE_DIST=/workspace/scratch/orv14-primary-ui-20261012T0433Z/admin-dist /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node orchestrator/apps/admin-web/node_modules/vite/bin/vite.js build --config tests/workflow-api/orv14-vfy/private-admin-ui.vite.config.mjs (exit 0, Vite 6.4.4, 2,955 modules)
+No shared build output was used.

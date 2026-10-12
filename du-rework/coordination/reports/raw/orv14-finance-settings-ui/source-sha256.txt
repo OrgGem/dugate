@@ -1,0 +1,29 @@
+ORV14 finance and Settings UI follow-up owner source snapshot
+Observed 2026-10-12 00:25 UTC
+Algorithm: SHA-256
+
+135fb4e2c47420320c6034328a6712d78572ece9da54364542659ae6070cda48  orchestrator/apps/admin-web/src/features/usage/usage-screen.tsx
+bd81854f760831be07f308f4ef10b2e4fe60cb97c5363e7d4045a1821dd8f5ca  orchestrator/apps/admin-web/src/features/usage/cost-adjustment-panel.tsx
+b4c60464f5c64673f455f0764a959993052f6bb959f1fb250f77446a099cbb57  orchestrator/apps/admin-web/src/features/usage/cost-adjustment-state.ts
+e0fc031f2842c513d30d6e6a7642bfb0c807e8ac4fec218cc4b1717201d26e4a  orchestrator/apps/admin-web/src/features/usage/cost-state.ts
+31b8db4d2f276b63773dae9a747ca6fdc760a2dc756566499870d3280ffbe08f  orchestrator/apps/admin-web/src/features/settings/global-tenant-settings.tsx
+fd0a9affe868f0a51e8d33708a5c85b916f4b38abc90e6cb375b36177abc43b3  orchestrator/apps/admin-web/src/features/settings/storage-generation-panel.tsx
+512958299bfa8f66c24b25434e1183af3f9f35a1bab13aec9ea9a9507d4a920f  orchestrator/apps/admin-web/src/features/settings/storage-secret-catalog.ts
+f82cb5f6c05d8062e5cc90aa1103f67b65d8e72509c585d6b8ec6338aa487fd9  orchestrator/apps/admin-web/src/features/settings/tenant-connector-catalog.ts
+56f4d11b5e8f4c281e143c88f77f4075309a85626fa1591d4f63f60528193c77  orchestrator/services/orchestrator/src/http/routes/internal-cost-alerts.ts
+4a594dc7632d5608ef58bd66312b024ce8dc0684ebc96d07538636bd9f656203  orchestrator/services/orchestrator/src/modules/cost-alerts/service.ts
+2e09c58ca767acd5bbc053cd38c7a712e8e4db5e324f9032d1a488496e2886d3  orchestrator/services/orchestrator/tests/orv14-cost-alert-binding-privacy-owner.test.ts
+ad2e1635f90821a6f32cd2b208431f769ae3d93e45fd8ea08882d4d82bbf0016  orchestrator/services/orchestrator/tests/orv14-finance-settings-ui-followup.test.ts
+95d160a5d53a54b6f460ac890c504380856ad408093f8f22715cab4c38fd7773  docs/49-cost-policy-alert-operations.md
+1572a963486923342983188a71d52b468e5b3fa804eceaa8545e96d01ca4bd07  docs/50-admin-settings-guide.md
+
+Current shared dependency snapshot (owned by Backend, not built by this UI lane):
+bb1db2cb7854b83684c411ba130ac2a1daaf2b0c46b447d864b98ec921b6cbf7  orchestrator/packages/contracts/dist/index.d.ts
+3219e80d8d0d8f4dd5d017e22b4b9ec91afaedd9f5e9055bba98c7f57cf16d1c  orchestrator/packages/contracts/dist/cost-adjustments.d.ts
+d4c458f507faa9fc95d2894f1d44d98615de8ba20967a2cb1bc48b4299698ece  orchestrator/packages/contracts/dist/tenant-connectors.d.ts
+eca2d045f547fc2bd24061b6e006f8a664380af6591d68eeef390e11324b3031  orchestrator/packages/contracts/src/cost-adjustments.ts
+5517e43518e1cca4756956ae06e82efbac6c0aa77b6122cdb5c7e4fdbbfc9a06  orchestrator/apps/admin-web/src/lib/api/client.ts
+029fc22599d504c582f2cb5f4f665a9adbec8955148cf9ee1235f398ca0982ad  orchestrator/services/orchestrator/src/app/admin/bff/handle.ts
+6fb78a9fffde704ef50720a9831d06249490c8b319536d7bd313c913431ecd46  orchestrator/services/orchestrator/src/app/admin/bff/parity.ts
+153136a517b44957024e990acc11985f4c3265a69ea8b3aecdc4b9d910e11441  orchestrator/services/orchestrator/src/modules/connectors/connector-management-store.ts
+fed7d4a72320d4a0024869fe23e73d4c8de9b03b5afc8feb3f04eb04ddd78be6  orchestrator/services/connector/src/http/server.ts

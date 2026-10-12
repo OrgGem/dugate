@@ -1,0 +1,3 @@
+jest_reported_suite_exit=1
+wrapper_exit=130_interrupted_after_jest_failure_summary_because_test_process_kept_one_owned_PG_pool_handle_open
+post_hash_capture=not_run

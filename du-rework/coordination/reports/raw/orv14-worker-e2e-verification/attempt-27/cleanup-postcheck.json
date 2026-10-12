@@ -1,0 +1,40 @@
+{
+  "attempt": "27",
+  "checkedAtUtc": "2026-10-12T03:42:34Z",
+  "originalAfterAllReceipt": {
+    "postgresSchemaAbsent": true,
+    "connectorPostgresSchemaAbsent": true,
+    "artifactDirectoryAbsent": true,
+    "connectorArtifactDirectoryAbsent": true,
+    "ownedMinioCleanup": null,
+    "cleanupFailures": ["owned-minio"]
+  },
+  "minio": {
+    "runId": "wfa_1791776316367_4105a23045",
+    "containerName": "ow-minio-96cda9a3b4fc42de9ddd",
+    "projectLabel": "orv14-vfy-worker-wfa_1791776316367_4105a23045",
+    "bucket": "orv14-worker-0ca16fc080a44d1aa96a9e1f",
+    "containerByExactNameAbsent": true,
+    "containerByRunLabelAbsent": true,
+    "containerByProjectLabelAbsent": true,
+    "ownedVolumesByRunLabel": 0,
+    "dataDisposition": "The helper recorded bucket cleanup failure without retaining the underlying SDK error. The exact container is run with --rm and /data on tmpfs; the container and its ephemeral object-store data are now absent. Bucket deletion itself is not claimed independently of container disposal."
+  },
+  "redis": {
+    "hostPort": 26414,
+    "database": 7,
+    "testKeyPrefix": "du:test:wfa_1791776316367_4105a23045:",
+    "queueKeyPrefix": "du:q:wfa_1791776316367_4105a23045:",
+    "testPrefixKeysBeforePostCleanup": 0,
+    "queuePrefixKeysBeforePostCleanup": 0,
+    "testPrefixKeysAfterPostCleanup": 0,
+    "queuePrefixKeysAfterPostCleanup": 0
+  },
+  "sourceDelta": {
+    "changedFiles": 1,
+    "path": "orchestrator/services/connector/src/composition.ts",
+    "before": "78fe997d0c5e86ef836e0ca4c34525fdad581210a342c98b6a59359c18e75fbe",
+    "after": "68d671e0615633058cdca84deb402cd84a627847b1a199d9fff42dd55876dc04",
+    "ownerQualification": "Host reports the delta only adds optional database password/SSL injection, explicit null Vault suppression, and threads existing parity/usage/runtime-control dependencies; it does not change legacy workflow request parsing/submission routing."
+  }
+}

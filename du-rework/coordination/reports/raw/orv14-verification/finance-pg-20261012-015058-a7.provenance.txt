@@ -1,0 +1,12 @@
+Attempt: finance-pg-20261012-015058-a7
+Actual UTC start: 2026-10-12 01:50:58 UTC (clock tool immediately before execution)
+Scope: repeat only the selected independent actual-PostgreSQL COST-01 correction/refund path to capture a sanitized problem code after a6's BFF mutation returned 409 without diagnostic details; normal migration runner, exact Secret Catalog managed credential, active S3 generation, encrypted versioned MinIO evidence, signed preflight/RUNNING/actual usage, and verified OIDC BFF remain required.
+CWD: /workspace/dugate/du-rework
+Command: /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node orchestrator/services/orchestrator/node_modules/jest/bin/jest.js --runInBand --config tests/workflow-api/orv14-vfy/jest.config.cjs tests/workflow-api/orv14-vfy/cost-adjustments.test.ts --testNamePattern='records 100'
+Node: v24.21.0; existing package-local Jest/ts-jest/TypeScript/@types/AWS SDK/pg only. No install, pnpm wrapper, build, or shared dist write.
+S3: unique short-lived container, dynamic loopback port, tmpfs, random synthetic root credentials, unique versioned bucket. Cleanup only the attempt-owned container and bucket.
+Source pre-manifest: finance-pg-20261012-015058-a7.sources-pre.sha256
+Harness pre-manifest: finance-pg-20261012-015058-a7.harness-pre.sha256
+Raw Jest output: finance-pg-20261012-015058-a7.log
+Exit artifact: finance-pg-20261012-015058-a7.exit
+Post hashes, cleanup and UTC completion to follow.

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -28,6 +28,10 @@ import {
 import { type Loadable, paneStateFrom } from '@/features/overview/state';
 import { CurlImportPreview, CurlImportSummaryView } from './curl-import-preview';
 import { summarizeCurlImport } from './curl-import';
+import { ParityConnectorEditor } from './parity-connector-editor';
+import { useTenant } from '@/lib/tenant-context';
+import type { ProviderTestRequest } from '@du/contracts';
+import type { ImmutableAttempt } from '@/features/submissions/immutable-attempt';
 import {
   buildConnectorUpsertParams,
   connectorActionGating,
@@ -86,11 +90,23 @@ export function ConnectorsScreen() {
   // ONE client per screen: the CSRF token from the BFF session is held by this
   // client and must ride every mutation below.
   const client = useMemo(() => createAdminApiClient(), []);
+  const { tenantId } = useTenant();
+  const parityAttempts = useRef(new Map<string, ImmutableAttempt<ProviderTestRequest>>());
+  const [parityAttemptVersion, setParityAttemptVersion] = useState(0);
+  const savedParityAttempt = useMemo(
+    () => tenantId ? parityAttempts.current.get(tenantId) ?? null : null,
+    [parityAttemptVersion, tenantId],
+  );
+  const rememberParityAttempt = useCallback((scope: string, attempt: ImmutableAttempt<ProviderTestRequest> | null) => {
+    if (attempt) parityAttempts.current.set(scope, attempt);
+    else parityAttempts.current.delete(scope);
+    setParityAttemptVersion((version) => version + 1);
+  }, []);
   const [capabilities, setCapabilities] = useState<Loadable<ConnectorCapabilities>>({ kind: 'loading' });
   const [list, setList] = useState<ListState>({ kind: 'idle' });
-  const [connectorId, setConnectorId] = useState('');
+  const [connectorId, setConnectorId] = useState(() => new URLSearchParams(window.location.search).get('connectorId') ?? '');
   const [customConnectorIdMode, setCustomConnectorIdMode] = useState(false);
-  const [revision, setRevision] = useState('latest');
+  const [revision, setRevision] = useState(() => new URLSearchParams(window.location.search).get('revision') ?? 'latest');
   const [lookup, setLookup] = useState<LookupState>({ kind: 'idle' });
   const [importOpen, setImportOpen] = useState(false);
   const [importDraft, setImportDraft] = useState<ConnectorImportDraft | null>(null);
@@ -168,6 +184,12 @@ export function ConnectorsScreen() {
     },
     [client],
   );
+
+  useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    const id = query.get('connectorId');
+    if (id) void fetchRevision(id, query.get('revision') ?? 'latest');
+  }, [fetchRevision]);
 
   /** Reload whatever is on screen after a mutation, so the UI shows new truth. */
   async function refreshAfterMutation(): Promise<void> {
@@ -294,6 +316,12 @@ export function ConnectorsScreen() {
           Import cURL
         </Button>
       </div>
+
+      <ParityConnectorEditor
+        key={tenantId ?? 'no-tenant'}
+        savedAttempt={savedParityAttempt}
+        onAttemptChange={(attempt) => { if (tenantId) rememberParityAttempt(tenantId, attempt); }}
+      />
 
       {capabilities.kind === 'loading' ? (
         <AlertBanner variant="info" title="Reading composition capabilities">
@@ -731,18 +759,6 @@ export function ConnectorsScreen() {
                 }
               >
                 Retire revision
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled
-                title={
-                  gating.rotate
-                    ? 'Rotate is not wired in this UI slice — the write-only value path (connectors.rotate_credential) is a separate packet (Δ5).'
-                    : gating.reason || 'Credential workflow is not composed on this deployment.'
-                }
-              >
-                Rotate secret
               </Button>
             </div>
             <span className="text-xs text-[var(--text-sub)]">

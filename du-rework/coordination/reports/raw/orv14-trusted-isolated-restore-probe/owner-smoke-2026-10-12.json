@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-12T04:09:29Z",
+  "owner": "/root/orv14_restore_probe",
+  "scope": "owner-scoped source and test checks only; not independent host verification",
+  "runtime": {
+    "node": "v24.21.0",
+    "tooling": "package-local Jest and TypeScript binaries"
+  },
+  "checks": [
+    {
+      "name": "restore owner test suites",
+      "command": "PATH=/opt/codex/cua_node/bin:$PATH ./node_modules/.bin/jest --runInBand tests/orv14-trusted-isolated-restore-probe-owner.test.ts tests/orv14-isolated-restore-runtime-ports-owner.test.ts",
+      "exitCode": 0,
+      "result": "2 suites passed; 13 tests passed"
+    },
+    {
+      "name": "Orchestrator no-emit typecheck",
+      "command": "PATH=/opt/codex/cua_node/bin:$PATH ./node_modules/.bin/tsc --noEmit -p tsconfig.json --pretty false",
+      "exitCode": 0,
+      "result": "passed"
+    },
+    {
+      "name": "embedded HTTP child script VM parse preflight",
+      "command": "Extract HTTP_SCRIPT from trusted-isolated-restore-runtime-ports.ts and compile it with node:vm.Script",
+      "exitCode": 0,
+      "result": "embedded HTTP_SCRIPT parses under v24.21.0"
+    }
+  ],
+  "sha256": {
+    "trusted-isolated-restore-probe.ts": "e62017717065b3d7f6d212e6354eed876a8a6b90c7438bcde8eba55c6cf6ea4c",
+    "trusted-isolated-restore-runtime-ports.ts": "c7f3d7b01487706172c0868440905ac29a12c7b31ddeedf71d1cb1d609b6f1f4",
+    "orv14-trusted-isolated-restore-probe-owner.test.ts": "dc69775ec61dbd36c2f4591d9891ac9175ea6e7c293520d1ab238ce5c4630f6a",
+    "orv14-isolated-restore-runtime-ports-owner.test.ts": "b9a50698f7395b7bb57722dc2e2609eb4ce67449ad2ad1cb004d9a2426317d6b"
+  },
+  "environmentalActions": {
+    "containersStarted": false,
+    "servicesStarted": false,
+    "dependencyInstall": false,
+    "productionOrCustomerAccess": false
+  },
+  "limitations": [
+    "No real Docker, PostgreSQL, Redis, Transit, Vault, object-store, or deployed source-off execution was performed.",
+    "Independent Host verification and final acceptance remain pending."
+  ]
+}

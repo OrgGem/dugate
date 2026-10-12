@@ -689,7 +689,7 @@ async function fetchOverviewCore(
     operationCountUrls = ['FAILED', 'TIMED_OUT', 'RUNNING'].map((state) => {
       const operationQuery = new URLSearchParams({ state, limit: '1' });
       if (tenantId.length > 0) operationQuery.set('tenant', tenantId);
-      return new URL(`/api/v1/operations?${operationQuery.toString()}`, input.jsonBaseUrl);
+      return new URL(`/api/internal/operations?${operationQuery.toString()}`, input.jsonBaseUrl);
     });
   } catch {
     return {

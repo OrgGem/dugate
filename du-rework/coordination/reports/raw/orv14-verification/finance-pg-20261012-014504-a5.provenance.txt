@@ -1,0 +1,13 @@
+Attempt: finance-pg-20261012-014504-a5
+Actual UTC start: 2026-10-12 01:45:04 UTC (clock tool immediately before execution)
+Scope: one selected independent actual-PostgreSQL COST-01 correction/refund path through normal Orchestrator/Usage/Cost Adjustment/OIDC BFF; normal migration runner; signed grant + preflight/RUNNING transition + actual Usage ingestion; exact managed Secret Catalog S3 credential, active storage generation, encrypted evidence upload to uniquely owned versioned MinIO; isolated schema/Redis namespace and short-lived MinIO container.
+CWD: /workspace/dugate/du-rework
+Command: /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node orchestrator/services/orchestrator/node_modules/jest/bin/jest.js --runInBand --config tests/workflow-api/orv14-vfy/jest.config.cjs tests/workflow-api/orv14-vfy/cost-adjustments.test.ts --testNamePattern='records 100'
+Node: v24.21.0; Jest/ts-jest/TypeScript/@types from existing Orchestrator package-local installation. No pnpm wrapper, install, build, or shared dist write.
+S3 fixture: unique Docker container from already-present image orv14-vfy/minio:RELEASE-2025-09-07; dynamic loopback port; tmpfs data; generated synthetic root credentials only; unique bucket with versioning enabled. Container, bucket, and credential values are not customer/provider credentials. Test cleanup is restricted to this attempt's container and bucket.
+Postgres and Redis: reuse the already-running isolated ORV14 verifier Compose service; per-attempt schema and Redis DB/prefix are emitted by the test. No shared container was started/stopped.
+Source pre-manifest: finance-pg-20261012-014504-a5.sources-pre.sha256
+Harness pre-manifest: finance-pg-20261012-014504-a5.harness-pre.sha256
+Raw Jest output: finance-pg-20261012-014504-a5.log
+Exit artifact: finance-pg-20261012-014504-a5.exit
+Post-source manifest, cleanup, and actual UTC completion to follow.

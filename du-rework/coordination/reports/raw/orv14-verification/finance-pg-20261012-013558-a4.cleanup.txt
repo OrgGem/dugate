@@ -1,0 +1,8 @@
+Attempt: finance-pg-20261012-013558-a4
+Cleanup verification UTC: 2026-10-12 01:47:32 UTC
+CWD: /workspace/dugate/du-rework
+PostgreSQL: `docker exec orv14-vfy-20261011-a1-postgres-1 psql -U orv14_vfy -d orv14_vfy -Atc "SELECT CASE WHEN EXISTS(SELECT 1 FROM information_schema.schemata WHERE schema_name='du_test_orv14_vfy_finance_1791768982004_0727ae03') THEN 'present' ELSE 'absent' END;"` => absent, exit 0.
+Redis: `docker exec orv14-vfy-20261011-a1-redis-1 sh -lc "redis-cli -n 10 --scan --pattern 'du:test:orv14_vfy_finance_1791768982004_0727ae03:*' | wc -l"` => 0 keys, exit 0.
+Artifact directory: `tests/workflow-api/orv14-vfy/cost-adjustments-artifacts/orv14_vfy_finance_1791768982004_0727ae03` absent.
+Raw Jest log contains no open-handle, force-exit, AggregateError, owned-schema-remains, or cleanup-failed diagnostic. The failed setup app did not leave the Jest process or its named DB/Redis/filesystem namespace active.
+No S3 container or bucket was created by a4; it predates the isolated MinIO fixture.

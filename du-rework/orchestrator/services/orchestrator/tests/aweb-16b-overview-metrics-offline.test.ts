@@ -1,7 +1,7 @@
 import type { QueryResult, QueryResultRow } from 'pg';
 import type { Db } from '../src/db/db';
 import type { RouteContext } from '../src/http/route-context';
-import { handlePublicRoutes } from '../src/http/routes/public';
+import { handleInternalOperationsRoutes } from '../src/http/routes/internal-operations';
 import {
   getOperationsMetrics,
   parseOperationsMetricsQuery,
@@ -134,14 +134,15 @@ describe('AWEB-16b Overview metrics aggregation (offline)', () => {
     } as unknown as Db;
     const context = {
       method: 'GET',
-      pathname: '/api/v1/operations/metrics',
+      pathname: '/api/internal/operations/metrics',
+      ingressAudience: 'internal',
       searchParams: metricsParams(TENANT_B),
       headers: { authorization: 'Bearer tenant-a-token' },
       config: { tenantAdminTokens: { 'tenant-a-token': TENANT_A } },
       db,
     } as unknown as RouteContext;
 
-    await expect(handlePublicRoutes(context)).rejects.toMatchObject({ status: 403, code: 'PERMISSION_DENIED' });
+    await expect(handleInternalOperationsRoutes(context)).rejects.toMatchObject({ status: 403, code: 'PERMISSION_DENIED' });
     expect(queries).toEqual([]);
   });
 

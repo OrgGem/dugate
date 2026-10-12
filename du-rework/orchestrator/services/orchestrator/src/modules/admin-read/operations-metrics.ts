@@ -2,6 +2,7 @@ import { compareAdminListTimeBounds, isAdminListTimeBound } from '@du/contracts'
 import type { QueryResultRow } from 'pg';
 import type { Db } from '../../db/db';
 import { HttpError } from '../../http/errors';
+import type { OperationsListUserScope } from '../operations/list-query';
 
 const OPERATIONS_METRICS_STALE_AFTER_MS = 30_000;
 const TENANT_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -84,9 +85,25 @@ export async function getOperationsMetrics(
   ctx: OperationsMetricsDbContext,
   query: OperationsMetricsQuery,
   tenantId: string | null,
+  userScope?: OperationsListUserScope | null,
 ): Promise<OperationsMetrics> {
   const params: unknown[] = [query.from, query.to];
   const tenantClause = tenantId === null ? '' : ` AND tenant_id = $${params.push(tenantId)}::uuid`;
+  let grantClause = '';
+  if (userScope) {
+    if (userScope.tenantId !== tenantId) throw new HttpError(403, 'PERMISSION_DENIED', 'local user scope does not match the authorized tenant');
+    // Keep aggregate scope identical to operation reads: an exact active
+    // non-Global key grant is mandatory, with profile assignment further
+    // restricting non-null-profile operations. Legacy null-profile rows are
+    // visible through the exact key grant alone.
+    if (userScope.apiKeyIds.length === 0) {
+      grantClause = ' AND FALSE';
+    } else {
+      const profileIds = `$${params.push([...userScope.profileIds])}::uuid[]`;
+      const apiKeyIds = `$${params.push([...userScope.apiKeyIds])}::uuid[]`;
+      grantClause = ` AND deleted_at IS NULL AND api_key_id = ANY(${apiKeyIds}) AND (profile_id IS NULL OR profile_id = ANY(${profileIds}))`;
+    }
+  }
   const queryStartedAt = Date.now();
   const result = await ctx.db.query<OperationsMetricsRow>(
     `SELECT statement_timestamp() AS sampled_at,
@@ -110,7 +127,7 @@ export async function getOperationsMetrics(
               WHERE completed_at IS NOT NULL AND completed_at >= COALESCE(started_at, created_at)
             ) AS p95_ms
      FROM operations
-     WHERE created_at >= $1::timestamptz AND created_at <= $2::timestamptz${tenantClause}`,
+     WHERE created_at >= $1::timestamptz AND created_at <= $2::timestamptz${tenantClause}${grantClause}`,
     params,
   );
   const row = result.rows[0];

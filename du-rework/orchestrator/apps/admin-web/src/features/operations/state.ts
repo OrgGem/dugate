@@ -115,8 +115,19 @@ export function elapsedMs(op: OperationWire, now: string, execution = false): nu
 export interface OperationsFilterInput {
   limit: string;
   state: string;
+  sort: string;
   tenantId: string | null;
   id: string;
+  business: string;
+  action: string;
+  apiKey: string;
+  profile: string;
+  correlation: string;
+  provider: string;
+  model: string;
+  usage: 'any' | 'has-recorded-usage' | 'no-recorded-usage';
+  reservation: 'any' | 'unknown';
+  attention: 'any' | 'waiting-input';
   cursor: string | null;
   /** A date-input value: an ISO day (YYYY-MM-DD) or empty. */
   fromDate: string;
@@ -157,11 +168,23 @@ export function operationsWindowInvalid(fromDate: string, toDate: string): boole
  * `total` disagree with what the table showed.
  */
 export function buildOperationsQuery(input: OperationsFilterInput): Record<string, string> {
-  const query: Record<string, string> = { limit: input.limit, sort: 'created_at:desc' };
+  const query: Record<string, string> = { limit: input.limit, sort: input.sort };
   if (input.state !== '' && input.state !== 'ALL') query['state'] = input.state;
   if (input.tenantId !== null && input.tenantId !== '') query['tenant'] = input.tenantId;
   const id = input.id.trim();
   if (id !== '') query['id'] = id;
+  const textFilters: Array<[string, string]> = [
+    ['business', input.business], ['action', input.action], ['apiKey', input.apiKey],
+    ['profile', input.profile], ['correlation', input.correlation],
+    ['provider', input.provider], ['model', input.model],
+  ];
+  for (const [name, value] of textFilters) {
+    const normalized = value.trim();
+    if (normalized !== '') query[name] = normalized;
+  }
+  if (input.usage !== 'any') query['usage'] = input.usage;
+  if (input.reservation !== 'any') query['reservation'] = input.reservation;
+  if (input.attention !== 'any') query['attention'] = input.attention;
   if (input.cursor !== null && input.cursor !== '') query['cursor'] = input.cursor;
   const window = operationsTimeWindow(input.fromDate, input.toDate);
   if (window.from !== null) query['from'] = window.from;
@@ -172,7 +195,9 @@ export function buildOperationsQuery(input: OperationsFilterInput): Record<strin
 /** The inputs that decide WHICH rows the query returns. */
 export type OperationsPopulation = Pick<
   OperationsFilterInput,
-  'state' | 'tenantId' | 'id' | 'fromDate' | 'toDate' | 'limit'
+  | 'state' | 'sort' | 'tenantId' | 'id' | 'business' | 'action' | 'apiKey'
+  | 'profile' | 'correlation' | 'provider' | 'model' | 'usage' | 'reservation'
+  | 'attention' | 'fromDate' | 'toDate' | 'limit'
 >;
 
 /**
@@ -184,20 +209,31 @@ export type OperationsPopulation = Pick<
  * silently skips or repeats rows. Previous/Next also stops addressing the
  * page the operator is looking at.
  *
- * The fingerprint is the one value that must change for the cursor to die.
- * Every control that shapes the population goes through it, so a future
- * filter cannot forget its own reset - tenant is included even though it is
- * set globally rather than through an onChange, which is how it was missed.
+ * The server cursor also carries this complete filter/sort/limit and trusted
+ * assignment-population fingerprint, so a changed URL cannot replay a cursor
+ * over a different result set. Every control that shapes the population goes
+ * through it, including tenant selection managed by the global shell.
  */
 export function operationsPopulation(input: OperationsPopulation): string {
-  return [
+  return JSON.stringify([
     input.state,
+    input.sort,
     input.tenantId ?? '',
     input.id.trim(),
+    input.business.trim(),
+    input.action.trim(),
+    input.apiKey.trim(),
+    input.profile.trim(),
+    input.correlation.trim(),
+    input.provider.trim(),
+    input.model.trim(),
+    input.usage,
+    input.reservation,
+    input.attention,
     input.fromDate,
     input.toDate,
     input.limit,
-  ].join('|');
+  ]);
 }
 
 /**

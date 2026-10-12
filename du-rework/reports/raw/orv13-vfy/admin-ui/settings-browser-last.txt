@@ -1,0 +1,297 @@
+Skip to content
+Orchestrator Portal
+10/11/2026, 5:56:08 PM UTC
+oidc:orv13-vfy · Profile
+Logout
+Platform health: ok
+Database: Healthy
+Redis: Healthy
+Queue integrity: Unknown
+Active leases: 1
+Outbox backlog: Unknown
+Sampled 14s ago
+Health details
+ACTIVE TENANT
+ACTIVE
+ORV13 tenant alpha
+ORV13 tenant beta
+fd481f00-bbf1-41a4…
+
+Workspace
+
+Overview
+Operations
+Trace
+Usage
+
+System operations
+
+Cockpit
+Services
+Workers & Queues
+Incidents
+Deployments
+Maintenance
+
+Configuration
+
+Businesses
+Profiles
+Connectors
+Workflows
+
+Administration
+
+Audit
+Security
+Secrets
+Identity
+Settings
+
+Resources
+
+API Reference
+Documentation
+Bootstrap
+Settings & Deployment
+Settings request failed
+The admin API rejected the request Reload the scope and inspect the new revision before retrying.
+Effective deployment
+
+Read-only values from the running orchestrator. Storage is managed by the host deployment and requires a service restart to change.
+
+backend
+postgres
+bucket
+Not explicitly configured
+region
+Not explicitly configured
+endpoint
+Not explicitly configured
+Metadata encryption: configured
+Connector management: not configured
+Credential management: not configured
+Prompt editing: configured
+Configuration revision editing: configured
+
+Configured capability does not prove provider health. Test the selected connection in Connectors. Change S3 endpoint, bucket, region, credentials or retention through the host deployment/runtime owner; this screen has no write adapter for those values.
+
+Scoped configuration editor
+
+Choose a tenant API key and one supported core endpoint. Prompt overrides target the pinned connection fallback `_default`; exact-step overrides stay read-only. Connector changes select an existing revision. Everything first becomes an immutable draft.
+
+API key
+Choose an active API key
+orv13-vfy · orv13-vfy
+orv13-vfy · orv13-vfy
+orv13-vfy · orv13-vfy
+orv13-vfy · orv13-vfy
+orv13-vfy · orv13-vfy
+orv13-vfy · orv13-vfy
+orv13-vfy · orv13-vfy
+orv13-vfy · orv13-vfy
+orv13-vfy-settings · orv13-vfy-settings
+Core endpoint
+ingest:parse
+ingest:ocr
+ingest:digitize
+ingest:split
+extract:invoice
+extract:contract
+extract:id-card
+extract:receipt
+extract:table
+extract:custom
+analyze:classify
+analyze:sentiment
+analyze:compliance
+analyze:fact-check
+analyze:quality
+analyze:risk
+analyze:summarize-eval
+transform:convert
+transform:translate
+transform:rewrite
+transform:redact
+transform:template
+generate:summary
+generate:outline
+generate:report
+generate:email
+generate:minutes
+generate:qa
+compare:diff
+compare:semantic
+compare:version
+
+The selector lists all supported core endpoints. Workflow prompts use workflow/profile revisions and are not accepted by this editor.
+
+Session role: admin. Administrator permission is required for draft, validation, apply and restore actions.
+
+Selected effective scope
+
+orv13-vfy-settings · orv13-vfy-settings · extract:invoice
+
+Effective profile 64c77cf7-92a7-4056-bb25-6f4349ac9322 · revision 1 · 1 active key(s)
+
+This is the active profile resolved for the selected endpoint. Connector changes may require a dedicated endpoint profile assigned to one active key.
+
+Inspect effective profile and business bindings
+Load current configuration
+Prompt overrides
+
+The editor writes only `_default` fallback rows through the immutable settings revision workflow. Code-provided prompts and exact-step rows can take precedence.
+
+No prompt overrides are recorded for this API key and endpoint.
+
+Pinned connection for `_default` prompt
+Choose a pinned connection
+reasoning · connector · revision 1 · 93cd4452-cec1-4980-b69c-e5195ca4f733
+Fallback prompt
+Include this prompt change in the next configuration draft. An empty value clears the fallback.
+Connector revision pins
+
+The active profile has 1 active key(s). Pin edits require exactly one active key and an exact endpoint profile; validation checks both. Credential values are never edited here.
+
+Connector catalog unavailable
+Connector revision catalog unavailable. Open Connectors to inspect permissions and configuration.
+reasoning
+reasoning · connector · revision 1 · 93cd4452-cec1-4980-b69c-e5195ca4f733 (current)
+Inspect current connector revision
+
+Connector revision selection is unavailable until connector management is configured.
+
+If this profile is action-wide rather than endpoint-specific, validation blocks pin changes. Manage the exact endpoint binding in Profiles.
+
+Create configuration draft
+Configuration revisions
+
+Draft → validate → apply → restore. Validation checks dependencies and policy; it does not call providers. Applying changes affects new submissions only.
+
+Active configuration: No managed revision · Profile 64c77cf7-92a7-4056-bb25-6f4349ac9322 revision 1.
+
+Revision history
+Select a revision to inspect
+Revision 1 · VALIDATED · 10/11/2026, 5:55:53 PM
+Revision 0 · APPLIED · 10/11/2026, 5:55:53 PM
+
+Showing the latest 20 revisions for this key and endpoint.
+
+Revision 1
+VALIDATED
+
+Based on configuration initial state and profile revision 1.
+
+Setting	Before	After
+prompts.93cd4452-cec1-4980-b69c-e5195ca4f733:_default	
+None
+	
+VFY-UI13 draft text that must remain visible after a conflict
+
+Configuration validation passed
+
+immutable content digest
+active tenant/API key/profile
+dependency fingerprint
+prompt binding targets
+Validate configuration
+Review apply revision 1
+Legacy global settings require host or profile mapping
+Global AI provider/model defaults and the five format prompt defaults do not have a global write adapter on this screen. Map supported provider/model choices to a connector revision and profile; manage credentials through Secrets. S3 endpoint, bucket, region and credentials are deployment-managed and require a host configuration change and restart. Cache TTL is not artifact retention policy. The retired legacy API secret key is not a write target here.
+Migration readiness
+
+Recorded import and reconciliation evidence for the selected organization. This report does not approve a production cutover.
+
+Refresh migration readiness
+
+No recorded import runs for this organization. No cutover readiness can be inferred.
+
+AI defaults (CFGADM-01)
+
+Global provider, model and base URL need policy/runtime mapping. Use connector revisions and profiles for supported tenant-specific routing; credentials are managed outside this screen.
+
+AI provider ai_provider
+
+aiDefaults.provider · tenant policy + Connector binding revision
+
+AI account credential ai_api_key
+
+Gemini account credential (Vault secret-ref) · tenant/account Vault
+
+Secret value is never read or displayed on this settings screen.
+
+AI model ai_model
+
+aiDefaults.model · tenant default + Profile permitted override
+
+OpenAI-compatible account credential openai_api_key
+
+OpenAI-compatible account credential (Vault secret-ref) · tenant/account
+
+Secret value is never read or displayed on this settings screen.
+
+OpenAI-compatible base URL openai_base_url
+
+OpenAI-compatible Connector config revision · tenant/account
+
+Legacy API secret key api_secret_key
+
+retire pending consumer inventory · not managed here
+
+Secret value is never read or displayed on this settings screen.
+
+Prompt defaults (CFGADM-02)
+
+The five legacy global format defaults are not applied here. Native prompt revisions are scoped to one tenant API key, core endpoint and pinned connection `_default`; exact-step rows remain read-only.
+
+Image prompt default ai_image_prompt
+
+promptDefaults.image · versioned business/tenant defaults
+
+PDF prompt default ai_pdf_prompt
+
+promptDefaults.pdf · versioned business/tenant defaults
+
+DOCX prompt default ai_docx_prompt
+
+promptDefaults.docx · versioned business/tenant defaults
+
+Compare prompt default ai_compare_prompt
+
+promptDefaults.compare · versioned business/tenant defaults
+
+Generate prompt default ai_generate_prompt
+
+promptDefaults.generate · versioned business/tenant defaults
+
+Storage and retention (CFGADM-03/04)
+
+S3 endpoint, bucket, region, credentials and retention require the host deployment/runtime adapter. Effective values are read-only; storage changes require a restart.
+
+S3 endpoint s3_endpoint
+
+storageConfig.endpoint · platform storage generation
+
+S3 bucket s3_bucket
+
+storageConfig.bucket · platform storage generation
+
+S3 access key ID s3_access_key
+
+storage identity/access ID (secret-ref metadata) · platform secret owner
+
+Secret value is never read or displayed on this settings screen.
+
+S3 secret key s3_secret_key
+
+storage credential (deployment secret manager/Vault ref) · platform secret owner
+
+Secret value is never read or displayed on this settings screen.
+
+S3 region s3_region
+
+storageConfig.region · platform storage generation
+
+Cache TTL (hours) s3_cache_ttl_hours
+
+retentionPolicy.cacheTtlHours · platform/tenant per storage ownership

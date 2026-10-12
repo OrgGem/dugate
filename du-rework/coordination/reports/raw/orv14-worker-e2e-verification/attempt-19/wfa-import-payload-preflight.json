@@ -1,0 +1,43 @@
+{
+  "scope": "offline current compiled-contract DTO preflight only; no HTTP, DB, Redis, Connector, Worker, or provider calls",
+  "sourceFormats": [
+    "xml",
+    "json"
+  ],
+  "checks": [
+    {
+      "name": "WorkflowImportPreviewRequestSchema XML request",
+      "passed": true
+    },
+    {
+      "name": "LegacyWorkflowSchemaSchema XML decoder result shape",
+      "passed": true
+    },
+    {
+      "name": "WorkflowImportPreviewResponseSchema XML response shape",
+      "passed": true
+    },
+    {
+      "name": "LegacyWorkflowSchemaPinSchema XML revision-1 pin",
+      "passed": true
+    },
+    {
+      "name": "WorkflowImportPreviewRequestSchema JSON request",
+      "passed": true
+    },
+    {
+      "name": "LegacyWorkflowSchemaSchema JSON schema",
+      "passed": true
+    },
+    {
+      "name": "WorkflowImportPreviewResponseSchema JSON response shape",
+      "passed": true
+    },
+    {
+      "name": "LegacyWorkflowSchemaPinSchema JSON revision-1 pin",
+      "passed": true
+    }
+  ],
+  "passed": 8,
+  "failed": 0
+}

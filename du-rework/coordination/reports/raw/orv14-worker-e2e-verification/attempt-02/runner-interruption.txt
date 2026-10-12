@@ -1,0 +1,5 @@
+Attempt 02 interruption and scoped cleanup
+
+Jest had completed its failure summary after the outer createApp beforeAll failed. It remained alive due to open handles for about 2m39s; only this run's pinned Node/Jest child PID 769947 was sent SIGTERM at 2026-10-12T01:00:32.829509Z. The captured process exit code is -15. This was runner cleanup after the bootstrap failure, not a Worker or TLS assertion result.
+
+The unique schema named in namespace.json (du_test_wfa_1791766672102_755fa7953f) was checked in the synthetic orv14-vfy-20261011-a1 PostgreSQL container through its configured orv14_vfy role. It did not exist, so there was no schema to drop. The unique artifact and connector-artifact directories were also absent. No other namespace/resource was modified.

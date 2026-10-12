@@ -45,6 +45,7 @@ export class DocumentCoreProcess {
         heartbeatIntervalMs: config.heartbeatIntervalMs,
         workerInstanceId: config.workerInstanceId,
         imageDigest: config.imageDigest,
+        workflowPrivateHttpsOrigins: config.workflowPrivateHttpsOrigins,
       });
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : String(err);

@@ -1,0 +1,165 @@
+{
+  "pausedTenantA": true,
+  "usageRequestUrls": [
+    "http://127.0.0.1:34269/admin/api/usage/events?tenantId=3a1e9e7f-0c8e-4e94-a00c-9fb30220ab6a&from=2026-10-10T18%3A31%3A00.000Z&to=2026-10-11T18%3A31%3A00.000Z&timeField=receivedAt&limit=50",
+    "http://127.0.0.1:34269/admin/api/usage/events?tenantId=c39e8cb8-827e-4857-8109-0bc033e776cb&from=2026-10-10T18%3A31%3A00.000Z&to=2026-10-11T18%3A31%3A00.000Z&timeField=receivedAt&limit=50"
+  ],
+  "usageResponses": [
+    {
+      "url": "http://127.0.0.1:34269/admin/api/usage/events?tenantId=c39e8cb8-827e-4857-8109-0bc033e776cb&from=2026-10-10T18%3A31%3A00.000Z&to=2026-10-11T18%3A31%3A00.000Z&timeField=receivedAt&limit=50",
+      "tenantId": "c39e8cb8-827e-4857-8109-0bc033e776cb",
+      "status": 200,
+      "body": {
+        "tenantId": "c39e8cb8-827e-4857-8109-0bc033e776cb",
+        "events": [
+          {
+            "eventId": "orv13-vfy-event-ea54c97e-7f41-4aa2-b357-dd4dd35fbb44",
+            "operationId": "381732de-fe8e-4089-9642-523de29e9f38",
+            "taskId": "786f0b13-bd6f-4d88-b80c-0fe2743aaad7",
+            "invocationId": "orv13-vfy-invocation-a73bf6a1-0f78-4164-8a7e-f02af216ff19",
+            "provider": "race-fixture",
+            "model": "tenant-b",
+            "units": {
+              "inputTokens": 922,
+              "outputTokens": 228
+            },
+            "costMicrousd": 922,
+            "costStatus": "measured",
+            "measurement": "measured",
+            "occurredAt": "2026-10-11T18:31:28.031Z",
+            "receivedAt": "2026-10-11T18:29:28.052Z"
+          }
+        ],
+        "limit": 50,
+        "hasMore": false,
+        "skippedInvalidEvents": 0,
+        "timeSemantics": {
+          "field": "receivedAt",
+          "order": "asc",
+          "timezone": "UTC"
+        }
+      }
+    },
+    {
+      "url": "http://127.0.0.1:34269/admin/api/usage/events?tenantId=3a1e9e7f-0c8e-4e94-a00c-9fb30220ab6a&from=2026-10-10T18%3A31%3A00.000Z&to=2026-10-11T18%3A31%3A00.000Z&timeField=receivedAt&limit=50",
+      "tenantId": "3a1e9e7f-0c8e-4e94-a00c-9fb30220ab6a",
+      "status": 200,
+      "body": {
+        "tenantId": "3a1e9e7f-0c8e-4e94-a00c-9fb30220ab6a",
+        "events": [
+          {
+            "eventId": "orv13-vfy-event-5e8b6a0b-7fb7-4596-9144-3dce555e943e",
+            "operationId": "01f73456-dd41-49f9-9943-d1e684546a46",
+            "taskId": "ad1c2a32-e36e-448e-b581-cdc54b40fbf5",
+            "invocationId": "orv13-vfy-invocation-d2c424c3-07e4-43b4-9aff-e8fc5f86fc0b",
+            "provider": "race-fixture",
+            "model": "tenant-a",
+            "units": {
+              "inputTokens": 811,
+              "outputTokens": 127
+            },
+            "costMicrousd": 811,
+            "costStatus": "measured",
+            "measurement": "measured",
+            "occurredAt": "2026-10-11T18:31:28.020Z",
+            "receivedAt": "2026-10-11T18:29:28.052Z"
+          },
+          {
+            "eventId": "orv13-vfy-microsecond-valid-d870a132-53c6-4b3c-891b-1c9d7d92503a",
+            "operationId": "a7214348-e5a9-4915-8112-68b50082a928",
+            "taskId": "d0e87695-0016-4722-9342-82d0fc98b3c0",
+            "invocationId": "orv13-vfy-microsecond-inv-1-f7f5a605-21f1-47e7-b184-ceffdb4ee6cb",
+            "provider": null,
+            "model": null,
+            "units": {
+              "inputTokens": 2,
+              "outputTokens": 2
+            },
+            "costMicrousd": null,
+            "costStatus": null,
+            "measurement": "measured",
+            "occurredAt": "2026-10-11T18:31:27.920Z",
+            "receivedAt": "2026-10-11T18:30:27.000Z"
+          },
+          {
+            "eventId": "orv13-vfy-microsecond-valid-f3acaf05-bbe7-457e-a044-9db93b6e92d6",
+            "operationId": "a7214348-e5a9-4915-8112-68b50082a928",
+            "taskId": "d0e87695-0016-4722-9342-82d0fc98b3c0",
+            "invocationId": "orv13-vfy-microsecond-inv-2-5e2a821b-b458-41b4-b0cd-0c80d4b42e84",
+            "provider": null,
+            "model": null,
+            "units": {
+              "inputTokens": 3,
+              "outputTokens": 2
+            },
+            "costMicrousd": null,
+            "costStatus": null,
+            "measurement": "measured",
+            "occurredAt": "2026-10-11T18:31:27.923Z",
+            "receivedAt": "2026-10-11T18:30:27.000Z"
+          }
+        ],
+        "limit": 50,
+        "hasMore": false,
+        "skippedInvalidEvents": 1,
+        "timeSemantics": {
+          "field": "receivedAt",
+          "order": "asc",
+          "timezone": "UTC"
+        }
+      }
+    }
+  ],
+  "persistedFixtureRows": [
+    {
+      "event_id": "orv13-vfy-event-5e8b6a0b-7fb7-4596-9144-3dce555e943e",
+      "operation_id": "01f73456-dd41-49f9-9943-d1e684546a46",
+      "task_id": "ad1c2a32-e36e-448e-b581-cdc54b40fbf5",
+      "received_at": "2026-10-11T18:29:28.052Z",
+      "tenant_id": "3a1e9e7f-0c8e-4e94-a00c-9fb30220ab6a",
+      "payload": {
+        "model": "tenant-a",
+        "units": {
+          "inputTokens": 811,
+          "outputTokens": 127
+        },
+        "taskId": "ad1c2a32-e36e-448e-b581-cdc54b40fbf5",
+        "eventId": "orv13-vfy-event-5e8b6a0b-7fb7-4596-9144-3dce555e943e",
+        "currency": "USD",
+        "provider": "race-fixture",
+        "costStatus": "measured",
+        "occurredAt": "2026-10-11T18:31:28.020Z",
+        "measurement": "measured",
+        "operationId": "01f73456-dd41-49f9-9943-d1e684546a46",
+        "costMicrousd": 811,
+        "invocationId": "orv13-vfy-invocation-d2c424c3-07e4-43b4-9aff-e8fc5f86fc0b"
+      }
+    },
+    {
+      "event_id": "orv13-vfy-event-ea54c97e-7f41-4aa2-b357-dd4dd35fbb44",
+      "operation_id": "381732de-fe8e-4089-9642-523de29e9f38",
+      "task_id": "786f0b13-bd6f-4d88-b80c-0fe2743aaad7",
+      "received_at": "2026-10-11T18:29:28.052Z",
+      "tenant_id": "c39e8cb8-827e-4857-8109-0bc033e776cb",
+      "payload": {
+        "model": "tenant-b",
+        "units": {
+          "inputTokens": 922,
+          "outputTokens": 228
+        },
+        "taskId": "786f0b13-bd6f-4d88-b80c-0fe2743aaad7",
+        "eventId": "orv13-vfy-event-ea54c97e-7f41-4aa2-b357-dd4dd35fbb44",
+        "currency": "USD",
+        "provider": "race-fixture",
+        "costStatus": "measured",
+        "occurredAt": "2026-10-11T18:31:28.031Z",
+        "measurement": "measured",
+        "operationId": "381732de-fe8e-4089-9642-523de29e9f38",
+        "costMicrousd": 922,
+        "invocationId": "orv13-vfy-invocation-a73bf6a1-0f78-4164-8a7e-f02af216ff19"
+      }
+    }
+  ],
+  "selectedTenant": null,
+  "renderedUsageText": ""
+}

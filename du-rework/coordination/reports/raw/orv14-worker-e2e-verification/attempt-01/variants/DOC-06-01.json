@@ -1,0 +1,49 @@
+{
+  "name": "operations/300be8b8-b3fc-47fb-bb92-5e775a0d365d",
+  "done": true,
+  "metadata": {
+    "state": "SUCCEEDED",
+    "pipeline": [],
+    "current_step": 0,
+    "progress_percent": 0,
+    "progress_message": "Queued",
+    "create_time": "2026-10-12T00:37:45.791Z",
+    "update_time": "2026-10-12T00:37:45.834Z",
+    "pipeline_steps": []
+  },
+  "result": {
+    "output_format": "json",
+    "content": "{\"diffStats\":{\"additions\":1,\"deletions\":1,\"unmodified\":0},\"hunks\":[{\"type\":\"DELETE\",\"content\":\"Alpha Bravo\",\"sourceLineNumber\":1},{\"type\":\"ADD\",\"content\":\"Alpha Charlie\",\"targetLineNumber\":1}],\"unifiedDiff\":\"--- source\\n+++ target\\n- Alpha Bravo\\n+ Alpha Charlie\",\"method\":\"native_diff\"}",
+    "extracted_data": {
+      "diffStats": {
+        "additions": 1,
+        "deletions": 1,
+        "unmodified": 0
+      },
+      "hunks": [
+        {
+          "type": "DELETE",
+          "content": "Alpha Bravo",
+          "sourceLineNumber": 1
+        },
+        {
+          "type": "ADD",
+          "content": "Alpha Charlie",
+          "targetLineNumber": 1
+        }
+      ],
+      "unifiedDiff": "--- source\n+++ target\n- Alpha Bravo\n+ Alpha Charlie",
+      "method": "native_diff"
+    },
+    "pipeline_steps": [],
+    "usage": {
+      "input_tokens": null,
+      "output_tokens": null,
+      "pages_processed": null,
+      "model_used": null,
+      "cost_usd": null,
+      "breakdown": []
+    },
+    "download_url": "/api/v1/operations/300be8b8-b3fc-47fb-bb92-5e775a0d365d/download"
+  }
+}

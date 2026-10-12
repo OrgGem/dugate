@@ -1,0 +1,37 @@
+{
+  "operationId": "16cfb507-ada9-4aa8-8bed-6c8651336a7a",
+  "state": "SUCCEEDED",
+  "listenerEvents": [
+    {
+      "kind": "request",
+      "listener": "san-match",
+      "method": "GET",
+      "path": "/file.txt",
+      "host": "172-26-91-253.sslip.io:42935",
+      "sni": "172-26-91-253.sslip.io"
+    },
+    {
+      "kind": "tls",
+      "listener": "san-match",
+      "sni": "172-26-91-253.sslip.io"
+    },
+    {
+      "kind": "request",
+      "listener": "san-match",
+      "method": "POST",
+      "path": "/callback",
+      "host": "172-26-91-253.sslip.io:42935",
+      "sni": "172-26-91-253.sslip.io",
+      "bodyBytes": 81,
+      "bodySha256": "fb6482a2478bc897bd7c8b9bb842e33a7c07a8f9206ad8a75582ecc5e99f0b7c",
+      "bodyRawBytes": 81,
+      "bodySha256Recomputed": "fb6482a2478bc897bd7c8b9bb842e33a7c07a8f9206ad8a75582ecc5e99f0b7c",
+      "bodyRawText": "{\"branch\":\"callback\",\"effect\":\"none\",\"syntheticRun\":\"orv14-private-https-branch\"}",
+      "bodyJson": {
+        "branch": "callback",
+        "effect": "none",
+        "syntheticRun": "orv14-private-https-branch"
+      }
+    }
+  ]
+}

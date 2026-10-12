@@ -1,0 +1,4 @@
+$ cd orchestrator/apps/admin-web && ./node_modules/.bin/tsc --noEmit -p tsconfig.json
+exit code: 0
+stdout: (empty)
+stderr: (empty)

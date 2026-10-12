@@ -76,10 +76,10 @@ async function assertBodyTaskRuntimeAuth(ctx: RouteContext): Promise<void> {
 async function resolveArtifactByStorageKey(
   ctx: RouteContext,
   storageKey: string
-): Promise<{ id: string; token: string; tenantId: string; mode: string | null; expiresAt: string | null; businessId: string | null; uploadToken: string | null; manifestVersionId: string | null }> {
+): Promise<{ id: string; token: string; tenantId: string; mode: string | null; expiresAt: string | null; businessId: string | null; uploadToken: string | null; storageGenerationId: string | null; manifestVersionId: string | null; storageVersionId: string | null; ciphertextSha256: string | null; ciphertextSizeBytes: number | null }> {
   const res = await ctx.db.query(
     `SELECT a.id, a.upload_token, a.token, a.tenant_id, a.token_mode, a.token_expires_at, o.business_id,
-            a.manifest_version_id
+            a.storage_generation_id, a.manifest_version_id, a.storage_version_id, a.sha256, a.size_bytes
      FROM artifacts a LEFT JOIN operations o ON o.id=a.operation_id
      WHERE a.storage_key=$1`,
     [storageKey]
@@ -87,7 +87,8 @@ async function resolveArtifactByStorageKey(
   if (!res.rowCount) throw new HttpError(404, 'NOT_FOUND', `artifact ${storageKey} not found`);
   const row = res.rows[0] as {
     id: string; upload_token: string | null; token: string; tenant_id: string; token_mode: string | null;
-    token_expires_at: string | null; business_id: string | null; manifest_version_id: string | null;
+    token_expires_at: string | null; business_id: string | null; storage_generation_id: string | null;
+    manifest_version_id: string | null; storage_version_id: string | null; sha256: string | null; size_bytes: string | number | null;
   };
   return {
     id: row.id,
@@ -97,9 +98,13 @@ async function resolveArtifactByStorageKey(
     mode: row.token_mode,
     expiresAt: row.token_expires_at,
     businessId: row.business_id,
+    storageGenerationId: row.storage_generation_id,
     // RFX-05-residual: the committed sidecar generation, when the row has one
     // (migration 0025). NULL keeps the legacy key-only manifest read.
     manifestVersionId: row.manifest_version_id,
+    storageVersionId: row.storage_version_id,
+    ciphertextSha256: row.sha256,
+    ciphertextSizeBytes: row.size_bytes === null ? null : Number(row.size_bytes),
   };
 }
 
@@ -326,9 +331,13 @@ export async function handleRuntimeRoutes(ctx: RouteContext): Promise<RouteResul
             artifactId: art.id as string,
             tenantId: art.tenantId as string,
             storageKey,
+            storageGenerationId: art.storageGenerationId,
             uploadToken: (art.uploadToken as string | null) ?? null,
             // RFX-05-residual: pin the sidecar generation the row committed.
             manifestVersionId: art.manifestVersionId,
+            storageVersionId: art.storageVersionId,
+            ciphertextSha256: art.ciphertextSha256,
+            ciphertextSizeBytes: art.ciphertextSizeBytes,
           });
           if (opened.decrypted) {
             return {
@@ -388,6 +397,9 @@ export async function handleRuntimeRoutes(ctx: RouteContext): Promise<RouteResul
             : 'HEALTHY',
         leaseExpiresAt: new Date(Date.parse(recorded.lastSeenAt) + WORKER_HEARTBEAT_FRESH_FOR_MS).toISOString(),
         capacity: parsed.data.capacity,
+        controlRevision: recorded.controlRevision,
+        controlState: recorded.controlState,
+        backupEffectFence: recorded.backupEffectFence,
       });
       return { status: 200, body: ack };
     }

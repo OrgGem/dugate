@@ -1,4 +1,10 @@
+import { retryAdminDelivery, type AdminDeliveryCapabilities } from '../webhooks/admin-delivery';
+import { createSettingsRevision, validateSettingsRevision, applySettingsRevision, readSettingsConfiguration } from '../settings/revisions';
+import type { MetadataReader } from '../encryption/metadata-read-policy';
 import type { PoolClient } from 'pg';
+import { updatePromptSetting } from '../settings/settings';
+import { submitWorkflowTest } from '../workflow-test/workflow-test';
+import type { createSubmissionService } from '../operations/submission';
 import {
   ProfilePublishCommandSchema,
   ProfileRollbackCommandSchema,
@@ -34,6 +40,7 @@ import {
   LegacyWorkflowSchemaCatalogError,
 } from '../workflow-schemas/workflow-schemas';
 import type { MetadataCrypto } from '../runtime/metadata-crypto';
+import type { createAdminIdentityService } from '../identity/service';
 
 /**
  * ADM-BASE-02 action dispatcher (cycle 84): the admin mutations that
@@ -72,6 +79,9 @@ import type { MetadataCrypto } from '../runtime/metadata-crypto';
 
 export interface AdminActionDeps {
   db: Db;
+  submission?: ReturnType<typeof createSubmissionService>;
+  /** Trusted local identity grant reader for the workflow.test assigned USER fence. */
+  identity?: ReturnType<typeof createAdminIdentityService>;
   audit: AuditService;
   registry: RegistryService;
   profiles: ProfileService;
@@ -94,6 +104,8 @@ export interface AdminActionDeps {
   connectorTest?: (connectorId: string) => Promise<Record<string, unknown>>;
   /** WFA-03: metadata crypto seam for legacy workflow schemas. */
   metadataCrypto?: MetadataCrypto;
+  metadataReader?: MetadataReader;
+  callbackDeliveryCapabilities?: AdminDeliveryCapabilities;
 }
 
 export interface AdminActionCall {
@@ -108,7 +120,7 @@ export interface ActionDef {
 }
 
 export const ADMIN_ACTIONS_ROUTE = 'POST /api/v1/admin/actions';
-const OPERATION_CONTROL_ACTIONS = new Set(['operations.cancel', 'operations.retry', 'operations.resume']);
+const OPERATION_CONTROL_ACTIONS = new Set(['operations.cancel', 'operations.retry', 'operations.resume', 'operations.callback.retry']);
 
 /**
  * v1 action table. Kept deliberately to the orchestrator's existing admin
@@ -128,6 +140,13 @@ export const ADMIN_ACTIONS: Record<string, ActionDef> = {
   // the same reason apikey.* is (it writes admission policy). The leaf owns
   // resolve/registry/CAS; this table only gates who may reach it.
   ...PROFILE_ACTIONS,
+  'settings.revision.create': { bearerRoles: ['platform'], cookieRoles: ['admin'] },
+  'settings.revision.validate': { bearerRoles: ['platform'], cookieRoles: ['admin'] },
+  'settings.revision.apply': { bearerRoles: ['platform'], cookieRoles: ['admin'] },
+  'settings.revision.rollback': { bearerRoles: ['platform'], cookieRoles: ['admin'] },
+  'settings.prompt.update': { bearerRoles: ['platform'], cookieRoles: ['admin'] },
+  'operations.callback.retry': { bearerRoles: ['platform', 'tenant_operator'], cookieRoles: ['admin', 'operator'] },
+  'workflow.test': { bearerRoles: ['platform', 'tenant_operator'], cookieRoles: ['admin', 'operator'] },
   'business.enable': { bearerRoles: ['platform'], cookieRoles: ['admin'] },
   'business.activate': { bearerRoles: ['platform'], cookieRoles: ['admin'] },
   'business.drain': { bearerRoles: ['platform'], cookieRoles: ['admin'] },
@@ -444,6 +463,16 @@ function auditPrincipalFields(
   return fields;
 }
 
+/** Serialize duplicate settings/callback writes before CAS; persist only safe response DTOs. */
+async function replayWithinTransaction(client:PoolClient, idem:{key?:string;route:string;payloadHash:string}) {
+  if(!idem.key) return null;
+  await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`admin-idempotency:${idem.key}`]);
+  const found=await client.query('SELECT route,payload_hash,response_code,response_body FROM admin_idempotency WHERE key=$1',[idem.key]);
+  const row=found.rows[0];if(!row)return null;
+  if(row.route!==idem.route||row.payload_hash!==idem.payloadHash)throw new HttpError(409,'STATE_CONFLICT','idempotency key is already used with different input');
+  return {status:Number(row.response_code),body:row.response_body as Record<string,unknown>};
+}
+
 export async function dispatchAdminAction(
   deps: AdminActionDeps,
   auth: AdminActionAuth | null,
@@ -488,6 +517,67 @@ export async function dispatchAdminAction(
   };
 
   switch (call.action) {
+    case 'operations.callback.retry': {
+      const p=requireParams(call,['operationId','deliveryId']);
+      if(!Number.isInteger(call.params.expectedAttempts)||Number(call.params.expectedAttempts)<0||Object.keys(call.params).some(k=>!['operationId','deliveryId','expectedAttempts'].includes(k))) throw new HttpError(422,'INVALID_SCHEMA','callback retry requires operationId,deliveryId,expectedAttempts only');
+      const outcome=await executeIdempotent(deps.db,idem,async withMarker=>deps.db.tx(async client=>{
+        const replay=await replayWithinTransaction(client,idem);
+        // Re-enter the existing unique-marker replay path before any CAS/mutation.
+        if(replay){await withMarker(client,replay);return replay;}
+        const tenantId=await resolveOpTenant(deps,principal,p.operationId,client);
+        const result=await retryAdminDelivery(client,{operationId:p.operationId,deliveryId:p.deliveryId,tenantId,expectedAttempts:Number(call.params.expectedAttempts)},deps.callbackDeliveryCapabilities??{dispatcherConfigured:false,authResolverConfigured:false});
+        const response={status:200,body:result};if(call.idempotencyKey)await withMarker(client,response);
+        await deps.audit.record({tenantId,actor,...principalFields,action:call.action,resource:`callback:${p.deliveryId}`,severity:'warning',correlationId:deps.correlationId},client);
+        return response;
+      }));
+      return {status:outcome.status,body:outcome.body as Record<string,unknown>};
+    }
+    case 'settings.revision.create':
+    case 'settings.revision.validate':
+    case 'settings.revision.apply':
+    case 'settings.revision.rollback': {
+      const outcome = await executeIdempotent(deps.db, idem, async (withMarker) => deps.db.tx(async client => {
+        const replay=await replayWithinTransaction(client,idem);
+        // Re-enter the existing unique-marker replay path before any CAS/mutation.
+        if(replay){await withMarker(client,replay);return replay;}
+        const result = call.action === 'settings.revision.create' ? await createSettingsRevision(client, call.params, deps)
+          : call.action === 'settings.revision.validate' ? await validateSettingsRevision(client, call.params, deps)
+          : await applySettingsRevision(client, call.params, deps, call.action === 'settings.revision.rollback');
+        // Persist only a safe revision marker, never decrypted prompt text/diffs.
+        const response = {status:200,body:call.action === 'settings.revision.create' ? {revision:result.revision} : result};
+        if(call.idempotencyKey) await withMarker(client,response);
+        await deps.audit.record({tenantId:String(call.params.tenantId),actor,...principalFields,action:call.action,resource:`settings:${String(call.params.apiKeyId)}:${String(call.params.endpointSlug)}:${result.revision}`,severity:'success',correlationId:deps.correlationId},client);
+        return response;
+      }));
+      if(call.action === 'settings.revision.create') {
+        const config = await readSettingsConfiguration(deps.db, {tenantId:String(call.params.tenantId),apiKeyId:String(call.params.apiKeyId),endpointSlug:String(call.params.endpointSlug)},deps,Number((outcome.body as {revision:number}).revision));
+        return {status:outcome.status,body:config.selectedRevision!};
+      }
+      return {status:outcome.status,body:outcome.body as Record<string,unknown>};
+    }
+    case 'settings.prompt.update': {
+      if(!deps.metadataCrypto) throw new HttpError(503,'TEMPORARY_UNAVAILABLE','settings changes require metadata encryption');
+      const outcome = await executeIdempotent(deps.db, idem, async (withMarker) => deps.db.tx(async client => {
+        const replay=await replayWithinTransaction(client,idem);
+        // Re-enter the existing unique-marker replay path before any CAS/mutation.
+        if(replay){await withMarker(client,replay);return replay;}
+        const result = await updatePromptSetting(client, call.params, deps);
+        const response = { status: 200, body: result };
+        if (call.idempotencyKey) await withMarker(client, response);
+        await deps.audit.record({ tenantId: String(call.params.tenantId), actor, ...principalFields, action: call.action, resource: `prompt:${String(call.params.apiKeyId)}:${String(call.params.endpointSlug)}:${String(call.params.stepId)}`, severity: 'success', correlationId: deps.correlationId }, client);
+        return response;
+      }));
+      return { status: outcome.status, body: outcome.body as Record<string, unknown> };
+    }
+    case 'workflow.test': {
+      const callerTenant = auth ? callerTenantOf(auth) : undefined;
+      if (callerTenant && callerTenant !== call.params.tenantId) throw new HttpError(403, 'PERMISSION_DENIED', 'workflow tests are scoped to the caller tenant');
+      if (!deps.submission) throw new HttpError(503, 'TEMPORARY_UNAVAILABLE', 'workflow submission unavailable');
+      if (!auth) throw new HttpError(401, 'UNAUTHENTICATED', 'workflow tests require an authenticated Admin session');
+      const result = await submitWorkflowTest({ db: deps.db, submission: deps.submission, metadataCrypto: deps.metadataCrypto, correlationId: deps.correlationId, identity: deps.identity, auth }, call.params, call.idempotencyKey);
+      await deps.audit.record({ tenantId: String(call.params.tenantId), actor, ...principalFields, action: call.action, resource: `operation:${result.operationId}`, severity: 'info', correlationId: deps.correlationId });
+      return { status: 202, body: result };
+    }
     case 'business.enable': {
       const p = requireParams(call, ['businessId', 'version']);
       const outcome = await executeIdempotent(deps.db, idem, async (withMarker) => {
@@ -1093,7 +1183,7 @@ export async function dispatchAdminAction(
           deps.db,
           deps.audit,
           (client) =>
-            runProfileUpsert(client, { db: deps.db, profiles: deps.profiles }, cmd, (tenantId) => {
+            runProfileUpsert(client, { db: deps.db, profiles: deps.profiles, connectorManagement:deps.connectorManagement }, cmd, (tenantId) => {
               // OIDC-03 triple re-assert with the SERVER-side key tenant, before
               // the first write: a denied caller leaves zero rows behind.
               const fence = assertRoleActionTenant(auth, 'profile.upsert', tenantId);

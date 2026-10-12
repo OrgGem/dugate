@@ -71,6 +71,7 @@ function makeSubmissionDb(artifactFileName?: string) {
     tx: async <T>(fn: (client: never) => Promise<T>): Promise<T> => fn({
       query: async <R extends QueryResultRow = QueryResultRow>(sql: string, params: unknown[] = []) => {
         calls.push({ sql, params });
+        if (sql.includes('FROM api_keys k')) return queryResult<R>([{ name: 'profile-fixture', spending_limit: '0', total_used: '0', new_cost: '0' }]);
         if (/FROM artifacts/i.test(sql)) return queryResult<R>(artifactRows);
         if (/INSERT INTO operations/i.test(sql)) {
           operationRow = {

@@ -1,0 +1,33 @@
+{
+  "dependencyInputsBefore": {
+    "sha256": "a486b29a82b01d98df88f88069c291285c3e9015b6720949afbcaeea4ba700be",
+    "files": 943,
+    "missing": []
+  },
+  "dependencyInputsAfter": {
+    "sha256": "a486b29a82b01d98df88f88069c291285c3e9015b6720949afbcaeea4ba700be",
+    "files": 943,
+    "missing": []
+  },
+  "sourcePinsBefore": {
+    "createApp": "2913288498cfd4ffcb3ddb6b03b2f1d8fa7fde336e3a7d27c70a42a5a3b81626",
+    "ingestionStorageS3": "103858a6ce51710aa2612afcc969a8f6e18b37b1e8f08f700948f177dbf2e800",
+    "ingestionConsumer": "b3486252654873ee709cc24eef8b97b66d103adf88b85ff707b5594082a1d7ed",
+    "connectorComposition": "cbb3ebe767f91c9d693ff3b6b7dc4900bbf9cc38f76c83c24df651607750d353",
+    "connectorRuntimeControls": "daa0d34e24a85cc907e6469d7f425e997e2326a69922e0dd02428727bd2ab5fe",
+    "connectorHttpServer": "ee82d33d49ba37d47c00876323110500b6ed720dfcbe074f696b1b3df7c70899",
+    "runtimeControlContract": "8d8a413c2fa8973be28cffc8deb72531fd0c6874b71a2aa281d626a19ced501c"
+  },
+  "sourcePinsAfter": {
+    "createApp": "2913288498cfd4ffcb3ddb6b03b2f1d8fa7fde336e3a7d27c70a42a5a3b81626",
+    "ingestionStorageS3": "103858a6ce51710aa2612afcc969a8f6e18b37b1e8f08f700948f177dbf2e800",
+    "ingestionConsumer": "b3486252654873ee709cc24eef8b97b66d103adf88b85ff707b5594082a1d7ed",
+    "connectorComposition": "cbb3ebe767f91c9d693ff3b6b7dc4900bbf9cc38f76c83c24df651607750d353",
+    "connectorRuntimeControls": "daa0d34e24a85cc907e6469d7f425e997e2326a69922e0dd02428727bd2ab5fe",
+    "connectorHttpServer": "ee82d33d49ba37d47c00876323110500b6ed720dfcbe074f696b1b3df7c70899",
+    "runtimeControlContract": "8d8a413c2fa8973be28cffc8deb72531fd0c6874b71a2aa281d626a19ced501c"
+  },
+  "contractsSourceManifestSha256": "d33d0ce970a4f7620dde4854b0df2ddb272d824baf3efda84bafb36d99cde916",
+  "contractsDistManifestSha256": "70464110d8397c141235e132d5d0c951ce72bb07f83d65c765fbd0f2276ec255",
+  "changedInputs": []
+}

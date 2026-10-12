@@ -1,0 +1,19 @@
+{
+  "checkedAtUtc": "2026-10-12T04:06:32.135Z",
+  "nodeVersion": "v24.21.0",
+  "contractsModule": "orchestrator/packages/contracts/dist/index.js",
+  "contractsIndexSha256": "c319606e305affe6a08c7a7df8efa62e56ff1172699550fcf956d348761a969a",
+  "testSourceSha256": "f4f3d9712b29b4cb96a75729bfe79542bc1d7f2e70e6b77f1ee7c202103d64cb",
+  "checks": {
+    "schemaShapeValid": true,
+    "schemaGraphValid": true,
+    "leftOverrideValid": true,
+    "rightOverrideValid": true,
+    "rootCheckpointUsesAdmittedDigestAndNodeSuffix": true,
+    "leftBranchCheckpointUsesAdmittedDigestAndNodeSuffix": true,
+    "rightBranchCheckpointUsesAdmittedDigestAndNodeSuffix": true,
+    "workflowOverrideDigestIsCanonicalHex": true,
+    "strictCompiledContractRejectsPartialOverridePin": true
+  },
+  "firstPreflightCorrection": "The initial shape check used only header/form leaves and was rejected by the strict compiled ConnectorWorkflowOverridesSchema because connectorId, connectorRevision, and recipeDigest are also required. The admitted E2E pin includes those fields; the corrected preflight validates the full typed pin shape and separately asserts the partial object is rejected."
+}

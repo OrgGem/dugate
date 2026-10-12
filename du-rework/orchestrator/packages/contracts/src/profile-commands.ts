@@ -80,7 +80,7 @@ const ProfileCommandKeyShape = {
  * can read. `expectedRevision` optional — a blind first save stays legal (R-12).
  */
 export const ProfileUpsertCommandSchema = z
-  .object({ ...ProfileCommandKeyShape, expectedRevision: ProfileRevisionSchema.optional(), policy: ProfileEndpointPolicySchema })
+  .object({ ...ProfileCommandKeyShape, expectedRevision: ProfileRevisionSchema.optional(), endpointSlug: z.string().min(1).max(128).optional(), connectorBindings: z.record(z.object({connectorId:z.string().min(1).max(128),revision:z.number().int().positive()}).strict()).optional(), policy: ProfileEndpointPolicySchema })
   .strict();
 export type ProfileUpsertCommand = z.infer<typeof ProfileUpsertCommandSchema>;
 

@@ -1,0 +1,19 @@
+{
+  "kind": "harness-preparation",
+  "startedAt": "2026-10-12T00:08:38Z",
+  "completedAt": "2026-10-12T00:08:38Z",
+  "cwd": "/workspace/dugate/du-rework",
+  "command": "/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node --check tests/workflow-api/orv14-vfy-host/verify-connector-restore.mjs",
+  "node": "v24.21.0",
+  "sourceFiles": {
+    "tests/workflow-api/orv14-vfy-host/verify-connector-restore.mjs": "ea19bb6f5473e56c3bbacb05e6f51de8ddb0dfe5e5f73929170acd134a92e8da",
+    "tests/workflow-api/orv14-vfy-host/infrastructure.mjs": "b1541e6d71fa68c5679afb3fa44a89c96a34808c9dd4b7abbdb81de4522ccf44",
+    "tests/workflow-api/orv14-vfy-host/compose.yml": "7e18e4f71e1211331bca91af270ef50bdd24f1609876201b593a0afdd9a2f1d0"
+  },
+  "result": { "passed": 1, "failed": 0, "skipped": 0, "exitCode": 0 },
+  "scope": "syntax-only; source-off process branch has not run",
+  "fixtureNamespace": null,
+  "build": null,
+  "imageIds": {},
+  "cleanup": "not applicable; no process or container started"
+}

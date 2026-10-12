@@ -1,0 +1,9 @@
+Command:
+  git diff --check -- orchestrator/apps/admin-web/src/app-shell/app-shell.tsx orchestrator/apps/admin-web/src/features/overview/overview-screen.tsx orchestrator/apps/admin-web/src/router.tsx
+
+Result: exit 0; no output.
+
+Command:
+  rg -n '[[:blank:]]+$' orchestrator/apps/admin-web/src/app-shell/session-events.ts orchestrator/apps/admin-web/src/features/system-operations orchestrator/apps/admin-web/src/routes/system-operations.tsx orchestrator/apps/admin-web/tests/orv13-cockpit-owner.test.mjs orchestrator/apps/admin-web/tests/orv13-compose-ui-owner.test.mjs
+
+Result: exit 1; no matches (expected for a no-match scan).

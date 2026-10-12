@@ -1,0 +1,48 @@
+{
+  "task": "ORV14 UI admission retry, tenant isolation, guided workflow override owner checks",
+  "role": "implementation owner; not independent verifier or acceptance owner",
+  "recordedAt": "2026-10-12T04:42:56Z",
+  "runtime": { "node": "v24.21.0", "servicesStarted": false, "providerRequests": false, "databaseOrDeploymentResources": false },
+  "checks": [
+    {
+      "command": "PATH=/opt/codex/cua_node/bin:$PATH ./node_modules/.bin/tsc --noEmit -p tsconfig.json --pretty false",
+      "cwd": "/workspace/dugate/du-rework/orchestrator/apps/admin-web",
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": "",
+      "passed": "admin-web TypeScript no-emit",
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "command": "PATH=/opt/codex/cua_node/bin:$PATH ./node_modules/.bin/jest --runInBand --config jest.unit.config.cjs tests/orv14-ui-admission-retry-owner.test.ts",
+      "cwd": "/workspace/dugate/du-rework/orchestrator/services/orchestrator",
+      "exitCode": 0,
+      "stdout": "PASS tests/orv14-ui-admission-retry-owner.test.ts\n  ORV14 UI retry and guided workflow override owner checks\n    ✓ captures a detached frozen request and preserves its original tenant/key across failure transitions\n    ✓ clears only a first definitive rejection and locks a positively accepted operation\n    ✓ rejects an attempt when request scope or JSON shape is not safely snapshotable\n    ✓ parses bounded static form fields without coercing imported static values\n    ✓ rejects duplicate, excessive, or unsafe static fields and protected extra headers\n    ✓ updates one node override while retaining imported sibling fields, headers, and other nodes\n    ✓ removes an emptied override field without deleting its siblings\n\nTest Suites: 1 passed, 1 total\nTests: 7 passed, 7 total\nSnapshots: 0 total\nTime: 2.078 s, estimated 3 s\nRan all test suites matching /tests\\/orv14-ui-admission-retry-owner.test.ts/i.\n",
+      "stderr": "",
+      "passed": 7,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "command": "git diff --check -- apps/admin-web/src/features/docs/docs-screen.tsx apps/admin-web/src/features/workflows/workflows-screen.tsx apps/admin-web/src/features/workflows/revision-editor.ts apps/admin-web/src/features/connectors/parity-connector-editor.tsx apps/admin-web/src/features/connectors/connectors-screen.tsx",
+      "cwd": "/workspace/dugate/du-rework/orchestrator",
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": "",
+      "passed": "scoped whitespace/conflict-marker check",
+      "failed": 0,
+      "skipped": 0
+    }
+  ],
+  "sourceSha256": {
+    "orchestrator/apps/admin-web/src/features/docs/docs-screen.tsx": "4ab1071f707336cc42817a869b93f89f08b876881cf253197592cbf031fb9ab0",
+    "orchestrator/apps/admin-web/src/features/workflows/workflows-screen.tsx": "2a8fba343a15c34908f765434e44628a9af65c17a96842160197dfe06f923410",
+    "orchestrator/apps/admin-web/src/features/workflows/revision-editor.ts": "6e097d0f8b73ed64372989caf7afed4e33f4f83d4635bc96dd6c62bed9482176",
+    "orchestrator/apps/admin-web/src/features/connectors/parity-connector-editor.tsx": "0ca3442b91a8a4a319b414c403c5f79bd5445afd9bcd3145a08f7185e48e6e03",
+    "orchestrator/apps/admin-web/src/features/connectors/connectors-screen.tsx": "8cfd67a9f660d5e1a581070c64d3822f1cfb132107de2639a19efb208b6036ef",
+    "orchestrator/apps/admin-web/src/features/submissions/immutable-attempt.ts": "2acb9cca9bbd7fc6a8b191d82a77948b236290f8b54c62f138d5082d4150c58f",
+    "orchestrator/services/orchestrator/tests/orv14-ui-admission-retry-owner.test.ts": "1d9e0965b3069f6d23db8d076ce21d053f101ee9ccc0ea827b2707a3b9ca3291"
+  },
+  "acceptance": "No acceptance claim. Independent Primary browser matrix and separate UI reviewer remain outstanding."
+}

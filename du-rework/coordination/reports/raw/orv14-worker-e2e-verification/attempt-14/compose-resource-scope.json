@@ -1,0 +1,11 @@
+{
+  "composeProject": "orv14-vfy-20261011-a1",
+  "postgresHostPort": 25414,
+  "redisHostPort": 26414,
+  "postgresSchema": "Orchestrator schema created uniquely at test startup and dropped by exact name at cleanup; separate Connector schema also created uniquely, used as the complete strict search_path with no public fallback, and dropped by exact name at cleanup after verifying normal migrations, runtime identity registration, and OPEN backup effect gate",
+  "redis": "test isolation allocates a random DB index and per-run Redis/key/queue prefixes; no FLUSHDB or global key deletion",
+  "minio": "new uniquely labeled ephemeral container, loopback dynamic port, unique versioned bucket, tmpfs-only data, synthetic per-run credentials",
+  "test": "one previously-red native AI defaults case only; tests native Connector administration, provider test endpoint, published tenant defaults, and real worker/provider observations",
+  "foreignResources": "untouched",
+  "composeStack": "left running"
+}

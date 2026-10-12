@@ -1,0 +1,185 @@
+[
+  {
+    "schemaSlug": "wfa-private-https-positive",
+    "operationId": "f581908d-99d9-4579-8d86-a8ab591d850f",
+    "terminal": {
+      "state": "FAILED",
+      "errorCode": "LEGACY_WORKFLOW_FILE_EXTENSION_DENIED"
+    },
+    "publicOperation": {
+      "name": "operations/f581908d-99d9-4579-8d86-a8ab591d850f",
+      "done": true,
+      "metadata": {
+        "state": "FAILED",
+        "pipeline": [
+          "ext-classifier"
+        ],
+        "current_step": 0,
+        "progress_percent": 0,
+        "progress_message": "Processing workflow...",
+        "create_time": "2026-10-12T01:25:52.576Z",
+        "update_time": "2026-10-12T01:25:57.956Z",
+        "pipeline_steps": [],
+        "workflow": "wfa-private-https-positive",
+        "schema_revision": 1,
+        "schema_digest": "sha256:6cffe18be17372d86515a55bcb192e22087d35114cdb87d181ecc3aca732bf96"
+      },
+      "error": {
+        "code": "LEGACY_WORKFLOW_FILE_EXTENSION_DENIED",
+        "message": null,
+        "failed_step": null
+      }
+    },
+    "listenerEvents": [
+      {
+        "kind": "tls",
+        "listener": "san-match",
+        "sni": "172-26-91-253.sslip.io"
+      },
+      {
+        "kind": "request",
+        "listener": "san-match",
+        "method": "GET",
+        "path": "/file.txt",
+        "host": "172-26-91-253.sslip.io:34239",
+        "sni": "172-26-91-253.sslip.io"
+      }
+    ],
+    "workerErrorFrames": []
+  },
+  {
+    "schemaSlug": "wfa-private-https-branch",
+    "operationId": "80b2fc10-5550-4d2a-ac8f-0314459caee7",
+    "terminal": {
+      "state": "FAILED",
+      "errorCode": "JOIN_FAILED"
+    },
+    "publicOperation": {
+      "name": "operations/80b2fc10-5550-4d2a-ac8f-0314459caee7",
+      "done": true,
+      "metadata": {
+        "state": "FAILED",
+        "pipeline": [
+          "ext-classifier"
+        ],
+        "current_step": 0,
+        "progress_percent": 0,
+        "progress_message": "Processing workflow...",
+        "create_time": "2026-10-12T01:25:58.171Z",
+        "update_time": "2026-10-12T01:25:58.558Z",
+        "pipeline_steps": [],
+        "workflow": "wfa-private-https-branch",
+        "schema_revision": 1,
+        "schema_digest": "sha256:65bd6fe31431bc537d1ced3664e9e9955491189ac455c80b2944b4c0ea485b0c"
+      },
+      "error": {
+        "code": "JOIN_FAILED",
+        "message": null,
+        "failed_step": null
+      }
+    },
+    "listenerEvents": [
+      {
+        "kind": "request",
+        "listener": "san-match",
+        "method": "GET",
+        "path": "/file.txt",
+        "host": "172-26-91-253.sslip.io:34239",
+        "sni": "172-26-91-253.sslip.io"
+      }
+    ],
+    "workerErrorFrames": []
+  },
+  {
+    "schemaSlug": "wfa-private-https-hitl",
+    "operationId": "ca793c2e-4b44-40d7-a5ab-b342494bcaac",
+    "phase": "admitted"
+  },
+  {
+    "schemaSlug": "wfa-private-https-retry",
+    "operationId": "b180bf41-6def-489f-ac5f-b0e955114fe1",
+    "terminal": {
+      "state": "FAILED",
+      "errorCode": "LEGACY_WORKFLOW_URL_DOWNLOAD_FAILED"
+    },
+    "publicOperation": {
+      "name": "operations/b180bf41-6def-489f-ac5f-b0e955114fe1",
+      "done": true,
+      "metadata": {
+        "state": "FAILED",
+        "pipeline": [
+          "ext-classifier"
+        ],
+        "current_step": 0,
+        "progress_percent": 0,
+        "progress_message": "Processing workflow...",
+        "create_time": "2026-10-12T01:26:48.627Z",
+        "update_time": "2026-10-12T01:26:48.874Z",
+        "pipeline_steps": [],
+        "workflow": "wfa-private-https-retry",
+        "schema_revision": 1,
+        "schema_digest": "sha256:1c54beac51b549cb9c8ae251d259b476d389e826518554d7281d7f209567e1fb"
+      },
+      "error": {
+        "code": "LEGACY_WORKFLOW_URL_DOWNLOAD_FAILED",
+        "message": null,
+        "failed_step": null
+      }
+    },
+    "listenerEvents": [
+      {
+        "kind": "tls",
+        "listener": "san-match",
+        "sni": "172-26-91-253.sslip.io"
+      },
+      {
+        "kind": "request",
+        "listener": "san-match",
+        "method": "GET",
+        "path": "/flaky",
+        "host": "172-26-91-253.sslip.io:34239",
+        "sni": "172-26-91-253.sslip.io"
+      }
+    ],
+    "workerErrorFrames": []
+  },
+  {
+    "schemaSlug": "wfa-private-https-schema-only-a",
+    "operationId": "06ac4a1d-59ac-4207-a6d9-ba4efe5de9ca",
+    "terminal": {
+      "state": "FAILED",
+      "errorCode": "LEGACY_WORKFLOW_URL_DOWNLOAD_FAILED"
+    },
+    "publicOperation": {
+      "name": "operations/06ac4a1d-59ac-4207-a6d9-ba4efe5de9ca",
+      "done": true,
+      "metadata": {
+        "state": "FAILED",
+        "pipeline": [
+          "ext-classifier"
+        ],
+        "current_step": 0,
+        "progress_percent": 0,
+        "progress_message": "Processing workflow...",
+        "create_time": "2026-10-12T01:26:54.251Z",
+        "update_time": "2026-10-12T01:26:54.484Z",
+        "pipeline_steps": [],
+        "workflow": "wfa-private-https-schema-only-a",
+        "schema_revision": 1,
+        "schema_digest": "sha256:a2248ab92499fca6a2be6c30b9a26c2e8ba6d8a150d3f9ecce30f79936c7c927"
+      },
+      "error": {
+        "code": "LEGACY_WORKFLOW_URL_DOWNLOAD_FAILED",
+        "message": null,
+        "failed_step": null
+      }
+    },
+    "listenerEvents": [],
+    "workerErrorFrames": []
+  },
+  {
+    "schemaSlug": "wfa-private-https-cancel",
+    "operationId": "eccdbb6d-5fa7-49bd-8ca4-98005f304476",
+    "phase": "admitted"
+  }
+]

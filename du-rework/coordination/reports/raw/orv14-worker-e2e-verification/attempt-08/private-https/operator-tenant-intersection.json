@@ -1,0 +1,27 @@
+{
+  "positiveControl": {
+    "operationId": "73153ddb-2dc3-4509-a994-113aa71b0838",
+    "state": "SUCCEEDED",
+    "listenerEvents": [
+      {
+        "kind": "request",
+        "listener": "san-match-alt",
+        "method": "GET",
+        "path": "/file.txt",
+        "host": "172-26-91-253.sslip.io:45759",
+        "sni": "172-26-91-253.sslip.io"
+      }
+    ]
+  },
+  "tenantApprovedOperatorExcludedOrigin": "https://172-26-91-253.sslip.io:45759",
+  "operationId": "3d600f83-b359-4cc2-9bdd-8d01e2a5a9b3",
+  "state": "FAILED",
+  "errorCode": "LEGACY_WORKFLOW_URL_DOWNLOAD_FAILED",
+  "listenerEvents": [],
+  "workerPolicyLog": {
+    "workerInstanceId": "wfa-private-https-7667f000-782f-4f30-aa40-fbba9886e9c3",
+    "digest": "sha256:daf3dc614e205e53748fa2e6be2962da738f1cbd4285928890b60924c5778bf3",
+    "originFieldPresent": false,
+    "mentionsFixtureHostname": false
+  }
+}

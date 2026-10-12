@@ -249,7 +249,8 @@ function opsQuery(sql: string, params: unknown[]): QueryResult<QueryResultRow> {
 function ctxFor(search: string, calls: Call[]): RouteContext {
   return {
     method: 'GET',
-    pathname: '/api/v1/operations',
+    pathname: '/api/internal/operations',
+    ingressAudience: 'internal',
     searchParams: new URLSearchParams(search),
     headers: { authorization: 'Bearer ' + ADMIN_TOKEN },
     config: { adminToken: ADMIN_TOKEN },
@@ -313,7 +314,7 @@ describe('W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP', () => 
     limit: number;
   }
   async function apiGet(search: string): Promise<WireResponse> {
-    return httpGet(routeBase + '/api/v1/operations?' + search, {
+    return httpGet(routeBase + '/api/internal/operations?' + search, {
       authorization: 'Bearer ' + ADMIN_TOKEN,
     });
   }
@@ -568,7 +569,7 @@ describe('W-ADMUX02-CROSS-SORT-422-1 B: real shell over HTTP against a wire-fait
       action: 'review', state: 'RUNNING', stateVersion: 1, createdAt: r.created,
       updatedAt: r.updated, deadlineAt: r.deadline, replayOf: null,
       progress: { percent: 10, message: '' },
-      links: { self: '/api/v1/operations/' + r.id, result: '/api/v1/operations/' + r.id + '/result' },
+      links: { self: '/api/internal/operations/' + r.id, result: '/api/internal/operations/' + r.id + '/result' },
       wait: null, error: null,
     };
   }
@@ -579,7 +580,7 @@ describe('W-ADMUX02-CROSS-SORT-422-1 B: real shell over HTTP against a wire-fait
   }
   function handlePlatform(req: IncomingMessage, res: ServerResponse): void {
     const u = new URL(req.url ?? '/', 'http://127.0.0.1');
-    if (u.pathname !== '/api/v1/operations') {
+    if (u.pathname !== '/api/internal/operations') {
       // Any other platform surface the shell might probe is out of scope here;
       // never record it as a sort-policy hit.
       res.statusCode = 404;

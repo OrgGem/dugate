@@ -1,0 +1,21 @@
+{
+  "label": "initial genuine inventory",
+  "exitCode": 0,
+  "stdout": "",
+  "stderr": "",
+  "requests": [
+    {
+      "method": "POST",
+      "path": "/api/internal/compose/runner/snapshot",
+      "status": 200,
+      "dropped": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/internal/compose/runner/claim",
+      "status": 200,
+      "dropped": false
+    }
+  ],
+  "claimSqlDiagnostic": null
+}

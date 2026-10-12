@@ -70,6 +70,10 @@ export function defineBusiness(
 export interface QueueConsumer {
   /** Begin consuming; handler receives the parsed job + delivery metadata. */
   start(handler: (job: BusinessJobV1) => Promise<void>): void;
+  /** Stop requesting new queue jobs while allowing active handlers to finish. */
+  pause?(): Promise<void> | void;
+  /** Resume requesting new jobs after a durable admission acknowledgement. */
+  resume?(): Promise<void> | void;
   /** Graceful stop: no new deliveries, in-flight finished within graceMs. */
   stop(graceMs: number): Promise<void>;
 }
@@ -87,6 +91,8 @@ export function createBullMQConsumer(opts: BullMQConsumerOptions): QueueConsumer
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { Worker } = require('bullmq') as typeof import('bullmq');
   let worker: import('bullmq').Worker | undefined;
+  let paused = false;
+  let running = false;
   return {
     start(handler: (job: BusinessJobV1) => Promise<void>): void {
       worker = new Worker(
@@ -106,11 +112,31 @@ export function createBullMQConsumer(opts: BullMQConsumerOptions): QueueConsumer
           // transport failures (docs 09).
           removeOnComplete: { age: 86400 },
           removeOnFail: { age: 7 * 86400 },
+          autorun: false,
         }
       );
+      if (!paused) {
+        running = true;
+        void worker.run().catch(() => undefined);
+      }
+    },
+    async pause(): Promise<void> {
+      paused = true;
+      if (worker && running) await worker.pause(true);
+    },
+    async resume(): Promise<void> {
+      paused = false;
+      if (!worker) return;
+      if (running) {
+        worker.resume();
+      } else {
+        running = true;
+        void worker.run().catch(() => undefined);
+      }
     },
     async stop(graceMs: number): Promise<void> {
       if (worker) await worker.close();
+      running = false;
       void graceMs;
     },
   };
@@ -197,18 +223,65 @@ export async function startWorker(
     businessId: definition.manifest.businessId,
     businessVersion: definition.manifest.version,
     imageDigest: config.imageDigest ?? definition.manifest.imageDigest,
+    ...(config.deploymentRevision ? { deploymentRevision: config.deploymentRevision } : {}),
     capacity: config.concurrency ?? 1,
   };
 
   let stopped = false;
   const inflight = new Set<Promise<void>>();
-
-  const heartbeatTimer = setInterval(() => {
-    runtime.heartbeatWorker(workerInstanceId, hbBody).catch((err) => {
-      logger.warn('worker heartbeat failed', { error: String(err) });
-    });
-  }, heartbeatIntervalMs);
-  heartbeatTimer.unref?.();
+  let activeTaskCount = 0;
+  let observedBackupFenceRevision: number | undefined;
+  const heartbeatBody = () => ({
+    ...hbBody,
+    activeTasks: activeTaskCount,
+    ...(observedBackupFenceRevision === undefined ? {} : { observedBackupFenceRevision }),
+  });
+  let admissionOpen = false;
+  let controlRevision = -1;
+  let controlState: 'OPEN' | 'PAUSED' | 'DRAINING' = 'DRAINING';
+  let backupFenceRevision = -1;
+  let backupFenceState: 'OPEN' | 'HELD' | 'UNKNOWN' = 'UNKNOWN';
+  let backupFenceAcknowledged = false;
+  let consumer: QueueConsumer | undefined;
+  const admissionWaiters = new Set<() => void>();
+  const waitForAdmission = async (): Promise<boolean> => {
+    if (admissionOpen) return true;
+    if (stopped) return false;
+    await new Promise<void>((resolve) => admissionWaiters.add(resolve));
+    return admissionOpen && !stopped;
+  };
+  const applyAdmissionAck = async (ack: Awaited<ReturnType<RuntimeClient['heartbeatWorker']>>): Promise<void> => {
+    if (ack.controlRevision >= controlRevision) {
+      controlRevision = ack.controlRevision;
+      controlState = ack.controlState;
+    }
+    const backupAck = ack.backupEffectFence;
+    if (backupAck.revision > backupFenceRevision) {
+      backupFenceRevision = backupAck.revision;
+      backupFenceState = backupAck.state;
+      backupFenceAcknowledged = backupAck.acknowledged;
+      observedBackupFenceRevision = backupAck.revision;
+    } else if (backupAck.revision === backupFenceRevision) {
+      // Heartbeats may overlap. The same immutable revision can move from
+      // unacknowledged to acknowledged, but never back due to response order.
+      backupFenceState = backupAck.state;
+      backupFenceAcknowledged ||= backupAck.acknowledged;
+      observedBackupFenceRevision = backupAck.revision;
+    }
+    const nextOpen = controlState === 'OPEN'
+      && backupFenceState === 'OPEN'
+      && backupFenceAcknowledged;
+    if (admissionOpen === nextOpen) return;
+    admissionOpen = nextOpen;
+    if (nextOpen) {
+      for (const resolve of admissionWaiters) resolve();
+      admissionWaiters.clear();
+      await consumer?.resume?.();
+    } else {
+      await consumer?.pause?.();
+    }
+  };
+  let heartbeatTimer: ReturnType<typeof setInterval> | undefined;
 
   // Temp-workspace sweep (W39-CC2b / ART-02 bounded file lifetime):
   // startup pass + periodic pass over du-worker-* dirs older than TTL.
@@ -252,7 +325,7 @@ export async function startWorker(
     sweepTimer.unref?.();
   }
 
-  const consumer: QueueConsumer =
+  consumer =
     config.consumer ??
     (config.redis
       ? createBullMQConsumer({
@@ -276,6 +349,10 @@ export async function startWorker(
         businessVersion: job.businessVersion,
       },
       async () => {
+        // Injected consumers may not expose pause/resume. In that case the
+        // delivery can wait locally without taking a task lease or completing
+        // the BullMQ job, while heartbeats continue to observe the revision.
+        if (!await waitForAdmission()) return;
         // 1. Claim: atomic CAS; 409 busy / 410 terminal end the delivery safely.
         let claim;
         try {
@@ -345,6 +422,7 @@ export async function startWorker(
             // straight pass-through — null (no carrier) and absent stay
             // distinct, and every redelivery re-reads the claim.
             promptOverrides: snapshot.pinned.promptOverrides,
+            tenantDefaults: snapshot.pinned.tenantDefaults,
             checkpointRefs: claim.checkpointRefs,
             cancelRequested: snapshot.cancelRequested,
           },
@@ -380,6 +458,7 @@ export async function startWorker(
             });
         }, heartbeatIntervalMs);
         hb.unref?.();
+        activeTaskCount += 1;
 
         // 3. Run the handler; map the disposition onto runtime reports.
         try {
@@ -433,19 +512,31 @@ export async function startWorker(
           }
         } finally {
           clearInterval(hb);
+          activeTaskCount = Math.max(0, activeTaskCount - 1);
         }
       }
     );
   }
+
+  // Register first and consume only after this durable control read. A paused
+  // worker continues the heartbeat loop and leaves accepted BullMQ jobs
+  // waiting, while any already-running handler retains its task heartbeat.
+  const initialAck = await runtime.heartbeatWorker(workerInstanceId, heartbeatBody());
+  await applyAdmissionAck(initialAck);
 
   consumer.start((job) => {
     const p = processDelivery(job).finally(() => inflight.delete(p));
     inflight.add(p);
     return p;
   });
-
-  // Initial registration heartbeat (fail fast on identity mismatch).
-  await runtime.heartbeatWorker(workerInstanceId, hbBody);
+  heartbeatTimer = setInterval(() => {
+    runtime.heartbeatWorker(workerInstanceId, heartbeatBody())
+      .then(applyAdmissionAck)
+      .catch((err) => {
+        logger.warn('worker heartbeat failed', { error: String(err) });
+      });
+  }, heartbeatIntervalMs);
+  heartbeatTimer.unref?.();
 
   const handle: WorkerHandle = {
     workerInstanceId,
@@ -456,9 +547,11 @@ export async function startWorker(
     async stop(graceMs = 15_000): Promise<void> {
       if (stopped) return;
       stopped = true;
-      clearInterval(heartbeatTimer);
+      if (heartbeatTimer) clearInterval(heartbeatTimer);
       if (sweepTimer) clearInterval(sweepTimer);
-      await consumer.stop(graceMs);
+      for (const resolve of admissionWaiters) resolve();
+      admissionWaiters.clear();
+      await consumer?.stop(graceMs);
       const deadline = Date.now() + graceMs;
       while (inflight.size > 0 && Date.now() < deadline) {
         await Promise.race([

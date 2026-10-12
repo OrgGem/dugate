@@ -1,0 +1,41 @@
+{
+  "schema": "orv14-host-connector-restore-slice/v1",
+  "disposition": "FAILED_PARTIAL_HOST_CONNECTOR_SLICE_ONLY",
+  "completedAt": "2026-10-11T23:41:01.612Z",
+  "error": "failed: isolated process decrypts and returns synthetic historical UNKNOWN invocation",
+  "cleanup": {
+    "projectId": "orv14-vfy-host-mv4gusbe-46f0498329",
+    "removed": {
+      "containers": [
+        "993f273a011a",
+        "e435c54f03fd",
+        "4bfe2daae477",
+        "af5b5bd275e6",
+        "72a3402fa8e2",
+        "b9b51fad65fe",
+        "efd795e81be1",
+        "0c8eab84adcc",
+        "c46da889816f",
+        "e9a87be9782a"
+      ],
+      "volumes": [
+        "orv14-vfy-host-mv4gusbe-46f0498329_connector-restore-data",
+        "orv14-vfy-host-mv4gusbe-46f0498329_connector-source-data",
+        "orv14-vfy-host-mv4gusbe-46f0498329_minio-data",
+        "orv14-vfy-host-mv4gusbe-46f0498329_minio-restore-data",
+        "orv14-vfy-host-mv4gusbe-46f0498329_orchestrator-restore-data",
+        "orv14-vfy-host-mv4gusbe-46f0498329_orchestrator-source-data"
+      ],
+      "networks": [
+        "63060d257fd7"
+      ]
+    },
+    "remaining": {
+      "containers": [],
+      "volumes": [],
+      "networks": []
+    },
+    "temporaryFixtureRemoved": true
+  },
+  "acceptance": "not claimed; source checkpoint and cross-family restore verification remain outstanding"
+}

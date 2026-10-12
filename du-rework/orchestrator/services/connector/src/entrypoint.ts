@@ -1,12 +1,16 @@
 import { createLogger, safeErrorForLog } from '@du/observability';
 import { createConnectorComposition } from './composition';
 import { HmacServiceIdentityVerifier } from './identity';
-import { ContractSignedGrantVerifier, HmacSignedGrantSource } from './contract-grants';
+import { ContractSignedGrantVerifier, ContractSignedProviderTestGrantVerifier, HmacSignedGrantSource } from './contract-grants';
 import { AesCredentialCipher } from './services';
 import { HttpUsageSink } from './usage-dispatcher';
+import { costControlFromEnvironment } from './cost-control-environment';
+import { connectorRuntimeControlFromEnvironment } from './runtime-control-environment';
 
 function createProcessComposition() {
   const port = parsePositiveInteger(process.env.CONNECTOR_PORT ?? process.env.PORT, 8080);
+  const { isolatedRestoreRehearsal, runtimeControl } = connectorRuntimeControlFromEnvironment(process.env);
+  const costControl = costControlFromEnvironment(process.env, { isolatedRestoreRehearsal });
   return createConnectorComposition({
     port,
     host: process.env.HOST ?? '0.0.0.0',
@@ -19,6 +23,9 @@ function createProcessComposition() {
     grantVerifier: new ContractSignedGrantVerifier(
       new HmacSignedGrantSource(requiredSecret('INVOCATION_GRANT_SECRET')),
     ),
+    providerTestGrantVerifier: new ContractSignedProviderTestGrantVerifier(
+      new HmacSignedGrantSource(requiredSecret('INVOCATION_GRANT_SECRET')),
+    ),
     credentialCipher: new AesCredentialCipher(requiredSecret('CONNECTOR_ENCRYPTION_KEY')),
     providerAllowHosts: process.env.PROVIDER_ALLOW_HOSTS
       ? process.env.PROVIDER_ALLOW_HOSTS.split(',').map((host) => host.trim()).filter(Boolean)
@@ -27,6 +34,9 @@ function createProcessComposition() {
     usageSink: process.env.USAGE_SINK_URL && process.env.USAGE_SINK_TOKEN
       ? new HttpUsageSink(process.env.USAGE_SINK_URL, process.env.USAGE_SINK_TOKEN)
       : undefined,
+    ...(costControl === undefined ? {} : { costControl }),
+    runtimeControl,
+    isolatedRestoreRehearsal,
   });
 
 }

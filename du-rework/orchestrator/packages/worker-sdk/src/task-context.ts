@@ -12,6 +12,8 @@ import {
   hashInvocationInput,
   type PinnedProfilePolicy,
   type PinnedPromptOverride,
+  type TenantDefaultsSnapshot,
+  type ConnectorWorkflowOverrides,
 } from '@du/contracts';
 import { Logger } from '@du/observability';
 import { MULTIPART_MAX_TOTAL_BYTES, MULTIPART_MIN_TOTAL_BYTES } from '@du/contracts';
@@ -54,6 +56,38 @@ export class LeaseLostError extends Error {
     super(`lease lost for task ${taskId}; aborting delivery`);
     this.name = 'LeaseLostError';
   }
+}
+
+/**
+ * Fill a missing model option from the operation's admission-time pins.
+ * Explicit call-site options take precedence, followed by the pinned Profile
+ * model and then the immutable tenant AI default. The resolved value is used
+ * both in the grant hash and on the Connector wire, so redelivery cannot
+ * observe a later settings revision.
+ */
+export function applyPinnedModelDefault(
+  options: Record<string, unknown> | undefined,
+  profilePolicy: PinnedProfilePolicy | null | undefined,
+  tenantDefaults: TenantDefaultsSnapshot | null | undefined,
+  selectedConnectorBinding: string | undefined,
+): Record<string, unknown> | undefined {
+  if (options?.model !== undefined) return options;
+
+  const profileModelValue = profilePolicy?.parameters?.['model']?.value;
+  const profileModel = typeof profileModelValue === 'string' && profileModelValue.trim().length > 0
+    ? profileModelValue
+    : undefined;
+  const ai = tenantDefaults?.ai;
+  const defaultBinding = ai?.connectorId && ai.connectorRevision !== null
+    ? `${ai.connectorId}@${ai.connectorRevision}`
+    : undefined;
+  // The tenant model travels with its exact tenant-default Connector. A
+  // separately Profile-pinned Connector keeps its own model behavior unless
+  // the Profile explicitly pins a model parameter above.
+  const tenantModel = defaultBinding !== undefined && selectedConnectorBinding === defaultBinding ? ai?.model : undefined;
+  const model = profileModel ?? (typeof tenantModel === 'string' && tenantModel.trim().length > 0 ? tenantModel : undefined);
+  if (model === undefined) return options;
+  return { ...(options ?? {}), model };
 }
 
 export class InputHashMismatchError extends Error {
@@ -132,6 +166,8 @@ export interface ConnectorInvocationPayload {
   bindingSlot: string;
   input: ConnectorInvokeInput;
   options?: Record<string, unknown>;
+  /** Compiled, admission-pinned recipe leaf; deliberately separate from options. */
+  workflowOverrides?: ConnectorWorkflowOverrides;
   sessionRef?: string | null;
   deadlineAt: string;
 }
@@ -159,6 +195,7 @@ interface ClaimedTask {
   promptRevisions?: Record<string, string>;
   profilePolicy?: PinnedProfilePolicy | null;
   promptOverrides?: PinnedPromptOverride[] | null;
+  tenantDefaults?: TenantDefaultsSnapshot | null;
   checkpointRefs: CheckpointRef[];
   cancelRequested: boolean;
 }
@@ -182,6 +219,7 @@ export class DefaultTaskContext implements TaskContext {
   readonly promptRevisions: Readonly<Record<string, string>> | undefined;
   readonly profilePolicy: PinnedProfilePolicy | null | undefined;
   readonly promptOverrides: readonly PinnedPromptOverride[] | null | undefined;
+  readonly tenantDefaults: TenantDefaultsSnapshot | null | undefined;
   readonly signal: AbortSignal;
 
   private readonly abortController: AbortController;
@@ -315,6 +353,7 @@ export class DefaultTaskContext implements TaskContext {
     // `null` (no carrier) stays null, `undefined` (a context that never
     // carried the pin) stays undefined. Neither is coalesced.
     this.promptOverrides = task.promptOverrides;
+    this.tenantDefaults = task.tenantDefaults;
     this.checkpointList = [...task.checkpointRefs];
     this.cancelFlag = task.cancelRequested;
 
@@ -877,10 +916,17 @@ export class DefaultTaskContext implements TaskContext {
         slot: string,
         input: ConnectorInvokeInput,
         options?: Record<string, unknown>,
-        invokeOpts?: ConnectorInvokeOptions
+        invokeOpts?: ConnectorInvokeOptions,
+        workflowOverrides?: ConnectorWorkflowOverrides
       ): Promise<InvocationResponse> {
         self.assertLease();
         const stepKey = currentStepKey();
+        const effectiveOptions = applyPinnedModelDefault(
+          options,
+          self.profilePolicy,
+          self.tenantDefaults,
+          self.connectorBindings[slot],
+        );
         // Canonical hash (W11-C1): computed over the exact wire fields the
         // Connector validates, so the signed grant verifies unchanged — no
         // shim. The deadline is computed first because it is part of the hash.
@@ -904,14 +950,15 @@ export class DefaultTaskContext implements TaskContext {
           stepKey,
           bindingSlot: slot,
           input,
-          options,
+          options: effectiveOptions,
+          ...(workflowOverrides !== undefined ? { workflowOverrides } : {}),
           sessionRef,
           deadlineAt,
         });
         // Runtime issues a stable invocationId for (task, stepKey, slot,
         // inputHash); replays reuse the same ID (no duplicate provider cost).
         const artifactIds = input.artifacts?.map((artifact) => artifact.artifactId) ?? [];
-        const grant = await self.grantFor(stepKey, slot, inputHash, artifactIds);
+        const grant = await self.grantFor(stepKey, slot, inputHash, artifactIds, workflowOverrides);
         const payload: ConnectorInvocationPayload = {
           contractVersion: '1',
           invocationId: grant.invocationId,
@@ -921,7 +968,8 @@ export class DefaultTaskContext implements TaskContext {
           stepKey,
           bindingSlot: slot,
           input,
-          options,
+          options: effectiveOptions,
+          ...(workflowOverrides !== undefined ? { workflowOverrides } : {}),
           sessionRef,
           deadlineAt,
         };
@@ -936,6 +984,7 @@ export class DefaultTaskContext implements TaskContext {
     bindingSlot: string,
     inputHash: string,
     artifactIds: readonly string[] = [],
+    workflowOverrides?: ConnectorWorkflowOverrides,
   ): Promise<InvocationGrant> {
     this.assertLease();
     return this.wrapLeaseErrors(() =>
@@ -945,6 +994,7 @@ export class DefaultTaskContext implements TaskContext {
         bindingSlot,
         inputHash,
         artifactIds: [...artifactIds],
+        ...(workflowOverrides !== undefined ? { workflowOverrides } : {}),
       })
     );
   }

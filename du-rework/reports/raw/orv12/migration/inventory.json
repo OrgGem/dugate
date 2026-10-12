@@ -1,0 +1,91 @@
+{
+  "version": "ldba-inventory-v1",
+  "tenantId": "54d7d298-8ae1-4607-bac0-d54f4a4b9921",
+  "sourceVersion": "orv12-vfy-source-v1",
+  "sourceSha256": "db5acb8fcaef145dab74760885fcdd0f93385a96f517b30eb0cae7d10203246a",
+  "planSha256": "a589d609589d7b8b3025f170c0c6410b49a3a0ff3debc20e8255fcb22432c49c",
+  "sourceCounts": {
+    "User": 1,
+    "ApiKey": 1,
+    "FileCache": 1,
+    "Operation": 1,
+    "AppSetting": 3,
+    "ProfileEndpoint": 3,
+    "ExternalApiOverride": 1,
+    "ExternalApiConnection": 1,
+    "UserProfileAssignment": 1
+  },
+  "importedDestinationCounts": {
+    "api_keys": 1,
+    "artifacts": 1,
+    "operations": 1,
+    "profile_names": 3,
+    "artifact_blobs": 1,
+    "secret_versions": 1,
+    "profile_api_keys": 3,
+    "profile_bindings": 3,
+    "admin_local_users": 1,
+    "connector_revisions": 1,
+    "legacy_app_settings": 2,
+    "legacy_workflow_schemas": 1,
+    "profile_active_revisions": 3,
+    "user_profile_assignments": 1,
+    "connector_prompt_overrides": 1
+  },
+  "targetCounts": {
+    "settings": 2,
+    "operations": 1,
+    "keys": 1,
+    "profiles": 3,
+    "memberships": 3,
+    "users": 1,
+    "assignments": 1,
+    "workflows": 1,
+    "overrides": 1,
+    "connectors": 1,
+    "blobChecks": 1
+  },
+  "archivedSettingsSha256": "ac976f140f3fdb1942db7cf829797a8a30ebf992d1eed09c445df8a8f937cce3",
+  "inventorySha256": "c6d5ee057bb58388208b74efc85d1714f86c051ac9ba4220fe967168ac29b771",
+  "settingKeys": [
+    {
+      "key": "ai_generate_prompt",
+      "valueSha256": "65f861ec4e9751ecbbb15fb9f1e4b33b31fc78523cc4fbc8e98e9f0b02183885"
+    },
+    {
+      "key": "ai_model",
+      "valueSha256": "d37a1673819a178cb9a259278e948e8b3b6a47d067a15bd8c0af58e174337a24"
+    }
+  ],
+  "blobChecks": [
+    {
+      "id": "209b3f52-d9c5-439d-9e41-742c7927c1d4",
+      "storageKey": "legacy-filecache/209b3f52-d9c5-439d-9e41-742c7927c1d4",
+      "expectedSha256": "bb5bf4ffb7b77a6e389f252aed960eebaf1f2d447a525ceb1b53f2bd7290bf97",
+      "actualSha256": "bb5bf4ffb7b77a6e389f252aed960eebaf1f2d447a525ceb1b53f2bd7290bf97",
+      "sizeMatches": true
+    }
+  ],
+  "issues": [
+    {
+      "code": "EFFECTIVE_CONNECTOR_MAPPING_REQUIRED",
+      "id": "bfdd1937-f9cc-4def-8487-48f02b8a4eb9"
+    }
+  ],
+  "cutoverReady": false,
+  "externalGates": [
+    "effective settings/processor mapping",
+    "source freeze/timezone proof",
+    "client retry/idempotency window",
+    "runtime old API key/policy/result/login tests",
+    "SSO/provider/deployment reconciliation",
+    "production memory/blob sizing"
+  ],
+  "metrics": {
+    "elapsedMs": 86,
+    "verifiedBlobBytes": 9437184,
+    "maxRowsPerEntity": 100000,
+    "maxBlobBytes": 268435456,
+    "materialization": "bounded full target metadata/blob materialization, not streaming"
+  }
+}

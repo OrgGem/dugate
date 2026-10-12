@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "lib": ["ES2022"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "types": ["node", "jest"],
+    "typeRoots": ["../../../orchestrator/services/connector/node_modules/@types"],
+    "baseUrl": "../../..",
+    "paths": {
+      "@du/contracts": ["orchestrator/packages/contracts/dist/index.d.ts"]
+    }
+  },
+  "include": ["./connector-boot-ack.integration.test.ts"]
+}

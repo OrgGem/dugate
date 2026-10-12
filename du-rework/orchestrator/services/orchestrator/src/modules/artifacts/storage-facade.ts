@@ -59,6 +59,17 @@ export interface ServerObjectWriteInput {
   readonly metadata?: Readonly<Record<string, string>>;
 }
 
+/** Streamed server object import for bounded-memory maintenance restore. */
+export interface ServerObjectStreamWriteInput {
+  readonly objectKey: string;
+  readonly artifactId: string;
+  readonly tenantId: string;
+  readonly source: Readable;
+  readonly contentLength: number;
+  readonly contentType: string;
+  readonly metadata?: Readonly<Record<string, string>>;
+}
+
 /** Stable storage failures keep provider exception text out of API responses and logs. */
 export class ArtifactStorageError extends Error {
   constructor(readonly code: ArtifactStorageErrorCode) {
@@ -92,6 +103,7 @@ export interface ArtifactStorageFacade {
    * and the artifact service fails closed rather than writing plaintext.
    */
   putServerObject?(input: ServerObjectWriteInput): Promise<{ versionId: string | null }>;
+  putServerObjectStream?(input: ServerObjectStreamWriteInput): Promise<{ versionId: string | null }>;
   /**
    * SEC-ENC-04: read one server-mediated object by key. Throws
    * `OBJECT_NOT_FOUND` when the object (or sidecar) does not exist, so the

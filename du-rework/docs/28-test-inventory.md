@@ -1,6 +1,14 @@
 
 # 28. Comprehensive Test Suite Inventory & Isolation Map
 
+ORV13 independent [main receipt](../coordination/reports/orv13-verification.md) records14/14 (five actual API/PG, eight mounted UI, one Node transport), zero failed/skipped; a supplemental127-tenant roster case is1 pass/14 deliberately filtered, separately counted. [Compose receipt](../coordination/reports/orv13-compose-verification.md) records2/2 named scenarios, zero failed/skipped, real isolated Docker/PG/API/browser actions; a bounded320/390 modal follow-up records1 pass/1 deliberately filtered and is not added again to the full count. Main verifier owns shared builds, Compose verifier consumes frozen artifacts under its own fixture/test/raw lease. [Reviewer](../coordination/reports/orv13-ui-review.md) grants scoped APPROVED/UI_APPROVED on final index-BO7-bJEd.js. Commands, timestamps, exit0, versions, hashes, namespace isolation, reds and cleanup limits are in named receipts. Owner smoke and reruns are excluded from these independent totals. Full canonical AOPS/production gates remain open.
+
+ORV12 independent evidence: `tests/workflow-api/orv12-vfy-{usage,s3,migration,callback-controls}.test.ts`;8 main checks +11 separately executed callback checks, core31 selected regression and4 selected workflow regressions. PG16/Redis7/Chromium, local HTTP provider and versioned Moto S3 emulator. Exact passed/deselected/exit/log details in [main receipt](../coordination/reports/orv12-verification.md) and [callback receipt](../coordination/reports/orv12-callback-verification.md). Earlier red logs retained; only specified final runs supersede them. No addition to historical fleet totals or repeated owner/reviewer runs.
+
+ORV11 độc lập: bộ test mới nằm tại `tests/workflow-api/orv11-vfy-{core-worker,browser,migration,operations}.test.ts`, dùng Node24.21/PostgreSQL16/Redis7 và Chromium. Core31 kiểm cả legacy envelope và corpus output; migration kiểm frozen proof/import/replay/historical download; browser kiểm backend thật. Raw final và số passed/failed/deselected phải lấy từ [receipt hiện tại](../coordination/reports/orv11-verification.md), không cộng các lượt rerun. Các receipt owner riêng không thay independent acceptance.
+
+> **ORV11 active verification — 2026-10-11:** scoped API/operations/data/UI implementation and independent tests follow [ORV11 execution ledger](../coordination/ORV11-EXECUTION-2026-10-11.md). Supported toolchain is Node 24.21.0 / pnpm 10.18.3. This session uses dedicated PostgreSQL/Redis fixtures, not the historical shared DB window described below. Results will be attached by named suite/command; historical counts are not added to current totals.
+
 **Document Version:** 1.48.0
 **Date:** 2026-09-25
 **Lane:** Testing Lane (Antigravity-6)  

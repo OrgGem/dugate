@@ -1,0 +1,78 @@
+FAIL tests/workflow-api/orv14-vfy-core31.test.ts
+  ORV14 independent public HTTP compatibility with real outbox, worker, and Connector
+    ✕ legacy workflow overrides are provider-observed under exact typed Connector pins and reject undeclared leaves (186 ms)
+    ○ skipped legacy multipart ingest parses exact bytes, projects/downloads result and replays without duplicate blobs
+    ○ skipped sync submit waits for real worker and returns terminal result within its budget
+    ○ skipped imports and publishes XML through the normal workflow catalog, runs a real Worker workflow, and resumes HITL
+    ○ skipped imports and publishes JSON branch/join workflow and executes the immutable admitted pin in the real Worker
+    ○ skipped browser uploads a document and submits workflow.test to real worker, then polls success
+    31 public multipart variants through production outbox/Redis/worker/Connector
+      ○ skipped DOC-01-01 ingest/parse
+      ○ skipped DOC-01-02 ingest/ocr
+      ○ skipped DOC-01-03 ingest/digitize
+      ○ skipped DOC-01-04 ingest/split
+      ○ skipped DOC-02-01 extract/invoice
+      ○ skipped DOC-02-02 extract/contract
+      ○ skipped DOC-02-03 extract/receipt
+      ○ skipped DOC-02-04 extract/table
+      ○ skipped DOC-02-05 extract/custom
+      ○ skipped DOC-02-06 extract/id-card
+      ○ skipped DOC-03-01 analyze/classify
+      ○ skipped DOC-03-02 analyze/sentiment
+      ○ skipped DOC-03-03 analyze/compliance
+      ○ skipped DOC-03-04 analyze/quality
+      ○ skipped DOC-03-05 analyze/risk
+      ○ skipped DOC-03-06 analyze/fact-check
+      ○ skipped DOC-03-07 analyze/summarize-eval
+      ○ skipped DOC-04-01 transform/convert
+      ○ skipped DOC-04-02 transform/translate
+      ○ skipped DOC-04-03 transform/rewrite
+      ○ skipped DOC-04-04 transform/redact
+      ○ skipped DOC-04-05 transform/template
+      ○ skipped DOC-05-01 generate/summary
+      ○ skipped DOC-05-02 generate/outline
+      ○ skipped DOC-05-03 generate/report
+      ○ skipped DOC-05-04 generate/email
+      ○ skipped DOC-05-05 generate/minutes
+      ○ skipped DOC-05-06 generate/qa
+      ○ skipped DOC-06-01 compare/diff
+      ○ skipped DOC-06-02 compare/semantic
+      ○ skipped DOC-06-03 compare/version
+    ORV14 native tenant prompt and AI defaults observed by real Connector calls
+      ○ skipped published tenant prompt revisions reach real PNG/PDF/DOCX, compare, and generate provider calls with old/new operation pins
+      ○ skipped Gemini and OpenAI-compatible AI model defaults reach native provider tests and real Worker calls, with immutable old/new pins and Profile precedence
+    configured Worker private HTTPS
+      ○ skipped configured Worker receives exact private HTTPS policy, validates DNS/SNI/CA, executes callback and download, and exposes public result
+      ○ skipped parallel branch children share the configured private HTTPS policy
+      ○ skipped a resumed HITL workflow keeps the Worker policy for its later HTTPS callback
+      ○ skipped an explicit operation retry reuses the admitted schema pin and reaches HTTPS on the next attempt
+      ○ skipped worker default deny rejects a tenant-approved private origin when the operator list is empty
+      ○ skipped tenant schema approval blocks an origin absent from that immutable pin
+      ○ skipped operator list and tenant pin intersect; operator-only origin cannot be reached
+      ○ skipped verified TLS rejects a SAN mismatch while preserving the requested SNI
+      ○ skipped redirects are not followed and oversized file responses fail at the worker byte limit
+      ○ skipped operation cancellation aborts the active pinned HTTPS request
+      ○ skipped metadata, link-local, CGNAT, multicast, and reserved IP literals stay blocked with private opt-in
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › legacy workflow overrides are provider-observed under exact typed Connector pins and reject undeclared leaves
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 202
+    Received: 404
+
+      2366 |     expect(profileRevision1.revision).toBe(1);
+      2367 |     const submitted1 = await submitWorkflowSchemaWithKey(slug, {}, workflowOverrideApiKey);
+    > 2368 |     expect(submitted1.response.status).toBe(202);
+           |                                        ^
+      2369 |     const operationId1 = submitted1.body.name;
+      2370 |     if (typeof operationId1 !== 'string' || !operationId1.startsWith('operations/')) {
+      2371 |       throw new Error('first workflow override submission returned no operation ID');
+
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:2368:40)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 49 skipped, 50 total
+Snapshots:   0 total
+Time:        4.696 s, estimated 6 s
+Ran all test suites within paths "tests/workflow-api/orv14-vfy-core31.test.ts".

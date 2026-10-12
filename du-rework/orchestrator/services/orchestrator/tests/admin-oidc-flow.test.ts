@@ -152,6 +152,54 @@ describe('OIDC-04 callback happy path', () => {
     expect((await h2.flow.handleCallback(req({ code: 'c', state: (await startLogin(h2)).state }))).status).toBe(302);
     expect(h2.st.created[0]!.role).toBe('viewer');
   });
+  it('pins only an eligible verified Cost Alerts principal without making directory availability part of app login', async () => {
+    const h = harness();
+    const seen: unknown[] = [];
+    h.flow.setVerifiedLoginObserver(async (input) => {
+      seen.push(input);
+      return {
+        sessionEligible: true,
+        principal: {
+          principalId: '70f2ad45-9e98-4b03-8ca1-0eed8b984a73',
+          displayName: 'External Admin',
+          issuer: input.issuer,
+          sub: input.sub,
+          role: 'admin',
+          tenantId: null,
+          authorizationVersion: 3,
+          state: 'ENABLED',
+          lastVerifiedAt: input.verifiedAt,
+          eligible: true,
+        },
+      };
+    });
+    const { state } = await startLogin(h);
+    const response = await h.flow.handleCallback(req({ code: 'c', state }));
+    expect(response.status).toBe(302);
+    expect(seen).toEqual([{
+      issuer: ISS,
+      sub: 'user-1',
+      role: 'admin',
+      tenantId: null,
+      verifiedAt: new Date(T0).toISOString(),
+    }]);
+    const sessionId = (response.headers['set-cookie'] ?? '').split('=')[1]?.split(';')[0] ?? '';
+    const session = await h.sessions0.get(sessionId);
+    expect(session).toMatchObject({
+      role: 'admin',
+      costAlertPrincipalId: '70f2ad45-9e98-4b03-8ca1-0eed8b984a73',
+      costAlertAuthorizationVersion: 3,
+    });
+
+    const h2 = harness();
+    h2.flow.setVerifiedLoginObserver(async () => { throw new Error('directory unavailable'); });
+    const secondState = (await startLogin(h2)).state;
+    const secondResponse = await h2.flow.handleCallback(req({ code: 'c', state: secondState }));
+    expect(secondResponse.status).toBe(302);
+    const secondId = (secondResponse.headers['set-cookie'] ?? '').split('=')[1]?.split(';')[0] ?? '';
+    expect(await h2.sessions0.get(secondId)).toMatchObject({ role: 'admin' });
+    expect(await h2.sessions0.get(secondId)).not.toHaveProperty('costAlertPrincipalId');
+  });
   it('returnTo: safe path preserved, open-redirect shapes collapse to /admin', async () => {
     const h = harness();
     const state = (await h.login({ returnTo: '/admin/operations?operationId=op42' })).searchParams.get('state') ?? '';

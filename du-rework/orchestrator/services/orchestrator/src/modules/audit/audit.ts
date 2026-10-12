@@ -1,6 +1,7 @@
 import { PoolClient, QueryResult, QueryResultRow } from 'pg';
 import { Db } from '../../db/db';
 import { authorizeAuditTenantRead, type AdminPrincipal } from '../admin-actions/rbac';
+import { safeCostAlertBindingUpdatedBy } from '../cost-alerts/service';
 
 /** Anything that can run SQL — the pool wrapper (standalone) or a tx client. */
 export interface Queryable {
@@ -94,6 +95,12 @@ export interface AuditRow extends Record<string, unknown> {
  * cursor rows); both map to the same ISO instant.
  */
 export function toAuditWire(row: AuditRow): AuditWireEvent {
+  // Older cost-alert bindings stored `session:<OIDC sub>` in the public actor
+  // label. New rows use provenance-marked opaque IDs. Mask only this action so
+  // unrelated historical audit labels retain their established wire behavior.
+  const actor = row.action === 'cost.alert.binding'
+    ? safeCostAlertBindingUpdatedBy(row.actor)
+    : row.actor;
   return {
     id: row.id,
     kind: row.action,
@@ -102,7 +109,7 @@ export function toAuditWire(row: AuditRow): AuditWireEvent {
       row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
     tenantId: row.tenant_id,
     resourceId: row.resource,
-    actor: row.actor,
+    actor,
     message: `${row.action} ${row.resource}`,
   };
 }

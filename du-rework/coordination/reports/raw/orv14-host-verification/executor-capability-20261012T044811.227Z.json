@@ -1,0 +1,1105 @@
+{
+  "runId": "executor-capability-20261012T044811.227Z",
+  "purpose": "synthetic executor capability only; not Host factory, restore, source-off, or acceptance",
+  "startedAt": "2026-10-12T04:48:11.228Z",
+  "cwd": "/workspace/scratch/orv14-host-executor-plan",
+  "toolchain": {
+    "node": "v24.21.0",
+    "nodeBinary": "/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node",
+    "nodeBinarySha256": "7fde7b8afa198da66257f42ee2001d874c7355631e6d1579a5fb5ef1f246df4c",
+    "uid": 1000,
+    "gid": 1000,
+    "hostEffectiveCapabilitiesHex": "0000000000000000",
+    "hostNftAvailable": false,
+    "platform": "linux",
+    "arch": "x64"
+  },
+  "resources": {
+    "labelKey": "org.dugate.orv14-vfy-host",
+    "labelValue": "executor-20261012-b73e0d21",
+    "imageTag": "orv14-vfy-host-executor:20261012-b73e0d21",
+    "volumeName": "orv14-vfy-host-protected-20261012-b73e0d21",
+    "seedName": "orv14-vfy-host-seed-20261012-b73e0d21",
+    "targetName": "orv14-vfy-host-target-20261012-b73e0d21",
+    "executorName": "orv14-vfy-host-executor-20261012-b73e0d21"
+  },
+  "commands": [
+    {
+      "label": "docker-info-safe-fields",
+      "argv": [
+        "/usr/local/bin/docker",
+        "info",
+        "--format",
+        "{{.ServerVersion}}|{{.OperatingSystem}}|{{.Architecture}}|{{.KernelVersion}}|{{.CgroupVersion}}|{{json .SecurityOptions}}"
+      ],
+      "startedAt": "2026-10-12T04:48:11.379Z",
+      "finishedAt": "2026-10-12T04:48:11.433Z",
+      "timeoutMs": 15000,
+      "maxBufferBytes": 524288,
+      "status": 0,
+      "signal": null,
+      "errorCode": null,
+      "stdout": "28.4.0|Debian GNU/Linux 13 (trixie) (containerized)|x86_64|6.18.44|2|[\"name=seccomp,profile=builtin\",\"name=cgroupns\"]\n",
+      "stderr": ""
+    },
+    {
+      "label": "preflight-label-containers",
+      "argv": [
+        "/usr/local/bin/docker",
+        "ps",
+        "-aq",
+        "--filter",
+        "label=org.dugate.orv14-vfy-host=executor-20261012-b73e0d21"
+      ],
+      "startedAt": "2026-10-12T04:48:11.433Z",
+      "finishedAt": "2026-10-12T04:48:11.447Z",
+      "timeoutMs": 30000,
+      "maxBufferBytes": 2097152,
+      "status": 0,
+      "signal": null,
+      "errorCode": null,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "label": "preflight-label-volumes",
+      "argv": [
+        "/usr/local/bin/docker",
+        "volume",
+        "ls",
+        "-q",
+        "--filter",
+        "label=org.dugate.orv14-vfy-host=executor-20261012-b73e0d21"
+      ],
+      "startedAt": "2026-10-12T04:48:11.447Z",
+      "finishedAt": "2026-10-12T04:48:11.466Z",
+      "timeoutMs": 30000,
+      "maxBufferBytes": 2097152,
+      "status": 0,
+      "signal": null,
+      "errorCode": null,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "label": "preflight-label-images",
+      "argv": [
+        "/usr/local/bin/docker",
+        "image",
+        "ls",
+        "-q",
+        "--filter",
+        "label=org.dugate.orv14-vfy-host=executor-20261012-b73e0d21"
+      ],
+      "startedAt": "2026-10-12T04:48:11.466Z",
+      "finishedAt": "2026-10-12T04:48:11.479Z",
+      "timeoutMs": 30000,
+      "maxBufferBytes": 2097152,
+      "status": 0,
+      "signal": null,
+      "errorCode": null,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "label": "preflight-exact-container-orv14-vfy-host-seed-20261012-b73e0d21",
+      "argv": [
+        "/usr/local/bin/docker",
+        "inspect",
+        "orv14-vfy-host-seed-20261012-b73e0d21"
+      ],
+      "startedAt": "2026-10-12T04:48:11.480Z",
+      "finishedAt": "2026-10-12T04:48:11.507Z",
+      "timeoutMs": 30000,
+      "maxBufferBytes": 2097152,
+      "status": 1,
+      "signal": null,
+      "errorCode": null,
+      "stdout": "[]\n",
+      "stderr": "Error: No such object: orv14-vfy-host-seed-20261012-b73e0d21\n"
+    },
+    {
+      "label": "preflight-exact-container-orv14-vfy-host-target-20261012-b73e0d21",
+      "argv": [
+        "/usr/local/bin/docker",
+        "inspect",
+        "orv14-vfy-host-target-20261012-b73e0d21"
+      ],
+      "startedAt": "2026-10-12T04:48:11.507Z",
+      "finishedAt": "2026-10-12T04:48:11.527Z",
+      "timeoutMs": 30000,
+      "maxBufferBytes": 2097152,
+      "status": 1,
+      "signal": null,
+      "errorCode": null,
+      "stdout": "[]\n",
+      "stderr": "Error: No such object: orv14-vfy-host-target-20261012-b73e0d21\n"
+    },
+    {
+      "label": "preflight-exact-container-orv14-vfy-host-executor-20261012-b73e0d21",
+      "argv": [
+        "/usr/local/bin/docker",
+        "inspect",
+        "orv14-vfy-host-executor-20261012-b73e0d21"
+      ],
+      "startedAt": "2026-10-12T04:48:11.527Z",
+      "finishedAt": "2026-10-12T04:48:11.550Z",
+      "timeoutMs": 30000,
+      "maxBufferBytes": 2097152,
+      "status": 1,
+      "signal": null,
+      "errorCode": null,
+      "stdout": "[]\n",
+      "stderr": "Error: No such object: orv14-vfy-host-executor-20261012-b73e0d21\n"
+    },
+    {
+      "label": "preflight-exact-volume-orv14-vfy-host-protected-20261012-b73e0d21",
+      "argv": [
+        "/usr/local/bin/docker",
+        "volume",
+        "inspect",
+        "orv14-vfy-host-protected-20261012-b73e0d21"
+      ],
+      "startedAt": "2026-10-12T04:48:11.550Z",
+      "finishedAt": "2026-10-12T04:48:11.564Z",
+      "timeoutMs": 30000,
+      "maxBufferBytes": 2097152,
+      "status": 1,
+      "signal": null,
+      "errorCode": null,
+      "stdout": "[]\n",
+      "stderr": "Error response from daemon: get orv14-vfy-host-protected-20261012-b73e0d21: no such volume\n"
+    },
+    {
+      "label": "preflight-exact-image-orv14-vfy-host-executor:20261012-b73e0d21",
+      "argv": [
+        "/usr/local/bin/docker",
+        "image",
+        "inspect",
+        "orv14-vfy-host-executor:20261012-b73e0d21"
+      ],
+      "startedAt": "2026-10-12T04:48:11.564Z",
+      "finishedAt": "2026-10-12T04:48:11.582Z",
+      "timeoutMs": 30000,
+      "maxBufferBytes": 2097152,
+      "status": 1,
+      "signal": null,
+      "errorCode": null,
+      "stdout": "[]\n",
+      "stderr": "Error response from daemon: No such image: orv14-vfy-host-executor:20261012-b73e0d21\n"
+    },
+    {
+      "label": "inspect-digest-pinned-cached-base",
+      "argv": [
+        "/usr/local/bin/docker",
+        "image",
+        "inspect",
+        "node:24-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1"
+      ],
+      "startedAt": "2026-10-12T04:48:11.582Z",
+      "finishedAt": "2026-10-12T04:48:11.601Z",
+      "timeoutMs": 30000,
+      "maxBufferBytes": 2097152,
+      "status": 0,
+      "signal": null,
+      "errorCode": null,
+      "stdout": "[\n    {\n        \"Id\": \"sha256:c10884952bb8c37122fcc3fe6f97af3ab0a80e5eb02ee5df707406b4e11a7e3e\",\n        \"RepoTags\": [\n            \"node:24-alpine\"\n        ],\n        \"RepoDigests\": [\n            \"node@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1\"\n        ],\n        \"Parent\": \"\",\n        \"Comment\": \"buildkit.dockerfile.v0\",\n        \"Created\": \"2026-09-17T21:47:27.838317214Z\",\n        \"DockerVersion\": \"\",\n        \"Author\": \"\",\n        \"Architecture\": \"amd64\",\n        \"Os\": \"linux\",\n        \"Size\": 170749661,\n        \"GraphDriver\": {\n            \"Data\": null,\n            \"Name\": \"vfs\"\n        },\n        \"RootFS\": {\n            \"Type\": \"layers\",\n            \"Layers\": [\n                \"sha256:74d97c428c51a828f9051a7a40a53ff1fc99e54fc30323ce36760701b0b7f711\",\n                \"sha256:7c732ed82ebdb575d2af70ebb84786b7421107ae929359e8e180c636040cbe88\",\n                \"sha256:6f3bd0caa7c25469ef663d37b3d333f7cda0b2887c78a1653af1f7bc6babef2d\",\n                \"sha256:a3b40bc0bbc6fc169200dd4069eac2195573e96112b64ad82c795d6ef3636719\"\n            ]\n        },\n        \"Metadata\": {\n            \"LastTagTime\": \"0001-01-01T00:00:00Z\"\n        },\n        \"Config\": {\n            \"Cmd\": [\n                \"node\"\n            ],\n            \"Entrypoint\": [\n                \"docker-entrypoint.sh\"\n            ],\n            \"Env\": [\n                \"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\",\n                \"NODE_VERSION=24.21.0\",\n                \"YARN_VERSION=1.22.22\"\n            ],\n            \"Labels\": null,\n            \"OnBuild\": null,\n            \"User\": \"\",\n            \"Volumes\": null,\n            \"WorkingDir\": \"/\"\n        }\n    }\n]\n",
+      "stderr": ""
+    },
+    {
+      "label": "offline-build-pinned-image",
+      "argv": [
+        "/usr/local/bin/docker",
+        "build",
+        "--network=none",
+        "--pull=false",
+        "--label",
+        "org.dugate.orv14-vfy-host=executor-20261012-b73e0d21",
+        "--file",
+        "/workspace/scratch/orv14-host-executor-plan/Dockerfile",
+        "--tag",
+        "orv14-vfy-host-executor:20261012-b73e0d21",
+        "/workspace/scratch/orv14-host-executor-plan"
+      ],
+      "startedAt": "2026-10-12T04:48:11.601Z",
+      "finishedAt": "2026-10-12T04:48:13.033Z",
+      "timeoutMs": 300000,
+      "maxBufferBytes": 4194304,
+      "status": 0,
+      "signal": null,
+      "errorCode": null,
+      "stdout": "",
+      "stderr": "#0 building with \"default\" instance using docker driver\n\n#1 [internal] load build definition from Dockerfile\n#1 transferring dockerfile: 1.15kB done\n#1 DONE 0.0s\n\n#2 [internal] load metadata for docker.io/library/node:24-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1\n#2 DONE 0.0s\n\n#3 [internal] load .dockerignore\n#3 transferring context: 2B done\n#3 DONE 0.0s\n\n#4 [1/8] FROM docker.io/library/node:24-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1\n#4 DONE 0.0s\n\n#5 [internal] load build context\n#5 transferring context: 5.63kB done\n#5 DONE 0.0s\n\n#6 [2/8] COPY packages/ /tmp/packages/\n#6 CACHED\n\n#7 [3/8] COPY package-sha256.txt /tmp/package-sha256.txt\n#7 CACHED\n\n#8 [4/8] COPY source-isolation.nft /usr/local/share/orv14-vfy-host/source-isolation.nft\n#8 CACHED\n\n#9 [5/8] COPY seed-volume.sh /usr/local/bin/orv14-seed-protected-volume\n#9 DONE 0.2s\n\n#10 [6/8] COPY verify-target.mjs /usr/local/bin/orv14-verify-runtime-reader.mjs\n#10 DONE 0.1s\n\n#11 [7/8] COPY verify-executor.mjs /usr/local/bin/orv14-verify-target-netns.mjs\n#11 DONE 0.2s\n\n#12 [8/8] RUN cd /tmp && sha256sum -c package-sha256.txt  && apk add --no-network --no-cache /tmp/packages/*.apk  && test \"$(node --version)\" = \"v24.21.0\"  && test \"$(nsenter --version | sed -n '1s/.* //p')\" = \"2.42.3\"  && case \"$(nft --version)\" in *v1.1.6*) : ;; *) exit 1 ;; esac  && chown 0:0 /usr/local/share/orv14-vfy-host /usr/local/share/orv14-vfy-host/source-isolation.nft  && chmod 0700 /usr/local/share/orv14-vfy-host  && chmod 0400 /usr/local/share/orv14-vfy-host/source-isolation.nft  && rm -rf /tmp/packages /tmp/package-sha256.txt /var/cache/apk/*\n#12 0.184 packages/gmp-6.3.0-r4.apk: OK\n#12 0.195 packages/jansson-2.15.0-r0.apk: OK\n#12 0.195 packages/libblkid-2.42.3-r1.apk: OK\n#12 0.195 packages/libeconf-0.8.3-r0.apk: OK\n#12 0.195 packages/libfdisk-2.42.3-r1.apk: OK\n#12 0.195 packages/libmnl-1.0.5-r2.apk: OK\n#12 0.195 packages/libmount-2.42.3-r1.apk: OK\n#12 0.195 packages/libncursesw-6.6_p20260516-r0.apk: OK\n#12 0.195 packages/libnftnl-1.3.1-r0.apk: OK\n#12 0.195 packages/libsmartcols-2.42.3-r1.apk: OK\n#12 0.195 packages/libuuid-2.42.3-r1.apk: OK\n#12 0.195 packages/ncurses-terminfo-base-6.6_p20260516-r0.apk: OK\n#12 0.195 packages/nftables-1.1.6-r1.apk: OK\n#12 0.195 packages/readline-8.3.3-r1.apk: OK\n#12 0.195 packages/setarch-2.42.3-r1.apk: OK\n#12 0.195 packages/skalibs-libs-2.15.0.0-r0.apk: OK\n#12 0.195 packages/util-linux-misc-2.42.3-r1.apk: OK\n#12 0.195 packages/utmps-libs-0.1.3.3-r0.apk: OK\n#12 0.195 packages/zlib-1.3.2-r1.apk: OK\n#12 0.199 WARNING: fetching https://dl-cdn.alpinelinux.org/alpine/v3.24/main/x86_64/APKINDEX.tar.gz: HTTP: unrecognized server error\n#12 0.199 WARNING: fetching https://dl-cdn.alpinelinux.org/alpine/v3.24/community/x86_64/APKINDEX.tar.gz: HTTP: unrecognized server error\n#12 0.215 ( 1/19) Upgrading zlib (1.3.2-r0 -> 1.3.2-r1)\n#12 0.216 ( 2/19) Installing gmp (6.3.0-r4)\n#12 0.219 ( 3/19) Installing jansson (2.15.0-r0)\n#12 0.220 ( 4/19) Installing libeconf (0.8.3-r0)\n#12 0.221 ( 5/19) Installing libblkid (2.42.3-r1)\n#12 0.222 ( 6/19) Installing libuuid (2.42.3-r1)\n#12 0.223 ( 7/19) Installing libfdisk (2.42.3-r1)\n#12 0.224 ( 8/19) Installing libmnl (1.0.5-r2)\n#12 0.225 ( 9/19) Installing libmount (2.42.3-r1)\n#12 0.226 (10/19) Installing ncurses-terminfo-base (6.6_p20260516-r0)\n#12 0.228 (11/19) Installing libncursesw (6.6_p20260516-r0)\n#12 0.230 (12/19) Installing libnftnl (1.3.1-r0)\n#12 0.231 (13/19) Installing libsmartcols (2.42.3-r1)\n#12 0.232 (14/19) Installing readline (8.3.3-r1)\n#12 0.234 (15/19) Installing nftables (1.1.6-r1)\n#12 0.239 (16/19) Installing setarch (2.42.3-r1)\n#12 0.239 (17/19) Installing skalibs-libs (2.15.0.0-r0)\n#12 0.241 (18/19) Installing utmps-libs (0.1.3.3-r0)\n#12 0.241 (19/19) Installing util-linux-misc (2.42.3-r1)\n#12 0.255 Executing busybox-1.37.0-r31.trigger\n#12 0.258 OK: 16.5 MiB in 36 packages\n#12 DONE 0.3s\n\n#13 exporting to image\n#13 exporting layers\n#13 exporting layers 0.5s done\n#13 writing image sha256:c4eaa139de1af8b7c318bce2d3d0791fd67cee8c77e25b8caecbc8b140748e5d done\n#13 naming to docker.io/library/orv14-vfy-host-executor:20261012-b73e0d21 done\n#13 DONE 0.5s\n"
+    },
+    {
+      "label": "inspect-built-image",
+      "argv": [
+        "/usr/local/bin/docker",
+        "image",
+        "inspect",
+        "orv14-vfy-host-executor:20261012-b73e0d21"
+      ],
+      "startedAt": "2026-10-12T04:48:13.033Z",
+      "finishedAt": "2026-10-12T04:48:13.049Z",
+      "timeoutMs": 30000,
+      "maxBufferBytes": 2097152,
+      "status": 0,
+      "signal": null,
+      "errorCode": null,
+      "stdout": "[\n    {\n        \"Id\": \"sha256:c4eaa139de1af8b7c318bce2d3d0791fd67cee8c77e25b8caecbc8b140748e5d\",\n        \"RepoTags\": [\n            \"orv14-vfy-host-executor:20261012-b73e0d21\"\n        ],\n        \"RepoDigests\": [],\n        \"Parent\": \"\",\n        \"Comment\": \"buildkit.dockerfile.v0\",\n        \"Created\": \"2026-10-12T04:48:12.518224018Z\",\n        \"DockerVersion\": \"\",\n        \"Author\": \"\",\n        \"Architecture\": \"amd64\",\n        \"Os\": \"linux\",\n        \"Size\": 179207339,\n        \"GraphDriver\": {\n            \"Data\": null,\n            \"Name\": \"vfs\"\n        },\n        \"RootFS\": {\n            \"Type\": \"layers\",\n            \"Layers\": [\n                \"sha256:74d97c428c51a828f9051a7a40a53ff1fc99e54fc30323ce36760701b0b7f711\",\n                \"sha256:7c732ed82ebdb575d2af70ebb84786b7421107ae929359e8e180c636040cbe88\",\n                \"sha256:6f3bd0caa7c25469ef663d37b3d333f7cda0b2887c78a1653af1f7bc6babef2d\",\n                \"sha256:a3b40bc0bbc6fc169200dd4069eac2195573e96112b64ad82c795d6ef3636719\",\n                \"sha256:64b3e7d0926ac9127a1728bcddfc6776bf738646e2e12e319e14d81f0517651d\",\n                \"sha256:29934f1b7fb4a2a7cf1c3ea7c9a2f0c15ea54567d1fa329ea9de8b384ccd9f39\",\n                \"sha256:95218cf678489fea184e4f7d95751a91c69760f3207ed86cef9319412ed923cb\",\n                \"sha256:2e5737e19a6d34011b304c2d6c38904fb47ce0e9121b32b4d10c7fc4611f127a\",\n                \"sha256:d6bbbd1e5b93880e1848d1eb9b7a2973220e0a8210b15cb1089182d263940210\",\n                \"sha256:cc30d779ed2c9e2e5cdd6c8f58e631c6de18a4f0bd54a776a71be7d8b854e9c4\",\n                \"sha256:a83204d381db9c4dc1583128f0a8cd237cf7de08acd6f3656ef5a885eea93687\"\n            ]\n        },\n        \"Metadata\": {\n            \"LastTagTime\": \"2026-10-12T04:48:13.012870059Z\"\n        },\n        \"Config\": {\n            \"Cmd\": null,\n            \"Entrypoint\": [\n                \"/bin/sh\"\n            ],\n            \"Env\": [\n                \"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\",\n                \"NODE_VERSION=24.21.0\",\n                \"YARN_VERSION=1.22.22\"\n            ],\n            \"Labels\": {\n                \"org.dugate.orv14-vfy-host\": \"executor-20261012-b73e0d21\"\n            },\n            \"OnBuild\": null,\n            \"User\": \"0:0\",\n            \"Volumes\": null,\n            \"WorkingDir\": \"/\"\n        }\n    }\n]\n",
+      "stderr": ""
+    },
+    {
+      "label": "create-protected-volume",
+      "argv": [
+        "/usr/local/bin/docker",
+        "volume",
+        "create",
+        "--label",
+        "org.dugate.orv14-vfy-host=executor-20261012-b73e0d21",
+        "orv14-vfy-host-protected-20261012-b73e0d21"
+      ],
+      "startedAt": "2026-10-12T04:48:13.049Z",
+      "finishedAt": "2026-10-12T04:48:13.065Z",
+      "timeoutMs": 30000,
+      "maxBufferBytes": 2097152,
+      "status": 0,
+      "signal": null,
+      "errorCode": null,
+      "stdout": "orv14-vfy-host-protected-20261012-b73e0d21\n",
+      "stderr": ""
+    },
+    {
+      "label": "inspect-created-volume",
+      "argv": [
+        "/usr/local/bin/docker",
+        "volume",
+        "inspect",
+        "orv14-vfy-host-protected-20261012-b73e0d21"
+      ],
+      "startedAt": "2026-10-12T04:48:13.066Z",
+      "finishedAt": "2026-10-12T04:48:13.077Z",
+      "timeoutMs": 30000,
+      "maxBufferBytes": 2097152,
+      "status": 0,
+      "signal": null,
+      "errorCode": null,
+      "stdout": "[\n    {\n        \"CreatedAt\": \"2026-10-12T04:48:13Z\",\n        \"Driver\": \"local\",\n        \"Labels\": {\n            \"org.dugate.orv14-vfy-host\": \"executor-20261012-b73e0d21\"\n        },\n        \"Mountpoint\": \"/var/lib/docker/volumes/orv14-vfy-host-protected-20261012-b73e0d21/_data\",\n        \"Name\": \"orv14-vfy-host-protected-20261012-b73e0d21\",\n        \"Options\": null,\n        \"Scope\": \"local\"\n    }\n]\n",
+      "stderr": ""
+    },
+    {
+      "label": "create-seed-container",
+      "argv": [
+        "/usr/local/bin/docker",
+        "create",
+        "--name",
+        "orv14-vfy-host-seed-20261012-b73e0d21",
+        "--label",
+        "org.dugate.orv14-vfy-host=executor-20261012-b73e0d21",
+        "--network",
+        "none",
+        "--read-only",
+        "--cap-drop",
+        "ALL",
+        "--cap-add",
+        "CHOWN",
+        "--security-opt",
+        "no-new-privileges",
+        "--mount",
+        "type=volume,src=orv14-vfy-host-protected-20261012-b73e0d21,dst=/seed",
+        "--entrypoint",
+        "/bin/sh",
+        "orv14-vfy-host-executor:20261012-b73e0d21",
+        "-c",
+        "node --version && /usr/local/bin/orv14-seed-protected-volume /seed"
+      ],
+      "startedAt": "2026-10-12T04:48:13.077Z",
+      "finishedAt": "2026-10-12T04:48:13.413Z",
+      "timeoutMs": 30000,
+      "maxBufferBytes": 2097152,
+      "status": 0,
+      "signal": null,
+      "errorCode": null,
+      "stdout": "ad614cc8cc21775a2ef5e1abec339aed68195ce7da48c94706e2779048f16e33\n",
+      "stderr": ""
+    },
+    {
+      "label": "inspect-seed-before-start",
+      "argv": [
+        "/usr/local/bin/docker",
+        "inspect",
+        "ad614cc8cc21775a2ef5e1abec339aed68195ce7da48c94706e2779048f16e33"
+      ],
+      "startedAt": "2026-10-12T04:48:13.413Z",
+      "finishedAt": "2026-10-12T04:48:13.426Z",
+      "timeoutMs": 30000,
+      "maxBufferBytes": 2097152,
+      "status": 0,
+      "signal": null,
+      "errorCode": null,
+      "stdout": "[\n    {\n        \"Id\": \"ad614cc8cc21775a2ef5e1abec339aed68195ce7da48c94706e2779048f16e33\",\n        \"Created\": \"2026-10-12T04:48:13.089210543Z\",\n        \"Path\": \"/bin/sh\",\n        \"Args\": [\n            \"-c\",\n            \"node --version && /usr/local/bin/orv14-seed-protected-volume /seed\"\n        ],\n        \"State\": {\n            \"Status\": \"created\",\n            \"Running\": false,\n            \"Paused\": false,\n            \"Restarting\": false,\n            \"OOMKilled\": false,\n            \"Dead\": false,\n            \"Pid\": 0,\n            \"ExitCode\": 0,\n            \"Error\": \"\",\n            \"StartedAt\": \"0001-01-01T00:00:00Z\",\n            \"FinishedAt\": \"0001-01-01T00:00:00Z\"\n        },\n        \"Image\": \"sha256:c4eaa139de1af8b7c318bce2d3d0791fd67cee8c77e25b8caecbc8b140748e5d\",\n        \"ResolvConfPath\": \"\",\n        \"HostnamePath\": \"\",\n        \"HostsPath\": \"\",\n        \"LogPath\": \"\",\n        \"Name\": \"/orv14-vfy-host-seed-20261012-b73e0d21\",\n        \"RestartCount\": 0,\n        \"Driver\": \"vfs\",\n        \"Platform\": \"linux\",\n        \"MountLabel\": \"\",\n        \"ProcessLabel\": \"\",\n        \"AppArmorProfile\": \"\",\n        \"ExecIDs\": null,\n        \"HostConfig\": {\n            \"Binds\": null,\n            \"ContainerIDFile\": \"\",\n            \"LogConfig\": {\n                \"Type\": \"json-file\",\n                \"Config\": {}\n            },\n            \"NetworkMode\": \"none\",\n            \"PortBindings\": {},\n            \"RestartPolicy\": {\n                \"Name\": \"no\",\n                \"MaximumRetryCount\": 0\n            },\n            \"AutoRemove\": false,\n            \"VolumeDriver\": \"\",\n            \"VolumesFrom\": null,\n            \"ConsoleSize\": [\n                0,\n                0\n            ],\n            \"CapAdd\": [\n                \"CAP_CHOWN\"\n            ],\n            \"CapDrop\": [\n                \"ALL\"\n            ],\n            \"CgroupnsMode\": \"private\",\n            \"Dns\": [],\n            \"DnsOptions\": [],\n            \"DnsSearch\": [],\n            \"ExtraHosts\": null,\n            \"GroupAdd\": null,\n            \"IpcMode\": \"private\",\n            \"Cgroup\": \"\",\n            \"Links\": null,\n            \"OomScoreAdj\": 0,\n            \"PidMode\": \"\",\n            \"Privileged\": false,\n            \"PublishAllPorts\": false,\n            \"ReadonlyRootfs\": true,\n            \"SecurityOpt\": [\n                \"no-new-privileges\"\n            ],\n            \"UTSMode\": \"\",\n            \"UsernsMode\": \"\",\n            \"ShmSize\": 67108864,\n            \"Runtime\": \"runc\",\n            \"Isolation\": \"\",\n            \"CpuShares\": 0,\n            \"Memory\": 0,\n            \"NanoCpus\": 0,\n            \"CgroupParent\": \"\",\n            \"BlkioWeight\": 0,\n            \"BlkioWeightDevice\": [],\n            \"BlkioDeviceReadBps\": [],\n            \"BlkioDeviceWriteBps\": [],\n            \"BlkioDeviceReadIOps\": [],\n            \"BlkioDeviceWriteIOps\": [],\n            \"CpuPeriod\": 0,\n            \"CpuQuota\": 0,\n            \"CpuRealtimePeriod\": 0,\n            \"CpuRealtimeRuntime\": 0,\n            \"CpusetCpus\": \"\",\n            \"CpusetMems\": \"\",\n            \"Devices\": [],\n            \"DeviceCgroupRules\": null,\n            \"DeviceRequests\": null,\n            \"MemoryReservation\": 0,\n            \"MemorySwap\": 0,\n            \"MemorySwappiness\": null,\n            \"OomKillDisable\": false,\n            \"PidsLimit\": null,\n            \"Ulimits\": [],\n            \"CpuCount\": 0,\n            \"CpuPercent\": 0,\n            \"IOMaximumIOps\": 0,\n            \"IOMaximumBandwidth\": 0,\n            \"Mounts\": [\n                {\n                    \"Type\": \"volume\",\n                    \"Source\": \"orv14-vfy-host-protected-20261012-b73e0d21\",\n                    \"Target\": \"/seed\"\n                }\n            ],\n            \"MaskedPaths\": [\n                \"/proc/asound\",\n                \"/proc/acpi\",\n                \"/proc/interrupts\",\n                \"/proc/kcore\",\n                \"/proc/keys\",\n                \"/proc/latency_stats\",\n                \"/proc/timer_list\",\n                \"/proc/timer_stats\",\n                \"/proc/sched_debug\",\n                \"/proc/scsi\",\n                \"/sys/firmware\",\n                \"/sys/devices/virtual/powercap\"\n            ],\n            \"ReadonlyPaths\": [\n                \"/proc/bus\",\n                \"/proc/fs\",\n                \"/proc/irq\",\n                \"/proc/sys\",\n                \"/proc/sysrq-trigger\"\n            ]\n        },\n        \"GraphDriver\": {\n            \"Data\": {\n                \"ID\": \"ad614cc8cc21775a2ef5e1abec339aed68195ce7da48c94706e2779048f16e33\"\n            },\n            \"Name\": \"vfs\"\n        },\n        \"Mounts\": [\n            {\n                \"Type\": \"volume\",\n                \"Name\": \"orv14-vfy-host-protected-20261012-b73e0d21\",\n                \"Source\": \"/var/lib/docker/volumes/orv14-vfy-host-protected-20261012-b73e0d21/_data\",\n                \"Destination\": \"/seed\",\n                \"Driver\": \"local\",\n                \"Mode\": \"z\",\n                \"RW\": true,\n                \"Propagation\": \"\"\n            }\n        ],\n        \"Config\": {\n            \"Hostname\": \"ad614cc8cc21\",\n            \"Domainname\": \"\",\n            \"User\": \"0:0\",\n            \"AttachStdin\": false,\n            \"AttachStdout\": true,\n            \"AttachStderr\": true,\n            \"Tty\": false,\n            \"OpenStdin\": false,\n            \"StdinOnce\": false,\n            \"Env\": [\n                \"NO_PROXY=localhost,127.0.0.1,::1\",\n                \"no_proxy=localhost,127.0.0.1,::1\",\n                \"HTTP_PROXY=http://172.31.10.237:8080\",\n                \"http_proxy=http://172.31.10.237:8080\",\n                \"HTTPS_PROXY=http://172.31.10.237:8080\",\n                \"https_proxy=http://172.31.10.237:8080\",\n                \"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\",\n                \"NODE_VERSION=24.21.0\",\n                \"YARN_VERSION=1.22.22\"\n            ],\n            \"Cmd\": [\n                \"-c\",\n                \"node --version && /usr/local/bin/orv14-seed-protected-volume /seed\"\n            ],\n            \"Image\": \"orv14-vfy-host-executor:20261012-b73e0d21\",\n            \"Volumes\": null,\n            \"WorkingDir\": \"/\",\n            \"Entrypoint\": [\n                \"/bin/sh\"\n            ],\n            \"OnBuild\": null,\n            \"Labels\": {\n                \"org.dugate.orv14-vfy-host\": \"executor-20261012-b73e0d21\"\n            }\n        },\n        \"NetworkSettings\": {\n            \"Bridge\": \"\",\n            \"SandboxID\": \"\",\n            \"SandboxKey\": \"\",\n            \"Ports\": {},\n            \"HairpinMode\": false,\n            \"LinkLocalIPv6Address\": \"\",\n            \"LinkLocalIPv6PrefixLen\": 0,\n            \"SecondaryIPAddresses\": null,\n            \"SecondaryIPv6Addresses\": null,\n            \"EndpointID\": \"\",\n            \"Gateway\": \"\",\n            \"GlobalIPv6Address\": \"\",\n            \"GlobalIPv6PrefixLen\": 0,\n            \"IPAddress\": \"\",\n            \"IPPrefixLen\": 0,\n            \"IPv6Gateway\": \"\",\n            \"MacAddress\": \"\",\n            \"Networks\": {\n                \"none\": {\n                    \"IPAMConfig\": null,\n                    \"Links\": null,\n                    \"Aliases\": null,\n                    \"MacAddress\": \"\",\n                    \"DriverOpts\": null,\n                    \"GwPriority\": 0,\n                    \"NetworkID\": \"\",\n                    \"EndpointID\": \"\",\n                    \"Gateway\": \"\",\n                    \"IPAddress\": \"\",\n                    \"IPPrefixLen\": 0,\n                    \"IPv6Gateway\": \"\",\n                    \"GlobalIPv6Address\": \"\",\n                    \"GlobalIPv6PrefixLen\": 0,\n                    \"DNSNames\": null\n                }\n            }\n        }\n    }\n]\n",
+      "stderr": ""
+    },
+    {
+      "label": "start-seed-container",
+      "argv": [
+        "/usr/local/bin/docker",
+        "start",
+        "--attach",
+        "ad614cc8cc21775a2ef5e1abec339aed68195ce7da48c94706e2779048f16e33"
+      ],
+      "startedAt": "2026-10-12T04:48:13.426Z",
+      "finishedAt": "2026-10-12T04:48:13.552Z",
+      "timeoutMs": 30000,
+      "maxBufferBytes": 524288,
+      "status": 0,
+      "signal": null,
+      "errorCode": null,
+      "stdout": "v24.21.0\n/seed 0:1000 750 4096\n/seed/policy 0:1000 750 4096\n/seed/policy/source-isolation.nft 0:1000 440 248\n/seed/runtime 0:1000 750 4096\n/seed/runtime/runtime-config.json 0:1000 440 53\n",
+      "stderr": ""
+    },
+    {
+      "label": "inspect-seed-after-exit",
+      "argv": [
+        "/usr/local/bin/docker",
+        "inspect",
+        "ad614cc8cc21775a2ef5e1abec339aed68195ce7da48c94706e2779048f16e33"
+      ],
+      "startedAt": "2026-10-12T04:48:13.552Z",
+      "finishedAt": "2026-10-12T04:48:13.567Z",
+      "timeoutMs": 30000,
+      "maxBufferBytes": 2097152,
+      "status": 0,
+      "signal": null,
+      "errorCode": null,
+      "stdout": "[\n    {\n        \"Id\": \"ad614cc8cc21775a2ef5e1abec339aed68195ce7da48c94706e2779048f16e33\",\n        \"Created\": \"2026-10-12T04:48:13.089210543Z\",\n        \"Path\": \"/bin/sh\",\n        \"Args\": [\n            \"-c\",\n            \"node --version && /usr/local/bin/orv14-seed-protected-volume /seed\"\n        ],\n        \"State\": {\n            \"Status\": \"exited\",\n            \"Running\": false,\n            \"Paused\": false,\n            \"Restarting\": false,\n            \"OOMKilled\": false,\n            \"Dead\": false,\n            \"Pid\": 0,\n            \"ExitCode\": 0,\n            \"Error\": \"\",\n            \"StartedAt\": \"2026-10-12T04:48:13.445603683Z\",\n            \"FinishedAt\": \"2026-10-12T04:48:13.525236477Z\"\n        },\n        \"Image\": \"sha256:c4eaa139de1af8b7c318bce2d3d0791fd67cee8c77e25b8caecbc8b140748e5d\",\n        \"ResolvConfPath\": \"/var/lib/docker/containers/ad614cc8cc21775a2ef5e1abec339aed68195ce7da48c94706e2779048f16e33/resolv.conf\",\n        \"HostnamePath\": \"/var/lib/docker/containers/ad614cc8cc21775a2ef5e1abec339aed68195ce7da48c94706e2779048f16e33/hostname\",\n        \"HostsPath\": \"/var/lib/docker/containers/ad614cc8cc21775a2ef5e1abec339aed68195ce7da48c94706e2779048f16e33/hosts\",\n        \"LogPath\": \"/var/lib/docker/containers/ad614cc8cc21775a2ef5e1abec339aed68195ce7da48c94706e2779048f16e33/ad614cc8cc21775a2ef5e1abec339aed68195ce7da48c94706e2779048f16e33-json.log\",\n        \"Name\": \"/orv14-vfy-host-seed-20261012-b73e0d21\",\n        \"RestartCount\": 0,\n        \"Driver\": \"vfs\",\n        \"Platform\": \"linux\",\n        \"MountLabel\": \"\",\n        \"ProcessLabel\": \"\",\n        \"AppArmorProfile\": \"\",\n        \"ExecIDs\": null,\n        \"HostConfig\": {\n            \"Binds\": null,\n            \"ContainerIDFile\": \"\",\n            \"LogConfig\": {\n                \"Type\": \"json-file\",\n                \"Config\": {}\n            },\n            \"NetworkMode\": \"none\",\n            \"PortBindings\": {},\n            \"RestartPolicy\": {\n                \"Name\": \"no\",\n                \"MaximumRetryCount\": 0\n            },\n            \"AutoRemove\": false,\n            \"VolumeDriver\": \"\",\n            \"VolumesFrom\": null,\n            \"ConsoleSize\": [\n                0,\n                0\n            ],\n            \"CapAdd\": [\n                \"CAP_CHOWN\"\n            ],\n            \"CapDrop\": [\n                \"ALL\"\n            ],\n            \"CgroupnsMode\": \"private\",\n            \"Dns\": [],\n            \"DnsOptions\": [],\n            \"DnsSearch\": [],\n            \"ExtraHosts\": null,\n            \"GroupAdd\": null,\n            \"IpcMode\": \"private\",\n            \"Cgroup\": \"\",\n            \"Links\": null,\n            \"OomScoreAdj\": 0,\n            \"PidMode\": \"\",\n            \"Privileged\": false,\n            \"PublishAllPorts\": false,\n            \"ReadonlyRootfs\": true,\n            \"SecurityOpt\": [\n                \"no-new-privileges\"\n            ],\n            \"UTSMode\": \"\",\n            \"UsernsMode\": \"\",\n            \"ShmSize\": 67108864,\n            \"Runtime\": \"runc\",\n            \"Isolation\": \"\",\n            \"CpuShares\": 0,\n            \"Memory\": 0,\n            \"NanoCpus\": 0,\n            \"CgroupParent\": \"\",\n            \"BlkioWeight\": 0,\n            \"BlkioWeightDevice\": [],\n            \"BlkioDeviceReadBps\": [],\n            \"BlkioDeviceWriteBps\": [],\n            \"BlkioDeviceReadIOps\": [],\n            \"BlkioDeviceWriteIOps\": [],\n            \"CpuPeriod\": 0,\n            \"CpuQuota\": 0,\n            \"CpuRealtimePeriod\": 0,\n            \"CpuRealtimeRuntime\": 0,\n            \"CpusetCpus\": \"\",\n            \"CpusetMems\": \"\",\n            \"Devices\": [],\n            \"DeviceCgroupRules\": null,\n            \"DeviceRequests\": null,\n            \"MemoryReservation\": 0,\n            \"MemorySwap\": 0,\n            \"MemorySwappiness\": null,\n            \"OomKillDisable\": null,\n            \"PidsLimit\": null,\n            \"Ulimits\": [],\n            \"CpuCount\": 0,\n            \"CpuPercent\": 0,\n            \"IOMaximumIOps\": 0,\n            \"IOMaximumBandwidth\": 0,\n            \"Mounts\": [\n                {\n                    \"Type\": \"volume\",\n                    \"Source\": \"orv14-vfy-host-protected-20261012-b73e0d21\",\n                    \"Target\": \"/seed\"\n                }\n            ],\n            \"MaskedPaths\": [\n                \"/proc/asound\",\n                \"/proc/acpi\",\n                \"/proc/interrupts\",\n                \"/proc/kcore\",\n                \"/proc/keys\",\n                \"/proc/latency_stats\",\n                \"/proc/timer_list\",\n                \"/proc/timer_stats\",\n                \"/proc/sched_debug\",\n                \"/proc/scsi\",\n                \"/sys/firmware\",\n                \"/sys/devices/virtual/powercap\"\n            ],\n            \"ReadonlyPaths\": [\n                \"/proc/bus\",\n                \"/proc/fs\",\n                \"/proc/irq\",\n                \"/proc/sys\",\n                \"/proc/sysrq-trigger\"\n            ]\n        },\n        \"GraphDriver\": {\n            \"Data\": {\n                \"ID\": \"ad614cc8cc21775a2ef5e1abec339aed68195ce7da48c94706e2779048f16e33\"\n            },\n            \"Name\": \"vfs\"\n        },\n        \"Mounts\": [\n            {\n                \"Type\": \"volume\",\n                \"Name\": \"orv14-vfy-host-protected-20261012-b73e0d21\",\n                \"Source\": \"/var/lib/docker/volumes/orv14-vfy-host-protected-20261012-b73e0d21/_data\",\n                \"Destination\": \"/seed\",\n                \"Driver\": \"local\",\n                \"Mode\": \"z\",\n                \"RW\": true,\n                \"Propagation\": \"\"\n            }\n        ],\n        \"Config\": {\n            \"Hostname\": \"ad614cc8cc21\",\n            \"Domainname\": \"\",\n            \"User\": \"0:0\",\n            \"AttachStdin\": false,\n            \"AttachStdout\": true,\n            \"AttachStderr\": true,\n            \"Tty\": false,\n            \"OpenStdin\": false,\n            \"StdinOnce\": false,\n            \"Env\": [\n                \"NO_PROXY=localhost,127.0.0.1,::1\",\n                \"no_proxy=localhost,127.0.0.1,::1\",\n                \"HTTP_PROXY=http://172.31.10.237:8080\",\n                \"http_proxy=http://172.31.10.237:8080\",\n                \"HTTPS_PROXY=http://172.31.10.237:8080\",\n                \"https_proxy=http://172.31.10.237:8080\",\n                \"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\",\n                \"NODE_VERSION=24.21.0\",\n                \"YARN_VERSION=1.22.22\"\n            ],\n            \"Cmd\": [\n                \"-c\",\n                \"node --version && /usr/local/bin/orv14-seed-protected-volume /seed\"\n            ],\n            \"Image\": \"orv14-vfy-host-executor:20261012-b73e0d21\",\n            \"Volumes\": null,\n            \"WorkingDir\": \"/\",\n            \"Entrypoint\": [\n                \"/bin/sh\"\n            ],\n            \"OnBuild\": null,\n            \"Labels\": {\n                \"org.dugate.orv14-vfy-host\": \"executor-20261012-b73e0d21\"\n            }\n        },\n        \"NetworkSettings\": {\n            \"Bridge\": \"\",\n            \"SandboxID\": \"\",\n            \"SandboxKey\": \"\",\n            \"Ports\": {},\n            \"HairpinMode\": false,\n            \"LinkLocalIPv6Address\": \"\",\n            \"LinkLocalIPv6PrefixLen\": 0,\n            \"SecondaryIPAddresses\": null,\n            \"SecondaryIPv6Addresses\": null,\n            \"EndpointID\": \"\",\n            \"Gateway\": \"\",\n            \"GlobalIPv6Address\": \"\",\n            \"GlobalIPv6PrefixLen\": 0,\n            \"IPAddress\": \"\",\n            \"IPPrefixLen\": 0,\n            \"IPv6Gateway\": \"\",\n            \"MacAddress\": \"\",\n            \"Networks\": {\n                \"none\": {\n                    \"IPAMConfig\": null,\n                    \"Links\": null,\n                    \"Aliases\": null,\n                    \"MacAddress\": \"\",\n                    \"DriverOpts\": null,\n                    \"GwPriority\": 0,\n                    \"NetworkID\": \"96834611e4a933eb1bbda90040f09b1af3871d35134c9222fb809d48f224648c\",\n                    \"EndpointID\": \"\",\n                    \"Gateway\": \"\",\n                    \"IPAddress\": \"\",\n                    \"IPPrefixLen\": 0,\n                    \"IPv6Gateway\": \"\",\n                    \"GlobalIPv6Address\": \"\",\n                    \"GlobalIPv6PrefixLen\": 0,\n                    \"DNSNames\": null\n                }\n            }\n        }\n    }\n]\n",
+      "stderr": ""
+    },
+    {
+      "label": "read-seed-stat-log",
+      "argv": [
+        "/usr/local/bin/docker",
+        "logs",
+        "ad614cc8cc21775a2ef5e1abec339aed68195ce7da48c94706e2779048f16e33"
+      ],
+      "startedAt": "2026-10-12T04:48:13.568Z",
+      "finishedAt": "2026-10-12T04:48:13.582Z",
+      "timeoutMs": 10000,
+      "maxBufferBytes": 262144,
+      "status": 0,
+      "signal": null,
+      "errorCode": null,
+      "stdout": "v24.21.0\n/seed 0:1000 750 4096\n/seed/policy 0:1000 750 4096\n/seed/policy/source-isolation.nft 0:1000 440 248\n/seed/runtime 0:1000 750 4096\n/seed/runtime/runtime-config.json 0:1000 440 53\n",
+      "stderr": ""
+    },
+    {
+      "label": "create-target-container",
+      "argv": [
+        "/usr/local/bin/docker",
+        "create",
+        "--name",
+        "orv14-vfy-host-target-20261012-b73e0d21",
+        "--label",
+        "org.dugate.orv14-vfy-host=executor-20261012-b73e0d21",
+        "--network",
+        "none",
+        "--read-only",
+        "--user",
+        "1000:1000",
+        "--cap-drop",
+        "ALL",
+        "--security-opt",
+        "no-new-privileges",
+        "--mount",
+        "type=volume,src=orv14-vfy-host-protected-20261012-b73e0d21,dst=/run/orv14-vfy/protected,volume-subpath=runtime,readonly",
+        "--entrypoint",
+        "node",
+        "orv14-vfy-host-executor:20261012-b73e0d21",
+        "/usr/local/bin/orv14-verify-runtime-reader.mjs"
+      ],
+      "startedAt": "2026-10-12T04:48:13.582Z",
+      "finishedAt": "2026-10-12T04:48:14.354Z",
+      "timeoutMs": 30000,
+      "maxBufferBytes": 2097152,
+      "status": 0,
+      "signal": null,
+      "errorCode": null,
+      "stdout": "59803ce84d3fbeb681b1c47185ea108112c393c9746441b402b6c392b7627667\n",
+      "stderr": ""
+    },
+    {
+      "label": "inspect-target-before-start",
+      "argv": [
+        "/usr/local/bin/docker",
+        "inspect",
+        "59803ce84d3fbeb681b1c47185ea108112c393c9746441b402b6c392b7627667"
+      ],
+      "startedAt": "2026-10-12T04:48:14.354Z",
+      "finishedAt": "2026-10-12T04:48:14.368Z",
+      "timeoutMs": 30000,
+      "maxBufferBytes": 2097152,
+      "status": 0,
+      "signal": null,
+      "errorCode": null,
+      "stdout": "[\n    {\n        \"Id\": \"59803ce84d3fbeb681b1c47185ea108112c393c9746441b402b6c392b7627667\",\n        \"Created\": \"2026-10-12T04:48:13.597101529Z\",\n        \"Path\": \"node\",\n        \"Args\": [\n            \"/usr/local/bin/orv14-verify-runtime-reader.mjs\"\n        ],\n        \"State\": {\n            \"Status\": \"created\",\n            \"Running\": false,\n            \"Paused\": false,\n            \"Restarting\": false,\n            \"OOMKilled\": false,\n            \"Dead\": false,\n            \"Pid\": 0,\n            \"ExitCode\": 0,\n            \"Error\": \"\",\n            \"StartedAt\": \"0001-01-01T00:00:00Z\",\n            \"FinishedAt\": \"0001-01-01T00:00:00Z\"\n        },\n        \"Image\": \"sha256:c4eaa139de1af8b7c318bce2d3d0791fd67cee8c77e25b8caecbc8b140748e5d\",\n        \"ResolvConfPath\": \"\",\n        \"HostnamePath\": \"\",\n        \"HostsPath\": \"\",\n        \"LogPath\": \"\",\n        \"Name\": \"/orv14-vfy-host-target-20261012-b73e0d21\",\n        \"RestartCount\": 0,\n        \"Driver\": \"vfs\",\n        \"Platform\": \"linux\",\n        \"MountLabel\": \"\",\n        \"ProcessLabel\": \"\",\n        \"AppArmorProfile\": \"\",\n        \"ExecIDs\": null,\n        \"HostConfig\": {\n            \"Binds\": null,\n            \"ContainerIDFile\": \"\",\n            \"LogConfig\": {\n                \"Type\": \"json-file\",\n                \"Config\": {}\n            },\n            \"NetworkMode\": \"none\",\n            \"PortBindings\": {},\n            \"RestartPolicy\": {\n                \"Name\": \"no\",\n                \"MaximumRetryCount\": 0\n            },\n            \"AutoRemove\": false,\n            \"VolumeDriver\": \"\",\n            \"VolumesFrom\": null,\n            \"ConsoleSize\": [\n                0,\n                0\n            ],\n            \"CapAdd\": null,\n            \"CapDrop\": [\n                \"ALL\"\n            ],\n            \"CgroupnsMode\": \"private\",\n            \"Dns\": [],\n            \"DnsOptions\": [],\n            \"DnsSearch\": [],\n            \"ExtraHosts\": null,\n            \"GroupAdd\": null,\n            \"IpcMode\": \"private\",\n            \"Cgroup\": \"\",\n            \"Links\": null,\n            \"OomScoreAdj\": 0,\n            \"PidMode\": \"\",\n            \"Privileged\": false,\n            \"PublishAllPorts\": false,\n            \"ReadonlyRootfs\": true,\n            \"SecurityOpt\": [\n                \"no-new-privileges\"\n            ],\n            \"UTSMode\": \"\",\n            \"UsernsMode\": \"\",\n            \"ShmSize\": 67108864,\n            \"Runtime\": \"runc\",\n            \"Isolation\": \"\",\n            \"CpuShares\": 0,\n            \"Memory\": 0,\n            \"NanoCpus\": 0,\n            \"CgroupParent\": \"\",\n            \"BlkioWeight\": 0,\n            \"BlkioWeightDevice\": [],\n            \"BlkioDeviceReadBps\": [],\n            \"BlkioDeviceWriteBps\": [],\n            \"BlkioDeviceReadIOps\": [],\n            \"BlkioDeviceWriteIOps\": [],\n            \"CpuPeriod\": 0,\n            \"CpuQuota\": 0,\n            \"CpuRealtimePeriod\": 0,\n            \"CpuRealtimeRuntime\": 0,\n            \"CpusetCpus\": \"\",\n            \"CpusetMems\": \"\",\n            \"Devices\": [],\n            \"DeviceCgroupRules\": null,\n            \"DeviceRequests\": null,\n            \"MemoryReservation\": 0,\n            \"MemorySwap\": 0,\n            \"MemorySwappiness\": null,\n            \"OomKillDisable\": false,\n            \"PidsLimit\": null,\n            \"Ulimits\": [],\n            \"CpuCount\": 0,\n            \"CpuPercent\": 0,\n            \"IOMaximumIOps\": 0,\n            \"IOMaximumBandwidth\": 0,\n            \"Mounts\": [\n                {\n                    \"Type\": \"volume\",\n                    \"Source\": \"orv14-vfy-host-protected-20261012-b73e0d21\",\n                    \"Target\": \"/run/orv14-vfy/protected\",\n                    \"ReadOnly\": true,\n                    \"VolumeOptions\": {\n                        \"Subpath\": \"runtime\",\n                        \"DriverConfig\": {}\n                    }\n                }\n            ],\n            \"MaskedPaths\": [\n                \"/proc/asound\",\n                \"/proc/acpi\",\n                \"/proc/interrupts\",\n                \"/proc/kcore\",\n                \"/proc/keys\",\n                \"/proc/latency_stats\",\n                \"/proc/timer_list\",\n                \"/proc/timer_stats\",\n                \"/proc/sched_debug\",\n                \"/proc/scsi\",\n                \"/sys/firmware\",\n                \"/sys/devices/virtual/powercap\"\n            ],\n            \"ReadonlyPaths\": [\n                \"/proc/bus\",\n                \"/proc/fs\",\n                \"/proc/irq\",\n                \"/proc/sys\",\n                \"/proc/sysrq-trigger\"\n            ]\n        },\n        \"GraphDriver\": {\n            \"Data\": {\n                \"ID\": \"59803ce84d3fbeb681b1c47185ea108112c393c9746441b402b6c392b7627667\"\n            },\n            \"Name\": \"vfs\"\n        },\n        \"Mounts\": [\n            {\n                \"Type\": \"volume\",\n                \"Name\": \"orv14-vfy-host-protected-20261012-b73e0d21\",\n                \"Source\": \"/var/lib/docker/volumes/orv14-vfy-host-protected-20261012-b73e0d21/_data\",\n                \"Destination\": \"/run/orv14-vfy/protected\",\n                \"Driver\": \"local\",\n                \"Mode\": \"z\",\n                \"RW\": false,\n                \"Propagation\": \"\"\n            }\n        ],\n        \"Config\": {\n            \"Hostname\": \"59803ce84d3f\",\n            \"Domainname\": \"\",\n            \"User\": \"1000:1000\",\n            \"AttachStdin\": false,\n            \"AttachStdout\": true,\n            \"AttachStderr\": true,\n            \"Tty\": false,\n            \"OpenStdin\": false,\n            \"StdinOnce\": false,\n            \"Env\": [\n                \"HTTP_PROXY=http://172.31.10.237:8080\",\n                \"http_proxy=http://172.31.10.237:8080\",\n                \"HTTPS_PROXY=http://172.31.10.237:8080\",\n                \"https_proxy=http://172.31.10.237:8080\",\n                \"NO_PROXY=localhost,127.0.0.1,::1\",\n                \"no_proxy=localhost,127.0.0.1,::1\",\n                \"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\",\n                \"NODE_VERSION=24.21.0\",\n                \"YARN_VERSION=1.22.22\"\n            ],\n            \"Cmd\": [\n                \"/usr/local/bin/orv14-verify-runtime-reader.mjs\"\n            ],\n            \"Image\": \"orv14-vfy-host-executor:20261012-b73e0d21\",\n            \"Volumes\": null,\n            \"WorkingDir\": \"/\",\n            \"Entrypoint\": [\n                \"node\"\n            ],\n            \"OnBuild\": null,\n            \"Labels\": {\n                \"org.dugate.orv14-vfy-host\": \"executor-20261012-b73e0d21\"\n            }\n        },\n        \"NetworkSettings\": {\n            \"Bridge\": \"\",\n            \"SandboxID\": \"\",\n            \"SandboxKey\": \"\",\n            \"Ports\": {},\n            \"HairpinMode\": false,\n            \"LinkLocalIPv6Address\": \"\",\n            \"LinkLocalIPv6PrefixLen\": 0,\n            \"SecondaryIPAddresses\": null,\n            \"SecondaryIPv6Addresses\": null,\n            \"EndpointID\": \"\",\n            \"Gateway\": \"\",\n            \"GlobalIPv6Address\": \"\",\n            \"GlobalIPv6PrefixLen\": 0,\n            \"IPAddress\": \"\",\n            \"IPPrefixLen\": 0,\n            \"IPv6Gateway\": \"\",\n            \"MacAddress\": \"\",\n            \"Networks\": {\n                \"none\": {\n                    \"IPAMConfig\": null,\n                    \"Links\": null,\n                    \"Aliases\": null,\n                    \"MacAddress\": \"\",\n                    \"DriverOpts\": null,\n                    \"GwPriority\": 0,\n                    \"NetworkID\": \"\",\n                    \"EndpointID\": \"\",\n                    \"Gateway\": \"\",\n                    \"IPAddress\": \"\",\n                    \"IPPrefixLen\": 0,\n                    \"IPv6Gateway\": \"\",\n                    \"GlobalIPv6Address\": \"\",\n                    \"GlobalIPv6PrefixLen\": 0,\n                    \"DNSNames\": null\n                }\n            }\n        }\n    }\n]\n",
+      "stderr": ""
+    },
+    {
+      "label": "start-target-container",
+      "argv": [
+        "/usr/local/bin/docker",
+        "start",
+        "59803ce84d3fbeb681b1c47185ea108112c393c9746441b402b6c392b7627667"
+      ],
+      "startedAt": "2026-10-12T04:48:14.368Z",
+      "finishedAt": "2026-10-12T04:48:14.469Z",
+      "timeoutMs": 30000,
+      "maxBufferBytes": 2097152,
+      "status": 0,
+      "signal": null,
+      "errorCode": null,
+      "stdout": "59803ce84d3fbeb681b1c47185ea108112c393c9746441b402b6c392b7627667\n",
+      "stderr": ""
+    },
+    {
+      "label": "inspect-target-after-start",
+      "argv": [
+        "/usr/local/bin/docker",
+        "inspect",
+        "59803ce84d3fbeb681b1c47185ea108112c393c9746441b402b6c392b7627667"
+      ],
+      "startedAt": "2026-10-12T04:48:14.469Z",
+      "finishedAt": "2026-10-12T04:48:14.486Z",
+      "timeoutMs": 30000,
+      "maxBufferBytes": 2097152,
+      "status": 0,
+      "signal": null,
+      "errorCode": null,
+      "stdout": "[\n    {\n        \"Id\": \"59803ce84d3fbeb681b1c47185ea108112c393c9746441b402b6c392b7627667\",\n        \"Created\": \"2026-10-12T04:48:13.597101529Z\",\n        \"Path\": \"node\",\n        \"Args\": [\n            \"/usr/local/bin/orv14-verify-runtime-reader.mjs\"\n        ],\n        \"State\": {\n            \"Status\": \"running\",\n            \"Running\": true,\n            \"Paused\": false,\n            \"Restarting\": false,\n            \"OOMKilled\": false,\n            \"Dead\": false,\n            \"Pid\": 1837758,\n            \"ExitCode\": 0,\n            \"Error\": \"\",\n            \"StartedAt\": \"2026-10-12T04:48:14.385979671Z\",\n            \"FinishedAt\": \"0001-01-01T00:00:00Z\"\n        },\n        \"Image\": \"sha256:c4eaa139de1af8b7c318bce2d3d0791fd67cee8c77e25b8caecbc8b140748e5d\",\n        \"ResolvConfPath\": \"/var/lib/docker/containers/59803ce84d3fbeb681b1c47185ea108112c393c9746441b402b6c392b7627667/resolv.conf\",\n        \"HostnamePath\": \"/var/lib/docker/containers/59803ce84d3fbeb681b1c47185ea108112c393c9746441b402b6c392b7627667/hostname\",\n        \"HostsPath\": \"/var/lib/docker/containers/59803ce84d3fbeb681b1c47185ea108112c393c9746441b402b6c392b7627667/hosts\",\n        \"LogPath\": \"/var/lib/docker/containers/59803ce84d3fbeb681b1c47185ea108112c393c9746441b402b6c392b7627667/59803ce84d3fbeb681b1c47185ea108112c393c9746441b402b6c392b7627667-json.log\",\n        \"Name\": \"/orv14-vfy-host-target-20261012-b73e0d21\",\n        \"RestartCount\": 0,\n        \"Driver\": \"vfs\",\n        \"Platform\": \"linux\",\n        \"MountLabel\": \"\",\n        \"ProcessLabel\": \"\",\n        \"AppArmorProfile\": \"\",\n        \"ExecIDs\": null,\n        \"HostConfig\": {\n            \"Binds\": null,\n            \"ContainerIDFile\": \"\",\n            \"LogConfig\": {\n                \"Type\": \"json-file\",\n                \"Config\": {}\n            },\n            \"NetworkMode\": \"none\",\n            \"PortBindings\": {},\n            \"RestartPolicy\": {\n                \"Name\": \"no\",\n                \"MaximumRetryCount\": 0\n            },\n            \"AutoRemove\": false,\n            \"VolumeDriver\": \"\",\n            \"VolumesFrom\": null,\n            \"ConsoleSize\": [\n                0,\n                0\n            ],\n            \"CapAdd\": null,\n            \"CapDrop\": [\n                \"ALL\"\n            ],\n            \"CgroupnsMode\": \"private\",\n            \"Dns\": [],\n            \"DnsOptions\": [],\n            \"DnsSearch\": [],\n            \"ExtraHosts\": null,\n            \"GroupAdd\": null,\n            \"IpcMode\": \"private\",\n            \"Cgroup\": \"\",\n            \"Links\": null,\n            \"OomScoreAdj\": 0,\n            \"PidMode\": \"\",\n            \"Privileged\": false,\n            \"PublishAllPorts\": false,\n            \"ReadonlyRootfs\": true,\n            \"SecurityOpt\": [\n                \"no-new-privileges\"\n            ],\n            \"UTSMode\": \"\",\n            \"UsernsMode\": \"\",\n            \"ShmSize\": 67108864,\n            \"Runtime\": \"runc\",\n            \"Isolation\": \"\",\n            \"CpuShares\": 0,\n            \"Memory\": 0,\n            \"NanoCpus\": 0,\n            \"CgroupParent\": \"\",\n            \"BlkioWeight\": 0,\n            \"BlkioWeightDevice\": [],\n            \"BlkioDeviceReadBps\": [],\n            \"BlkioDeviceWriteBps\": [],\n            \"BlkioDeviceReadIOps\": [],\n            \"BlkioDeviceWriteIOps\": [],\n            \"CpuPeriod\": 0,\n            \"CpuQuota\": 0,\n            \"CpuRealtimePeriod\": 0,\n            \"CpuRealtimeRuntime\": 0,\n            \"CpusetCpus\": \"\",\n            \"CpusetMems\": \"\",\n            \"Devices\": [],\n            \"DeviceCgroupRules\": null,\n            \"DeviceRequests\": null,\n            \"MemoryReservation\": 0,\n            \"MemorySwap\": 0,\n            \"MemorySwappiness\": null,\n            \"OomKillDisable\": null,\n            \"PidsLimit\": null,\n            \"Ulimits\": [],\n            \"CpuCount\": 0,\n            \"CpuPercent\": 0,\n            \"IOMaximumIOps\": 0,\n            \"IOMaximumBandwidth\": 0,\n            \"Mounts\": [\n                {\n                    \"Type\": \"volume\",\n                    \"Source\": \"orv14-vfy-host-protected-20261012-b73e0d21\",\n                    \"Target\": \"/run/orv14-vfy/protected\",\n                    \"ReadOnly\": true,\n                    \"VolumeOptions\": {\n                        \"Subpath\": \"runtime\",\n                        \"DriverConfig\": {}\n                    }\n                }\n            ],\n            \"MaskedPaths\": [\n                \"/proc/asound\",\n                \"/proc/acpi\",\n                \"/proc/interrupts\",\n                \"/proc/kcore\",\n                \"/proc/keys\",\n                \"/proc/latency_stats\",\n                \"/proc/timer_list\",\n                \"/proc/timer_stats\",\n                \"/proc/sched_debug\",\n                \"/proc/scsi\",\n                \"/sys/firmware\",\n                \"/sys/devices/virtual/powercap\"\n            ],\n            \"ReadonlyPaths\": [\n                \"/proc/bus\",\n                \"/proc/fs\",\n                \"/proc/irq\",\n                \"/proc/sys\",\n                \"/proc/sysrq-trigger\"\n            ]\n        },\n        \"GraphDriver\": {\n            \"Data\": {\n                \"ID\": \"59803ce84d3fbeb681b1c47185ea108112c393c9746441b402b6c392b7627667\"\n            },\n            \"Name\": \"vfs\"\n        },\n        \"Mounts\": [\n            {\n                \"Type\": \"volume\",\n                \"Name\": \"orv14-vfy-host-protected-20261012-b73e0d21\",\n                \"Source\": \"/var/lib/docker/volumes/orv14-vfy-host-protected-20261012-b73e0d21/_data\",\n                \"Destination\": \"/run/orv14-vfy/protected\",\n                \"Driver\": \"local\",\n                \"Mode\": \"z\",\n                \"RW\": false,\n                \"Propagation\": \"\"\n            }\n        ],\n        \"Config\": {\n            \"Hostname\": \"59803ce84d3f\",\n            \"Domainname\": \"\",\n            \"User\": \"1000:1000\",\n            \"AttachStdin\": false,\n            \"AttachStdout\": true,\n            \"AttachStderr\": true,\n            \"Tty\": false,\n            \"OpenStdin\": false,\n            \"StdinOnce\": false,\n            \"Env\": [\n                \"HTTP_PROXY=http://172.31.10.237:8080\",\n                \"http_proxy=http://172.31.10.237:8080\",\n                \"HTTPS_PROXY=http://172.31.10.237:8080\",\n                \"https_proxy=http://172.31.10.237:8080\",\n                \"NO_PROXY=localhost,127.0.0.1,::1\",\n                \"no_proxy=localhost,127.0.0.1,::1\",\n                \"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\",\n                \"NODE_VERSION=24.21.0\",\n                \"YARN_VERSION=1.22.22\"\n            ],\n            \"Cmd\": [\n                \"/usr/local/bin/orv14-verify-runtime-reader.mjs\"\n            ],\n            \"Image\": \"orv14-vfy-host-executor:20261012-b73e0d21\",\n            \"Volumes\": null,\n            \"WorkingDir\": \"/\",\n            \"Entrypoint\": [\n                \"node\"\n            ],\n            \"OnBuild\": null,\n            \"Labels\": {\n                \"org.dugate.orv14-vfy-host\": \"executor-20261012-b73e0d21\"\n            }\n        },\n        \"NetworkSettings\": {\n            \"Bridge\": \"\",\n            \"SandboxID\": \"26ba1535567c83f03112220e475e49e719b9c174b9a85b93a651ccfda985ee40\",\n            \"SandboxKey\": \"/run/codex-docker/exec-m18fvg54/netns/26ba1535567c\",\n            \"Ports\": {},\n            \"HairpinMode\": false,\n            \"LinkLocalIPv6Address\": \"\",\n            \"LinkLocalIPv6PrefixLen\": 0,\n            \"SecondaryIPAddresses\": null,\n            \"SecondaryIPv6Addresses\": null,\n            \"EndpointID\": \"\",\n            \"Gateway\": \"\",\n            \"GlobalIPv6Address\": \"\",\n            \"GlobalIPv6PrefixLen\": 0,\n            \"IPAddress\": \"\",\n            \"IPPrefixLen\": 0,\n            \"IPv6Gateway\": \"\",\n            \"MacAddress\": \"\",\n            \"Networks\": {\n                \"none\": {\n                    \"IPAMConfig\": null,\n                    \"Links\": null,\n                    \"Aliases\": null,\n                    \"MacAddress\": \"\",\n                    \"DriverOpts\": null,\n                    \"GwPriority\": 0,\n                    \"NetworkID\": \"96834611e4a933eb1bbda90040f09b1af3871d35134c9222fb809d48f224648c\",\n                    \"EndpointID\": \"ef441eb342b5c411e1c452ed796a2a62075184ff42481cd78d59a2f2ad9484ae\",\n                    \"Gateway\": \"\",\n                    \"IPAddress\": \"\",\n                    \"IPPrefixLen\": 0,\n                    \"IPv6Gateway\": \"\",\n                    \"GlobalIPv6Address\": \"\",\n                    \"GlobalIPv6PrefixLen\": 0,\n                    \"DNSNames\": null\n                }\n            }\n        }\n    }\n]\n",
+      "stderr": ""
+    },
+    {
+      "label": "read-target-reader-proof",
+      "argv": [
+        "/usr/local/bin/docker",
+        "logs",
+        "59803ce84d3fbeb681b1c47185ea108112c393c9746441b402b6c392b7627667"
+      ],
+      "startedAt": "2026-10-12T04:48:14.486Z",
+      "finishedAt": "2026-10-12T04:48:14.513Z",
+      "timeoutMs": 10000,
+      "maxBufferBytes": 262144,
+      "status": 0,
+      "signal": null,
+      "errorCode": null,
+      "stdout": "{\"uid\":1000,\"gid\":1000,\"runtimeConfigOwner\":\"0:1000\",\"runtimeConfigMode\":\"440\",\"policyMountReadDenied\":\"ENOENT\",\"imagePolicyReadDenied\":\"EACCES\",\"targetNetns\":\"net:[4026532723]\",\"fixture\":\"synthetic\"}\n",
+      "stderr": ""
+    },
+    {
+      "label": "create-executor-container",
+      "argv": [
+        "/usr/local/bin/docker",
+        "create",
+        "--name",
+        "orv14-vfy-host-executor-20261012-b73e0d21",
+        "--label",
+        "org.dugate.orv14-vfy-host=executor-20261012-b73e0d21",
+        "--pid",
+        "container:59803ce84d3fbeb681b1c47185ea108112c393c9746441b402b6c392b7627667",
+        "--network",
+        "none",
+        "--read-only",
+        "--user",
+        "1000:1000",
+        "--cap-drop",
+        "ALL",
+        "--cap-add",
+        "SYS_ADMIN",
+        "--cap-add",
+        "NET_ADMIN",
+        "--security-opt",
+        "no-new-privileges",
+        "--tmpfs",
+        "/tmp:rw,noexec,nosuid,nodev",
+        "--mount",
+        "type=volume,src=orv14-vfy-host-protected-20261012-b73e0d21,dst=/run/orv14-vfy/protected,volume-subpath=policy,readonly",
+        "--entrypoint",
+        "/bin/sh",
+        "orv14-vfy-host-executor:20261012-b73e0d21",
+        "-c",
+        "while :; do sleep 3600; done"
+      ],
+      "startedAt": "2026-10-12T04:48:14.513Z",
+      "finishedAt": "2026-10-12T04:48:16.383Z",
+      "timeoutMs": 30000,
+      "maxBufferBytes": 2097152,
+      "status": 0,
+      "signal": null,
+      "errorCode": null,
+      "stdout": "cfb0db135b35a9364e63bfd170496872f2ffbb8e48e9461a3604188e30692265\n",
+      "stderr": ""
+    },
+    {
+      "label": "inspect-executor-before-start",
+      "argv": [
+        "/usr/local/bin/docker",
+        "inspect",
+        "cfb0db135b35a9364e63bfd170496872f2ffbb8e48e9461a3604188e30692265"
+      ],
+      "startedAt": "2026-10-12T04:48:16.383Z",
+      "finishedAt": "2026-10-12T04:48:16.397Z",
+      "timeoutMs": 30000,
+      "maxBufferBytes": 2097152,
+      "status": 0,
+      "signal": null,
+      "errorCode": null,
+      "stdout": "[\n    {\n        \"Id\": \"cfb0db135b35a9364e63bfd170496872f2ffbb8e48e9461a3604188e30692265\",\n        \"Created\": \"2026-10-12T04:48:14.524905846Z\",\n        \"Path\": \"/bin/sh\",\n        \"Args\": [\n            \"-c\",\n            \"while :; do sleep 3600; done\"\n        ],\n        \"State\": {\n            \"Status\": \"created\",\n            \"Running\": false,\n            \"Paused\": false,\n            \"Restarting\": false,\n            \"OOMKilled\": false,\n            \"Dead\": false,\n            \"Pid\": 0,\n            \"ExitCode\": 0,\n            \"Error\": \"\",\n            \"StartedAt\": \"0001-01-01T00:00:00Z\",\n            \"FinishedAt\": \"0001-01-01T00:00:00Z\"\n        },\n        \"Image\": \"sha256:c4eaa139de1af8b7c318bce2d3d0791fd67cee8c77e25b8caecbc8b140748e5d\",\n        \"ResolvConfPath\": \"\",\n        \"HostnamePath\": \"\",\n        \"HostsPath\": \"\",\n        \"LogPath\": \"\",\n        \"Name\": \"/orv14-vfy-host-executor-20261012-b73e0d21\",\n        \"RestartCount\": 0,\n        \"Driver\": \"vfs\",\n        \"Platform\": \"linux\",\n        \"MountLabel\": \"\",\n        \"ProcessLabel\": \"\",\n        \"AppArmorProfile\": \"\",\n        \"ExecIDs\": null,\n        \"HostConfig\": {\n            \"Binds\": null,\n            \"ContainerIDFile\": \"\",\n            \"LogConfig\": {\n                \"Type\": \"json-file\",\n                \"Config\": {}\n            },\n            \"NetworkMode\": \"none\",\n            \"PortBindings\": {},\n            \"RestartPolicy\": {\n                \"Name\": \"no\",\n                \"MaximumRetryCount\": 0\n            },\n            \"AutoRemove\": false,\n            \"VolumeDriver\": \"\",\n            \"VolumesFrom\": null,\n            \"ConsoleSize\": [\n                0,\n                0\n            ],\n            \"CapAdd\": [\n                \"CAP_NET_ADMIN\",\n                \"CAP_SYS_ADMIN\"\n            ],\n            \"CapDrop\": [\n                \"ALL\"\n            ],\n            \"CgroupnsMode\": \"private\",\n            \"Dns\": [],\n            \"DnsOptions\": [],\n            \"DnsSearch\": [],\n            \"ExtraHosts\": null,\n            \"GroupAdd\": null,\n            \"IpcMode\": \"private\",\n            \"Cgroup\": \"\",\n            \"Links\": null,\n            \"OomScoreAdj\": 0,\n            \"PidMode\": \"container:59803ce84d3fbeb681b1c47185ea108112c393c9746441b402b6c392b7627667\",\n            \"Privileged\": false,\n            \"PublishAllPorts\": false,\n            \"ReadonlyRootfs\": true,\n            \"SecurityOpt\": [\n                \"no-new-privileges\"\n            ],\n            \"Tmpfs\": {\n                \"/tmp\": \"rw,noexec,nosuid,nodev\"\n            },\n            \"UTSMode\": \"\",\n            \"UsernsMode\": \"\",\n            \"ShmSize\": 67108864,\n            \"Runtime\": \"runc\",\n            \"Isolation\": \"\",\n            \"CpuShares\": 0,\n            \"Memory\": 0,\n            \"NanoCpus\": 0,\n            \"CgroupParent\": \"\",\n            \"BlkioWeight\": 0,\n            \"BlkioWeightDevice\": [],\n            \"BlkioDeviceReadBps\": [],\n            \"BlkioDeviceWriteBps\": [],\n            \"BlkioDeviceReadIOps\": [],\n            \"BlkioDeviceWriteIOps\": [],\n            \"CpuPeriod\": 0,\n            \"CpuQuota\": 0,\n            \"CpuRealtimePeriod\": 0,\n            \"CpuRealtimeRuntime\": 0,\n            \"CpusetCpus\": \"\",\n            \"CpusetMems\": \"\",\n            \"Devices\": [],\n            \"DeviceCgroupRules\": null,\n            \"DeviceRequests\": null,\n            \"MemoryReservation\": 0,\n            \"MemorySwap\": 0,\n            \"MemorySwappiness\": null,\n            \"OomKillDisable\": false,\n            \"PidsLimit\": null,\n            \"Ulimits\": [],\n            \"CpuCount\": 0,\n            \"CpuPercent\": 0,\n            \"IOMaximumIOps\": 0,\n            \"IOMaximumBandwidth\": 0,\n            \"Mounts\": [\n                {\n                    \"Type\": \"volume\",\n                    \"Source\": \"orv14-vfy-host-protected-20261012-b73e0d21\",\n                    \"Target\": \"/run/orv14-vfy/protected\",\n                    \"ReadOnly\": true,\n                    \"VolumeOptions\": {\n                        \"Subpath\": \"policy\",\n                        \"DriverConfig\": {}\n                    }\n                }\n            ],\n            \"MaskedPaths\": [\n                \"/proc/asound\",\n                \"/proc/acpi\",\n                \"/proc/interrupts\",\n                \"/proc/kcore\",\n                \"/proc/keys\",\n                \"/proc/latency_stats\",\n                \"/proc/timer_list\",\n                \"/proc/timer_stats\",\n                \"/proc/sched_debug\",\n                \"/proc/scsi\",\n                \"/sys/firmware\",\n                \"/sys/devices/virtual/powercap\"\n            ],\n            \"ReadonlyPaths\": [\n                \"/proc/bus\",\n                \"/proc/fs\",\n                \"/proc/irq\",\n                \"/proc/sys\",\n                \"/proc/sysrq-trigger\"\n            ]\n        },\n        \"GraphDriver\": {\n            \"Data\": {\n                \"ID\": \"cfb0db135b35a9364e63bfd170496872f2ffbb8e48e9461a3604188e30692265\"\n            },\n            \"Name\": \"vfs\"\n        },\n        \"Mounts\": [\n            {\n                \"Type\": \"volume\",\n                \"Name\": \"orv14-vfy-host-protected-20261012-b73e0d21\",\n                \"Source\": \"/var/lib/docker/volumes/orv14-vfy-host-protected-20261012-b73e0d21/_data\",\n                \"Destination\": \"/run/orv14-vfy/protected\",\n                \"Driver\": \"local\",\n                \"Mode\": \"z\",\n                \"RW\": false,\n                \"Propagation\": \"\"\n            }\n        ],\n        \"Config\": {\n            \"Hostname\": \"cfb0db135b35\",\n            \"Domainname\": \"\",\n            \"User\": \"1000:1000\",\n            \"AttachStdin\": false,\n            \"AttachStdout\": true,\n            \"AttachStderr\": true,\n            \"Tty\": false,\n            \"OpenStdin\": false,\n            \"StdinOnce\": false,\n            \"Env\": [\n                \"NO_PROXY=localhost,127.0.0.1,::1\",\n                \"no_proxy=localhost,127.0.0.1,::1\",\n                \"HTTP_PROXY=http://172.31.10.237:8080\",\n                \"http_proxy=http://172.31.10.237:8080\",\n                \"HTTPS_PROXY=http://172.31.10.237:8080\",\n                \"https_proxy=http://172.31.10.237:8080\",\n                \"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\",\n                \"NODE_VERSION=24.21.0\",\n                \"YARN_VERSION=1.22.22\"\n            ],\n            \"Cmd\": [\n                \"-c\",\n                \"while :; do sleep 3600; done\"\n            ],\n            \"Image\": \"orv14-vfy-host-executor:20261012-b73e0d21\",\n            \"Volumes\": null,\n            \"WorkingDir\": \"/\",\n            \"Entrypoint\": [\n                \"/bin/sh\"\n            ],\n            \"OnBuild\": null,\n            \"Labels\": {\n                \"org.dugate.orv14-vfy-host\": \"executor-20261012-b73e0d21\"\n            }\n        },\n        \"NetworkSettings\": {\n            \"Bridge\": \"\",\n            \"SandboxID\": \"\",\n            \"SandboxKey\": \"\",\n            \"Ports\": {},\n            \"HairpinMode\": false,\n            \"LinkLocalIPv6Address\": \"\",\n            \"LinkLocalIPv6PrefixLen\": 0,\n            \"SecondaryIPAddresses\": null,\n            \"SecondaryIPv6Addresses\": null,\n            \"EndpointID\": \"\",\n            \"Gateway\": \"\",\n            \"GlobalIPv6Address\": \"\",\n            \"GlobalIPv6PrefixLen\": 0,\n            \"IPAddress\": \"\",\n            \"IPPrefixLen\": 0,\n            \"IPv6Gateway\": \"\",\n            \"MacAddress\": \"\",\n            \"Networks\": {\n                \"none\": {\n                    \"IPAMConfig\": null,\n                    \"Links\": null,\n                    \"Aliases\": null,\n                    \"MacAddress\": \"\",\n                    \"DriverOpts\": null,\n                    \"GwPriority\": 0,\n                    \"NetworkID\": \"\",\n                    \"EndpointID\": \"\",\n                    \"Gateway\": \"\",\n                    \"IPAddress\": \"\",\n                    \"IPPrefixLen\": 0,\n                    \"IPv6Gateway\": \"\",\n                    \"GlobalIPv6Address\": \"\",\n                    \"GlobalIPv6PrefixLen\": 0,\n                    \"DNSNames\": null\n                }\n            }\n        }\n    }\n]\n",
+      "stderr": ""
+    },
+    {
+      "label": "start-executor-container",
+      "argv": [
+        "/usr/local/bin/docker",
+        "start",
+        "cfb0db135b35a9364e63bfd170496872f2ffbb8e48e9461a3604188e30692265"
+      ],
+      "startedAt": "2026-10-12T04:48:16.397Z",
+      "finishedAt": "2026-10-12T04:48:16.491Z",
+      "timeoutMs": 30000,
+      "maxBufferBytes": 2097152,
+      "status": 0,
+      "signal": null,
+      "errorCode": null,
+      "stdout": "cfb0db135b35a9364e63bfd170496872f2ffbb8e48e9461a3604188e30692265\n",
+      "stderr": ""
+    },
+    {
+      "label": "inspect-executor-after-start",
+      "argv": [
+        "/usr/local/bin/docker",
+        "inspect",
+        "cfb0db135b35a9364e63bfd170496872f2ffbb8e48e9461a3604188e30692265"
+      ],
+      "startedAt": "2026-10-12T04:48:16.491Z",
+      "finishedAt": "2026-10-12T04:48:16.504Z",
+      "timeoutMs": 30000,
+      "maxBufferBytes": 2097152,
+      "status": 0,
+      "signal": null,
+      "errorCode": null,
+      "stdout": "[\n    {\n        \"Id\": \"cfb0db135b35a9364e63bfd170496872f2ffbb8e48e9461a3604188e30692265\",\n        \"Created\": \"2026-10-12T04:48:14.524905846Z\",\n        \"Path\": \"/bin/sh\",\n        \"Args\": [\n            \"-c\",\n            \"while :; do sleep 3600; done\"\n        ],\n        \"State\": {\n            \"Status\": \"running\",\n            \"Running\": true,\n            \"Paused\": false,\n            \"Restarting\": false,\n            \"OOMKilled\": false,\n            \"Dead\": false,\n            \"Pid\": 1838050,\n            \"ExitCode\": 0,\n            \"Error\": \"\",\n            \"StartedAt\": \"2026-10-12T04:48:16.415414502Z\",\n            \"FinishedAt\": \"0001-01-01T00:00:00Z\"\n        },\n        \"Image\": \"sha256:c4eaa139de1af8b7c318bce2d3d0791fd67cee8c77e25b8caecbc8b140748e5d\",\n        \"ResolvConfPath\": \"/var/lib/docker/containers/cfb0db135b35a9364e63bfd170496872f2ffbb8e48e9461a3604188e30692265/resolv.conf\",\n        \"HostnamePath\": \"/var/lib/docker/containers/cfb0db135b35a9364e63bfd170496872f2ffbb8e48e9461a3604188e30692265/hostname\",\n        \"HostsPath\": \"/var/lib/docker/containers/cfb0db135b35a9364e63bfd170496872f2ffbb8e48e9461a3604188e30692265/hosts\",\n        \"LogPath\": \"/var/lib/docker/containers/cfb0db135b35a9364e63bfd170496872f2ffbb8e48e9461a3604188e30692265/cfb0db135b35a9364e63bfd170496872f2ffbb8e48e9461a3604188e30692265-json.log\",\n        \"Name\": \"/orv14-vfy-host-executor-20261012-b73e0d21\",\n        \"RestartCount\": 0,\n        \"Driver\": \"vfs\",\n        \"Platform\": \"linux\",\n        \"MountLabel\": \"\",\n        \"ProcessLabel\": \"\",\n        \"AppArmorProfile\": \"\",\n        \"ExecIDs\": null,\n        \"HostConfig\": {\n            \"Binds\": null,\n            \"ContainerIDFile\": \"\",\n            \"LogConfig\": {\n                \"Type\": \"json-file\",\n                \"Config\": {}\n            },\n            \"NetworkMode\": \"none\",\n            \"PortBindings\": {},\n            \"RestartPolicy\": {\n                \"Name\": \"no\",\n                \"MaximumRetryCount\": 0\n            },\n            \"AutoRemove\": false,\n            \"VolumeDriver\": \"\",\n            \"VolumesFrom\": null,\n            \"ConsoleSize\": [\n                0,\n                0\n            ],\n            \"CapAdd\": [\n                \"CAP_NET_ADMIN\",\n                \"CAP_SYS_ADMIN\"\n            ],\n            \"CapDrop\": [\n                \"ALL\"\n            ],\n            \"CgroupnsMode\": \"private\",\n            \"Dns\": [],\n            \"DnsOptions\": [],\n            \"DnsSearch\": [],\n            \"ExtraHosts\": null,\n            \"GroupAdd\": null,\n            \"IpcMode\": \"private\",\n            \"Cgroup\": \"\",\n            \"Links\": null,\n            \"OomScoreAdj\": 0,\n            \"PidMode\": \"container:59803ce84d3fbeb681b1c47185ea108112c393c9746441b402b6c392b7627667\",\n            \"Privileged\": false,\n            \"PublishAllPorts\": false,\n            \"ReadonlyRootfs\": true,\n            \"SecurityOpt\": [\n                \"no-new-privileges\"\n            ],\n            \"Tmpfs\": {\n                \"/tmp\": \"rw,noexec,nosuid,nodev\"\n            },\n            \"UTSMode\": \"\",\n            \"UsernsMode\": \"\",\n            \"ShmSize\": 67108864,\n            \"Runtime\": \"runc\",\n            \"Isolation\": \"\",\n            \"CpuShares\": 0,\n            \"Memory\": 0,\n            \"NanoCpus\": 0,\n            \"CgroupParent\": \"\",\n            \"BlkioWeight\": 0,\n            \"BlkioWeightDevice\": [],\n            \"BlkioDeviceReadBps\": [],\n            \"BlkioDeviceWriteBps\": [],\n            \"BlkioDeviceReadIOps\": [],\n            \"BlkioDeviceWriteIOps\": [],\n            \"CpuPeriod\": 0,\n            \"CpuQuota\": 0,\n            \"CpuRealtimePeriod\": 0,\n            \"CpuRealtimeRuntime\": 0,\n            \"CpusetCpus\": \"\",\n            \"CpusetMems\": \"\",\n            \"Devices\": [],\n            \"DeviceCgroupRules\": null,\n            \"DeviceRequests\": null,\n            \"MemoryReservation\": 0,\n            \"MemorySwap\": 0,\n            \"MemorySwappiness\": null,\n            \"OomKillDisable\": null,\n            \"PidsLimit\": null,\n            \"Ulimits\": [],\n            \"CpuCount\": 0,\n            \"CpuPercent\": 0,\n            \"IOMaximumIOps\": 0,\n            \"IOMaximumBandwidth\": 0,\n            \"Mounts\": [\n                {\n                    \"Type\": \"volume\",\n                    \"Source\": \"orv14-vfy-host-protected-20261012-b73e0d21\",\n                    \"Target\": \"/run/orv14-vfy/protected\",\n                    \"ReadOnly\": true,\n                    \"VolumeOptions\": {\n                        \"Subpath\": \"policy\",\n                        \"DriverConfig\": {}\n                    }\n                }\n            ],\n            \"MaskedPaths\": [\n                \"/proc/asound\",\n                \"/proc/acpi\",\n                \"/proc/interrupts\",\n                \"/proc/kcore\",\n                \"/proc/keys\",\n                \"/proc/latency_stats\",\n                \"/proc/timer_list\",\n                \"/proc/timer_stats\",\n                \"/proc/sched_debug\",\n                \"/proc/scsi\",\n                \"/sys/firmware\",\n                \"/sys/devices/virtual/powercap\"\n            ],\n            \"ReadonlyPaths\": [\n                \"/proc/bus\",\n                \"/proc/fs\",\n                \"/proc/irq\",\n                \"/proc/sys\",\n                \"/proc/sysrq-trigger\"\n            ]\n        },\n        \"GraphDriver\": {\n            \"Data\": {\n                \"ID\": \"cfb0db135b35a9364e63bfd170496872f2ffbb8e48e9461a3604188e30692265\"\n            },\n            \"Name\": \"vfs\"\n        },\n        \"Mounts\": [\n            {\n                \"Type\": \"volume\",\n                \"Name\": \"orv14-vfy-host-protected-20261012-b73e0d21\",\n                \"Source\": \"/var/lib/docker/volumes/orv14-vfy-host-protected-20261012-b73e0d21/_data\",\n                \"Destination\": \"/run/orv14-vfy/protected\",\n                \"Driver\": \"local\",\n                \"Mode\": \"z\",\n                \"RW\": false,\n                \"Propagation\": \"\"\n            }\n        ],\n        \"Config\": {\n            \"Hostname\": \"cfb0db135b35\",\n            \"Domainname\": \"\",\n            \"User\": \"1000:1000\",\n            \"AttachStdin\": false,\n            \"AttachStdout\": true,\n            \"AttachStderr\": true,\n            \"Tty\": false,\n            \"OpenStdin\": false,\n            \"StdinOnce\": false,\n            \"Env\": [\n                \"NO_PROXY=localhost,127.0.0.1,::1\",\n                \"no_proxy=localhost,127.0.0.1,::1\",\n                \"HTTP_PROXY=http://172.31.10.237:8080\",\n                \"http_proxy=http://172.31.10.237:8080\",\n                \"HTTPS_PROXY=http://172.31.10.237:8080\",\n                \"https_proxy=http://172.31.10.237:8080\",\n                \"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\",\n                \"NODE_VERSION=24.21.0\",\n                \"YARN_VERSION=1.22.22\"\n            ],\n            \"Cmd\": [\n                \"-c\",\n                \"while :; do sleep 3600; done\"\n            ],\n            \"Image\": \"orv14-vfy-host-executor:20261012-b73e0d21\",\n            \"Volumes\": null,\n            \"WorkingDir\": \"/\",\n            \"Entrypoint\": [\n                \"/bin/sh\"\n            ],\n            \"OnBuild\": null,\n            \"Labels\": {\n                \"org.dugate.orv14-vfy-host\": \"executor-20261012-b73e0d21\"\n            }\n        },\n        \"NetworkSettings\": {\n            \"Bridge\": \"\",\n            \"SandboxID\": \"3d25283766be5a6ea4518ef67859eb3a6985aac9ae8ae66426a470a8047eef87\",\n            \"SandboxKey\": \"/run/codex-docker/exec-m18fvg54/netns/3d25283766be\",\n            \"Ports\": {},\n            \"HairpinMode\": false,\n            \"LinkLocalIPv6Address\": \"\",\n            \"LinkLocalIPv6PrefixLen\": 0,\n            \"SecondaryIPAddresses\": null,\n            \"SecondaryIPv6Addresses\": null,\n            \"EndpointID\": \"\",\n            \"Gateway\": \"\",\n            \"GlobalIPv6Address\": \"\",\n            \"GlobalIPv6PrefixLen\": 0,\n            \"IPAddress\": \"\",\n            \"IPPrefixLen\": 0,\n            \"IPv6Gateway\": \"\",\n            \"MacAddress\": \"\",\n            \"Networks\": {\n                \"none\": {\n                    \"IPAMConfig\": null,\n                    \"Links\": null,\n                    \"Aliases\": null,\n                    \"MacAddress\": \"\",\n                    \"DriverOpts\": null,\n                    \"GwPriority\": 0,\n                    \"NetworkID\": \"96834611e4a933eb1bbda90040f09b1af3871d35134c9222fb809d48f224648c\",\n                    \"EndpointID\": \"47516b65aef298fa921c478589e47017855a5fdeb58f00e0d1b186bd18128bd0\",\n                    \"Gateway\": \"\",\n                    \"IPAddress\": \"\",\n                    \"IPPrefixLen\": 0,\n                    \"IPv6Gateway\": \"\",\n                    \"GlobalIPv6Address\": \"\",\n                    \"GlobalIPv6PrefixLen\": 0,\n                    \"DNSNames\": null\n                }\n            }\n        }\n    }\n]\n",
+      "stderr": ""
+    },
+    {
+      "label": "pre-namespace-reinspect-target",
+      "argv": [
+        "/usr/local/bin/docker",
+        "inspect",
+        "59803ce84d3fbeb681b1c47185ea108112c393c9746441b402b6c392b7627667"
+      ],
+      "startedAt": "2026-10-12T04:48:16.504Z",
+      "finishedAt": "2026-10-12T04:48:16.516Z",
+      "timeoutMs": 30000,
+      "maxBufferBytes": 2097152,
+      "status": 0,
+      "signal": null,
+      "errorCode": null,
+      "stdout": "[\n    {\n        \"Id\": \"59803ce84d3fbeb681b1c47185ea108112c393c9746441b402b6c392b7627667\",\n        \"Created\": \"2026-10-12T04:48:13.597101529Z\",\n        \"Path\": \"node\",\n        \"Args\": [\n            \"/usr/local/bin/orv14-verify-runtime-reader.mjs\"\n        ],\n        \"State\": {\n            \"Status\": \"running\",\n            \"Running\": true,\n            \"Paused\": false,\n            \"Restarting\": false,\n            \"OOMKilled\": false,\n            \"Dead\": false,\n            \"Pid\": 1837758,\n            \"ExitCode\": 0,\n            \"Error\": \"\",\n            \"StartedAt\": \"2026-10-12T04:48:14.385979671Z\",\n            \"FinishedAt\": \"0001-01-01T00:00:00Z\"\n        },\n        \"Image\": \"sha256:c4eaa139de1af8b7c318bce2d3d0791fd67cee8c77e25b8caecbc8b140748e5d\",\n        \"ResolvConfPath\": \"/var/lib/docker/containers/59803ce84d3fbeb681b1c47185ea108112c393c9746441b402b6c392b7627667/resolv.conf\",\n        \"HostnamePath\": \"/var/lib/docker/containers/59803ce84d3fbeb681b1c47185ea108112c393c9746441b402b6c392b7627667/hostname\",\n        \"HostsPath\": \"/var/lib/docker/containers/59803ce84d3fbeb681b1c47185ea108112c393c9746441b402b6c392b7627667/hosts\",\n        \"LogPath\": \"/var/lib/docker/containers/59803ce84d3fbeb681b1c47185ea108112c393c9746441b402b6c392b7627667/59803ce84d3fbeb681b1c47185ea108112c393c9746441b402b6c392b7627667-json.log\",\n        \"Name\": \"/orv14-vfy-host-target-20261012-b73e0d21\",\n        \"RestartCount\": 0,\n        \"Driver\": \"vfs\",\n        \"Platform\": \"linux\",\n        \"MountLabel\": \"\",\n        \"ProcessLabel\": \"\",\n        \"AppArmorProfile\": \"\",\n        \"ExecIDs\": null,\n        \"HostConfig\": {\n            \"Binds\": null,\n            \"ContainerIDFile\": \"\",\n            \"LogConfig\": {\n                \"Type\": \"json-file\",\n                \"Config\": {}\n            },\n            \"NetworkMode\": \"none\",\n            \"PortBindings\": {},\n            \"RestartPolicy\": {\n                \"Name\": \"no\",\n                \"MaximumRetryCount\": 0\n            },\n            \"AutoRemove\": false,\n            \"VolumeDriver\": \"\",\n            \"VolumesFrom\": null,\n            \"ConsoleSize\": [\n                0,\n                0\n            ],\n            \"CapAdd\": null,\n            \"CapDrop\": [\n                \"ALL\"\n            ],\n            \"CgroupnsMode\": \"private\",\n            \"Dns\": [],\n            \"DnsOptions\": [],\n            \"DnsSearch\": [],\n            \"ExtraHosts\": null,\n            \"GroupAdd\": null,\n            \"IpcMode\": \"private\",\n            \"Cgroup\": \"\",\n            \"Links\": null,\n            \"OomScoreAdj\": 0,\n            \"PidMode\": \"\",\n            \"Privileged\": false,\n            \"PublishAllPorts\": false,\n            \"ReadonlyRootfs\": true,\n            \"SecurityOpt\": [\n                \"no-new-privileges\"\n            ],\n            \"UTSMode\": \"\",\n            \"UsernsMode\": \"\",\n            \"ShmSize\": 67108864,\n            \"Runtime\": \"runc\",\n            \"Isolation\": \"\",\n            \"CpuShares\": 0,\n            \"Memory\": 0,\n            \"NanoCpus\": 0,\n            \"CgroupParent\": \"\",\n            \"BlkioWeight\": 0,\n            \"BlkioWeightDevice\": [],\n            \"BlkioDeviceReadBps\": [],\n            \"BlkioDeviceWriteBps\": [],\n            \"BlkioDeviceReadIOps\": [],\n            \"BlkioDeviceWriteIOps\": [],\n            \"CpuPeriod\": 0,\n            \"CpuQuota\": 0,\n            \"CpuRealtimePeriod\": 0,\n            \"CpuRealtimeRuntime\": 0,\n            \"CpusetCpus\": \"\",\n            \"CpusetMems\": \"\",\n            \"Devices\": [],\n            \"DeviceCgroupRules\": null,\n            \"DeviceRequests\": null,\n            \"MemoryReservation\": 0,\n            \"MemorySwap\": 0,\n            \"MemorySwappiness\": null,\n            \"OomKillDisable\": null,\n            \"PidsLimit\": null,\n            \"Ulimits\": [],\n            \"CpuCount\": 0,\n            \"CpuPercent\": 0,\n            \"IOMaximumIOps\": 0,\n            \"IOMaximumBandwidth\": 0,\n            \"Mounts\": [\n                {\n                    \"Type\": \"volume\",\n                    \"Source\": \"orv14-vfy-host-protected-20261012-b73e0d21\",\n                    \"Target\": \"/run/orv14-vfy/protected\",\n                    \"ReadOnly\": true,\n                    \"VolumeOptions\": {\n                        \"Subpath\": \"runtime\",\n                        \"DriverConfig\": {}\n                    }\n                }\n            ],\n            \"MaskedPaths\": [\n                \"/proc/asound\",\n                \"/proc/acpi\",\n                \"/proc/interrupts\",\n                \"/proc/kcore\",\n                \"/proc/keys\",\n                \"/proc/latency_stats\",\n                \"/proc/timer_list\",\n                \"/proc/timer_stats\",\n                \"/proc/sched_debug\",\n                \"/proc/scsi\",\n                \"/sys/firmware\",\n                \"/sys/devices/virtual/powercap\"\n            ],\n            \"ReadonlyPaths\": [\n                \"/proc/bus\",\n                \"/proc/fs\",\n                \"/proc/irq\",\n                \"/proc/sys\",\n                \"/proc/sysrq-trigger\"\n            ]\n        },\n        \"GraphDriver\": {\n            \"Data\": {\n                \"ID\": \"59803ce84d3fbeb681b1c47185ea108112c393c9746441b402b6c392b7627667\"\n            },\n            \"Name\": \"vfs\"\n        },\n        \"Mounts\": [\n            {\n                \"Type\": \"volume\",\n                \"Name\": \"orv14-vfy-host-protected-20261012-b73e0d21\",\n                \"Source\": \"/var/lib/docker/volumes/orv14-vfy-host-protected-20261012-b73e0d21/_data\",\n                \"Destination\": \"/run/orv14-vfy/protected\",\n                \"Driver\": \"local\",\n                \"Mode\": \"z\",\n                \"RW\": false,\n                \"Propagation\": \"\"\n            }\n        ],\n        \"Config\": {\n            \"Hostname\": \"59803ce84d3f\",\n            \"Domainname\": \"\",\n            \"User\": \"1000:1000\",\n            \"AttachStdin\": false,\n            \"AttachStdout\": true,\n            \"AttachStderr\": true,\n            \"Tty\": false,\n            \"OpenStdin\": false,\n            \"StdinOnce\": false,\n            \"Env\": [\n                \"HTTP_PROXY=http://172.31.10.237:8080\",\n                \"http_proxy=http://172.31.10.237:8080\",\n                \"HTTPS_PROXY=http://172.31.10.237:8080\",\n                \"https_proxy=http://172.31.10.237:8080\",\n                \"NO_PROXY=localhost,127.0.0.1,::1\",\n                \"no_proxy=localhost,127.0.0.1,::1\",\n                \"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\",\n                \"NODE_VERSION=24.21.0\",\n                \"YARN_VERSION=1.22.22\"\n            ],\n            \"Cmd\": [\n                \"/usr/local/bin/orv14-verify-runtime-reader.mjs\"\n            ],\n            \"Image\": \"orv14-vfy-host-executor:20261012-b73e0d21\",\n            \"Volumes\": null,\n            \"WorkingDir\": \"/\",\n            \"Entrypoint\": [\n                \"node\"\n            ],\n            \"OnBuild\": null,\n            \"Labels\": {\n                \"org.dugate.orv14-vfy-host\": \"executor-20261012-b73e0d21\"\n            }\n        },\n        \"NetworkSettings\": {\n            \"Bridge\": \"\",\n            \"SandboxID\": \"26ba1535567c83f03112220e475e49e719b9c174b9a85b93a651ccfda985ee40\",\n            \"SandboxKey\": \"/run/codex-docker/exec-m18fvg54/netns/26ba1535567c\",\n            \"Ports\": {},\n            \"HairpinMode\": false,\n            \"LinkLocalIPv6Address\": \"\",\n            \"LinkLocalIPv6PrefixLen\": 0,\n            \"SecondaryIPAddresses\": null,\n            \"SecondaryIPv6Addresses\": null,\n            \"EndpointID\": \"\",\n            \"Gateway\": \"\",\n            \"GlobalIPv6Address\": \"\",\n            \"GlobalIPv6PrefixLen\": 0,\n            \"IPAddress\": \"\",\n            \"IPPrefixLen\": 0,\n            \"IPv6Gateway\": \"\",\n            \"MacAddress\": \"\",\n            \"Networks\": {\n                \"none\": {\n                    \"IPAMConfig\": null,\n                    \"Links\": null,\n                    \"Aliases\": null,\n                    \"MacAddress\": \"\",\n                    \"DriverOpts\": null,\n                    \"GwPriority\": 0,\n                    \"NetworkID\": \"96834611e4a933eb1bbda90040f09b1af3871d35134c9222fb809d48f224648c\",\n                    \"EndpointID\": \"ef441eb342b5c411e1c452ed796a2a62075184ff42481cd78d59a2f2ad9484ae\",\n                    \"Gateway\": \"\",\n                    \"IPAddress\": \"\",\n                    \"IPPrefixLen\": 0,\n                    \"IPv6Gateway\": \"\",\n                    \"GlobalIPv6Address\": \"\",\n                    \"GlobalIPv6PrefixLen\": 0,\n                    \"DNSNames\": null\n                }\n            }\n        }\n    }\n]\n",
+      "stderr": ""
+    },
+    {
+      "label": "pre-namespace-reinspect-executor",
+      "argv": [
+        "/usr/local/bin/docker",
+        "inspect",
+        "cfb0db135b35a9364e63bfd170496872f2ffbb8e48e9461a3604188e30692265"
+      ],
+      "startedAt": "2026-10-12T04:48:16.516Z",
+      "finishedAt": "2026-10-12T04:48:16.528Z",
+      "timeoutMs": 30000,
+      "maxBufferBytes": 2097152,
+      "status": 0,
+      "signal": null,
+      "errorCode": null,
+      "stdout": "[\n    {\n        \"Id\": \"cfb0db135b35a9364e63bfd170496872f2ffbb8e48e9461a3604188e30692265\",\n        \"Created\": \"2026-10-12T04:48:14.524905846Z\",\n        \"Path\": \"/bin/sh\",\n        \"Args\": [\n            \"-c\",\n            \"while :; do sleep 3600; done\"\n        ],\n        \"State\": {\n            \"Status\": \"running\",\n            \"Running\": true,\n            \"Paused\": false,\n            \"Restarting\": false,\n            \"OOMKilled\": false,\n            \"Dead\": false,\n            \"Pid\": 1838050,\n            \"ExitCode\": 0,\n            \"Error\": \"\",\n            \"StartedAt\": \"2026-10-12T04:48:16.415414502Z\",\n            \"FinishedAt\": \"0001-01-01T00:00:00Z\"\n        },\n        \"Image\": \"sha256:c4eaa139de1af8b7c318bce2d3d0791fd67cee8c77e25b8caecbc8b140748e5d\",\n        \"ResolvConfPath\": \"/var/lib/docker/containers/cfb0db135b35a9364e63bfd170496872f2ffbb8e48e9461a3604188e30692265/resolv.conf\",\n        \"HostnamePath\": \"/var/lib/docker/containers/cfb0db135b35a9364e63bfd170496872f2ffbb8e48e9461a3604188e30692265/hostname\",\n        \"HostsPath\": \"/var/lib/docker/containers/cfb0db135b35a9364e63bfd170496872f2ffbb8e48e9461a3604188e30692265/hosts\",\n        \"LogPath\": \"/var/lib/docker/containers/cfb0db135b35a9364e63bfd170496872f2ffbb8e48e9461a3604188e30692265/cfb0db135b35a9364e63bfd170496872f2ffbb8e48e9461a3604188e30692265-json.log\",\n        \"Name\": \"/orv14-vfy-host-executor-20261012-b73e0d21\",\n        \"RestartCount\": 0,\n        \"Driver\": \"vfs\",\n        \"Platform\": \"linux\",\n        \"MountLabel\": \"\",\n        \"ProcessLabel\": \"\",\n        \"AppArmorProfile\": \"\",\n        \"ExecIDs\": null,\n        \"HostConfig\": {\n            \"Binds\": null,\n            \"ContainerIDFile\": \"\",\n            \"LogConfig\": {\n                \"Type\": \"json-file\",\n                \"Config\": {}\n            },\n            \"NetworkMode\": \"none\",\n            \"PortBindings\": {},\n            \"RestartPolicy\": {\n                \"Name\": \"no\",\n                \"MaximumRetryCount\": 0\n            },\n            \"AutoRemove\": false,\n            \"VolumeDriver\": \"\",\n            \"VolumesFrom\": null,\n            \"ConsoleSize\": [\n                0,\n                0\n            ],\n            \"CapAdd\": [\n                \"CAP_NET_ADMIN\",\n                \"CAP_SYS_ADMIN\"\n            ],\n            \"CapDrop\": [\n                \"ALL\"\n            ],\n            \"CgroupnsMode\": \"private\",\n            \"Dns\": [],\n            \"DnsOptions\": [],\n            \"DnsSearch\": [],\n            \"ExtraHosts\": null,\n            \"GroupAdd\": null,\n            \"IpcMode\": \"private\",\n            \"Cgroup\": \"\",\n            \"Links\": null,\n            \"OomScoreAdj\": 0,\n            \"PidMode\": \"container:59803ce84d3fbeb681b1c47185ea108112c393c9746441b402b6c392b7627667\",\n            \"Privileged\": false,\n            \"PublishAllPorts\": false,\n            \"ReadonlyRootfs\": true,\n            \"SecurityOpt\": [\n                \"no-new-privileges\"\n            ],\n            \"Tmpfs\": {\n                \"/tmp\": \"rw,noexec,nosuid,nodev\"\n            },\n            \"UTSMode\": \"\",\n            \"UsernsMode\": \"\",\n            \"ShmSize\": 67108864,\n            \"Runtime\": \"runc\",\n            \"Isolation\": \"\",\n            \"CpuShares\": 0,\n            \"Memory\": 0,\n            \"NanoCpus\": 0,\n            \"CgroupParent\": \"\",\n            \"BlkioWeight\": 0,\n            \"BlkioWeightDevice\": [],\n            \"BlkioDeviceReadBps\": [],\n            \"BlkioDeviceWriteBps\": [],\n            \"BlkioDeviceReadIOps\": [],\n            \"BlkioDeviceWriteIOps\": [],\n            \"CpuPeriod\": 0,\n            \"CpuQuota\": 0,\n            \"CpuRealtimePeriod\": 0,\n            \"CpuRealtimeRuntime\": 0,\n            \"CpusetCpus\": \"\",\n            \"CpusetMems\": \"\",\n            \"Devices\": [],\n            \"DeviceCgroupRules\": null,\n            \"DeviceRequests\": null,\n            \"MemoryReservation\": 0,\n            \"MemorySwap\": 0,\n            \"MemorySwappiness\": null,\n            \"OomKillDisable\": null,\n            \"PidsLimit\": null,\n            \"Ulimits\": [],\n            \"CpuCount\": 0,\n            \"CpuPercent\": 0,\n            \"IOMaximumIOps\": 0,\n            \"IOMaximumBandwidth\": 0,\n            \"Mounts\": [\n                {\n                    \"Type\": \"volume\",\n                    \"Source\": \"orv14-vfy-host-protected-20261012-b73e0d21\",\n                    \"Target\": \"/run/orv14-vfy/protected\",\n                    \"ReadOnly\": true,\n                    \"VolumeOptions\": {\n                        \"Subpath\": \"policy\",\n                        \"DriverConfig\": {}\n                    }\n                }\n            ],\n            \"MaskedPaths\": [\n                \"/proc/asound\",\n                \"/proc/acpi\",\n                \"/proc/interrupts\",\n                \"/proc/kcore\",\n                \"/proc/keys\",\n                \"/proc/latency_stats\",\n                \"/proc/timer_list\",\n                \"/proc/timer_stats\",\n                \"/proc/sched_debug\",\n                \"/proc/scsi\",\n                \"/sys/firmware\",\n                \"/sys/devices/virtual/powercap\"\n            ],\n            \"ReadonlyPaths\": [\n                \"/proc/bus\",\n                \"/proc/fs\",\n                \"/proc/irq\",\n                \"/proc/sys\",\n                \"/proc/sysrq-trigger\"\n            ]\n        },\n        \"GraphDriver\": {\n            \"Data\": {\n                \"ID\": \"cfb0db135b35a9364e63bfd170496872f2ffbb8e48e9461a3604188e30692265\"\n            },\n            \"Name\": \"vfs\"\n        },\n        \"Mounts\": [\n            {\n                \"Type\": \"volume\",\n                \"Name\": \"orv14-vfy-host-protected-20261012-b73e0d21\",\n                \"Source\": \"/var/lib/docker/volumes/orv14-vfy-host-protected-20261012-b73e0d21/_data\",\n                \"Destination\": \"/run/orv14-vfy/protected\",\n                \"Driver\": \"local\",\n                \"Mode\": \"z\",\n                \"RW\": false,\n                \"Propagation\": \"\"\n            }\n        ],\n        \"Config\": {\n            \"Hostname\": \"cfb0db135b35\",\n            \"Domainname\": \"\",\n            \"User\": \"1000:1000\",\n            \"AttachStdin\": false,\n            \"AttachStdout\": true,\n            \"AttachStderr\": true,\n            \"Tty\": false,\n            \"OpenStdin\": false,\n            \"StdinOnce\": false,\n            \"Env\": [\n                \"NO_PROXY=localhost,127.0.0.1,::1\",\n                \"no_proxy=localhost,127.0.0.1,::1\",\n                \"HTTP_PROXY=http://172.31.10.237:8080\",\n                \"http_proxy=http://172.31.10.237:8080\",\n                \"HTTPS_PROXY=http://172.31.10.237:8080\",\n                \"https_proxy=http://172.31.10.237:8080\",\n                \"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\",\n                \"NODE_VERSION=24.21.0\",\n                \"YARN_VERSION=1.22.22\"\n            ],\n            \"Cmd\": [\n                \"-c\",\n                \"while :; do sleep 3600; done\"\n            ],\n            \"Image\": \"orv14-vfy-host-executor:20261012-b73e0d21\",\n            \"Volumes\": null,\n            \"WorkingDir\": \"/\",\n            \"Entrypoint\": [\n                \"/bin/sh\"\n            ],\n            \"OnBuild\": null,\n            \"Labels\": {\n                \"org.dugate.orv14-vfy-host\": \"executor-20261012-b73e0d21\"\n            }\n        },\n        \"NetworkSettings\": {\n            \"Bridge\": \"\",\n            \"SandboxID\": \"3d25283766be5a6ea4518ef67859eb3a6985aac9ae8ae66426a470a8047eef87\",\n            \"SandboxKey\": \"/run/codex-docker/exec-m18fvg54/netns/3d25283766be\",\n            \"Ports\": {},\n            \"HairpinMode\": false,\n            \"LinkLocalIPv6Address\": \"\",\n            \"LinkLocalIPv6PrefixLen\": 0,\n            \"SecondaryIPAddresses\": null,\n            \"SecondaryIPv6Addresses\": null,\n            \"EndpointID\": \"\",\n            \"Gateway\": \"\",\n            \"GlobalIPv6Address\": \"\",\n            \"GlobalIPv6PrefixLen\": 0,\n            \"IPAddress\": \"\",\n            \"IPPrefixLen\": 0,\n            \"IPv6Gateway\": \"\",\n            \"MacAddress\": \"\",\n            \"Networks\": {\n                \"none\": {\n                    \"IPAMConfig\": null,\n                    \"Links\": null,\n                    \"Aliases\": null,\n                    \"MacAddress\": \"\",\n                    \"DriverOpts\": null,\n                    \"GwPriority\": 0,\n                    \"NetworkID\": \"96834611e4a933eb1bbda90040f09b1af3871d35134c9222fb809d48f224648c\",\n                    \"EndpointID\": \"47516b65aef298fa921c478589e47017855a5fdeb58f00e0d1b186bd18128bd0\",\n                    \"Gateway\": \"\",\n                    \"IPAddress\": \"\",\n                    \"IPPrefixLen\": 0,\n                    \"IPv6Gateway\": \"\",\n                    \"GlobalIPv6Address\": \"\",\n                    \"GlobalIPv6PrefixLen\": 0,\n                    \"DNSNames\": null\n                }\n            }\n        }\n    }\n]\n",
+      "stderr": ""
+    },
+    {
+      "label": "execute-bounded-nsenter-and-nft-proof",
+      "argv": [
+        "/usr/local/bin/docker",
+        "exec",
+        "-e",
+        "ORV14_EXPECTED_TARGET_NETNS=net:[4026532723]",
+        "cfb0db135b35a9364e63bfd170496872f2ffbb8e48e9461a3604188e30692265",
+        "node",
+        "/usr/local/bin/orv14-verify-target-netns.mjs"
+      ],
+      "startedAt": "2026-10-12T04:48:16.528Z",
+      "finishedAt": "2026-10-12T04:48:16.625Z",
+      "timeoutMs": 60000,
+      "maxBufferBytes": 524288,
+      "status": 1,
+      "signal": null,
+      "errorCode": null,
+      "stdout": "",
+      "stderr": "node:internal/modules/run_main:107\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: executor must retain only CAP_NET_ADMIN and CAP_SYS_ADMIN\n+ actual - expected\n\n+ '0000000000000000'\n- '0000000000201000'\n             ^\n\n    at file:///usr/local/bin/orv14-verify-target-netns.mjs:9:8\n    at ModuleJob.run (node:internal/modules/esm/module_job:561:25)\n    at async node:internal/modules/esm/loader:647:26\n    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5) {\n  generatedMessage: false,\n  code: 'ERR_ASSERTION',\n  actual: '0000000000000000',\n  expected: '0000000000201000',\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n\nNode.js v24.21.0\n"
+    },
+    {
+      "label": "cleanup-reinspect-orv14-vfy-host-executor-20261012-b73e0d21",
+      "argv": [
+        "/usr/local/bin/docker",
+        "inspect",
+        "cfb0db135b35a9364e63bfd170496872f2ffbb8e48e9461a3604188e30692265"
+      ],
+      "startedAt": "2026-10-12T04:48:16.626Z",
+      "finishedAt": "2026-10-12T04:48:16.645Z",
+      "timeoutMs": 30000,
+      "maxBufferBytes": 2097152,
+      "status": 0,
+      "signal": null,
+      "errorCode": null,
+      "stdout": "[\n    {\n        \"Id\": \"cfb0db135b35a9364e63bfd170496872f2ffbb8e48e9461a3604188e30692265\",\n        \"Created\": \"2026-10-12T04:48:14.524905846Z\",\n        \"Path\": \"/bin/sh\",\n        \"Args\": [\n            \"-c\",\n            \"while :; do sleep 3600; done\"\n        ],\n        \"State\": {\n            \"Status\": \"running\",\n            \"Running\": true,\n            \"Paused\": false,\n            \"Restarting\": false,\n            \"OOMKilled\": false,\n            \"Dead\": false,\n            \"Pid\": 1838050,\n            \"ExitCode\": 0,\n            \"Error\": \"\",\n            \"StartedAt\": \"2026-10-12T04:48:16.415414502Z\",\n            \"FinishedAt\": \"0001-01-01T00:00:00Z\"\n        },\n        \"Image\": \"sha256:c4eaa139de1af8b7c318bce2d3d0791fd67cee8c77e25b8caecbc8b140748e5d\",\n        \"ResolvConfPath\": \"/var/lib/docker/containers/cfb0db135b35a9364e63bfd170496872f2ffbb8e48e9461a3604188e30692265/resolv.conf\",\n        \"HostnamePath\": \"/var/lib/docker/containers/cfb0db135b35a9364e63bfd170496872f2ffbb8e48e9461a3604188e30692265/hostname\",\n        \"HostsPath\": \"/var/lib/docker/containers/cfb0db135b35a9364e63bfd170496872f2ffbb8e48e9461a3604188e30692265/hosts\",\n        \"LogPath\": \"/var/lib/docker/containers/cfb0db135b35a9364e63bfd170496872f2ffbb8e48e9461a3604188e30692265/cfb0db135b35a9364e63bfd170496872f2ffbb8e48e9461a3604188e30692265-json.log\",\n        \"Name\": \"/orv14-vfy-host-executor-20261012-b73e0d21\",\n        \"RestartCount\": 0,\n        \"Driver\": \"vfs\",\n        \"Platform\": \"linux\",\n        \"MountLabel\": \"\",\n        \"ProcessLabel\": \"\",\n        \"AppArmorProfile\": \"\",\n        \"ExecIDs\": null,\n        \"HostConfig\": {\n            \"Binds\": null,\n            \"ContainerIDFile\": \"\",\n            \"LogConfig\": {\n                \"Type\": \"json-file\",\n                \"Config\": {}\n            },\n            \"NetworkMode\": \"none\",\n            \"PortBindings\": {},\n            \"RestartPolicy\": {\n                \"Name\": \"no\",\n                \"MaximumRetryCount\": 0\n            },\n            \"AutoRemove\": false,\n            \"VolumeDriver\": \"\",\n            \"VolumesFrom\": null,\n            \"ConsoleSize\": [\n                0,\n                0\n            ],\n            \"CapAdd\": [\n                \"CAP_NET_ADMIN\",\n                \"CAP_SYS_ADMIN\"\n            ],\n            \"CapDrop\": [\n                \"ALL\"\n            ],\n            \"CgroupnsMode\": \"private\",\n            \"Dns\": [],\n            \"DnsOptions\": [],\n            \"DnsSearch\": [],\n            \"ExtraHosts\": null,\n            \"GroupAdd\": null,\n            \"IpcMode\": \"private\",\n            \"Cgroup\": \"\",\n            \"Links\": null,\n            \"OomScoreAdj\": 0,\n            \"PidMode\": \"container:59803ce84d3fbeb681b1c47185ea108112c393c9746441b402b6c392b7627667\",\n            \"Privileged\": false,\n            \"PublishAllPorts\": false,\n            \"ReadonlyRootfs\": true,\n            \"SecurityOpt\": [\n                \"no-new-privileges\"\n            ],\n            \"Tmpfs\": {\n                \"/tmp\": \"rw,noexec,nosuid,nodev\"\n            },\n            \"UTSMode\": \"\",\n            \"UsernsMode\": \"\",\n            \"ShmSize\": 67108864,\n            \"Runtime\": \"runc\",\n            \"Isolation\": \"\",\n            \"CpuShares\": 0,\n            \"Memory\": 0,\n            \"NanoCpus\": 0,\n            \"CgroupParent\": \"\",\n            \"BlkioWeight\": 0,\n            \"BlkioWeightDevice\": [],\n            \"BlkioDeviceReadBps\": [],\n            \"BlkioDeviceWriteBps\": [],\n            \"BlkioDeviceReadIOps\": [],\n            \"BlkioDeviceWriteIOps\": [],\n            \"CpuPeriod\": 0,\n            \"CpuQuota\": 0,\n            \"CpuRealtimePeriod\": 0,\n            \"CpuRealtimeRuntime\": 0,\n            \"CpusetCpus\": \"\",\n            \"CpusetMems\": \"\",\n            \"Devices\": [],\n            \"DeviceCgroupRules\": null,\n            \"DeviceRequests\": null,\n            \"MemoryReservation\": 0,\n            \"MemorySwap\": 0,\n            \"MemorySwappiness\": null,\n            \"OomKillDisable\": null,\n            \"PidsLimit\": null,\n            \"Ulimits\": [],\n            \"CpuCount\": 0,\n            \"CpuPercent\": 0,\n            \"IOMaximumIOps\": 0,\n            \"IOMaximumBandwidth\": 0,\n            \"Mounts\": [\n                {\n                    \"Type\": \"volume\",\n                    \"Source\": \"orv14-vfy-host-protected-20261012-b73e0d21\",\n                    \"Target\": \"/run/orv14-vfy/protected\",\n                    \"ReadOnly\": true,\n                    \"VolumeOptions\": {\n                        \"Subpath\": \"policy\",\n                        \"DriverConfig\": {}\n                    }\n                }\n            ],\n            \"MaskedPaths\": [\n                \"/proc/asound\",\n                \"/proc/acpi\",\n                \"/proc/interrupts\",\n                \"/proc/kcore\",\n                \"/proc/keys\",\n                \"/proc/latency_stats\",\n                \"/proc/timer_list\",\n                \"/proc/timer_stats\",\n                \"/proc/sched_debug\",\n                \"/proc/scsi\",\n                \"/sys/firmware\",\n                \"/sys/devices/virtual/powercap\"\n            ],\n            \"ReadonlyPaths\": [\n                \"/proc/bus\",\n                \"/proc/fs\",\n                \"/proc/irq\",\n                \"/proc/sys\",\n                \"/proc/sysrq-trigger\"\n            ]\n        },\n        \"GraphDriver\": {\n            \"Data\": {\n                \"ID\": \"cfb0db135b35a9364e63bfd170496872f2ffbb8e48e9461a3604188e30692265\"\n            },\n            \"Name\": \"vfs\"\n        },\n        \"Mounts\": [\n            {\n                \"Type\": \"volume\",\n                \"Name\": \"orv14-vfy-host-protected-20261012-b73e0d21\",\n                \"Source\": \"/var/lib/docker/volumes/orv14-vfy-host-protected-20261012-b73e0d21/_data\",\n                \"Destination\": \"/run/orv14-vfy/protected\",\n                \"Driver\": \"local\",\n                \"Mode\": \"z\",\n                \"RW\": false,\n                \"Propagation\": \"\"\n            }\n        ],\n        \"Config\": {\n            \"Hostname\": \"cfb0db135b35\",\n            \"Domainname\": \"\",\n            \"User\": \"1000:1000\",\n            \"AttachStdin\": false,\n            \"AttachStdout\": true,\n            \"AttachStderr\": true,\n            \"Tty\": false,\n            \"OpenStdin\": false,\n            \"StdinOnce\": false,\n            \"Env\": [\n                \"NO_PROXY=localhost,127.0.0.1,::1\",\n                \"no_proxy=localhost,127.0.0.1,::1\",\n                \"HTTP_PROXY=http://172.31.10.237:8080\",\n                \"http_proxy=http://172.31.10.237:8080\",\n                \"HTTPS_PROXY=http://172.31.10.237:8080\",\n                \"https_proxy=http://172.31.10.237:8080\",\n                \"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\",\n                \"NODE_VERSION=24.21.0\",\n                \"YARN_VERSION=1.22.22\"\n            ],\n            \"Cmd\": [\n                \"-c\",\n                \"while :; do sleep 3600; done\"\n            ],\n            \"Image\": \"orv14-vfy-host-executor:20261012-b73e0d21\",\n            \"Volumes\": null,\n            \"WorkingDir\": \"/\",\n            \"Entrypoint\": [\n                \"/bin/sh\"\n            ],\n            \"OnBuild\": null,\n            \"Labels\": {\n                \"org.dugate.orv14-vfy-host\": \"executor-20261012-b73e0d21\"\n            }\n        },\n        \"NetworkSettings\": {\n            \"Bridge\": \"\",\n            \"SandboxID\": \"3d25283766be5a6ea4518ef67859eb3a6985aac9ae8ae66426a470a8047eef87\",\n            \"SandboxKey\": \"/run/codex-docker/exec-m18fvg54/netns/3d25283766be\",\n            \"Ports\": {},\n            \"HairpinMode\": false,\n            \"LinkLocalIPv6Address\": \"\",\n            \"LinkLocalIPv6PrefixLen\": 0,\n            \"SecondaryIPAddresses\": null,\n            \"SecondaryIPv6Addresses\": null,\n            \"EndpointID\": \"\",\n            \"Gateway\": \"\",\n            \"GlobalIPv6Address\": \"\",\n            \"GlobalIPv6PrefixLen\": 0,\n            \"IPAddress\": \"\",\n            \"IPPrefixLen\": 0,\n            \"IPv6Gateway\": \"\",\n            \"MacAddress\": \"\",\n            \"Networks\": {\n                \"none\": {\n                    \"IPAMConfig\": null,\n                    \"Links\": null,\n                    \"Aliases\": null,\n                    \"MacAddress\": \"\",\n                    \"DriverOpts\": null,\n                    \"GwPriority\": 0,\n                    \"NetworkID\": \"96834611e4a933eb1bbda90040f09b1af3871d35134c9222fb809d48f224648c\",\n                    \"EndpointID\": \"47516b65aef298fa921c478589e47017855a5fdeb58f00e0d1b186bd18128bd0\",\n                    \"Gateway\": \"\",\n                    \"IPAddress\": \"\",\n                    \"IPPrefixLen\": 0,\n                    \"IPv6Gateway\": \"\",\n                    \"GlobalIPv6Address\": \"\",\n                    \"GlobalIPv6PrefixLen\": 0,\n                    \"DNSNames\": null\n                }\n            }\n        }\n    }\n]\n",
+      "stderr": ""
+    },
+    {
+      "label": "cleanup-remove-orv14-vfy-host-executor-20261012-b73e0d21",
+      "argv": [
+        "/usr/local/bin/docker",
+        "rm",
+        "-f",
+        "cfb0db135b35a9364e63bfd170496872f2ffbb8e48e9461a3604188e30692265"
+      ],
+      "startedAt": "2026-10-12T04:48:16.645Z",
+      "finishedAt": "2026-10-12T04:48:16.773Z",
+      "timeoutMs": 30000,
+      "maxBufferBytes": 2097152,
+      "status": 0,
+      "signal": null,
+      "errorCode": null,
+      "stdout": "cfb0db135b35a9364e63bfd170496872f2ffbb8e48e9461a3604188e30692265\n",
+      "stderr": ""
+    },
+    {
+      "label": "cleanup-reinspect-orv14-vfy-host-target-20261012-b73e0d21",
+      "argv": [
+        "/usr/local/bin/docker",
+        "inspect",
+        "59803ce84d3fbeb681b1c47185ea108112c393c9746441b402b6c392b7627667"
+      ],
+      "startedAt": "2026-10-12T04:48:16.773Z",
+      "finishedAt": "2026-10-12T04:48:16.790Z",
+      "timeoutMs": 30000,
+      "maxBufferBytes": 2097152,
+      "status": 0,
+      "signal": null,
+      "errorCode": null,
+      "stdout": "[\n    {\n        \"Id\": \"59803ce84d3fbeb681b1c47185ea108112c393c9746441b402b6c392b7627667\",\n        \"Created\": \"2026-10-12T04:48:13.597101529Z\",\n        \"Path\": \"node\",\n        \"Args\": [\n            \"/usr/local/bin/orv14-verify-runtime-reader.mjs\"\n        ],\n        \"State\": {\n            \"Status\": \"running\",\n            \"Running\": true,\n            \"Paused\": false,\n            \"Restarting\": false,\n            \"OOMKilled\": false,\n            \"Dead\": false,\n            \"Pid\": 1837758,\n            \"ExitCode\": 0,\n            \"Error\": \"\",\n            \"StartedAt\": \"2026-10-12T04:48:14.385979671Z\",\n            \"FinishedAt\": \"0001-01-01T00:00:00Z\"\n        },\n        \"Image\": \"sha256:c4eaa139de1af8b7c318bce2d3d0791fd67cee8c77e25b8caecbc8b140748e5d\",\n        \"ResolvConfPath\": \"/var/lib/docker/containers/59803ce84d3fbeb681b1c47185ea108112c393c9746441b402b6c392b7627667/resolv.conf\",\n        \"HostnamePath\": \"/var/lib/docker/containers/59803ce84d3fbeb681b1c47185ea108112c393c9746441b402b6c392b7627667/hostname\",\n        \"HostsPath\": \"/var/lib/docker/containers/59803ce84d3fbeb681b1c47185ea108112c393c9746441b402b6c392b7627667/hosts\",\n        \"LogPath\": \"/var/lib/docker/containers/59803ce84d3fbeb681b1c47185ea108112c393c9746441b402b6c392b7627667/59803ce84d3fbeb681b1c47185ea108112c393c9746441b402b6c392b7627667-json.log\",\n        \"Name\": \"/orv14-vfy-host-target-20261012-b73e0d21\",\n        \"RestartCount\": 0,\n        \"Driver\": \"vfs\",\n        \"Platform\": \"linux\",\n        \"MountLabel\": \"\",\n        \"ProcessLabel\": \"\",\n        \"AppArmorProfile\": \"\",\n        \"ExecIDs\": null,\n        \"HostConfig\": {\n            \"Binds\": null,\n            \"ContainerIDFile\": \"\",\n            \"LogConfig\": {\n                \"Type\": \"json-file\",\n                \"Config\": {}\n            },\n            \"NetworkMode\": \"none\",\n            \"PortBindings\": {},\n            \"RestartPolicy\": {\n                \"Name\": \"no\",\n                \"MaximumRetryCount\": 0\n            },\n            \"AutoRemove\": false,\n            \"VolumeDriver\": \"\",\n            \"VolumesFrom\": null,\n            \"ConsoleSize\": [\n                0,\n                0\n            ],\n            \"CapAdd\": null,\n            \"CapDrop\": [\n                \"ALL\"\n            ],\n            \"CgroupnsMode\": \"private\",\n            \"Dns\": [],\n            \"DnsOptions\": [],\n            \"DnsSearch\": [],\n            \"ExtraHosts\": null,\n            \"GroupAdd\": null,\n            \"IpcMode\": \"private\",\n            \"Cgroup\": \"\",\n            \"Links\": null,\n            \"OomScoreAdj\": 0,\n            \"PidMode\": \"\",\n            \"Privileged\": false,\n            \"PublishAllPorts\": false,\n            \"ReadonlyRootfs\": true,\n            \"SecurityOpt\": [\n                \"no-new-privileges\"\n            ],\n            \"UTSMode\": \"\",\n            \"UsernsMode\": \"\",\n            \"ShmSize\": 67108864,\n            \"Runtime\": \"runc\",\n            \"Isolation\": \"\",\n            \"CpuShares\": 0,\n            \"Memory\": 0,\n            \"NanoCpus\": 0,\n            \"CgroupParent\": \"\",\n            \"BlkioWeight\": 0,\n            \"BlkioWeightDevice\": [],\n            \"BlkioDeviceReadBps\": [],\n            \"BlkioDeviceWriteBps\": [],\n            \"BlkioDeviceReadIOps\": [],\n            \"BlkioDeviceWriteIOps\": [],\n            \"CpuPeriod\": 0,\n            \"CpuQuota\": 0,\n            \"CpuRealtimePeriod\": 0,\n            \"CpuRealtimeRuntime\": 0,\n            \"CpusetCpus\": \"\",\n            \"CpusetMems\": \"\",\n            \"Devices\": [],\n            \"DeviceCgroupRules\": null,\n            \"DeviceRequests\": null,\n            \"MemoryReservation\": 0,\n            \"MemorySwap\": 0,\n            \"MemorySwappiness\": null,\n            \"OomKillDisable\": null,\n            \"PidsLimit\": null,\n            \"Ulimits\": [],\n            \"CpuCount\": 0,\n            \"CpuPercent\": 0,\n            \"IOMaximumIOps\": 0,\n            \"IOMaximumBandwidth\": 0,\n            \"Mounts\": [\n                {\n                    \"Type\": \"volume\",\n                    \"Source\": \"orv14-vfy-host-protected-20261012-b73e0d21\",\n                    \"Target\": \"/run/orv14-vfy/protected\",\n                    \"ReadOnly\": true,\n                    \"VolumeOptions\": {\n                        \"Subpath\": \"runtime\",\n                        \"DriverConfig\": {}\n                    }\n                }\n            ],\n            \"MaskedPaths\": [\n                \"/proc/asound\",\n                \"/proc/acpi\",\n                \"/proc/interrupts\",\n                \"/proc/kcore\",\n                \"/proc/keys\",\n                \"/proc/latency_stats\",\n                \"/proc/timer_list\",\n                \"/proc/timer_stats\",\n                \"/proc/sched_debug\",\n                \"/proc/scsi\",\n                \"/sys/firmware\",\n                \"/sys/devices/virtual/powercap\"\n            ],\n            \"ReadonlyPaths\": [\n                \"/proc/bus\",\n                \"/proc/fs\",\n                \"/proc/irq\",\n                \"/proc/sys\",\n                \"/proc/sysrq-trigger\"\n            ]\n        },\n        \"GraphDriver\": {\n            \"Data\": {\n                \"ID\": \"59803ce84d3fbeb681b1c47185ea108112c393c9746441b402b6c392b7627667\"\n            },\n            \"Name\": \"vfs\"\n        },\n        \"Mounts\": [\n            {\n                \"Type\": \"volume\",\n                \"Name\": \"orv14-vfy-host-protected-20261012-b73e0d21\",\n                \"Source\": \"/var/lib/docker/volumes/orv14-vfy-host-protected-20261012-b73e0d21/_data\",\n                \"Destination\": \"/run/orv14-vfy/protected\",\n                \"Driver\": \"local\",\n                \"Mode\": \"z\",\n                \"RW\": false,\n                \"Propagation\": \"\"\n            }\n        ],\n        \"Config\": {\n            \"Hostname\": \"59803ce84d3f\",\n            \"Domainname\": \"\",\n            \"User\": \"1000:1000\",\n            \"AttachStdin\": false,\n            \"AttachStdout\": true,\n            \"AttachStderr\": true,\n            \"Tty\": false,\n            \"OpenStdin\": false,\n            \"StdinOnce\": false,\n            \"Env\": [\n                \"HTTP_PROXY=http://172.31.10.237:8080\",\n                \"http_proxy=http://172.31.10.237:8080\",\n                \"HTTPS_PROXY=http://172.31.10.237:8080\",\n                \"https_proxy=http://172.31.10.237:8080\",\n                \"NO_PROXY=localhost,127.0.0.1,::1\",\n                \"no_proxy=localhost,127.0.0.1,::1\",\n                \"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\",\n                \"NODE_VERSION=24.21.0\",\n                \"YARN_VERSION=1.22.22\"\n            ],\n            \"Cmd\": [\n                \"/usr/local/bin/orv14-verify-runtime-reader.mjs\"\n            ],\n            \"Image\": \"orv14-vfy-host-executor:20261012-b73e0d21\",\n            \"Volumes\": null,\n            \"WorkingDir\": \"/\",\n            \"Entrypoint\": [\n                \"node\"\n            ],\n            \"OnBuild\": null,\n            \"Labels\": {\n                \"org.dugate.orv14-vfy-host\": \"executor-20261012-b73e0d21\"\n            }\n        },\n        \"NetworkSettings\": {\n            \"Bridge\": \"\",\n            \"SandboxID\": \"26ba1535567c83f03112220e475e49e719b9c174b9a85b93a651ccfda985ee40\",\n            \"SandboxKey\": \"/run/codex-docker/exec-m18fvg54/netns/26ba1535567c\",\n            \"Ports\": {},\n            \"HairpinMode\": false,\n            \"LinkLocalIPv6Address\": \"\",\n            \"LinkLocalIPv6PrefixLen\": 0,\n            \"SecondaryIPAddresses\": null,\n            \"SecondaryIPv6Addresses\": null,\n            \"EndpointID\": \"\",\n            \"Gateway\": \"\",\n            \"GlobalIPv6Address\": \"\",\n            \"GlobalIPv6PrefixLen\": 0,\n            \"IPAddress\": \"\",\n            \"IPPrefixLen\": 0,\n            \"IPv6Gateway\": \"\",\n            \"MacAddress\": \"\",\n            \"Networks\": {\n                \"none\": {\n                    \"IPAMConfig\": null,\n                    \"Links\": null,\n                    \"Aliases\": null,\n                    \"MacAddress\": \"\",\n                    \"DriverOpts\": null,\n                    \"GwPriority\": 0,\n                    \"NetworkID\": \"96834611e4a933eb1bbda90040f09b1af3871d35134c9222fb809d48f224648c\",\n                    \"EndpointID\": \"ef441eb342b5c411e1c452ed796a2a62075184ff42481cd78d59a2f2ad9484ae\",\n                    \"Gateway\": \"\",\n                    \"IPAddress\": \"\",\n                    \"IPPrefixLen\": 0,\n                    \"IPv6Gateway\": \"\",\n                    \"GlobalIPv6Address\": \"\",\n                    \"GlobalIPv6PrefixLen\": 0,\n                    \"DNSNames\": null\n                }\n            }\n        }\n    }\n]\n",
+      "stderr": ""
+    },
+    {
+      "label": "cleanup-remove-orv14-vfy-host-target-20261012-b73e0d21",
+      "argv": [
+        "/usr/local/bin/docker",
+        "rm",
+        "-f",
+        "59803ce84d3fbeb681b1c47185ea108112c393c9746441b402b6c392b7627667"
+      ],
+      "startedAt": "2026-10-12T04:48:16.790Z",
+      "finishedAt": "2026-10-12T04:48:16.916Z",
+      "timeoutMs": 30000,
+      "maxBufferBytes": 2097152,
+      "status": 0,
+      "signal": null,
+      "errorCode": null,
+      "stdout": "59803ce84d3fbeb681b1c47185ea108112c393c9746441b402b6c392b7627667\n",
+      "stderr": ""
+    },
+    {
+      "label": "cleanup-reinspect-orv14-vfy-host-seed-20261012-b73e0d21",
+      "argv": [
+        "/usr/local/bin/docker",
+        "inspect",
+        "ad614cc8cc21775a2ef5e1abec339aed68195ce7da48c94706e2779048f16e33"
+      ],
+      "startedAt": "2026-10-12T04:48:16.916Z",
+      "finishedAt": "2026-10-12T04:48:16.932Z",
+      "timeoutMs": 30000,
+      "maxBufferBytes": 2097152,
+      "status": 0,
+      "signal": null,
+      "errorCode": null,
+      "stdout": "[\n    {\n        \"Id\": \"ad614cc8cc21775a2ef5e1abec339aed68195ce7da48c94706e2779048f16e33\",\n        \"Created\": \"2026-10-12T04:48:13.089210543Z\",\n        \"Path\": \"/bin/sh\",\n        \"Args\": [\n            \"-c\",\n            \"node --version && /usr/local/bin/orv14-seed-protected-volume /seed\"\n        ],\n        \"State\": {\n            \"Status\": \"exited\",\n            \"Running\": false,\n            \"Paused\": false,\n            \"Restarting\": false,\n            \"OOMKilled\": false,\n            \"Dead\": false,\n            \"Pid\": 0,\n            \"ExitCode\": 0,\n            \"Error\": \"\",\n            \"StartedAt\": \"2026-10-12T04:48:13.445603683Z\",\n            \"FinishedAt\": \"2026-10-12T04:48:13.525236477Z\"\n        },\n        \"Image\": \"sha256:c4eaa139de1af8b7c318bce2d3d0791fd67cee8c77e25b8caecbc8b140748e5d\",\n        \"ResolvConfPath\": \"/var/lib/docker/containers/ad614cc8cc21775a2ef5e1abec339aed68195ce7da48c94706e2779048f16e33/resolv.conf\",\n        \"HostnamePath\": \"/var/lib/docker/containers/ad614cc8cc21775a2ef5e1abec339aed68195ce7da48c94706e2779048f16e33/hostname\",\n        \"HostsPath\": \"/var/lib/docker/containers/ad614cc8cc21775a2ef5e1abec339aed68195ce7da48c94706e2779048f16e33/hosts\",\n        \"LogPath\": \"/var/lib/docker/containers/ad614cc8cc21775a2ef5e1abec339aed68195ce7da48c94706e2779048f16e33/ad614cc8cc21775a2ef5e1abec339aed68195ce7da48c94706e2779048f16e33-json.log\",\n        \"Name\": \"/orv14-vfy-host-seed-20261012-b73e0d21\",\n        \"RestartCount\": 0,\n        \"Driver\": \"vfs\",\n        \"Platform\": \"linux\",\n        \"MountLabel\": \"\",\n        \"ProcessLabel\": \"\",\n        \"AppArmorProfile\": \"\",\n        \"ExecIDs\": null,\n        \"HostConfig\": {\n            \"Binds\": null,\n            \"ContainerIDFile\": \"\",\n            \"LogConfig\": {\n                \"Type\": \"json-file\",\n                \"Config\": {}\n            },\n            \"NetworkMode\": \"none\",\n            \"PortBindings\": {},\n            \"RestartPolicy\": {\n                \"Name\": \"no\",\n                \"MaximumRetryCount\": 0\n            },\n            \"AutoRemove\": false,\n            \"VolumeDriver\": \"\",\n            \"VolumesFrom\": null,\n            \"ConsoleSize\": [\n                0,\n                0\n            ],\n            \"CapAdd\": [\n                \"CAP_CHOWN\"\n            ],\n            \"CapDrop\": [\n                \"ALL\"\n            ],\n            \"CgroupnsMode\": \"private\",\n            \"Dns\": [],\n            \"DnsOptions\": [],\n            \"DnsSearch\": [],\n            \"ExtraHosts\": null,\n            \"GroupAdd\": null,\n            \"IpcMode\": \"private\",\n            \"Cgroup\": \"\",\n            \"Links\": null,\n            \"OomScoreAdj\": 0,\n            \"PidMode\": \"\",\n            \"Privileged\": false,\n            \"PublishAllPorts\": false,\n            \"ReadonlyRootfs\": true,\n            \"SecurityOpt\": [\n                \"no-new-privileges\"\n            ],\n            \"UTSMode\": \"\",\n            \"UsernsMode\": \"\",\n            \"ShmSize\": 67108864,\n            \"Runtime\": \"runc\",\n            \"Isolation\": \"\",\n            \"CpuShares\": 0,\n            \"Memory\": 0,\n            \"NanoCpus\": 0,\n            \"CgroupParent\": \"\",\n            \"BlkioWeight\": 0,\n            \"BlkioWeightDevice\": [],\n            \"BlkioDeviceReadBps\": [],\n            \"BlkioDeviceWriteBps\": [],\n            \"BlkioDeviceReadIOps\": [],\n            \"BlkioDeviceWriteIOps\": [],\n            \"CpuPeriod\": 0,\n            \"CpuQuota\": 0,\n            \"CpuRealtimePeriod\": 0,\n            \"CpuRealtimeRuntime\": 0,\n            \"CpusetCpus\": \"\",\n            \"CpusetMems\": \"\",\n            \"Devices\": [],\n            \"DeviceCgroupRules\": null,\n            \"DeviceRequests\": null,\n            \"MemoryReservation\": 0,\n            \"MemorySwap\": 0,\n            \"MemorySwappiness\": null,\n            \"OomKillDisable\": null,\n            \"PidsLimit\": null,\n            \"Ulimits\": [],\n            \"CpuCount\": 0,\n            \"CpuPercent\": 0,\n            \"IOMaximumIOps\": 0,\n            \"IOMaximumBandwidth\": 0,\n            \"Mounts\": [\n                {\n                    \"Type\": \"volume\",\n                    \"Source\": \"orv14-vfy-host-protected-20261012-b73e0d21\",\n                    \"Target\": \"/seed\"\n                }\n            ],\n            \"MaskedPaths\": [\n                \"/proc/asound\",\n                \"/proc/acpi\",\n                \"/proc/interrupts\",\n                \"/proc/kcore\",\n                \"/proc/keys\",\n                \"/proc/latency_stats\",\n                \"/proc/timer_list\",\n                \"/proc/timer_stats\",\n                \"/proc/sched_debug\",\n                \"/proc/scsi\",\n                \"/sys/firmware\",\n                \"/sys/devices/virtual/powercap\"\n            ],\n            \"ReadonlyPaths\": [\n                \"/proc/bus\",\n                \"/proc/fs\",\n                \"/proc/irq\",\n                \"/proc/sys\",\n                \"/proc/sysrq-trigger\"\n            ]\n        },\n        \"GraphDriver\": {\n            \"Data\": {\n                \"ID\": \"ad614cc8cc21775a2ef5e1abec339aed68195ce7da48c94706e2779048f16e33\"\n            },\n            \"Name\": \"vfs\"\n        },\n        \"Mounts\": [\n            {\n                \"Type\": \"volume\",\n                \"Name\": \"orv14-vfy-host-protected-20261012-b73e0d21\",\n                \"Source\": \"/var/lib/docker/volumes/orv14-vfy-host-protected-20261012-b73e0d21/_data\",\n                \"Destination\": \"/seed\",\n                \"Driver\": \"local\",\n                \"Mode\": \"z\",\n                \"RW\": true,\n                \"Propagation\": \"\"\n            }\n        ],\n        \"Config\": {\n            \"Hostname\": \"ad614cc8cc21\",\n            \"Domainname\": \"\",\n            \"User\": \"0:0\",\n            \"AttachStdin\": false,\n            \"AttachStdout\": true,\n            \"AttachStderr\": true,\n            \"Tty\": false,\n            \"OpenStdin\": false,\n            \"StdinOnce\": false,\n            \"Env\": [\n                \"NO_PROXY=localhost,127.0.0.1,::1\",\n                \"no_proxy=localhost,127.0.0.1,::1\",\n                \"HTTP_PROXY=http://172.31.10.237:8080\",\n                \"http_proxy=http://172.31.10.237:8080\",\n                \"HTTPS_PROXY=http://172.31.10.237:8080\",\n                \"https_proxy=http://172.31.10.237:8080\",\n                \"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\",\n                \"NODE_VERSION=24.21.0\",\n                \"YARN_VERSION=1.22.22\"\n            ],\n            \"Cmd\": [\n                \"-c\",\n                \"node --version && /usr/local/bin/orv14-seed-protected-volume /seed\"\n            ],\n            \"Image\": \"orv14-vfy-host-executor:20261012-b73e0d21\",\n            \"Volumes\": null,\n            \"WorkingDir\": \"/\",\n            \"Entrypoint\": [\n                \"/bin/sh\"\n            ],\n            \"OnBuild\": null,\n            \"Labels\": {\n                \"org.dugate.orv14-vfy-host\": \"executor-20261012-b73e0d21\"\n            }\n        },\n        \"NetworkSettings\": {\n            \"Bridge\": \"\",\n            \"SandboxID\": \"\",\n            \"SandboxKey\": \"\",\n            \"Ports\": {},\n            \"HairpinMode\": false,\n            \"LinkLocalIPv6Address\": \"\",\n            \"LinkLocalIPv6PrefixLen\": 0,\n            \"SecondaryIPAddresses\": null,\n            \"SecondaryIPv6Addresses\": null,\n            \"EndpointID\": \"\",\n            \"Gateway\": \"\",\n            \"GlobalIPv6Address\": \"\",\n            \"GlobalIPv6PrefixLen\": 0,\n            \"IPAddress\": \"\",\n            \"IPPrefixLen\": 0,\n            \"IPv6Gateway\": \"\",\n            \"MacAddress\": \"\",\n            \"Networks\": {\n                \"none\": {\n                    \"IPAMConfig\": null,\n                    \"Links\": null,\n                    \"Aliases\": null,\n                    \"MacAddress\": \"\",\n                    \"DriverOpts\": null,\n                    \"GwPriority\": 0,\n                    \"NetworkID\": \"96834611e4a933eb1bbda90040f09b1af3871d35134c9222fb809d48f224648c\",\n                    \"EndpointID\": \"\",\n                    \"Gateway\": \"\",\n                    \"IPAddress\": \"\",\n                    \"IPPrefixLen\": 0,\n                    \"IPv6Gateway\": \"\",\n                    \"GlobalIPv6Address\": \"\",\n                    \"GlobalIPv6PrefixLen\": 0,\n                    \"DNSNames\": null\n                }\n            }\n        }\n    }\n]\n",
+      "stderr": ""
+    },
+    {
+      "label": "cleanup-remove-orv14-vfy-host-seed-20261012-b73e0d21",
+      "argv": [
+        "/usr/local/bin/docker",
+        "rm",
+        "-f",
+        "ad614cc8cc21775a2ef5e1abec339aed68195ce7da48c94706e2779048f16e33"
+      ],
+      "startedAt": "2026-10-12T04:48:16.932Z",
+      "finishedAt": "2026-10-12T04:48:17.020Z",
+      "timeoutMs": 30000,
+      "maxBufferBytes": 2097152,
+      "status": 0,
+      "signal": null,
+      "errorCode": null,
+      "stdout": "ad614cc8cc21775a2ef5e1abec339aed68195ce7da48c94706e2779048f16e33\n",
+      "stderr": ""
+    },
+    {
+      "label": "cleanup-reinspect-orv14-vfy-host-protected-20261012-b73e0d21",
+      "argv": [
+        "/usr/local/bin/docker",
+        "volume",
+        "inspect",
+        "orv14-vfy-host-protected-20261012-b73e0d21"
+      ],
+      "startedAt": "2026-10-12T04:48:17.021Z",
+      "finishedAt": "2026-10-12T04:48:17.038Z",
+      "timeoutMs": 30000,
+      "maxBufferBytes": 2097152,
+      "status": 0,
+      "signal": null,
+      "errorCode": null,
+      "stdout": "[\n    {\n        \"CreatedAt\": \"2026-10-12T04:48:13Z\",\n        \"Driver\": \"local\",\n        \"Labels\": {\n            \"org.dugate.orv14-vfy-host\": \"executor-20261012-b73e0d21\"\n        },\n        \"Mountpoint\": \"/var/lib/docker/volumes/orv14-vfy-host-protected-20261012-b73e0d21/_data\",\n        \"Name\": \"orv14-vfy-host-protected-20261012-b73e0d21\",\n        \"Options\": null,\n        \"Scope\": \"local\"\n    }\n]\n",
+      "stderr": ""
+    },
+    {
+      "label": "cleanup-remove-orv14-vfy-host-protected-20261012-b73e0d21",
+      "argv": [
+        "/usr/local/bin/docker",
+        "volume",
+        "rm",
+        "orv14-vfy-host-protected-20261012-b73e0d21"
+      ],
+      "startedAt": "2026-10-12T04:48:17.038Z",
+      "finishedAt": "2026-10-12T04:48:17.051Z",
+      "timeoutMs": 30000,
+      "maxBufferBytes": 2097152,
+      "status": 0,
+      "signal": null,
+      "errorCode": null,
+      "stdout": "orv14-vfy-host-protected-20261012-b73e0d21\n",
+      "stderr": ""
+    },
+    {
+      "label": "cleanup-reinspect-image-orv14-vfy-host-executor:20261012-b73e0d21",
+      "argv": [
+        "/usr/local/bin/docker",
+        "image",
+        "inspect",
+        "sha256:c4eaa139de1af8b7c318bce2d3d0791fd67cee8c77e25b8caecbc8b140748e5d"
+      ],
+      "startedAt": "2026-10-12T04:48:17.051Z",
+      "finishedAt": "2026-10-12T04:48:17.064Z",
+      "timeoutMs": 30000,
+      "maxBufferBytes": 2097152,
+      "status": 0,
+      "signal": null,
+      "errorCode": null,
+      "stdout": "[\n    {\n        \"Id\": \"sha256:c4eaa139de1af8b7c318bce2d3d0791fd67cee8c77e25b8caecbc8b140748e5d\",\n        \"RepoTags\": [\n            \"orv14-vfy-host-executor:20261012-b73e0d21\"\n        ],\n        \"RepoDigests\": [],\n        \"Parent\": \"\",\n        \"Comment\": \"buildkit.dockerfile.v0\",\n        \"Created\": \"2026-10-12T04:48:12.518224018Z\",\n        \"DockerVersion\": \"\",\n        \"Author\": \"\",\n        \"Architecture\": \"amd64\",\n        \"Os\": \"linux\",\n        \"Size\": 179207339,\n        \"GraphDriver\": {\n            \"Data\": null,\n            \"Name\": \"vfs\"\n        },\n        \"RootFS\": {\n            \"Type\": \"layers\",\n            \"Layers\": [\n                \"sha256:74d97c428c51a828f9051a7a40a53ff1fc99e54fc30323ce36760701b0b7f711\",\n                \"sha256:7c732ed82ebdb575d2af70ebb84786b7421107ae929359e8e180c636040cbe88\",\n                \"sha256:6f3bd0caa7c25469ef663d37b3d333f7cda0b2887c78a1653af1f7bc6babef2d\",\n                \"sha256:a3b40bc0bbc6fc169200dd4069eac2195573e96112b64ad82c795d6ef3636719\",\n                \"sha256:64b3e7d0926ac9127a1728bcddfc6776bf738646e2e12e319e14d81f0517651d\",\n                \"sha256:29934f1b7fb4a2a7cf1c3ea7c9a2f0c15ea54567d1fa329ea9de8b384ccd9f39\",\n                \"sha256:95218cf678489fea184e4f7d95751a91c69760f3207ed86cef9319412ed923cb\",\n                \"sha256:2e5737e19a6d34011b304c2d6c38904fb47ce0e9121b32b4d10c7fc4611f127a\",\n                \"sha256:d6bbbd1e5b93880e1848d1eb9b7a2973220e0a8210b15cb1089182d263940210\",\n                \"sha256:cc30d779ed2c9e2e5cdd6c8f58e631c6de18a4f0bd54a776a71be7d8b854e9c4\",\n                \"sha256:a83204d381db9c4dc1583128f0a8cd237cf7de08acd6f3656ef5a885eea93687\"\n            ]\n        },\n        \"Metadata\": {\n            \"LastTagTime\": \"2026-10-12T04:48:13.012870059Z\"\n        },\n        \"Config\": {\n            \"Cmd\": null,\n            \"Entrypoint\": [\n                \"/bin/sh\"\n            ],\n            \"Env\": [\n                \"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\",\n                \"NODE_VERSION=24.21.0\",\n                \"YARN_VERSION=1.22.22\"\n            ],\n            \"Labels\": {\n                \"org.dugate.orv14-vfy-host\": \"executor-20261012-b73e0d21\"\n            },\n            \"OnBuild\": null,\n            \"User\": \"0:0\",\n            \"Volumes\": null,\n            \"WorkingDir\": \"/\"\n        }\n    }\n]\n",
+      "stderr": ""
+    },
+    {
+      "label": "cleanup-remove-image-orv14-vfy-host-executor:20261012-b73e0d21",
+      "argv": [
+        "/usr/local/bin/docker",
+        "image",
+        "rm",
+        "sha256:c4eaa139de1af8b7c318bce2d3d0791fd67cee8c77e25b8caecbc8b140748e5d"
+      ],
+      "startedAt": "2026-10-12T04:48:17.064Z",
+      "finishedAt": "2026-10-12T04:48:17.080Z",
+      "timeoutMs": 30000,
+      "maxBufferBytes": 2097152,
+      "status": 0,
+      "signal": null,
+      "errorCode": null,
+      "stdout": "Untagged: orv14-vfy-host-executor:20261012-b73e0d21\nDeleted: sha256:c4eaa139de1af8b7c318bce2d3d0791fd67cee8c77e25b8caecbc8b140748e5d\n",
+      "stderr": ""
+    },
+    {
+      "label": "cleanup-residual-containers",
+      "argv": [
+        "/usr/local/bin/docker",
+        "ps",
+        "-aq",
+        "--filter",
+        "label=org.dugate.orv14-vfy-host=executor-20261012-b73e0d21"
+      ],
+      "startedAt": "2026-10-12T04:48:17.080Z",
+      "finishedAt": "2026-10-12T04:48:17.094Z",
+      "timeoutMs": 30000,
+      "maxBufferBytes": 2097152,
+      "status": 0,
+      "signal": null,
+      "errorCode": null,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "label": "cleanup-residual-volumes",
+      "argv": [
+        "/usr/local/bin/docker",
+        "volume",
+        "ls",
+        "-q",
+        "--filter",
+        "label=org.dugate.orv14-vfy-host=executor-20261012-b73e0d21"
+      ],
+      "startedAt": "2026-10-12T04:48:17.094Z",
+      "finishedAt": "2026-10-12T04:48:17.111Z",
+      "timeoutMs": 30000,
+      "maxBufferBytes": 2097152,
+      "status": 0,
+      "signal": null,
+      "errorCode": null,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "label": "cleanup-residual-images",
+      "argv": [
+        "/usr/local/bin/docker",
+        "image",
+        "ls",
+        "-q",
+        "--filter",
+        "label=org.dugate.orv14-vfy-host=executor-20261012-b73e0d21"
+      ],
+      "startedAt": "2026-10-12T04:48:17.111Z",
+      "finishedAt": "2026-10-12T04:48:17.125Z",
+      "timeoutMs": 30000,
+      "maxBufferBytes": 2097152,
+      "status": 0,
+      "signal": null,
+      "errorCode": null,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "inputHashesBefore": {
+    "Dockerfile": "6cc97310325d266868ef4679ed809a3744dfcbd9067f8d5c88b6666efba0c278",
+    "package-sha256.txt": "064b0c1fabf1da8be69d6ec9eb63522e5f04ff818d63b7401ff1204ed5b2f266",
+    "package-resolution.json": "e385d4791211d427612a7bb9613c1fee8ad71dc3f99cead40fe9cbb0afc99245",
+    "APKINDEX-main.tar.gz": "24fc2ccb08f3125429a38b31bd6c76a7b394c6236df0975760dc8259e50dfbd5",
+    "APKINDEX-community.tar.gz": "2784f87a5eb8bad43dedb6a00c1f4b912485405db8b90d1e869236085c45ffcc",
+    "source-isolation.nft": "a8165769f5fe0f80e2ef341bfa0e5a23cc2ea4da3498b56e9d2e92dc306827cd",
+    "seed-volume.sh": "a3c12f774c04717ec939c1cd4319604a6958c262a42847ae3db36780cf98b09d",
+    "verify-target.mjs": "5355a1161c4711ac5d28fd3b888e8dc41ef3f517ba9665ae691c1777d281fed9",
+    "verify-executor.mjs": "edc2ecb132674029ed0c16cc3f405ba6d41f04669aef713f4ca44a26dc8d25dc",
+    "run-capability-smoke.mjs": "11abbe5875c8642212b033f7a824158b94fc464fe32742d20c35b623b2864b90",
+    "launch-plan.md": "cc1133cd6627bb6df76b8844f377a8b893fbffcff4db6f00d56b31dc7a040c7e",
+    "packages/gmp-6.3.0-r4.apk": "85323ef5bce8ff234736dc2d6592ea37aebdc6348a531e27430bdfe38364d256",
+    "packages/jansson-2.15.0-r0.apk": "7681b41486e1f2b2efce11875c839533464ae8857d30fc49130f0039c6585fdb",
+    "packages/libblkid-2.42.3-r1.apk": "2512c2bff496ac2b8561a3c814d21d35ce10cda579b3d410f9f96da93a5aaac1",
+    "packages/libeconf-0.8.3-r0.apk": "2a791c7957961f830cf31b04f35f814a63afcf633badc9052425ff1cf2f64380",
+    "packages/libfdisk-2.42.3-r1.apk": "9775aae10e103c128e6b8424585f5d2dac6d8e8e386cc8365a46358ccd6aa7d0",
+    "packages/libmnl-1.0.5-r2.apk": "3693162ff7c27998dbbb2da1c4bd9072079cd55af1fa3d6d2ade51d276e20157",
+    "packages/libmount-2.42.3-r1.apk": "e2ae003260f2c1ec13666c6e108d5e8e3d64974b0667166a02432bd3be263a7a",
+    "packages/libncursesw-6.6_p20260516-r0.apk": "cf8caa8a88bc4ce9d9e395567fefaf9ef7fbd55c50ae6155b35c1b58f3755023",
+    "packages/libnftnl-1.3.1-r0.apk": "2f4cf35959fde00fdba0dd35ef12a6739739b504e8319c97e30bd4834f98d924",
+    "packages/libsmartcols-2.42.3-r1.apk": "5e3a457257d9c0e6799ab5d544ca4f172c4e19e02adcde94c72343ed3f6d8b26",
+    "packages/libuuid-2.42.3-r1.apk": "8306e5bb577696c9069fe1dfd9e1dcc39d2d481c6a1b0e707fd03c3e21aa6aa2",
+    "packages/ncurses-terminfo-base-6.6_p20260516-r0.apk": "ce83be6d0bd10584a53c3a5868cc1595ce5f0f8e0b621f8f7f70b6144e521fc9",
+    "packages/nftables-1.1.6-r1.apk": "edca96e6160479bd734bb6cdb8412f84f689c6a771fdec75ce2c1c18f3e7cf42",
+    "packages/readline-8.3.3-r1.apk": "766911ecb986a6c5cf0841a6b556cd1e9dbbf22b3559726de32416486cd15c81",
+    "packages/setarch-2.42.3-r1.apk": "14098fdd87c4247acbee0513147eb2defd17fb850913e45a6dad6cb3e9a4d6b1",
+    "packages/skalibs-libs-2.15.0.0-r0.apk": "3301f6ccbeaea49cdd966c7e636898a8612fb8fe964a15f24f6d204b3944c3f3",
+    "packages/util-linux-misc-2.42.3-r1.apk": "8cba67c052d9932c61db6b32f3a6042b62cca642f16479ba066c59a5a97ffc55",
+    "packages/utmps-libs-0.1.3.3-r0.apk": "497f0f1cb51f0e6c1acc338fded0dc7722b1d43ea17bdb749f0d556794f8b2d8",
+    "packages/zlib-1.3.2-r1.apk": "63aeea03c15a2f9018f81805cfc8aa926bdf5cd68921f22149c2fbb5d0ee9f47"
+  },
+  "inputHashesAfter": {
+    "Dockerfile": "6cc97310325d266868ef4679ed809a3744dfcbd9067f8d5c88b6666efba0c278",
+    "package-sha256.txt": "064b0c1fabf1da8be69d6ec9eb63522e5f04ff818d63b7401ff1204ed5b2f266",
+    "package-resolution.json": "e385d4791211d427612a7bb9613c1fee8ad71dc3f99cead40fe9cbb0afc99245",
+    "APKINDEX-main.tar.gz": "24fc2ccb08f3125429a38b31bd6c76a7b394c6236df0975760dc8259e50dfbd5",
+    "APKINDEX-community.tar.gz": "2784f87a5eb8bad43dedb6a00c1f4b912485405db8b90d1e869236085c45ffcc",
+    "source-isolation.nft": "a8165769f5fe0f80e2ef341bfa0e5a23cc2ea4da3498b56e9d2e92dc306827cd",
+    "seed-volume.sh": "a3c12f774c04717ec939c1cd4319604a6958c262a42847ae3db36780cf98b09d",
+    "verify-target.mjs": "5355a1161c4711ac5d28fd3b888e8dc41ef3f517ba9665ae691c1777d281fed9",
+    "verify-executor.mjs": "edc2ecb132674029ed0c16cc3f405ba6d41f04669aef713f4ca44a26dc8d25dc",
+    "run-capability-smoke.mjs": "11abbe5875c8642212b033f7a824158b94fc464fe32742d20c35b623b2864b90",
+    "launch-plan.md": "cc1133cd6627bb6df76b8844f377a8b893fbffcff4db6f00d56b31dc7a040c7e",
+    "packages/gmp-6.3.0-r4.apk": "85323ef5bce8ff234736dc2d6592ea37aebdc6348a531e27430bdfe38364d256",
+    "packages/jansson-2.15.0-r0.apk": "7681b41486e1f2b2efce11875c839533464ae8857d30fc49130f0039c6585fdb",
+    "packages/libblkid-2.42.3-r1.apk": "2512c2bff496ac2b8561a3c814d21d35ce10cda579b3d410f9f96da93a5aaac1",
+    "packages/libeconf-0.8.3-r0.apk": "2a791c7957961f830cf31b04f35f814a63afcf633badc9052425ff1cf2f64380",
+    "packages/libfdisk-2.42.3-r1.apk": "9775aae10e103c128e6b8424585f5d2dac6d8e8e386cc8365a46358ccd6aa7d0",
+    "packages/libmnl-1.0.5-r2.apk": "3693162ff7c27998dbbb2da1c4bd9072079cd55af1fa3d6d2ade51d276e20157",
+    "packages/libmount-2.42.3-r1.apk": "e2ae003260f2c1ec13666c6e108d5e8e3d64974b0667166a02432bd3be263a7a",
+    "packages/libncursesw-6.6_p20260516-r0.apk": "cf8caa8a88bc4ce9d9e395567fefaf9ef7fbd55c50ae6155b35c1b58f3755023",
+    "packages/libnftnl-1.3.1-r0.apk": "2f4cf35959fde00fdba0dd35ef12a6739739b504e8319c97e30bd4834f98d924",
+    "packages/libsmartcols-2.42.3-r1.apk": "5e3a457257d9c0e6799ab5d544ca4f172c4e19e02adcde94c72343ed3f6d8b26",
+    "packages/libuuid-2.42.3-r1.apk": "8306e5bb577696c9069fe1dfd9e1dcc39d2d481c6a1b0e707fd03c3e21aa6aa2",
+    "packages/ncurses-terminfo-base-6.6_p20260516-r0.apk": "ce83be6d0bd10584a53c3a5868cc1595ce5f0f8e0b621f8f7f70b6144e521fc9",
+    "packages/nftables-1.1.6-r1.apk": "edca96e6160479bd734bb6cdb8412f84f689c6a771fdec75ce2c1c18f3e7cf42",
+    "packages/readline-8.3.3-r1.apk": "766911ecb986a6c5cf0841a6b556cd1e9dbbf22b3559726de32416486cd15c81",
+    "packages/setarch-2.42.3-r1.apk": "14098fdd87c4247acbee0513147eb2defd17fb850913e45a6dad6cb3e9a4d6b1",
+    "packages/skalibs-libs-2.15.0.0-r0.apk": "3301f6ccbeaea49cdd966c7e636898a8612fb8fe964a15f24f6d204b3944c3f3",
+    "packages/util-linux-misc-2.42.3-r1.apk": "8cba67c052d9932c61db6b32f3a6042b62cca642f16479ba066c59a5a97ffc55",
+    "packages/utmps-libs-0.1.3.3-r0.apk": "497f0f1cb51f0e6c1acc338fded0dc7722b1d43ea17bdb749f0d556794f8b2d8",
+    "packages/zlib-1.3.2-r1.apk": "63aeea03c15a2f9018f81805cfc8aa926bdf5cd68921f22149c2fbb5d0ee9f47"
+  },
+  "image": {
+    "id": "sha256:c4eaa139de1af8b7c318bce2d3d0791fd67cee8c77e25b8caecbc8b140748e5d",
+    "repoTags": [
+      "orv14-vfy-host-executor:20261012-b73e0d21"
+    ],
+    "architecture": "amd64",
+    "os": "linux",
+    "label": "executor-20261012-b73e0d21",
+    "nodeVersion": "v24.21.0"
+  },
+  "volume": {
+    "name": "orv14-vfy-host-protected-20261012-b73e0d21",
+    "driver": "local",
+    "labels": {
+      "org.dugate.orv14-vfy-host": "executor-20261012-b73e0d21"
+    }
+  },
+  "seed": {
+    "id": "ad614cc8cc21775a2ef5e1abec339aed68195ce7da48c94706e2779048f16e33",
+    "networkMode": "none",
+    "readOnlyRootfs": true,
+    "capabilities": {
+      "add": [
+        "CAP_CHOWN"
+      ],
+      "drop": [
+        "ALL"
+      ]
+    },
+    "exitCode": 0,
+    "log": "v24.21.0\n/seed 0:1000 750 4096\n/seed/policy 0:1000 750 4096\n/seed/policy/source-isolation.nft 0:1000 440 248\n/seed/runtime 0:1000 750 4096\n/seed/runtime/runtime-config.json 0:1000 440 53"
+  },
+  "target": {
+    "id": "59803ce84d3fbeb681b1c47185ea108112c393c9746441b402b6c392b7627667",
+    "pid": 1837758,
+    "user": "1000:1000",
+    "networkMode": "none",
+    "pidMode": "",
+    "readOnlyRootfs": true,
+    "mount": {
+      "sourceName": "orv14-vfy-host-protected-20261012-b73e0d21",
+      "destination": "/run/orv14-vfy/protected",
+      "rw": false
+    },
+    "subpath": {
+      "sourceName": "orv14-vfy-host-protected-20261012-b73e0d21",
+      "subpath": "runtime",
+      "destination": "/run/orv14-vfy/protected",
+      "readOnly": true
+    },
+    "proof": {
+      "uid": 1000,
+      "gid": 1000,
+      "runtimeConfigOwner": "0:1000",
+      "runtimeConfigMode": "440",
+      "policyMountReadDenied": "ENOENT",
+      "imagePolicyReadDenied": "EACCES",
+      "targetNetns": "net:[4026532723]",
+      "fixture": "synthetic"
+    }
+  },
+  "executor": {
+    "id": "cfb0db135b35a9364e63bfd170496872f2ffbb8e48e9461a3604188e30692265",
+    "pid": 1838050,
+    "user": "1000:1000",
+    "networkMode": "none",
+    "pidMode": "container:59803ce84d3fbeb681b1c47185ea108112c393c9746441b402b6c392b7627667",
+    "readOnlyRootfs": true,
+    "capabilities": {
+      "add": [
+        "CAP_NET_ADMIN",
+        "CAP_SYS_ADMIN"
+      ],
+      "drop": [
+        "ALL"
+      ]
+    },
+    "securityOpt": [
+      "no-new-privileges"
+    ],
+    "mount": {
+      "sourceName": "orv14-vfy-host-protected-20261012-b73e0d21",
+      "destination": "/run/orv14-vfy/protected",
+      "rw": false
+    },
+    "subpath": {
+      "sourceName": "orv14-vfy-host-protected-20261012-b73e0d21",
+      "subpath": "policy",
+      "destination": "/run/orv14-vfy/protected",
+      "readOnly": true
+    }
+  },
+  "namespaceVerification": null,
+  "cleanup": {
+    "attempted": true,
+    "actions": [
+      {
+        "name": "orv14-vfy-host-executor-20261012-b73e0d21",
+        "kind": "container",
+        "id": "cfb0db135b35a9364e63bfd170496872f2ffbb8e48e9461a3604188e30692265",
+        "result": "removed",
+        "stdout": "cfb0db135b35a9364e63bfd170496872f2ffbb8e48e9461a3604188e30692265"
+      },
+      {
+        "name": "orv14-vfy-host-target-20261012-b73e0d21",
+        "kind": "container",
+        "id": "59803ce84d3fbeb681b1c47185ea108112c393c9746441b402b6c392b7627667",
+        "result": "removed",
+        "stdout": "59803ce84d3fbeb681b1c47185ea108112c393c9746441b402b6c392b7627667"
+      },
+      {
+        "name": "orv14-vfy-host-seed-20261012-b73e0d21",
+        "kind": "container",
+        "id": "ad614cc8cc21775a2ef5e1abec339aed68195ce7da48c94706e2779048f16e33",
+        "result": "removed",
+        "stdout": "ad614cc8cc21775a2ef5e1abec339aed68195ce7da48c94706e2779048f16e33"
+      },
+      {
+        "name": "orv14-vfy-host-protected-20261012-b73e0d21",
+        "kind": "volume",
+        "result": "removed"
+      },
+      {
+        "name": "orv14-vfy-host-executor:20261012-b73e0d21",
+        "kind": "image",
+        "id": "sha256:c4eaa139de1af8b7c318bce2d3d0791fd67cee8c77e25b8caecbc8b140748e5d",
+        "result": "removed"
+      }
+    ],
+    "residuals": {
+      "containers": [],
+      "volumes": [],
+      "images": []
+    },
+    "success": true
+  },
+  "outcome": "FAIL",
+  "failure": "Error: execute-bounded-nsenter-and-nft-proof failed: status=1 signal= error=; stderr=node:internal/modules/run_main:107\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: executor must retain only CAP_NET_ADMIN and CAP_SYS_ADMIN\n+ actual - expected\n\n+ '0000000000000000'\n- '0000000000201000'\n             ^\n\n    at file:///usr/local/bin/orv14-verify-target-netns.mjs:9:8\n    at ModuleJob.run (node:internal/modules/esm/module_job:561:25)\n    at async node:internal/modules/esm/loader:647:26\n    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5) {\n  generatedMessage: false,\n  code: 'ERR_ASSERTION',\n  actual: '0000000000000000',\n  expected: '0000000000201000',\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n\nNode.js v24.21.0\n\n    at must (file:///workspace/scratch/orv14-host-executor-plan/run-capability-smoke.mjs:92:11)\n    at main (file:///workspace/scratch/orv14-host-executor-plan/run-capability-smoke.mjs:330:28)\n    at file:///workspace/scratch/orv14-host-executor-plan/run-capability-smoke.mjs:337:9\n    at ModuleJob.run (node:internal/modules/esm/module_job:561:25)\n    at async node:internal/modules/esm/loader:647:26\n    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)",
+  "docker": {
+    "serverVersion": "28.4.0",
+    "operatingSystem": "Debian GNU/Linux 13 (trixie) (containerized)",
+    "architecture": "x86_64",
+    "kernelVersion": "6.18.44",
+    "securityOptions": [
+      "name=seccomp,profile=builtin",
+      "name=cgroupns"
+    ],
+    "cgroupVersion": "2"
+  },
+  "baseImage": {
+    "reference": "node:24-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1",
+    "id": "sha256:c10884952bb8c37122fcc3fe6f97af3ab0a80e5eb02ee5df707406b4e11a7e3e",
+    "architecture": "amd64",
+    "os": "linux"
+  },
+  "finishedAt": "2026-10-12T04:48:17.131Z"
+}

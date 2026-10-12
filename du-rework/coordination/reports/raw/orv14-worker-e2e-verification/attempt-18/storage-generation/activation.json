@@ -1,0 +1,40 @@
+{
+  "minio": {
+    "runId": "wfa_1791773374515_cd44c7bab3",
+    "projectLabel": "orv14-vfy-worker-wfa_1791773374515_cd44c7bab3",
+    "containerName": "ow-minio-c67394fb5c654372855d",
+    "image": "orv14-vfy/minio:RELEASE-2025-09-07",
+    "imageId": "sha256:ff768636ea5c1b7bd295ddae1505506ae91a3beff613b14be377d23734cd2915",
+    "endpoint": "http://127.0.0.1:33050",
+    "bucket": "orv14-worker-59fe298fc3ca4d07bc50827b",
+    "versioning": "Enabled",
+    "accessKeyIdLength": 20,
+    "secretAccessKeyLength": 40
+  },
+  "secretCatalog": {
+    "secretId": "a2d89d0d-c24e-402c-9eb0-047cb6a66b9c",
+    "revision": 1,
+    "credentialVersionRef": "a2d89d0d-c24e-402c-9eb0-047cb6a66b9c@1",
+    "tenantId": "bc9d4b4c-98a4-4ddd-acf5-57a948e1b820"
+  },
+  "storageGeneration": {
+    "initialControlRevision": 0,
+    "stagedGenerationId": "42abfbab-379b-45b8-bdfa-1bdad6a27b5d",
+    "stagedRevision": 1,
+    "test": {
+      "generationId": "42abfbab-379b-45b8-bdfa-1bdad6a27b5d",
+      "status": "PASSED",
+      "checkedAt": "2026-10-12T02:49:36.129Z",
+      "write": "PASSED",
+      "read": "PASSED",
+      "checksum": "PASSED",
+      "crypto": "PASSED",
+      "delete": "PASSED",
+      "code": null
+    },
+    "activeGenerationId": "42abfbab-379b-45b8-bdfa-1bdad6a27b5d",
+    "activeCredentialVersionRef": "a2d89d0d-c24e-402c-9eb0-047cb6a66b9c@1",
+    "activeCredentialOwnerTenantId": "bc9d4b4c-98a4-4ddd-acf5-57a948e1b820",
+    "currentControlRevision": 1
+  }
+}

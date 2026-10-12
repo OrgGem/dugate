@@ -1,0 +1,5 @@
+orv14-vfy-20261011-a1-vault-1 hashicorp/vault:1.18.5
+orv14-vfy-20261011-a1-mock-provider-1 node:24-alpine
+orv14-vfy-20261011-a1-postgres-1 postgres:16-alpine
+orv14-vfy-20261011-a1-minio-1 orv14-vfy/minio:RELEASE-2025-09-07
+orv14-vfy-20261011-a1-redis-1 redis:7-alpine

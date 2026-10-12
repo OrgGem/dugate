@@ -1,0 +1,41 @@
+{
+  "schema": "orv14-host-connector-restore-slice/v1",
+  "disposition": "FAILED_PARTIAL_HOST_CONNECTOR_SLICE_ONLY",
+  "completedAt": "2026-10-11T23:31:28.745Z",
+  "error": "Cannot find module 'typescript/bin/tsc' Require stack: - /workspace/dugate/du-rework/orchestrator/package.json",
+  "cleanup": {
+    "projectId": "orv14-vfy-host-mv4gio3s-a4204cd383",
+    "removed": {
+      "containers": [
+        "dc916925bd94",
+        "7e5dc29e7c79",
+        "a5fdf083a0f2",
+        "806d728d2e1e",
+        "0c34fadd3f05",
+        "3729d143eb7d",
+        "e1d9ff8b9e6a",
+        "ed026093bb26",
+        "c180c50597b7",
+        "30dd03287afb"
+      ],
+      "volumes": [
+        "orv14-vfy-host-mv4gio3s-a4204cd383_connector-restore-data",
+        "orv14-vfy-host-mv4gio3s-a4204cd383_connector-source-data",
+        "orv14-vfy-host-mv4gio3s-a4204cd383_minio-data",
+        "orv14-vfy-host-mv4gio3s-a4204cd383_minio-restore-data",
+        "orv14-vfy-host-mv4gio3s-a4204cd383_orchestrator-restore-data",
+        "orv14-vfy-host-mv4gio3s-a4204cd383_orchestrator-source-data"
+      ],
+      "networks": [
+        "7cedc556811d"
+      ]
+    },
+    "remaining": {
+      "containers": [],
+      "volumes": [],
+      "networks": []
+    },
+    "temporaryFixtureRemoved": true
+  },
+  "acceptance": "not claimed; source checkpoint and cross-family restore verification remain outstanding"
+}

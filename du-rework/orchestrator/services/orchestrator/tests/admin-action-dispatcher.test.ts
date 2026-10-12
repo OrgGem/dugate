@@ -34,6 +34,7 @@ const OP_A = 'op-a-tok-0123456789ab';
 const SECRET = 'cookie-secret-0123456789';
 
 const ALL_ACTIONS = Object.keys(ADMIN_ACTIONS);
+const TENANT_OPERATOR_ACTIONS = ['operations.cancel', 'operations.resume', 'workflow.provision', 'workflow.retire', 'workflow.test'];
 
 function bearerPlatform(): AdminActionAuth {
   return { kind: 'bearer', principal: { role: 'platform' } };
@@ -229,10 +230,10 @@ describe('ADM-BASE-02 authorizeAdminAction matrix (pure)', () => {
     }
   });
   it('bearer tenant_operator (OIDC-03): ONLY the approved operation-control set; credential/key/business actions 403', () => {
-    for (const a of ['operations.cancel', 'operations.resume']) {
+    for (const a of TENANT_OPERATOR_ACTIONS) {
       expect(authorizeAdminAction(bearerOpA(), a).ok).toBe(true);
     }
-    for (const a of ALL_ACTIONS.filter((x) => x !== 'operations.cancel' && x !== 'operations.resume')) {
+    for (const a of ALL_ACTIONS.filter((x) => !TENANT_OPERATOR_ACTIONS.includes(x))) {
       const d = authorizeAdminAction(bearerOpA(), a);
       expect(d.ok).toBe(false);
       if (!d.ok) {
@@ -262,7 +263,7 @@ describe('ADM-BASE-02 authorizeAdminAction matrix (pure)', () => {
         expect(d.ok).toBe(false);
         if (!d.ok) {
           expect(d.status).toBe(403);
-          const tenantGuard = role === 'operator' && (a === 'operations.cancel' || a === 'operations.resume');
+          const tenantGuard = role === 'operator' && TENANT_OPERATOR_ACTIONS.includes(a);
           expect(d.message).toContain(tenantGuard ? 'tenant' : 'role');
         }
       }
@@ -575,7 +576,7 @@ describe('ADM-BASE-02 resolveAdminActionAuth (bearer-first, cookie+CSRF)', () =>
  * reach a service.
  */
 describe('OIDC-03 complete allow/deny matrix (authorizeAdminAction)', () => {
-  const OPS = ['operations.cancel', 'operations.resume'];
+  const OPS = TENANT_OPERATOR_ACTIONS;
   const ADMIN_ONLY = ALL_ACTIONS.filter((a) => !OPS.includes(a));
   const cells: Array<[string, AdminActionAuth | null, Record<string, 'allow' | 'deny'>]> = [
     ['bearer platform', bearerPlatform(), Object.fromEntries(ALL_ACTIONS.map((a) => [a, 'allow']))],

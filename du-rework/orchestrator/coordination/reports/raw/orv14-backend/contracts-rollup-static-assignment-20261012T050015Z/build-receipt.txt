@@ -1,0 +1,13 @@
+started_utc=2026-10-12T04:59:32Z
+cwd=/workspace/dugate/du-rework/orchestrator
+command=/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node node_modules/.pnpm/typescript@5.9.3/node_modules/typescript/bin/tsc -p packages/contracts/tsconfig.json
+node_version=v24.21.0
+tsc_version=Version 5.9.3
+contracts_src_pre_manifest=7a7fee71282164f812d5875291b68f70c6a22af199339b0d44ca79c238cd477c  coordination/reports/raw/orv14-backend/contracts-rollup-static-assignment-20261012T050015Z/contracts-src-pre.sha256
+contracts_dist_pre_manifest=ee60839c54c33a7872240ff178e527e83b3f516c63cfd4a0bbb5430a885a11ef  coordination/reports/raw/orv14-backend/contracts-rollup-static-assignment-20261012T050015Z/contracts-dist-pre.sha256
+exit_code=0
+completed_utc=2026-10-12T04:59:37Z
+contracts_src_post_manifest=7a7fee71282164f812d5875291b68f70c6a22af199339b0d44ca79c238cd477c  coordination/reports/raw/orv14-backend/contracts-rollup-static-assignment-20261012T050015Z/contracts-src-post.sha256
+contracts_dist_post_manifest=c381966b1947e5e075dfa822bc798a23a7a4fa7920be5dbaea387a297a40d349  coordination/reports/raw/orv14-backend/contracts-rollup-static-assignment-20261012T050015Z/contracts-dist-post.sha256
+source_entry_count=46
+dist_entry_count=184

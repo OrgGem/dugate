@@ -1,0 +1,54 @@
+{
+  "schema": "orv14-native19-runtime-preparation/v1",
+  "command": "/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node tests/workflow-api/orv14-vfy-host/prepare-native19-runtime.mjs /tmp/orv14-vfy-host-mv4n6b3b-fe3af002bb-vSYC3e/native19-state.json",
+  "cwd": "/workspace/dugate/du-rework",
+  "node": "v24.21.0",
+  "verifierUid": 1000,
+  "startedAt": "2026-10-12T02:58:38.365Z",
+  "stateFile": "/tmp/orv14-vfy-host-mv4n6b3b-fe3af002bb-vSYC3e/native19-state.json",
+  "stateModeVerified": true,
+  "fixtureNamespace": "orv14-vfy-host-mv4n6b3b-fe3af002bb",
+  "ownedComposeContainers": 10,
+  "providerBaseline": {
+    "count": 0,
+    "requestMethods": null
+  },
+  "vaultOrigin": "http://127.0.0.1:33042",
+  "storageOrigin": "http://127.0.0.1:33040",
+  "providerOrigin": "http://127.0.0.1:41503",
+  "composeFileSha256": "7e18e4f71e1211331bca91af270ef50bdd24f1609876201b593a0afdd9a2f1d0",
+  "imageIds": {
+    "postgres": "sha256:81bd698b4594e751a3269e4dcd3e03a4a0ec0daf7b72e7aa1abd43cce9887542",
+    "redis": "sha256:f84b0c4678011602b9b98c227a4dcd5468bf8b088b02fdd4165cb7758bad8058",
+    "vault": "sha256:20bce4b1fc21ee5ccc659e3a13fd479894cfffcf650d8ca3c0c4ae7eaecc2c81",
+    "minio": "sha256:ff768636ea5c1b7bd295ddae1505506ae91a3beff613b14be377d23734cd2915"
+  },
+  "transit": {
+    "mount": "transit",
+    "keyName": "orv14_vfy_native19_meta_bb20f9d626a34aed",
+    "keyRef": "vfy-native19-meta-bb20f9d626a34aed",
+    "keyType": "aes256-gcm96",
+    "exportable": false,
+    "separateEncryptDecryptTokens": true,
+    "encryptDecryptProbe": "PASSED",
+    "encryptTokenDecryptDenied": "PASSED",
+    "decryptTokenEncryptDenied": "PASSED",
+    "encryptAccessorSha256": "2a67af97c50380d8c500c86a8ed2a4ffbbe6c177fed9c9b0b71c13ba7eb701da",
+    "decryptAccessorSha256": "42ae6f153644013a806c9ab5b1f0cfcedef519e18ca5e3ff4b7c9558e3016d6f"
+  },
+  "s3": {
+    "existed": false,
+    "bucketReady": true,
+    "initialObjects": 0,
+    "bucket": "orv14-vfy-05b4ac0a669d256e",
+    "endpointOrigin": "http://127.0.0.1:33040"
+  },
+  "secretsFile": "/tmp/orv14-vfy-host-mv4n6b3b-fe3af002bb-vSYC3e/native19-runtime-secrets.json",
+  "secretValuesRecorded": false,
+  "status": "PASSED_SYNTHETIC_RUNTIME_PREPARATION",
+  "transitMount": "enabled",
+  "secretsFileModeVerified": true,
+  "secretsFileSha256": "b232d92621a307f956b6656740b02d9e4c413f51762c3b32208f43243e1283f5",
+  "secretsReused": false,
+  "completedAt": "2026-10-12T02:58:39.099Z"
+}

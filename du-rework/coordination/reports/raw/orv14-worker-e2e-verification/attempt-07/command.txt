@@ -1,0 +1,6 @@
+UTC start captured in run-context.json
+CWD: /workspace/dugate/du-rework
+Pinned Node: /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node (v24.21.0)
+Command: /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node /workspace/dugate/du-rework/businesses/document-core/node_modules/jest/bin/jest.js --config tests/workflow-api/jest.config.cjs --runInBand --runTestsByPath tests/workflow-api/orv14-vfy-core31.test.ts --testNamePattern configured Worker receives exact private HTTPS policy|parallel branch children|a resumed HITL workflow|tenant schema approval blocks|operator list and tenant pin intersect
+Environment: WFA_DATABASE_URL=postgresql://orv14_vfy:<synthetic Compose password omitted>@127.0.0.1:25414/orv14_vfy; WFA_REDIS_URL=redis://127.0.0.1:26414/2; NODE_PATH=<document-core node_modules>; NODE_EXTRA_CA_CERTS=<fixture runner trust bundle>; ORV14_WORKER_E2E_RAW_DIR=<attempt-07>; proxy environment inherited unchanged
+Input manifest: 943 files, SHA-256=2d2f68964f787d5655a97b14b7fb3194a71ccf1e8a94e1c1c347518222cea184; create-app.ts SHA-256 before=d4096d0b607610d8e6d6571e5a20c7d906aa3989a4225151a3c320b493e6820b; contracts source/dist manifests SHA-256=c6aff5e58e05f2cfaeb8d6d8ee441d7365e8340af479870afa7fae834b059831/c8b95f0b902b6f05b92033cda8472ae5aa1806809b484668703efa49583fd9dc

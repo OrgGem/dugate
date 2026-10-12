@@ -121,6 +121,7 @@ test('usage sink sends the single contract event to the Orchestrator with bearer
     taskId: '22222222-2222-4222-8222-222222222222',
     units: { inputTokens: 1, outputTokens: 2, pages: 3 },
     costMicrousd: 4,
+    costStatus: 'measured',
     currency: 'USD',
     measurement: 'measured',
     occurredAt: event!.createdAt,

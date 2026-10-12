@@ -1,0 +1,40 @@
+{
+  "name": "operations/7ead088c-07f4-4e34-b938-662ed29f2899",
+  "done": true,
+  "metadata": {
+    "state": "SUCCEEDED",
+    "pipeline": [],
+    "current_step": 0,
+    "progress_percent": 0,
+    "progress_message": "Queued",
+    "create_time": "2026-10-12T00:37:42.891Z",
+    "update_time": "2026-10-12T00:37:42.990Z",
+    "pipeline_steps": []
+  },
+  "result": {
+    "output_format": "json",
+    "content": "{\"headers\":[\"Col1\",\"Col2\"],\"rows\":[[\"Val1\",\"Val2\"]]}",
+    "extracted_data": {
+      "headers": [
+        "Col1",
+        "Col2"
+      ],
+      "rows": [
+        [
+          "Val1",
+          "Val2"
+        ]
+      ]
+    },
+    "pipeline_steps": [],
+    "usage": {
+      "input_tokens": null,
+      "output_tokens": null,
+      "pages_processed": null,
+      "model_used": null,
+      "cost_usd": null,
+      "breakdown": []
+    },
+    "download_url": "/api/v1/operations/7ead088c-07f4-4e34-b938-662ed29f2899/download"
+  }
+}

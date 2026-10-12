@@ -120,7 +120,7 @@ describe('F-VFYSC1-02 secrets BFF method dispatch', () => {
   describe('1. GET /secrets stays the catalog list', () => {
     it('forwards the allowlisted query + tenant scope upstream as GET', async () => {
       const out = await invoke('GET', '/secrets', {
-        query: `tenantId=${TENANT}&limit=2&cursor=abc&state=ACTIVE&evil=drop-me`,
+        query: `tenantId=${TENANT}&limit=2&cursor=abc&state=ACTIVE&q=storage&evil=drop-me`,
       });
       expect(out.status).toBe(200);
       expect(out.calls).toHaveLength(1);
@@ -130,6 +130,7 @@ describe('F-VFYSC1-02 secrets BFF method dispatch', () => {
       expect(upstream.searchParams.get('limit')).toBe('2');
       expect(upstream.searchParams.get('cursor')).toBe('abc');
       expect(upstream.searchParams.get('state')).toBe('ACTIVE');
+      expect(upstream.searchParams.get('q')).toBe('storage');
       expect(upstream.searchParams.get('tenantId')).toBe(TENANT);
       // Non-allowlisted query parameters never reach the upstream.
       expect(upstream.searchParams.has('evil')).toBe(false);

@@ -1,0 +1,14 @@
+{
+  "extends": "../../../../orchestrator/services/connector/tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "../../../../orchestrator/services/connector",
+    "noEmit": true,
+    "types": ["node", "jest"],
+    "typeRoots": ["../../../../orchestrator/services/connector/node_modules/@types"]
+  },
+  "files": [
+    "../../../../orchestrator/services/connector/src/db/parity-repository.ts",
+    "../../../../orchestrator/services/connector/tests/orv14-parity-tx-visibility-owner.test.ts"
+  ],
+  "include": []
+}

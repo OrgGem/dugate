@@ -106,12 +106,12 @@ function startStub(port: number): Promise<Stub> {
       });
       res.setHeader('content-type', 'application/json');
       if (url.pathname === '/api/v1/admin/actions') { res.statusCode = 200; res.end(JSON.stringify({ operationId: 'retry-new', state: 'ACCEPTED' })); return; }
-      if (url.pathname === '/api/v1/operations') {
+      if (url.pathname === '/api/internal/operations') {
         res.statusCode = 200;
         res.end(JSON.stringify({ items: [{ id: 'op-1', state: 'RUNNING' }], nextCursor: null, prevCursor: null, total: 1, limit: 20 }));
         return;
       }
-      if (url.pathname.startsWith('/api/v1/operations/')) {
+      if (url.pathname.startsWith('/api/internal/operations/')) {
         res.statusCode = 200;
         res.end(JSON.stringify({ operation: { id: 'op-1', state: 'RUNNING' }, artifacts: [] }));
         return;
@@ -210,13 +210,22 @@ describe('AWEB-06 BFF operations/usage/business routes', () => {
 
   const last = (): Captured | undefined => stub.requests[stub.requests.length - 1];
 
+  it('file upload streams selected key and raw bytes with session CSRF; no-CSRF denied before upstream', async () => {
+    const target = `${baseUrl}/admin/api/operations/uploads?tenantId=${TENANT_A}&apiKeyId=22222222-2222-4222-8222-222222222222&fileName=test.txt`;
+    expect((await httpRequest(target, { method: 'POST', headers: { cookie: adminCookie, 'content-type': 'text/plain' }, body: 'file' })).status).toBe(403);
+    expect(stub.requests).toHaveLength(0);
+    const response = await httpRequest(target, { method: 'POST', headers: { cookie: adminCookie, 'x-csrf-token': csrfToken, 'content-type': 'text/plain', 'content-length': '4' }, body: 'file' });
+    expect(response.status).toBe(200);
+    expect(last()).toMatchObject({ method: 'POST', body: 'file', auth: `Bearer ${ADMIN_TOKEN}` });
+    expect(last()!.path).toBe(`/api/internal/operations/uploads?tenantId=${TENANT_A}&apiKeyId=22222222-2222-4222-8222-222222222222&fileName=test.txt`);
+  });
   it('admin retry forwards POST with CSRF, idempotency and server-owned action', async () => {
     const response = await httpRequest(`${baseUrl}/admin/api/operations/op-1/retry`, {
       method: 'POST', headers: { cookie: adminCookie, 'x-csrf-token': csrfToken, 'idempotency-key': 'retry-once' }, body: '{}',
     });
     expect(response.status).toBe(200);
-    expect(last()).toMatchObject({ method: 'POST', path: '/api/v1/admin/actions', auth: `Bearer ${ADMIN_TOKEN}`, idempotencyKey: 'retry-once' });
-    expect(JSON.parse(last()!.body!)).toEqual({ action: 'operations.retry', params: { operationId: 'op-1' } });
+    expect(last()).toMatchObject({ method: 'POST', path: '/api/internal/operations/op-1/retry', auth: `Bearer ${ADMIN_TOKEN}`, idempotencyKey: 'retry-once' });
+    expect(JSON.parse(last()!.body!)).toEqual({});
   });
   it('operator stop uses own tenant credential; retry is denied', async () => {
     const headers = { cookie: `du_session=${OPERATOR_SESSION}`, 'x-csrf-token': 'C'.repeat(43) };
@@ -272,7 +281,7 @@ describe('AWEB-06 BFF operations/usage/business routes', () => {
 
     const detail = await httpRequest(`${baseUrl}/admin/api/operations/op-1`, { headers: { cookie } });
     expect(detail.status).toBe(200);
-    expect(last()?.path).toBe('/api/v1/operations/op-1');
+    expect(last()?.path).toBe('/api/internal/operations/op-1');
 
     stub.requests.length = 0;
     const port = Number(new URL(baseUrl).port);

@@ -1,4 +1,22 @@
 services:
+  connector-db-init:
+    image: ${POSTGRES_IMAGE:-postgres:16-alpine}
+    entrypoint: [/bin/sh, -ec]
+    command:
+      - |
+        if psql --no-psqlrc --tuples-only --no-align --host=postgres --username="$$POSTGRES_USER" --dbname=postgres --command "SELECT 1 FROM pg_database WHERE datname='du_connector'" | grep -q '^1$'; then
+          exit 0
+        fi
+        createdb --host=postgres --username="$$POSTGRES_USER" --maintenance-db=postgres du_connector
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      POSTGRES_USER: ${POSTGRES_USER:-du}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [du-platform-net]
+    init: true
+    restart: 'no'
   connector:
     image: ${DU_IMAGE_PREFIX:-du}-connector:${DU_IMAGE_TAG:-local}
     build:
@@ -8,7 +26,7 @@ services:
     environment:
       PORT: '8080'
       HOST: 0.0.0.0
-      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-du}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-du_orchestrator}}
+      DATABASE_URL: ${CONNECTOR_DATABASE_URL:-postgresql://${POSTGRES_USER:-du}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/du_connector}
       REDIS_URL: ${REDIS_URL:-redis://valkey:6379}
       REDIS_KEY_PREFIX: ${CONNECTOR_REDIS_PREFIX:-du:connector:}
       DRAIN_TIMEOUT_MS: '30000'
@@ -20,7 +38,16 @@ services:
       ALLOW_PRIVATE_PROVIDER_NETWORKS: ${ALLOW_PRIVATE_PROVIDER_NETWORKS:-false}
       USAGE_SINK_URL: ${USAGE_SINK_URL:-}
       USAGE_SINK_TOKEN: ${USAGE_SINK_TOKEN:-}
+      COST_CONTROL_CONNECTOR_URL: http://orchestrator:3002
+      COST_CONTROL_CONNECTOR_TOKEN: ${COST_CONTROL_CONNECTOR_TOKEN:?Set a dedicated cost-control service token}
+      CONNECTOR_RUNTIME_SLOT: ${CONNECTOR_RUNTIME_SLOT:-}
+      CONNECTOR_RUNTIME_IDENTITY: ${CONNECTOR_RUNTIME_IDENTITY:-}
+      CONNECTOR_REPLICA_ID: ${CONNECTOR_REPLICA_ID:-}
+      CONNECTOR_RUNTIME_REVISION: ${CONNECTOR_RUNTIME_REVISION:-}
+      CONNECTOR_RUNTIME_IMAGE_DIGEST: ${CONNECTOR_RUNTIME_IMAGE_DIGEST:-}
     depends_on:
+      connector-db-init:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       valkey:

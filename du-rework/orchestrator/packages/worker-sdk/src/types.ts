@@ -5,12 +5,14 @@ import type {
   ExecutionSnapshot,
   PinnedProfilePolicy,
   PinnedPromptOverride,
+  TenantDefaultsSnapshot,
   InvocationGrant,
   InvocationInput,
   InvocationResponse,
   TaskDisposition,
   CheckpointRef,
 } from '@du/contracts';
+import type { ConnectorWorkflowOverrides } from '@du/contracts';
 import type { WorkerCryptoSeam } from './crypto-seam';
 
 /**
@@ -120,7 +122,8 @@ export interface ConnectorFacade {
     slot: string,
     input: ConnectorInvokeInput,
     options?: Record<string, unknown>,
-    invokeOpts?: ConnectorInvokeOptions
+    invokeOpts?: ConnectorInvokeOptions,
+    workflowOverrides?: ConnectorWorkflowOverrides
   ): Promise<InvocationResponse>;
 }
 
@@ -271,6 +274,8 @@ export interface TaskContext {
    * Rows are key-4 native: `{connectionId, stepId, promptOverride, revision}`.
    */
   readonly promptOverrides?: readonly PinnedPromptOverride[] | null;
+  /** Immutable admission-time tenant defaults; old operation rows may omit it. */
+  readonly tenantDefaults?: TenantDefaultsSnapshot | null;
 
   readonly step: StepFacade;
   readonly spawn: SpawnFacade;
@@ -305,6 +310,8 @@ export interface WorkerConfig {
   heartbeatIntervalMs?: number;
   /** Image digest reported in registration/heartbeat. */
   imageDigest?: string;
+  /** Deployment release label from the immutable host manifest. */
+  deploymentRevision?: string;
   /** Custom fetch for tests/proxies. */
   fetchImpl?: typeof fetch;
   /** Per-artifact stream cap used for worker-side reads and writes (default 64 MiB). */

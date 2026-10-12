@@ -1,0 +1,20 @@
+Task: ORV14-FINANCIAL-ACCOUNTING-SERVICE owner-focused checkpoint
+Observed UTC: 2026-10-12 01:14:33–01:14:38 UTC
+Environment: local workspace, no database/provider/browser interaction
+Node: v24.19.0 (below required >=24.21; owner diagnostics only; primary must supersede on pinned Node 24.21)
+Jest: 29.7.0
+TypeScript: 5.9.3
+
+Jest cwd: /workspace/dugate/du-rework/orchestrator
+Jest command:
+services/orchestrator/node_modules/.bin/jest --config services/orchestrator/jest.unit.config.cjs --runInBand services/orchestrator/tests/orv14-effective-charges-owner.test.ts services/orchestrator/tests/orv14-cost-adjustments-service-owner.test.ts services/orchestrator/tests/budget-reservations.test.ts services/orchestrator/tests/orv12-usage-settlement.test.ts services/orchestrator/tests/usage-contracts-integration-offline.test.ts services/orchestrator/tests/orv12-spend-admission.test.ts
+Jest result: exit 0; 6 suites passed, 43 tests passed, 0 failed, 0 skipped.
+Raw output: owner-tests-20261012T011433Z.txt
+
+TypeScript cwd: /workspace/dugate/du-rework/orchestrator
+TypeScript command: services/orchestrator/node_modules/.bin/tsc --noEmit -p services/orchestrator/tsconfig.json
+TypeScript result: exit 0; no diagnostics.
+Raw output: orchestrator-tsc-20261012T011433Z.txt
+
+Source and owner-test SHA-256: source-sha256.txt
+These are owner checks only. No independent verification or acceptance is claimed.

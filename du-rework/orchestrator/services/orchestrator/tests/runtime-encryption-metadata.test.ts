@@ -277,6 +277,11 @@ describe('ENC-META-01 slot inventory', () => {
       'operations.input_ref',
       'operations.prompt_overrides_ref',
       'operations.result_ref',
+      'connector_prompt_overrides.prompt_override',
+      'global_settings.tenant_revision',
+      'operations.connector_recipe_pins_ref',
+      'operations.tenant_defaults_ref',
+      'settings_revisions.payload_ref',
       'step_checkpoints.output_ref',
       'step_checkpoints.session_ref',
       'tasks.payload_ref',
@@ -608,6 +613,9 @@ describe('Δ72 metadata seam vs decryptStoredArtifact: policy is deliberately di
   it('includes both encrypted result pointers and the checkpoint session slot', () => {
     expect(METADATA_SLOTS).toContain('tasks.result_ref');
     expect(METADATA_SLOTS).toContain('operations.result_ref');
+    expect(METADATA_SLOTS).toContain('global_settings.tenant_revision');
+    expect(METADATA_SLOTS).toContain('operations.tenant_defaults_ref');
+    expect(METADATA_SLOTS).toContain('operations.connector_recipe_pins_ref');
     expect(METADATA_SLOTS).toContain('step_checkpoints.session_ref' as never);
   });
 });

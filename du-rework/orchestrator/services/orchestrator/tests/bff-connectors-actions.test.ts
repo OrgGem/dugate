@@ -193,6 +193,8 @@ function startStub(port: number): Promise<Stub> {
           res.end(JSON.stringify({ connectorId: 'openai', revision: 2, activated: true }));
           return;
         }
+        if(parsed.action === 'operations.cancel' || parsed.action === 'operations.resume') {res.statusCode=200;res.end(JSON.stringify({operationId:'operation',state:'ACCEPTED'}));return;}
+        if(parsed.action === 'operations.callback.retry') {res.statusCode=200;res.end(JSON.stringify({deliveryId:'delivery',status:'PENDING'}));return;}
         if (parsed.action === 'connector.test') {
           res.statusCode = 200;
           res.end(JSON.stringify({ connectorId: 'openai', ok: true }));
@@ -436,11 +438,27 @@ describe('CONNECTOR-WIRE-B BFF connector reads + actions', () => {
     expect(anonymous.status).toBe(401);
     expect((JSON.parse(anonymous.body) as { code: string }).code).toBe('UNAUTHENTICATED');
     for (const cookie of [`du_session=${VIEWER_SESSION}`, `du_session=${OPERATOR_SESSION}`]) {
-      const res = await postAction('connector.upsert', { mode: 'create' }, { cookie });
+      const res = await postAction('connector.upsert', { mode: 'create' }, { cookie, csrf:'C'.repeat(43) });
       expect(res.status).toBe(403);
       expect((JSON.parse(res.body) as { code: string }).code).toBe('PERMISSION_DENIED');
     }
     expect(stub.requests).toHaveLength(0);
+  });
+
+  it('tenant operator callback action uses scoped credential; missing CSRF and arbitrary actions remain denied',async()=>{
+    const cookie=`du_session=${OPERATOR_SESSION}`;
+    const missing=await postAction('operations.callback.retry',{operationId:'op',deliveryId:'delivery',expectedAttempts:1},{cookie});expect(missing.status).toBe(403);expect(stub.requests).toHaveLength(0);
+    const allowed=await postAction('operations.callback.retry',{operationId:'op',deliveryId:'delivery',expectedAttempts:1},{cookie,csrf:'C'.repeat(43)});expect(allowed.status).toBe(200);expect(last()?.auth).toBe(`Bearer ${TENANT_A_TOKEN}`);
+  });
+
+  it.each(['operations.cancel','operations.resume'])('tenant operator %s uses scoped bearer and requires CSRF',async action=>{
+    const cookie=`du_session=${OPERATOR_SESSION}`;
+    const params={operationId:'operation',...(action==='operations.resume'?{body:{waitId:'wait',input:{answer:'yes'},expectedStateVersion:2}}:{})};
+    const denied=await postAction(action,params,{cookie});expect(denied.status).toBe(403);expect(stub.requests).toHaveLength(0);
+    const allowed=await postAction(action,params,{cookie,csrf:'C'.repeat(43)});expect(allowed.status).toBe(200);expect(last()?.auth).toBe(`Bearer ${TENANT_A_TOKEN}`);expect(JSON.parse(last()!.body)).toEqual({action,params});
+  });
+  it.each(['operations.retry','operation.delete','profile.upsert','settings.revision.apply'])('tenant operator cannot widen generic actions to %s',async action=>{
+    const denied=await postAction(action,{operationId:'operation'},{cookie:`du_session=${OPERATOR_SESSION}`,csrf:'C'.repeat(43)});expect(denied.status).toBe(403);expect(stub.requests).toHaveLength(0);
   });
 
   it('admin without CSRF proof → 403 CSRF_REJECTED before the dispatcher', async () => {

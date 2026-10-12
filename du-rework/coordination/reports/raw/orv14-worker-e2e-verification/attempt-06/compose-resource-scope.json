@@ -1,0 +1,8 @@
+{
+  "composeProject": "orv14-vfy-20261011-a1",
+  "postgresPort": 25414,
+  "redisPort": 26414,
+  "test": "six formerly failing slices only, now with .txt schema extension and protected internal cancellation",
+  "foreignResources": "untouched",
+  "composeStack": "left running"
+}

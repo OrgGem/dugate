@@ -1,0 +1,41 @@
+{
+  "attempt": "25",
+  "recordedAtUtc": "2026-10-12T03:26:03Z",
+  "command": "python3 coordination/reports/raw/orv14-worker-e2e-verification/attempt-25/run-attempt.py",
+  "cwd": "/workspace/dugate/du-rework",
+  "runnerExitCode": 1,
+  "runnerFailure": "RuntimeError at run-attempt.py:148: Contracts live source/dist differs from the recorded manifest checkpoint.",
+  "executionStage": "pre-resource manifest validation; no Jest/test body, Compose inspection, DB query, connector startup, or MinIO setup occurred",
+  "contractSourceManifest": {
+    "historicalAggregateSha256": "d33d0ce970a4f7620dde4854b0df2ddb272d824baf3efda84bafb36d99cde916",
+    "mismatchCount": 1,
+    "mismatches": [{
+      "path": "packages/contracts/src/connector-runtime-control.ts",
+      "historicalSha256": "8d8a413c2fa8973be28cffc8deb72531fd0c6874b71a2aa281d626a19ced501c",
+      "observedSha256": "b21713bd6836900d9c52e1be597ec76dd8808470bbeb5a7bbe3cff814ffcfccd",
+      "ownerQualification": "Host-owned additive restore observation contract fields; source-only at this point. Not changed in place or relabeled."
+    }]
+  },
+  "contractDistManifest": {
+    "aggregateSha256": "27cb417f246da2c9b31820af54d310163aaf8d657532c6cacb21b6c9a722c91a",
+    "mismatchCount": 0,
+    "compiledIndexDistSha256": "c319606e305affe6a08c7a7df8efa62e56ff1172699550fcf956d348761a969a"
+  },
+  "successfulPreResourceFixtureChecks": {
+    "timeUtc": "2026-10-12T03:24:32.121Z",
+    "nodeVersion": "v24.21.0",
+    "receipt": "compiled-contract-preflight.json",
+    "result": "6/6 true against the then-current compiled contracts exports"
+  },
+  "sourcePinsAtAttempt": {
+    "tests/workflow-api/orv14-vfy-core31.test.ts": "004ee259cd47b7411ae3ccfce4b88877df371e348c8d8eaebc8acf8eda69ffd9",
+    "orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts": "65b456e6f3316a3c60596f1ec9be4350457fc06c285ff2948be0f8d587aa7e9f",
+    "orchestrator/services/orchestrator/src/modules/grants/grants.ts": "7214893e48115e0068dfedb17877b4816ef83987ff82bcc4f63f1d65fdee450e",
+    "orchestrator/services/orchestrator/src/modules/operations/submission.ts": "f8093a5fb53f2349ae4c61a3e4fabb06cf5ddd0fbe22e6385f5b50d3d35ecebf"
+  },
+  "casesExecuted": 0,
+  "casesPassed": 0,
+  "casesFailed": 0,
+  "casesSkipped": 0,
+  "resourceCleanup": "not applicable; live setup was never entered"
+}

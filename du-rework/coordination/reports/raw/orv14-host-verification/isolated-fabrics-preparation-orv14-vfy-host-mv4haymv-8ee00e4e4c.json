@@ -1,0 +1,167 @@
+{
+  "task": "VFY-ORV14-HOST-CONTINUITY",
+  "stage": "source-independent isolated storage and transit recovery preparation",
+  "outcome": "PASSED",
+  "startedAt": "2026-10-11T23:53:12.151Z",
+  "completedAt": "2026-10-11T23:53:33.520Z",
+  "cwd": "/workspace/dugate/du-rework",
+  "nodeVersion": "v24.21.0",
+  "composeProject": "orv14-vfy-host-mv4haymv-8ee00e4e4c",
+  "composeSha256": "7e18e4f71e1211331bca91af270ef50bdd24f1609876201b593a0afdd9a2f1d0",
+  "imageIds": {
+    "postgres": "sha256:81bd698b4594e751a3269e4dcd3e03a4a0ec0daf7b72e7aa1abd43cce9887542",
+    "redis": "sha256:f84b0c4678011602b9b98c227a4dcd5468bf8b088b02fdd4165cb7758bad8058",
+    "vault": "sha256:20bce4b1fc21ee5ccc659e3a13fd479894cfffcf650d8ca3c0c4ae7eaecc2c81",
+    "minio": "sha256:ff768636ea5c1b7bd295ddae1505506ae91a3beff613b14be377d23734cd2915"
+  },
+  "checks": {
+    "passed": 8,
+    "failed": 0,
+    "skipped": 0,
+    "health": {
+      "postgresClusters": 4,
+      "redis": "PONG",
+      "vaultStatuses": {
+        "vaultSource": 200,
+        "vaultRestore": 200
+      },
+      "minioStatuses": {
+        "s3Source": 200,
+        "s3Restore": 200
+      }
+    },
+    "versionedStorage": {
+      "sourceEndpoint": "isolated-source-minio",
+      "restoreEndpoint": "isolated-restore-minio",
+      "sourceBucket": "orv14-host-3a8f4c48f9214f04bb",
+      "restoreBucket": "orv14-host-520cbe6369e4491f9a",
+      "objectKey": "synthetic/source-version.txt",
+      "sourceVersionsDistinct": true,
+      "exactOlderVersionRead": true,
+      "latestVersionRead": true,
+      "independentRestoreEndpointRead": true,
+      "sha256": {
+        "older": "f05bb510bcfd1f7eceb13ba5922cf98410e01643a6dbb53e60b7e40ed783784e",
+        "latest": "852c464db46f92bcd36a1a639530307b9bacb42bf39b0f6d92ebbc3f28ee0b22",
+        "restore": "32e1340f3a3b71928a1255112d64f8ec63fb580fccfe92ac74d320e27759b007"
+      }
+    },
+    "transitRecovery": {
+      "sourceKeyVersions": [
+        1,
+        2
+      ],
+      "independentlyImportedVersions": [
+        1
+      ],
+      "archivedVersionOneDecrypts": true,
+      "versionTwoAbsentFromRecoveryStore": true,
+      "sourceVaultStopped": true,
+      "archivedVersionOneDecryptAfterSourceOff": true,
+      "sampleSha256": "a023c5c4c15e71d6d3948ad5b34da5d38f7668f64d4f56df4c9514459e05e881",
+      "v1CiphertextSha256": "4ebc72314e5a4a777318163be4539c1b5ec2e1918ff35d8a566c62cb59360604",
+      "v2CiphertextSha256": "87b3f188f7fd9cd4f6c3f3acb987ee88daf2d0536290afd297d05cb178d79f4d",
+      "independentMetadataAndArtifactKeyFamilies": [
+        {
+          "family": "metadata",
+          "sourceKeyVersions": [
+            1,
+            2
+          ],
+          "importedKeyVersion": 1,
+          "archivedV1DecryptBeforeSourceOff": true,
+          "v2RejectedAtRestoreTarget": true,
+          "sampleSha256": "f0e0da5ad9822f411a37a4e202fdcd73aed355bd77547242322b45a667305cfa",
+          "v1CiphertextSha256": "9f52dae6c827645e8f76ca2e16caa1c39a9bac0e003879e3d931b3965ac432aa",
+          "v2CiphertextSha256": "58d86480c737c12aea88a1abdf8f682af797a8a7140aeab9905d25297ebe86d7",
+          "archivedV1DecryptAfterSourceOff": true
+        },
+        {
+          "family": "artifact",
+          "sourceKeyVersions": [
+            1,
+            2
+          ],
+          "importedKeyVersion": 1,
+          "archivedV1DecryptBeforeSourceOff": true,
+          "v2RejectedAtRestoreTarget": true,
+          "sampleSha256": "361cec34b9ae2846ba3d9a7586aed455d140bf3931c2a71984a4779c6b413238",
+          "v1CiphertextSha256": "b5f68259e2ab8962d2c7e0c4197a8c047f6134a2b66efc28c051cf708b8329dd",
+          "v2CiphertextSha256": "37d3fa5a4448e5f43d8de3ecb34485b5d35f7d50b3536f29d1ed3fdd7becf278",
+          "archivedV1DecryptAfterSourceOff": true
+        }
+      ]
+    },
+    "transitFamilyRecoveries": [
+      {
+        "family": "metadata",
+        "sourceKeyVersions": [
+          1,
+          2
+        ],
+        "importedKeyVersion": 1,
+        "archivedV1DecryptBeforeSourceOff": true,
+        "v2RejectedAtRestoreTarget": true,
+        "sampleSha256": "f0e0da5ad9822f411a37a4e202fdcd73aed355bd77547242322b45a667305cfa",
+        "v1CiphertextSha256": "9f52dae6c827645e8f76ca2e16caa1c39a9bac0e003879e3d931b3965ac432aa",
+        "v2CiphertextSha256": "58d86480c737c12aea88a1abdf8f682af797a8a7140aeab9905d25297ebe86d7",
+        "archivedV1DecryptAfterSourceOff": true
+      },
+      {
+        "family": "artifact",
+        "sourceKeyVersions": [
+          1,
+          2
+        ],
+        "importedKeyVersion": 1,
+        "archivedV1DecryptBeforeSourceOff": true,
+        "v2RejectedAtRestoreTarget": true,
+        "sampleSha256": "361cec34b9ae2846ba3d9a7586aed455d140bf3931c2a71984a4779c6b413238",
+        "v1CiphertextSha256": "b5f68259e2ab8962d2c7e0c4197a8c047f6134a2b66efc28c051cf708b8329dd",
+        "v2CiphertextSha256": "37d3fa5a4448e5f43d8de3ecb34485b5d35f7d50b3536f29d1ed3fdd7becf278",
+        "archivedV1DecryptAfterSourceOff": true
+      }
+    ],
+    "sourceVaultStopped": {
+      "service": "vault",
+      "containerId": "a914067fcbc8689140269dd67dfe1786585a1aba5d4c629fbdf435aec8c41935",
+      "running": false
+    }
+  },
+  "cleanup": {
+    "projectId": "orv14-vfy-host-mv4haymv-8ee00e4e4c",
+    "removed": {
+      "containers": [
+        "d0c7aad24cee",
+        "f24f0417f63c",
+        "05c10033de13",
+        "52cb332ef427",
+        "b781c8210eb9",
+        "2af3f66dc336",
+        "be60921cf6d0",
+        "207b4a1fd935",
+        "d814644ba2ec",
+        "a914067fcbc8"
+      ],
+      "volumes": [
+        "orv14-vfy-host-mv4haymv-8ee00e4e4c_connector-restore-data",
+        "orv14-vfy-host-mv4haymv-8ee00e4e4c_connector-source-data",
+        "orv14-vfy-host-mv4haymv-8ee00e4e4c_minio-data",
+        "orv14-vfy-host-mv4haymv-8ee00e4e4c_minio-restore-data",
+        "orv14-vfy-host-mv4haymv-8ee00e4e4c_orchestrator-restore-data",
+        "orv14-vfy-host-mv4haymv-8ee00e4e4c_orchestrator-source-data"
+      ],
+      "networks": [
+        "8a96c582d3df"
+      ]
+    },
+    "remaining": {
+      "containers": [],
+      "volumes": [],
+      "networks": []
+    },
+    "temporaryFixtureRemoved": true
+  },
+  "verdict": "Preparation evidence only. The tests used synthetic S3 objects and synthetic Transit keys; no application, source data, customer credentials, backup, restore, workflow, migration, or cutover was executed.",
+  "error": null
+}

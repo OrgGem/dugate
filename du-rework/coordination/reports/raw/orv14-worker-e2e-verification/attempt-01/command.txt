@@ -1,0 +1,6 @@
+CWD=/workspace/dugate/du-rework
+NODE_PATH=/workspace/dugate/du-rework/businesses/document-core/node_modules
+WFA_DATABASE_URL=postgresql://orv14_vfy:<synthetic Compose secret omitted>@127.0.0.1:25414/orv14_vfy
+WFA_REDIS_URL=redis://127.0.0.1:26414/2
+ORV14_WORKER_E2E_RAW_DIR=/workspace/dugate/du-rework/coordination/reports/raw/orv14-worker-e2e-verification/attempt-01
+/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node /workspace/dugate/du-rework/businesses/document-core/node_modules/jest/bin/jest.js --config tests/workflow-api/jest.config.cjs --runInBand --runTestsByPath tests/workflow-api/orv14-vfy-core31.test.ts

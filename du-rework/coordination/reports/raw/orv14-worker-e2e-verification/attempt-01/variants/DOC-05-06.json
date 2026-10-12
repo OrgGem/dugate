@@ -1,0 +1,36 @@
+{
+  "name": "operations/e5ae3381-4562-4f47-ae5c-674cdc28f79f",
+  "done": true,
+  "metadata": {
+    "state": "SUCCEEDED",
+    "pipeline": [],
+    "current_step": 0,
+    "progress_percent": 0,
+    "progress_message": "Queued",
+    "create_time": "2026-10-12T00:37:45.658Z",
+    "update_time": "2026-10-12T00:37:45.734Z",
+    "pipeline_steps": []
+  },
+  "result": {
+    "output_format": "json",
+    "content": "{\"answers\":[{\"question\":\"What is the refund window?\",\"answer\":\"Full refunds are permitted within 30 days.\"}]}",
+    "extracted_data": {
+      "answers": [
+        {
+          "question": "What is the refund window?",
+          "answer": "Full refunds are permitted within 30 days."
+        }
+      ]
+    },
+    "pipeline_steps": [],
+    "usage": {
+      "input_tokens": null,
+      "output_tokens": null,
+      "pages_processed": null,
+      "model_used": null,
+      "cost_usd": null,
+      "breakdown": []
+    },
+    "download_url": "/api/v1/operations/e5ae3381-4562-4f47-ae5c-674cdc28f79f/download"
+  }
+}

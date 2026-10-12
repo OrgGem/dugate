@@ -11,6 +11,8 @@ export interface SessionRepository {
    * the store has a serialized compatibility path for single-process adapters.
    */
   touchIfExists?(expected: SessionRecord, lastSeenAt: number): Promise<SessionRecord | null>;
+  /** Atomically pins only a previously unpinned verified external platform Admin session. */
+  pinCostAlertRecipient?(expected: SessionRecord, principalId: string, authorizationVersion: number): Promise<SessionRecord | null>;
   delete(sessionId: string): Promise<boolean>;
   /** Index-by-principal is a deployment choice; absence fails closed. */
   revokePrincipal?(issuer: string, sub: string): Promise<number>;

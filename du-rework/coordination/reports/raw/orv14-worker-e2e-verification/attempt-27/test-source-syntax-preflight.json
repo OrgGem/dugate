@@ -1,0 +1,9 @@
+{
+  "nodeVersion": "v24.21.0",
+  "typescript": "5.9.3",
+  "source": "tests/workflow-api/orv14-vfy-core31.test.ts",
+  "sourceSha256": "a3c7a34dab6455c9e81573d9a953a73ef9c368ae8db4e3f352611a1b4809db68",
+  "syntaxDiagnosticCount": 0,
+  "errorCount": 0,
+  "errors": []
+}

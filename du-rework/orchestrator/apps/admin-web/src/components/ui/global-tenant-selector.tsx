@@ -3,7 +3,17 @@ import { useTenant } from '@/lib/tenant-context';
 import { Badge } from '@/components/ui/badge';
 
 export function GlobalTenantSelector(): React.JSX.Element {
-  const { tenantId, tenant, tenants, loading, setTenantId } = useTenant();
+  const { tenantId, tenant, tenants, loading, tenantLoadError, setTenantId, refreshTenants } = useTenant();
+
+  const retry = (
+    <button
+      type="button"
+      className="mt-1 rounded px-1.5 py-1 text-xs font-medium text-[var(--primary)] underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+      onClick={() => void refreshTenants()}
+    >
+      Retry tenant roster
+    </button>
+  );
 
   return (
     <div className="mx-3 mb-4 rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--bg-muted)] p-2.5">
@@ -18,8 +28,13 @@ export function GlobalTenantSelector(): React.JSX.Element {
         ) : null}
       </div>
 
-      {loading ? (
+      {loading && tenants.length === 0 ? (
         <div className="text-xs text-[var(--text-sub)] py-1">Loading tenants…</div>
+      ) : tenants.length === 0 && tenantLoadError ? (
+        <div role="alert" className="text-xs text-[var(--badge-danger-text)] py-1">
+          <div>{tenantLoadError}</div>
+          {retry}
+        </div>
       ) : tenants.length === 0 ? (
         <div className="text-xs text-[var(--badge-danger-text)] py-1">No tenants available</div>
       ) : (
@@ -41,6 +56,13 @@ export function GlobalTenantSelector(): React.JSX.Element {
             <span className="font-mono text-[10px] text-[var(--text-sub)] truncate block" title={tenant.id}>
               {tenant.id.slice(0, 18)}…
             </span>
+          ) : null}
+          {loading ? <span role="status" className="text-[10px] text-[var(--text-sub)]">Refreshing tenant roster…</span> : null}
+          {tenantLoadError ? (
+            <div role="alert" className="text-xs text-[var(--badge-danger-text)]">
+              Roster refresh failed; the current tenant scope is retained.
+              {retry}
+            </div>
           ) : null}
         </div>
       )}

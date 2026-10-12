@@ -1,0 +1,8 @@
+{
+  "composeProject": "orv14-vfy-20261011-a1",
+  "postgresPort": 25414,
+  "redisPort": 26414,
+  "test": "five corrected private HTTPS and policy slices only; does not repeat 31 legacy variants",
+  "foreignResources": "untouched",
+  "composeStack": "left running"
+}

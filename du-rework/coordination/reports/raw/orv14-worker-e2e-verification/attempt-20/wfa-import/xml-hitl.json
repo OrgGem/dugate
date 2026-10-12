@@ -1,0 +1,20 @@
+{
+  "format": "xml",
+  "sourceSha256": "db28abf31e5289eb73d8b599e79feab6971377ce318cedfdc70aaa5f94410615",
+  "previewDigest": "sha256:db28abf31e5289eb73d8b599e79feab6971377ce318cedfdc70aaa5f94410615",
+  "schemaSlug": "orv14-import-xml-2b7627b2ed78",
+  "publishedRevision": 1,
+  "admittedRevision": 1,
+  "admittedDigest": "sha256:6a7e299543e26d539ba1c08108b337b4b0859af9b3fe98453dff93a12774515e",
+  "laterActiveRevision": 2,
+  "laterActiveDigest": "sha256:60a76d5acef849f4583477407f18d61ec004a74438328eb646f1020e7245719a",
+  "operationId": "ab88a4ed-9993-4e66-95cb-7ec4af569422",
+  "waitingState": "WAITING_INPUT",
+  "resumeStatus": 200,
+  "terminalState": "SUCCEEDED",
+  "publicGetStatus": 200,
+  "publicDownloadStatus": 200,
+  "hitlStates": [
+    "ANSWERED"
+  ]
+}

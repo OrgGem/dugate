@@ -1,0 +1,4 @@
+Jest cleanup stdout: schemaAbsent=true ownedBucketAbsent=true ownedContainerAbsent=true.
+Independent Node pg/ioredis read-only cleanup check: schema_count=0; redis_key_count=0.
+Artifact directory absent. Owned bucket was removed before its owned container exited. Owned MinIO container absent.
+No shared Compose services were stopped.

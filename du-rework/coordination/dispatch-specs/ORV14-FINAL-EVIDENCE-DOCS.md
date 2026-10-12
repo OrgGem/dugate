@@ -1,0 +1,9 @@
+# ORV14-FINAL-EVIDENCE-DOCS
+
+Status: PREPARED_NOT_DISPATCHED. Executor gpt-6-luna/max/forknone; actual capacity/source and receipt freeze required. No acceptance decision assigned to docs executor.
+
+Scope: du-rework canonical compatibility-review section6, CFGADM00..11, AOPS00..09/J01..07, COST01..04. Read AGENTS, coordinator contract, runtime skill where needed, execution ledger and all owner/independent/review receipts.
+
+Exclusive future write lease after actual dispatch: docs/19-traceability-audit-matrix.md, docs/28-test-inventory.md, docs/35-acceptance-baseline.md, coordination/reports/orv14-final-docs.md + NEW raw/orv14-final-docs/**. No product/contracts/tests/build/shared outputs or owner guides45..49 edits. Final relevant user/runbook improvements need root explicit nonoverlapping additional lease first. Preserve historical content and failed/PARTIAL receipts; never copy old success into current status.
+
+Map each task ID to exact API/BFF/service/DB/outbox/worker/Connector/result path, source/build hash, independent command/cwd/UTC/environment/raw receipt and functional pass/fail/skipped/filtered. Separate SPECIFIED/IMPLEMENTED/VERIFIED/ACCEPTED. No repeated reruns counted as distinct testcases, no cascade bootstrap failures described as functionalvariant failure, no owner smoke counted independent. Record actual source-moving/provisional evidence requiring rerun. Parent [x] only authorized required APPROVED/UI_APPROVED and complete acceptance. Customer data/provider credentials/production ingress signoff remain NOT_PERFORMED; synthetic rehearsal evidence distinct. App rollback never claims DB reversal. Link actual shipped guides and precise remaining blockers/owner, no invented future receipts. Root final read-only audit; independent review of final doc changes needed.

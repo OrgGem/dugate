@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import {
   Activity,
@@ -38,6 +38,9 @@ import {
 import { useTenant } from '@/lib/tenant-context';
 import { OperationsMonitorDashboard } from './operations-monitor-dashboard';
 import { parseWorkerInstanceList } from './worker-instance-state';
+import { parseOperationsPage } from '@/features/operations/state';
+import { canReadIncidentLedger, canReadPlatformSignals, parseAdminHealthSnapshot } from '@/features/system-operations/state';
+import { usageCostState } from '@/features/usage/cost-state';
 import {
   paneStateFrom,
   parseAuditPage,
@@ -62,6 +65,7 @@ interface UsageRollupTotals {
   outputTokens: number;
   pages: number;
   costMicrousd: number;
+  costStatus?: string;
 }
 
 interface UsageRollupRow {
@@ -82,7 +86,7 @@ interface UsageRollup {
 /** The tile's state: `scope-required` is a platform/unscoped session, not a failure. */
 type UsageTileState =
   | { kind: 'loading' }
-  | { kind: 'ready'; data: UsageRollup }
+  | { kind: 'ready'; data: UsageRollup; stale?: boolean }
   | { kind: 'failed'; problem: AdminApiProblem }
   | { kind: 'scope-required' };
 
@@ -157,7 +161,14 @@ export function parseUsageRollup(value: unknown): UsageRollup | null {
 
   return {
     rows,
-    totals: { operations, inputTokens, outputTokens, pages, costMicrousd },
+    totals: {
+      operations,
+      inputTokens,
+      outputTokens,
+      pages,
+      costMicrousd,
+      ...(readText(totalsRaw['costStatus']) ? { costStatus: readText(totalsRaw['costStatus'])! } : {}),
+    },
   };
 }
 
@@ -217,7 +228,7 @@ function DataAgeLabel({ lastSuccessAt, stale }: { lastSuccessAt: number | null; 
       {lastSuccessAt === null
         ? 'Data age: Unavailable (no successful load yet)'
         : `Data age: ${formatDataAge(Date.now() - lastSuccessAt)}${
-            stale ? ' · stale (last refresh failed; showing last good data)' : ''
+            stale ? ' · refresh incomplete (some projections may be stale; last good data remains visible)' : ''
           }`}
     </span>
   );
@@ -234,6 +245,9 @@ export function OverviewScreen() {
   const [workerInstances, setWorkerInstances] = useState<WorkerInstanceList | null>(null);
   const [workerInventoryFailed, setWorkerInventoryFailed] = useState(false);
   const [health, setHealth] = useState<AdminHealthSnapshot | null>(null);
+  const [healthFailed, setHealthFailed] = useState(false);
+  const [operationsFailed, setOperationsFailed] = useState(false);
+  const [operationsLoading, setOperationsLoading] = useState(true);
   const [hasOperationsApi, setHasOperationsApi] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [stale, setStale] = useState(false);
@@ -242,6 +256,10 @@ export function OverviewScreen() {
     current: null,
     metricsRequestSequence: 0,
   });
+  const requestSequence = useRef(0);
+  const selectedTenantRef = useRef(globalTenantId);
+  const sessionScopeRef = useRef<string | null>(null);
+  selectedTenantRef.current = globalTenantId;
   const [timeRange, setTimeRange] = useState<TimeRangeKey>('24h');
 
   const window = useMemo(() => {
@@ -262,6 +280,9 @@ export function OverviewScreen() {
     : null;
 
   const load = useCallback(async (): Promise<void> => {
+    const requestId = ++requestSequence.current;
+    const selectedTenantAtStart = globalTenantId;
+    const isCurrent = () => requestSequence.current === requestId && selectedTenantRef.current === selectedTenantAtStart;
     const metricsRequestId = (lastSuccess.metricsRequestSequence ?? 0) + 1;
     lastSuccess.metricsRequestSequence = metricsRequestId;
     const client = createAdminApiClient();
@@ -270,14 +291,47 @@ export function OverviewScreen() {
     let cycleFailed = false;
 
     const sessionResult = await client.getSession();
+    if (!isCurrent()) return;
     if (!sessionResult.ok) {
       cycleFailed = true;
-      if (!hasLastGood) {
-        setSession({ kind: 'failed', problem: sessionResult.problem });
-        setAudit({ kind: 'loading' });
-        setUsage({ kind: 'failed', problem: sessionResult.problem });
-      }
+      setSession({ kind: 'failed', problem: sessionResult.problem });
+      setAudit({ kind: 'failed', problem: sessionResult.problem });
+      setUsage({ kind: 'failed', problem: sessionResult.problem });
+      setOperationMetrics(null);
+      setOperationMetricsFailed(true);
+      setOperations([]);
+      setOperationsFailed(true);
+      setOperationsLoading(false);
+      setHasOperationsApi(false);
+      setWorkerInstances(null);
+      setWorkerInventoryFailed(true);
+      setHealth(null);
+      setHealthFailed(true);
+      sessionScopeRef.current = null;
+      lastSuccess.current = null;
+      setLastSuccessAt(null);
+      setStale(false);
+      return;
     } else {
+      const nextSessionScope = `${sessionResult.data.role}:${sessionResult.data.principal.kind}:${sessionResult.data.principal.tenantId ?? ''}`;
+      if (sessionScopeRef.current !== null && sessionScopeRef.current !== nextSessionScope) {
+        lastSuccess.current = null;
+        setLastSuccessAt(null);
+        setStale(false);
+        setUsage({ kind: 'loading' });
+        setAudit({ kind: 'loading' });
+        setOperationMetrics(null);
+        setOperationMetricsFailed(false);
+        setOperations([]);
+        setOperationsFailed(false);
+        setOperationsLoading(true);
+        setHasOperationsApi(false);
+        setWorkerInstances(null);
+        setWorkerInventoryFailed(false);
+        setHealth(null);
+        setHealthFailed(false);
+      }
+      sessionScopeRef.current = nextSessionScope;
       setSession({ kind: 'ready', data: sessionResult.data });
 
       const scope = sessionResult.data.scope;
@@ -291,9 +345,11 @@ export function OverviewScreen() {
           from: window.from,
           to: window.to,
         });
+        if (!isCurrent()) return;
         if (!usageResult.ok) {
           cycleFailed = true;
           if (!hasLastGood) setUsage({ kind: 'failed', problem: usageResult.problem });
+          else setUsage((current) => current.kind === 'ready' ? { ...current, stale: true } : current);
         } else {
           const rollup = parseUsageRollup(usageResult.data);
           if (rollup === null) {
@@ -309,7 +365,7 @@ export function OverviewScreen() {
               });
             }
           } else {
-            setUsage({ kind: 'ready', data: rollup });
+            setUsage({ kind: 'ready', data: rollup, stale: false });
           }
         }
       }
@@ -319,6 +375,7 @@ export function OverviewScreen() {
         auditQuery.tenantId = effectiveTenantId;
       }
       const auditResult = await client.listAudit(auditQuery);
+      if (!isCurrent()) return;
       if (!auditResult.ok) {
         cycleFailed = true;
         if (!hasLastGood) setAudit({ kind: 'failed', problem: auditResult.problem });
@@ -349,6 +406,7 @@ export function OverviewScreen() {
             ...(effectiveTenantId ? { tenant: effectiveTenantId } : {}),
           };
           const metricsResult = await client.getOperationsMetrics(metricsQuery);
+          if (!isCurrent()) return;
           if (metricsRequestId === lastSuccess.metricsRequestSequence) {
             if (metricsResult.ok) {
               const parsed = parseOperationsMetrics(metricsResult.data, {
@@ -380,6 +438,7 @@ export function OverviewScreen() {
 
       if (typeof client.listOperations === 'function') {
         setHasOperationsApi(true);
+        if (lastSuccess.current === null) setOperationsLoading(true);
         try {
           const operationsQuery: Record<string, string> = {
             limit: '100',
@@ -387,49 +446,100 @@ export function OverviewScreen() {
             ...(effectiveTenantId ? { tenant: effectiveTenantId } : {}),
           };
           const opsResult = await client.listOperations(operationsQuery);
+          if (!isCurrent()) return;
           if (opsResult.ok) {
-            setOperations(opsResult.data.items);
+            const parsed = parseOperationsPage(opsResult.data);
+            if (!parsed) {
+              cycleFailed = true;
+              setOperationsFailed(true);
+            } else {
+              setOperations(parsed.items);
+              setOperationsFailed(false);
+            }
+          } else {
+            cycleFailed = true;
+            setOperationsFailed(true);
           }
         } catch {
-          // ignore offline/unmounted client error
+          if (isCurrent()) {
+            cycleFailed = true;
+            setOperationsFailed(true);
+          }
+        } finally {
+          if (isCurrent()) setOperationsLoading(false);
         }
+      } else {
+        setHasOperationsApi(false);
+        setOperationsFailed(true);
+        setOperationsLoading(false);
+        cycleFailed = true;
       }
-      if (typeof client.listWorkerInstances === 'function') {
+      const platformSignalsAllowed = canReadPlatformSignals(sessionResult.data);
+      if (platformSignalsAllowed && typeof client.listWorkerInstances === 'function') {
         try {
           const workersResult = await client.listWorkerInstances({ limit: '500' });
+          if (!isCurrent()) return;
           if (workersResult.ok) {
             const parsed = parseWorkerInstanceList(workersResult.data);
             if (parsed) {
               setWorkerInstances(parsed);
               setWorkerInventoryFailed(false);
             } else {
-              setWorkerInstances(null);
+              cycleFailed = true;
               setWorkerInventoryFailed(true);
             }
           } else {
-            setWorkerInstances(null);
+            cycleFailed = true;
             setWorkerInventoryFailed(true);
           }
         } catch {
-          setWorkerInstances(null);
-          setWorkerInventoryFailed(true);
+          if (isCurrent()) {
+            cycleFailed = true;
+            setWorkerInventoryFailed(true);
+          }
         }
+      } else if (platformSignalsAllowed) {
+        setWorkerInstances(null);
+        setWorkerInventoryFailed(true);
+        cycleFailed = true;
       } else {
         setWorkerInstances(null);
         setWorkerInventoryFailed(true);
       }
-      if (typeof client.getHealth === 'function') {
+      if (platformSignalsAllowed && typeof client.getHealth === 'function') {
         try {
           const healthResult = await client.getHealth();
+          if (!isCurrent()) return;
           if (healthResult.ok) {
-            setHealth(healthResult.data);
+            const parsed = parseAdminHealthSnapshot(healthResult.data);
+            if (parsed) {
+              setHealth(parsed);
+              setHealthFailed(false);
+            } else {
+              cycleFailed = true;
+              setHealthFailed(true);
+            }
+          } else {
+            cycleFailed = true;
+            setHealthFailed(true);
           }
         } catch {
-          // ignore offline/unmounted client error
+          if (isCurrent()) {
+            cycleFailed = true;
+            setHealthFailed(true);
+          }
         }
+      } else if (platformSignalsAllowed) {
+        setHealth(null);
+        setHealthFailed(true);
+        cycleFailed = true;
+      } else {
+        setHealth(null);
+        setHealthFailed(false);
       }
     }
 
+    if (!isCurrent()) return;
     if (cycleFailed) {
       if (lastSuccess.current !== null) setStale(true);
       return;
@@ -441,12 +551,33 @@ export function OverviewScreen() {
   }, [window, lastSuccess, globalTenantId]);
 
   useEffect(() => {
+    requestSequence.current += 1;
+    lastSuccess.current = null;
+    setLastSuccessAt(null);
+    setStale(false);
+    setSession({ kind: 'loading' });
+    setAudit({ kind: 'loading' });
+    setUsage({ kind: 'loading' });
+    setOperationMetrics(null);
+    setOperationMetricsFailed(false);
+    setOperations([]);
+    setOperationsFailed(false);
+    setOperationsLoading(true);
+    setHasOperationsApi(false);
+    setWorkerInstances(null);
+    setWorkerInventoryFailed(false);
+    setHealth(null);
+    setHealthFailed(false);
+  }, [globalTenantId, lastSuccess]);
+
+  useEffect(() => {
     setOperationMetrics(null);
     setOperationMetricsFailed(false);
   }, [metricsTenantId, window.from, window.to]);
 
   useEffect(() => {
     void load();
+    return () => { requestSequence.current += 1; };
   }, [load]);
 
   useEffect(() => {
@@ -461,6 +592,7 @@ export function OverviewScreen() {
     session.kind === 'ready' && session.data.scope?.kind === 'tenant'
       ? session.data.scope.tenantId
       : (globalTenantId ?? null);
+  const incidentLedgerVisible = session.kind === 'ready' && canReadIncidentLedger(session.data);
 
   return (
     <section aria-labelledby="overview-title" className="flex flex-col gap-5 min-w-0">
@@ -482,35 +614,6 @@ export function OverviewScreen() {
         <span className="text-xs text-[var(--text-sub)]">
           Operations are filtered to the active tenant selection when set; tenant-scoped sessions use their own tenant.
         </span>
-        <nav aria-label="Orchestrator Portal sections" className="ml-auto flex items-center gap-3 text-sm">
-          <Link className="text-[var(--cf-blue)] underline" to="/operations">
-            Operations
-          </Link>
-          <Link className="text-[var(--cf-blue)] underline" to="/businesses">
-            Businesses
-          </Link>
-          <Link className="text-[var(--cf-blue)] underline" to="/usage">
-            Usage
-          </Link>
-          <Link className="text-[var(--cf-blue)] underline" to="/profiles">
-            Profiles
-          </Link>
-          <Link className="text-[var(--cf-blue)] underline" to="/profiles">
-            API keys
-          </Link>
-          <Link className="text-[var(--cf-blue)] underline" to="/connectors">
-            Connectors
-          </Link>
-          <Link className="text-[var(--cf-blue)] underline" to="/security">
-            Security
-          </Link>
-          <Link className="text-[var(--cf-blue)] underline" to="/identity">
-            Identity
-          </Link>
-          <Link className="text-[var(--cf-blue)] underline" to="/settings">
-            Settings
-          </Link>
-        </nav>
       </div>
 
       <SessionCard
@@ -519,15 +622,46 @@ export function OverviewScreen() {
         activeTenantName={tenant?.name}
       />
 
+      <Card>
+        <CardHeader>
+          <CardTitle>System operations</CardTitle>
+          <CardDescription>Open persistent incident history or inspect the current host service and queue inventory.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
+          {incidentLedgerVisible ? <Link className="text-[var(--cf-blue)] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]" to="/system-operations/incidents">Incident ledger</Link> : null}
+          <Link className="text-[var(--cf-blue)] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]" to="/system-operations/services">Services and replicas</Link>
+          <Link className="text-[var(--cf-blue)] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]" to="/system-operations/workers-queues">Workers and queues</Link>
+          <Link className="text-[var(--cf-blue)] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]" to="/system-operations">Operations cockpit</Link>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Configuration and access</CardTitle>
+          <CardDescription>Review delegated API keys and profile-bound access assignments.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Link
+            className="text-sm font-medium text-[var(--cf-blue)] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
+            to="/profiles">
+            Profile access assignments
+          </Link>
+          <Link className="ml-5 text-sm font-medium text-[var(--cf-blue)] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]" to="/api-keys">API Keys administration</Link>
+        </CardContent>
+      </Card>
+
       {hasOperationsApi ? (
         <>
           <OperationsMonitorDashboard
             operations={operations}
+            operationsFailed={operationsFailed}
+            operationsLoading={operationsLoading}
             operationMetrics={currentOperationMetrics}
             operationMetricsFailed={operationMetricsFailed}
             workerInstances={workerInstances}
             workerInventoryFailed={workerInventoryFailed}
             health={health}
+            healthFailed={healthFailed}
             onRefresh={() => void load()}
           />
           <div className="grid gap-4 lg:grid-cols-2 min-w-0">
@@ -938,8 +1072,8 @@ function UsageRollupTile({
           <div className="flex items-center gap-2">
             <CardTitle>Usage rollup</CardTitle>
             {state.kind === 'ready' ? (
-              <Badge variant="success" dot>
-                live
+              <Badge variant={state.stale ? 'warning' : 'success'} dot>
+                {state.stale ? 'stale sample' : 'sample available'}
               </Badge>
             ) : state.kind === 'failed' ? (
               <Badge variant="warning" dot>
@@ -1037,15 +1171,21 @@ function UsageRollupTile({
 
               <div className="flex flex-col p-2.5 rounded-lg border border-[var(--border-sub)] bg-[var(--surface-sub)] shadow-xs">
                 <div className="flex items-center justify-between text-[var(--text-sub)] mb-0.5">
-                  <span className="text-[11px] font-medium">Est. Spend</span>
+                  <span className="text-[11px] font-medium">Known accrued spend</span>
                   <Coins className="h-3.5 w-3.5 text-emerald-500" />
                 </div>
-                <div className="text-lg font-bold text-[var(--text-main)]">
-                  ${(state.data.totals.costMicrousd / 1_000_000).toFixed(4)}
-                </div>
-                <span className="text-[10px] text-[var(--text-muted)] mt-0.5">
-                  {state.data.totals.costMicrousd.toLocaleString()} µUSD
-                </span>
+                {(() => {
+                  const cost = usageCostState({ totals: state.data.totals });
+                  return (
+                    <>
+                      <div className="text-lg font-bold text-[var(--text-main)]">
+                        {cost.knownCostUsd === null ? 'Unknown' : `${cost.knownCostUsd.toFixed(6)} USD`}
+                      </div>
+                      <Badge variant={cost.incomplete ? 'warning' : 'info'} className="mt-1 w-fit">{cost.label}</Badge>
+                      <span className="text-[10px] text-[var(--text-muted)] mt-0.5">{cost.description}</span>
+                    </>
+                  );
+                })()}
               </div>
             </div>
 

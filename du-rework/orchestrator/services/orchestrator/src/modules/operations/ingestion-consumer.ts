@@ -12,6 +12,7 @@ import {
   type SourceIngestorOptions,
 } from '@du/worker-sdk';
 import type { Db } from '../../db/db';
+import type { BackupArtifactEffectPort } from '../maintenance/backup-effect-fence';
 import { HttpError } from '../../http/errors';
 import { maybeScheduleWebhook, type DbClient } from '../webhooks/webhooks';
 import { MetadataCryptoError, type MetadataCrypto } from '../runtime/metadata-crypto';
@@ -97,6 +98,12 @@ export interface IngestionConsumerOptions {
   /** Private-store port the pinned versions land in (S3 adapter in prod).
    * A resolvePinned hit means a retry answers without any network. */
   storage: PinnedSourceStorage;
+  /** Same process-owned artifact fence used by uploads and storage generations. */
+  backupArtifactEffects?: BackupArtifactEffectPort;
+  /** Server-derived generation pin reported by the storage adapter for the
+   * exact immutable object version being materialized. This does not enter
+   * the public ingestion receipt. */
+  storageGenerationIdFor?: (storageKey: string, versionId: string) => Promise<string | null>;
   transfer: IngestionTransferPolicy;
   /** Recorded on the materialized artifact row; must match the deployment's
    * artifact storage backend (CHECK constraint in migration 0013). */
@@ -291,12 +298,17 @@ const FAIL_OPERATION_SQL =
 // against the receipt; a divergent stored row is a conflict, never a
 // silent overwrite and never an arbitrary pick among candidates.
 const ARTIFACT_FIND_SQL =
-  'SELECT id, operation_id, task_id, sha256, size_bytes FROM artifacts ' +
+  'SELECT id, operation_id, task_id, sha256, size_bytes, storage_generation_id, upload_token, manifest_version_id FROM artifacts ' +
   "WHERE tenant_id=$1 AND storage_key=$2 AND storage_version_id=$3 AND state='READY' " +
   'ORDER BY created_at DESC LIMIT 2';
 
 const ARTIFACT_BY_ID_SQL =
-  'SELECT id, operation_id, task_id, sha256, size_bytes FROM artifacts WHERE id=$1';
+  'SELECT id, operation_id, task_id, sha256, size_bytes, storage_generation_id, upload_token, manifest_version_id FROM artifacts WHERE id=$1';
+
+const ARTIFACT_EFFECT_METADATA_SQL =
+  `SELECT id::text,tenant_id::text,operation_id::text,task_id::text,purpose,file_name,mime_type,size_bytes,state,storage_key,
+          storage_generation_id::text,storage_version_id,manifest_version_id,sha256,upload_token
+     FROM artifacts WHERE id=$1 AND tenant_id=$2`;
 
 /** token is NOT NULL in the base schema but is only a placeholder here: the
  * grant routes rotate token/token_mode on demand (artifacts.ts:410), and a
@@ -307,8 +319,8 @@ const ARTIFACT_BY_ID_SQL =
 const ARTIFACT_INSERT_SQL =
   'INSERT INTO artifacts (id, tenant_id, operation_id, task_id, purpose, mime_type, ' +
   'size_bytes, sha256, state, token, storage_key, storage_version_id, storage_backend, ' +
-  'upload_token, manifest_version_id) ' +
-  "VALUES ($1,$2,$3,$4,'input','application/octet-stream',$5,$6,'READY',$7,$8,$9,$10,$11,$12) " +
+  'upload_token, manifest_version_id, storage_generation_id) ' +
+  "VALUES ($1,$2,$3,$4,'input','application/octet-stream',$5,$6,'READY',$7,$8,$9,$10,$11,$12,$13) " +
   'ON CONFLICT (id) DO NOTHING';
 
 /** Non-retryable: redelivery cannot change the answer. Everything that
@@ -464,6 +476,9 @@ export function createIngestionConsumer(options: IngestionConsumerOptions) {
   if (options.requireEncryptedSourceWrites && !hasEncryptedSourceWriteCapability(options.storage)) {
     throw new Error('ingestion consumer requires encrypted source writes but the storage adapter does not implement putEncrypted');
   }
+  if (options.backupArtifactEffects && !hasEncryptedSourceWriteCapability(options.storage)) {
+    throw new Error('snapshot-fenced ingestion requires an encrypted source storage adapter');
+  }
   // T180-D1: the claim lease must outlive the transfer it protects, or the
   // fence exists only on paper (a lease shorter than the deadline guarantees
   // mid-flight expiry). 60s default mirrors the SDK DEFAULT_SOURCE_TIMEOUT_MS.
@@ -496,6 +511,9 @@ export function createIngestionConsumer(options: IngestionConsumerOptions) {
     task_id: string | null;
     sha256: string | null;
     size_bytes: string | number | null;
+    storage_generation_id: string | null;
+    upload_token: string | null;
+    manifest_version_id: string | null;
   }
 
   // The worker-sdk handler passes SourceIngestionError through UNTOUCHED and
@@ -514,12 +532,39 @@ export function createIngestionConsumer(options: IngestionConsumerOptions) {
   function persistedMatches(
     stored: StoredArtifactMeta,
     coords: { operationId: string; taskId: string },
-    receipt: IngestionReceipt
+    receipt: IngestionReceipt,
+    storageGenerationId: string | null,
+    encrypted?: EncryptedSourceWriteDescription | null,
   ): boolean {
     return stored.operation_id === coords.operationId &&
       stored.task_id === coords.taskId &&
       typeof stored.sha256 === 'string' && stored.sha256.toLowerCase() === receipt.sha256 &&
-      Number(stored.size_bytes) === receipt.sizeBytes;
+      Number(stored.size_bytes) === receipt.sizeBytes &&
+      (storageGenerationId === null || stored.storage_generation_id === storageGenerationId) &&
+      (encrypted ? stored.upload_token === encrypted.objectVersion && stored.manifest_version_id === encrypted.manifestVersionId : true) &&
+      (options.requireEncryptedSourceWrites ? typeof stored.upload_token === 'string' && typeof stored.manifest_version_id === 'string' : true);
+  }
+
+  function effectMetadataDigest(row: {
+    id: string; tenant_id: string; purpose: string; file_name: string | null; mime_type: string;
+    size_bytes: string | number; state: string; storage_key: string; storage_generation_id: string | null;
+    storage_version_id: string | null; manifest_version_id: string | null; sha256: string | null; upload_token: string | null;
+  }): string {
+    return createHash('sha256').update(JSON.stringify({
+      id: row.id,
+      tenantId: row.tenant_id,
+      purpose: row.purpose,
+      fileName: row.file_name,
+      mimeType: row.mime_type,
+      sizeBytes: Number(row.size_bytes),
+      state: row.state,
+      storageKey: row.storage_key,
+      storageGenerationId: row.storage_generation_id,
+      storageVersionId: row.storage_version_id,
+      manifestVersionId: row.manifest_version_id,
+      sha256: row.sha256,
+      uploadToken: row.upload_token,
+    })).digest('hex');
   }
 
   /** Idempotent per the immutable pin: verify an existing READY row against
@@ -531,19 +576,28 @@ export function createIngestionConsumer(options: IngestionConsumerOptions) {
     receipt: IngestionReceipt,
     encrypted?: EncryptedSourceWriteDescription | null,
   ): Promise<string> {
+    const storageGenerationId = options.storageGenerationIdFor
+      ? await options.storageGenerationIdFor(receipt.storageKey, receipt.versionId)
+      : null;
+    if (options.storageGenerationIdFor && !storageGenerationId) {
+      throw materializationConflict('the immutable source object has no retained storage generation pin');
+    }
     // SEC-ENC-03: an encrypted write pre-binds the row id (AAD artifactId) and
     // the object version (AAD objectVersion); the plaintext path keeps the
     // historical deterministic pin formula.
-    const artifactId = encrypted
-      ? encrypted.artifactId
-      : sourceArtifactId({
+    const artifactId = encrypted?.artifactId ?? receipt.artifactId ?? sourceArtifactId({
           tenantId: coords.tenantId,
           operationId: coords.operationId,
           storageKey: receipt.storageKey,
           versionId: receipt.versionId,
           sha256: receipt.sha256,
         });
-    return options.db.tx(async (client) => {
+    if (options.requireEncryptedSourceWrites && !encrypted && !receipt.artifactId) {
+      throw materializationConflict('encrypted ingestion replay has no pinned artifact identity');
+    }
+    let materialized: { artifactId: string; metadataRowSha256: string };
+    try {
+      materialized = await options.db.tx(async (client) => {
       await assertOwnership(client, row);
       const found = await client.query(ARTIFACT_FIND_SQL, [
         coords.tenantId, receipt.storageKey, receipt.versionId,
@@ -554,32 +608,66 @@ export function createIngestionConsumer(options: IngestionConsumerOptions) {
       }
       const hit = hits[0];
       if (hit) {
-        if (!persistedMatches(hit, coords, receipt)) {
+        if (hit.id !== artifactId || !persistedMatches(hit, coords, receipt, storageGenerationId, encrypted)) {
           throw materializationConflict('the existing READY artifact row disagrees with the pinned bytes');
         }
-        return hit.id;
-      }
-      const inserted = await client.query(ARTIFACT_INSERT_SQL, [
+      } else {
+        const inserted = await client.query(ARTIFACT_INSERT_SQL, [
         artifactId, coords.tenantId, coords.operationId, coords.taskId,
         receipt.sizeBytes, receipt.sha256, randomUUID(),
         receipt.storageKey, receipt.versionId, options.storageBackend,
         encrypted?.objectVersion ?? null,
         encrypted?.manifestVersionId ?? null,
-      ]);
-      if (inserted.rowCount) return artifactId;
-      // PK conflict: our deterministic id already exists (concurrent or
-      // crashed-earlier writer). Read the PERSISTED row - the id only binds
-      // coordinates, so a divergent tenant/adapter can still exist.
-      const after = await client.query(ARTIFACT_BY_ID_SQL, [artifactId]);
-      const persisted = after.rows[0] as unknown as StoredArtifactMeta | undefined;
-      if (!persisted) {
-        throw new SourceIngestionError(502, 'MATERIALIZATION_FAILED', 'the conflicting artifact row vanished before it could be verified');
+        storageGenerationId,
+        ]);
+        if (!inserted.rowCount) {
+          // PK conflict: the id only binds coordinates, so read the row and
+          // confirm every immutable source pin before reusing it.
+          const after = await client.query(ARTIFACT_BY_ID_SQL, [artifactId]);
+          const persisted = after.rows[0] as unknown as StoredArtifactMeta | undefined;
+          if (!persisted || !persistedMatches(persisted, coords, receipt, storageGenerationId, encrypted)) {
+            throw materializationConflict('the conflicting artifact row disagrees with the pinned bytes');
+          }
+        }
       }
-      if (!persistedMatches(persisted, coords, receipt)) {
-        throw materializationConflict('the conflicting artifact row disagrees with the pinned bytes');
+      const metadataResult = await client.query(ARTIFACT_EFFECT_METADATA_SQL, [artifactId, coords.tenantId]);
+      const metadata = metadataResult.rows[0] as {
+        id: string; tenant_id: string; operation_id: string; task_id: string; purpose: string; file_name: string | null; mime_type: string;
+        size_bytes: string | number; state: string; storage_key: string; storage_generation_id: string | null;
+        storage_version_id: string | null; manifest_version_id: string | null; sha256: string | null; upload_token: string | null;
+      } | undefined;
+      if (!metadata || metadata.state !== 'READY' || metadata.operation_id !== coords.operationId || metadata.task_id !== coords.taskId ||
+          metadata.storage_key !== receipt.storageKey || metadata.storage_version_id !== receipt.versionId ||
+          metadata.sha256 !== receipt.sha256 || Number(metadata.size_bytes) !== receipt.sizeBytes ||
+          metadata.storage_generation_id !== storageGenerationId ||
+          (encrypted && (metadata.upload_token !== encrypted.objectVersion || metadata.manifest_version_id !== encrypted.manifestVersionId))) {
+        throw materializationConflict('materialized artifact metadata did not match the immutable source pins');
       }
-      return persisted.id;
-    });
+      return { artifactId, metadataRowSha256: effectMetadataDigest(metadata) };
+      });
+    } catch (error) {
+      if (encrypted?.backupEffectId && options.backupArtifactEffects) {
+        await options.backupArtifactEffects.markUnknown(encrypted.backupEffectId, 'INGESTION_METADATA_COMMIT_UNCERTAIN').catch(() => undefined);
+      }
+      throw error;
+    }
+    if (encrypted?.backupEffectId) {
+      if (!options.backupArtifactEffects) throw new Error('encrypted ingestion effect owner is unavailable');
+      const settled = await options.backupArtifactEffects.settle(encrypted.backupEffectId, {
+        objectVersionId: receipt.versionId,
+        objectSha256: encrypted.ciphertextSha256,
+        objectByteSize: encrypted.ciphertextSizeBytes,
+        sidecarVersionId: encrypted.manifestVersionId,
+        sidecarSha256: encrypted.manifestSha256,
+        sidecarByteSize: encrypted.manifestSizeBytes,
+        metadataRowSha256: materialized.metadataRowSha256,
+      }).catch(() => false);
+      if (!settled) {
+        await options.backupArtifactEffects.markUnknown(encrypted.backupEffectId, 'INGESTION_EFFECT_SETTLEMENT_UNPROVEN').catch(() => undefined);
+        throw new SourceIngestionError(502, 'MATERIALIZATION_FAILED', 'encrypted source effect settlement was not confirmed');
+      }
+    }
+    return materialized.artifactId;
   }
 
   async function openGate(

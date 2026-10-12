@@ -7,8 +7,9 @@ import { HttpError, conflict, notFound } from '../../http/errors';
 import { maybeScheduleWebhook } from '../webhooks/webhooks';
 
 /**
- * Cancel + deadline enforcement (P2-06). Public cancel marks the operation and
- * its leased task CANCELLED (idempotent; a terminal op is a replay). The
+ * Cancel + deadline enforcement. A running leased worker receives a durable
+ * cancel signal and acknowledges it after aborting provider work. Unleased or
+ * paused operations can be terminalized immediately. The
  * deadline sweeper flips TIMED_OUT for operations past `deadline_at` that are
  * still running and cancels the leased task. Concurrency=1 in the sweeper test.
  */
@@ -22,12 +23,14 @@ export interface LifecycleService {
     client?: PoolClient
   ): Promise<{ operationId: string; state: string; replayed: boolean }>;
   retryOperation?: (operationId: string, tenantId: string, client: PoolClient) => Promise<Record<string, unknown>>;
+  /** Bounded recovery for cancellation signals whose worker died or task lock was contended. */
+  sweepCancellations?(limit?: number): Promise<number>;
   /** R3-01: optional open tx client to join the caller's transaction. */
   sweepDeadlines(client?: PoolClient): Promise<number>;
 }
 
 export function createLifecycleService(db: Db, crypto?: MetadataCrypto, reader?: MetadataReader): LifecycleService {
-  return {
+  const service: LifecycleService = {
     retryOperation: (operationId, tenantId, client) => retryOperation(client, operationId, tenantId, crypto, reader),
     async cancelOperation(operationId, tenantId, activeClient): Promise<{ operationId: string; state: string; replayed: boolean }> {
       const run = async (client: PoolClient) => {
@@ -42,6 +45,39 @@ export function createLifecycleService(db: Db, crypto?: MetadataCrypto, reader?:
         const terminal = ['SUCCEEDED', 'FAILED', 'CANCELLED', 'TIMED_OUT'].includes(op.state);
         if (terminal) {
           return { operationId, state: op.state, replayed: true };
+        }
+
+        // Claims/heartbeats lock task first, then operation. Never wait on a
+        // task while holding our operation lock: NOWAIT plus a savepoint lets
+        // this audited caller-owned transaction persist the signal safely.
+        let activeOrContended = false;
+        await client.query('SAVEPOINT operation_cancel_tasks');
+        try {
+          const tasks = await client.query(
+            `SELECT state, (lease_expires_at IS NOT NULL AND lease_expires_at > clock_timestamp()) AS lease_active
+               FROM tasks WHERE operation_id=$1 ORDER BY id FOR UPDATE NOWAIT`,
+            [operationId],
+          );
+          activeOrContended = tasks.rows.some((task: { state: string; lease_active: boolean }) => task.state === 'RUNNING' && task.lease_active === true);
+          await client.query('RELEASE SAVEPOINT operation_cancel_tasks');
+        } catch (error: unknown) {
+          await client.query('ROLLBACK TO SAVEPOINT operation_cancel_tasks');
+          await client.query('RELEASE SAVEPOINT operation_cancel_tasks');
+          if (typeof error !== 'object' || error === null || !('code' in error) || error.code !== '55P03') throw error;
+          activeOrContended = true;
+        }
+        if (activeOrContended) {
+          if (op.state !== 'CANCEL_REQUESTED') {
+            await client.query(
+              `UPDATE operations SET state='CANCEL_REQUESTED', cancel_requested=true,
+                                     state_version=state_version+1, updated_at=now() WHERE id=$1`,
+              [operationId],
+            );
+          }
+          // Leave task RUNNING and lease intact. The heartbeat must pass its
+          // lease check to deliver cancelRequested=true to the SDK, which
+          // aborts the provider request before acknowledging cancellation.
+          return { operationId, state: 'CANCEL_REQUESTED', replayed: op.state === 'CANCEL_REQUESTED' };
         }
 
         await client.query(
@@ -71,6 +107,23 @@ export function createLifecycleService(db: Db, crypto?: MetadataCrypto, reader?:
         return { operationId, state: 'CANCELLED', replayed: false };
       };
       return activeClient ? run(activeClient) : db.tx(run);
+    },
+
+    async sweepCancellations(limit = 50): Promise<number> {
+      const boundedLimit = Number.isSafeInteger(limit) ? Math.max(1, Math.min(limit, 100)) : 50;
+      return db.tx(async (client) => {
+        const pending = await client.query<{ id: string; tenant_id: string }>(
+          `SELECT id, tenant_id FROM operations WHERE state='CANCEL_REQUESTED'
+           ORDER BY id LIMIT $1 FOR UPDATE SKIP LOCKED`,
+          [boundedLimit],
+        );
+        let terminalized = 0;
+        for (const op of pending.rows) {
+          const result = await service.cancelOperation(op.id, op.tenant_id, client);
+          if (result.state === 'CANCELLED' && !result.replayed) terminalized++;
+        }
+        return terminalized;
+      });
     },
 
     async sweepDeadlines(activeClient?: PoolClient): Promise<number> {
@@ -107,4 +160,5 @@ export function createLifecycleService(db: Db, crypto?: MetadataCrypto, reader?:
       return activeClient ? run(activeClient) : db.tx(run);
     },
   };
+  return service;
 }

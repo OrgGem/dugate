@@ -1,0 +1,26 @@
+started_utc=2026-10-11T22:23:24Z
+cwd=/workspace/dugate/du-rework
+compose_project=orv14-vfy-20261011-a1
+postgres=127.0.0.1:25414/orv14_vfy; postgres_schema=du_test_orv14_vfy_ops_1791757412866_fb3b3d38
+redis=127.0.0.1:26414; redis_db=13; redis_prefix=du:test:orv14_vfy_ops_1791757412866_fb3b3d38:
+queue_prefix=du:q:orv14_vfy_ops_1791757412866_fb3b3d38:
+artifact_dir=tests/workflow-api/orv14-vfy/ops-artifacts/orv14_vfy_ops_1791757412866_fb3b3d38
+toolchain=/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node
+jest=/workspace/dugate/du-rework/orchestrator/node_modules/.pnpm/node_modules/jest/bin/jest.js
+node_path=/workspace/dugate/du-rework/orchestrator/node_modules/.pnpm/node_modules
+command=env WFA_DATABASE_URL=postgresql://orv14_vfy:orv14-vfy-local-only@127.0.0.1:25414/orv14_vfy WFA_REDIS_URL=redis://127.0.0.1:26414/0 NODE_PATH=/workspace/dugate/du-rework/orchestrator/node_modules/.pnpm/node_modules /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node /workspace/dugate/du-rework/orchestrator/node_modules/.pnpm/node_modules/jest/bin/jest.js --config tests/workflow-api/jest.config.cjs --runInBand --detectOpenHandles --runTestsByPath tests/workflow-api/orv14-vfy-ops.test.ts
+verifier_test_sha256=ef3e3a2452043a87198010e39472436b6a85937c41a1d4b81e340cdaf3ae21b7
+incident_service_sha256=6c259cb19dda2af013c1fd6d7423c9eb525d9512679e915cdb8487fe87749556
+internal_operations_mapper_sha256=2cd8882e9d589cea9d8a15f7469f25adedf146e808c903312db789bd77c8fede
+operations_list_query_sha256=dd283828e12b6e5ef5841a03306cf7146e2fa4e8678774568782e0019969dfb3
+internal_incident_route_sha256=927a477e7861848aa528117aa8084c5d1496082328048b204e63d092e613aa14
+admin_bff_incidents_sha256=d562128e10bd39f9c70c131d19043afa33377a45b31c2a9570e2690ad1d185d2
+build_or_served_bundle_hash=none; this is direct source execution and Admin shell was configured to tests/workflow-api/orv14-vfy/no-bundle
+result=2 tests passed; 0 failed; 0 skipped; Jest exit code 0
+raw_log=ops-full-mapper-fix-current.log
+
+cleanup_evidence_at_2026-10-11T22:23:48Z:
+postgres information_schema schema count for du_test_orv14_vfy_ops_1791757412866_fb3b3d38=0
+redis-cli -h 127.0.0.1 -p 26414 -n 13 --scan --pattern 'du:test:orv14_vfy_ops_1791757412866_fb3b3d38:*' returned no keys
+owned artifact directory tests/workflow-api/orv14-vfy/ops-artifacts/orv14_vfy_ops_1791757412866_fb3b3d38=ABSENT
+open-handle-warning=none

@@ -50,8 +50,8 @@ export class PublicArtifactTooLargeError extends Error {
 }
 const INSERT_ARTIFACT =
   `INSERT INTO artifacts (id, tenant_id, purpose, file_name, mime_type, size_bytes, sha256, state,
-                          token, storage_key, storage_backend, upload_token, expires_at)
-   VALUES ($1,$2,'input',$3,$4,$5,$6,'STAGING',$7,$8,$9,$10,now() + interval '30 minutes')`;
+                          token, storage_key, storage_backend, upload_token, expires_at, upload_api_key_id)
+   VALUES ($1,$2,'input',$3,$4,$5,$6,'STAGING',$7,$8,$9,$10,now() + interval '30 minutes',$11)`;
 
 /**
  * Store one legacy upload and return its artifact id.
@@ -62,7 +62,7 @@ const INSERT_ARTIFACT =
  */
 export async function writePublicArtifact(
   deps: PublicArtifactWriterDeps,
-  input: { tenantId: string; fileName: string | null; mimeType: string; bytes: Buffer },
+  input: { tenantId: string; apiKeyId?: string; fileName: string | null; mimeType: string; bytes: Buffer },
 ): Promise<{ artifactId: string; state: string }> {
   const sizeBytes = input.bytes.length;
   if (sizeBytes > deps.maxArtifactBytes) {
@@ -84,6 +84,7 @@ export async function writePublicArtifact(
     storageKey,
     deps.storageBackend,
     randomUUID(),
+    input.apiKeyId ?? null,
   ]);
   let version: { objectKey: string; versionId: string | null } | undefined;
   try {

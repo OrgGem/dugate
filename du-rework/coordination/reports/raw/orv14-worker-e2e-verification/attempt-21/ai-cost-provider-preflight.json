@@ -1,0 +1,76 @@
+{
+  "command": "/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node coordination/reports/raw/orv14-worker-e2e-verification/attempt-21/ai-cost-provider-preflight.cjs",
+  "cwd": "/workspace/dugate/du-rework",
+  "nodeVersion": "v24.21.0",
+  "contractsSourceManifestSha256": "d33d0ce970a4f7620dde4854b0df2ddb272d824baf3efda84bafb36d99cde916",
+  "contractsDistManifestSha256": "27cb417f246da2c9b31820af54d310163aaf8d657532c6cacb21b6c9a722c91a",
+  "contractsDistEntries": 184,
+  "scope": "schema-only payload preflight using actual compiled @du/contracts; no HTTP, database, Vault, Connector or Worker call",
+  "passed": 16,
+  "cases": [
+    {
+      "name": "ConnectorRecipeSchema/openai-compatible-auth-none",
+      "success": true
+    },
+    {
+      "name": "ConnectorDraftUpsertSchema/openai-compatible-auth-none",
+      "success": true
+    },
+    {
+      "name": "TenantAiDraftRequestSchema/openai-compatible",
+      "success": true
+    },
+    {
+      "name": "GlobalSettingsPublishRequestSchema/openai-compatible",
+      "success": true
+    },
+    {
+      "name": "TenantAiTestRequestSchema/openai-compatible",
+      "success": true
+    },
+    {
+      "name": "ProfileUpsertCommandSchema/openai-compatible",
+      "success": true
+    },
+    {
+      "name": "ProviderTestGrantClaimsSchema/real-deferred-cost-context",
+      "success": true
+    },
+    {
+      "name": "ProviderTestInvocationRequestSchema",
+      "success": true
+    },
+    {
+      "name": "CostBoundProofSchema/unbounded-loopback-test-provider",
+      "success": true
+    },
+    {
+      "name": "CostPreflightRequestSchema/authenticated-real-client-wire",
+      "success": true
+    },
+    {
+      "name": "CostReservationGroupTransitionSchema/running",
+      "success": true
+    },
+    {
+      "name": "CostPreflightResponseSchema/real-no-policy-best-effort-shape",
+      "success": true
+    },
+    {
+      "name": "CostReservationGroupAckSchema/running",
+      "success": true
+    },
+    {
+      "name": "ConnectorProviderTestEvidenceQuerySchema/exact-persisted-pin",
+      "success": true
+    },
+    {
+      "name": "ConnectorProviderTestEvidenceSchema/safe-unknown-ledger-evidence",
+      "success": true
+    },
+    {
+      "name": "AdminWorkbenchPromptWizardRequestSchema",
+      "success": true
+    }
+  ]
+}

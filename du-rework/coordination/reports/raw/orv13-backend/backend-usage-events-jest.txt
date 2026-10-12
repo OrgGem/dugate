@@ -1,0 +1,13 @@
+PASS tests/orv13-backend-usage-events.test.ts
+  BASIC_ADMIN_USAGE_V1 usage page
+    ✓ projects persisted UsageEvent facts into a bounded tenant keyset page (8 ms)
+    ✓ binds cursors to tenant, filters, window, and page size before querying (20 ms)
+    ✓ keeps absent cost/provider fields null and counts malformed identity rows without returning their payload (1 ms)
+    ✓ validates window bounds and scopes the internal route before service access (4 ms)
+    ✓ scopes cookie reads to the session tenant regardless of admin or viewer role (1 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       5 passed, 5 total
+Snapshots:   0 total
+Time:        3.854 s
+Ran all test suites within paths "tests/orv13-backend-usage-events.test.ts".

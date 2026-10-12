@@ -5,14 +5,15 @@ import {
 } from '@du/contracts';
 
 /**
- * P730-PREFCONSUME (Δ-C adjudication: "resolve consumer-side từ snapshot
- * (Code > Profile > Connector + _default)") — the consumer-side prompt
- * precedence resolver for document-core action consumers.
+ * Consumer-side prompt precedence resolver for document-core actions. The
+ * shared Code/Profile/Connector ordering is extended locally with the
+ * operation-pinned tenant category between Profile and the callsite fallback.
  *
  * ## The precedence (frozen order)
  *
- * `PROMPT_OVERRIDE_PRECEDENCE` (`profile-policy.ts`) = `['code','profile',
- * 'connector']`. This module is the ONE place that implements it for prompts:
+ * `PROMPT_OVERRIDE_PRECEDENCE` (`profile-policy.ts`) records the shared
+ * `['code','profile','connector']` order. This consumer inserts the sealed
+ * tenant prompt before the existing connector/callsite fallback:
  *
  *   1. `code`      — the code-injected prompt (`variables._prompt` legacy); a
  *                    trim-empty value is ABSENT, not an override.
@@ -21,7 +22,9 @@ import {
  *                    exact→`_default` selection `pickPromptOverride`
  *                    (`prompt-overrides.ts:209`) performs. The bucket is the
  *                    already-pinned list (never a live DB read — PRF-02).
- *   3. `connector` — the call-site / connector default. This module NEVER
+ *   3. `tenant`    — the operation-pinned prompt for the trusted action
+ *                    category. It is never loaded from current settings.
+ *   4. `connector` — the call-site / connector default. This module NEVER
  *                    applies it: it only LABELS the fall-through
  *                    (`source:'connector_default'|'none'`, `apply:false`) so
  *                    the caller keeps its existing prompt path byte-for-byte.
@@ -35,7 +38,8 @@ import {
  *   (and whitespace-only) both mean "no effective override". A CLEARED exact
  *   row still SHORT-CIRCUITS the `_default` row — the selection is
  *   `pickPromptOverride` parity (exact wins over `_default` regardless of
- *   content), and its clear-ness then falls THROUGH to the connector level.
+ *   content), and its clear-ness then falls through to the admitted tenant
+ *   category before the callsite fallback.
  * - **`profilePolicy === null` is admitted-without-policy**, distinct from an
  *   empty policy: the profile level is skipped entirely and never coalesced
  *   to `{}` (PROMPT-02 / 0026 NULL semantics). `undefined` (pre-pin legacy
@@ -44,13 +48,9 @@ import {
  *   endpointSlug)`), so the consumer only needs `connectionId` + `stepId`;
  *   `apiKeyId`/`endpointSlug` never appear at this layer.
  *
- * ## Wiring status (honest)
- *
- * No production call-site yet, and that is BLOCKED, not forgotten: the pin's
- * content carrier is the OPEN Δ-1 (cc_1 `p745-prompt-producer-prep` §2 —
- * sealed bucket vs snapshot extension; marker-map key format chốt pending).
- * Callers wire this in at the build-prompt step (each `XAction.executeRecipe`)
- * when the carrier lands — the substitution is `resolved.apply ? resolved.prompt : defaultText`.
+ * Tenant prompt content comes only from the immutable settings snapshot that
+ * traveled with the admitted operation. Callers substitute only when
+ * `resolved.apply` is true; otherwise they keep the assembled callsite text.
  */
 
 /** The minimum a pinned override row must expose to be resolved. */
@@ -77,6 +77,8 @@ export interface ResolveStepPromptInput {
    * level skipped). `undefined` = pre-pin operation (same skip).
    */
   profilePolicy?: PinnedProfilePolicy | null | undefined;
+  /** Immutable tenant prompt selected from the operation's admitted defaults. */
+  tenantDefaultPrompt?: string | null;
   /**
    * The caller's existing default, used ONLY to label the fall-through
    * (`connector_default` vs `none`). Never applied by this module.
@@ -88,6 +90,7 @@ export type ResolvedStepPrompt =
   | { source: 'code'; prompt: string; apply: true }
   | { source: 'profile_exact'; prompt: string; apply: true; matchedStepId: string }
   | { source: 'profile_default'; prompt: string; apply: true; matchedStepId: '_default' }
+  | { source: 'tenant_default'; prompt: string; apply: true }
   | { source: 'connector_default'; prompt: string | null; apply: false }
   | { source: 'none'; prompt: null; apply: false };
 
@@ -159,7 +162,14 @@ export function resolveStepPrompt(input: ResolveStepPromptInput): ResolvedStepPr
     }
   }
 
-  // 3. Connector — labeled, NEVER applied here (PREP §5 negative).
+  // 3. Tenant defaults are admitted and sealed with the operation. Missing or
+  // null snapshots keep the pre-default callsite behavior byte-for-byte.
+  const tenantDefault = normalizeContent(input.tenantDefaultPrompt);
+  if (tenantDefault !== null) {
+    return { source: 'tenant_default', prompt: tenantDefault, apply: true };
+  }
+
+  // 4. Connector — labeled, NEVER applied here (PREP §5 negative).
   const connectorDefault = normalizeContent(input.connectorDefaultPrompt);
   return connectorDefault !== null
     ? { source: 'connector_default', prompt: connectorDefault, apply: false }

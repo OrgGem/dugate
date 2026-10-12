@@ -1,0 +1,12 @@
+cwd=/workspace/dugate/du-rework/orchestrator/apps/admin-web
+node=/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node
+node_version=v24.21.0
+tsc=/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node ./node_modules/typescript/bin/tsc --noEmit -p tsconfig.json
+vite=/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node ./node_modules/vite/bin/vite.js build --outDir /workspace/scratch/orv14-primary-ui-20261012T0502Z/admin-dist
+admin_source_manifest=unchanged a31e3bc324de8664e3305f1d83b9aa66b16673b951a4a25d8acd6d2d8d3eaa0d
+contracts_dist_manifest=unchanged 2139d2d7b729d0b6b4b93145f9b7a0398a391ce22ec1aafa3c9ab363a1dccc2a
+backend_contract_source_aggregate=7a7fee71282164f812d5875291b68f70c6a22af199339b0d44ca79c238cd477c
+backend_contract_dist_aggregate=c381966b1947e5e075dfa822bc798a23a7a4fa7920be5dbaea387a297a40d349
+admin_tsc_exit=0
+vite_exit=1
+browser=not-started

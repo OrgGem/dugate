@@ -10,6 +10,8 @@ export interface LifecycleDependencies {
   closeDependencies: () => Promise<void>;
   drainTimeoutMs?: number;
   usageDispatcher?: UsageOutboxDispatcher;
+  /** The isolated restore listener starts fenced before the socket opens. */
+  initiallyDraining?: boolean;
 }
 
 export interface ShutdownOptions {
@@ -21,10 +23,12 @@ const DEFAULT_DRAIN_TIMEOUT_MS = 30_000;
 
 export class ConnectorLifecycle {
   private accepting = false;
-  private draining = false;
+  private draining: boolean;
   private shutdownPromise: Promise<void> | undefined;
 
-  public constructor(private readonly dependencies: LifecycleDependencies) {}
+  public constructor(private readonly dependencies: LifecycleDependencies) {
+    this.draining = dependencies.initiallyDraining === true;
+  }
 
   public async start(port: number, host = '0.0.0.0'): Promise<void> {
     await new Promise<void>((resolve, reject) => {

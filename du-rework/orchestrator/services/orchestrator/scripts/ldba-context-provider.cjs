@@ -149,9 +149,8 @@ function prepareConnector(row, request) {
     return skipped('UNSUPPORTED_AUTH_TYPE', 'only API_KEY_HEADER connectors have an approved adapter mapping');
   }
   if (typeof config.authKeyHeader !== 'string'
-    || !HTTP_HEADER_NAME.test(config.authKeyHeader)
-    || headerNameIsSecret(config.authKeyHeader)) {
-    return skipped('INVALID_AUTH_HEADER', 'credential header name is malformed or reads as a plaintext credential');
+    || !HTTP_HEADER_NAME.test(config.authKeyHeader)) {
+    return skipped('INVALID_AUTH_HEADER', 'credential header name is malformed');
   }
   if (!Number.isInteger(config.timeoutSec) || config.timeoutSec <= 0 || config.timeoutSec > 600) {
     return skipped('INVALID_TIMEOUT', 'timeout must be 1..600 seconds to stay inside the adapter ceiling');
@@ -1022,10 +1021,10 @@ function artifactPurposeFor(row) {
     : ARTIFACT_PURPOSE_INPUT;
 }
 
-// Only prepareAdminLocalUser stays fail-closed: the legacy bcrypt verifier cannot
-// become a target scrypt hash without user-presented plaintext. Exporting the
-// complete callback surface prevents missing functions from silently reaching the
-// runner as undefined.
+// Local legacy users are staged disabled with an unusable verifier and a
+// required Admin reset marker. The source schema has no lock column, so local
+// accounts are left unlocked for the versioned reset-and-activate flow. OIDC
+// rows remain locked and disabled until an explicit provider mapping exists.
 module.exports = Object.freeze({
   prepareConnector,
   resolveProfileName,
@@ -1034,5 +1033,14 @@ module.exports = Object.freeze({
   readFileCacheBytes,
   artifactTokenFor,
   artifactPurposeFor,
-  prepareAdminLocalUser: requirePasswordReset,
+  prepareAdminLocalUser: (row) => {
+    // Preserve identity and assignment FKs without copying a bcrypt credential.
+    // Disabled until a platform administrator provisions a scrypt password.
+    const salt = createHash('sha256').update('ldba-reset-salt:' + row.id).digest().subarray(0, 16).toString('base64url');
+    const key = createHash('sha256').update('ldba-disabled-no-password:' + row.id).digest().toString('base64url');
+    const hasOidcIdentity = (typeof row.provider === 'string' && row.provider.length > 0)
+      || (typeof row.providerSub === 'string' && row.providerSub.length > 0);
+    const sourceLocked = row.is_locked === true || row.isLocked === true;
+    return { password_hash: 'scrypt$32768$8$1$' + salt + '$' + key, is_enabled: false, is_locked: hasOidcIdentity || sourceLocked };
+  },
 });

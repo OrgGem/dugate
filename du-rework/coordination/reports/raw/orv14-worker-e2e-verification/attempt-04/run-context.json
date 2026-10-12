@@ -1,0 +1,40 @@
+{
+  "attempt": "04",
+  "cwd": "/workspace/dugate/du-rework",
+  "startedAtUtc": "2026-10-12T01:20:58.767560+00:00",
+  "command": [
+    "/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node",
+    "/workspace/dugate/du-rework/businesses/document-core/node_modules/jest/bin/jest.js",
+    "--config",
+    "tests/workflow-api/jest.config.cjs",
+    "--runInBand",
+    "--runTestsByPath",
+    "tests/workflow-api/orv14-vfy-core31.test.ts",
+    "--testNamePattern",
+    "configured Worker private HTTPS"
+  ],
+  "node": "/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node",
+  "jest": "/workspace/dugate/du-rework/businesses/document-core/node_modules/jest/bin/jest.js",
+  "environment": {
+    "WFA_DATABASE_URL": "postgresql://orv14_vfy:<synthetic Compose password omitted>@127.0.0.1:25414/orv14_vfy",
+    "WFA_REDIS_URL": "redis://127.0.0.1:26414/2",
+    "NODE_PATH": "/workspace/dugate/du-rework/businesses/document-core/node_modules",
+    "NODE_EXTRA_CA_CERTS": "/workspace/dugate/du-rework/tests/workflow-api/orv14-vfy-worker/https-fixture/runner-trust-bundle.pem",
+    "ORV14_WORKER_E2E_RAW_DIR": "/workspace/dugate/du-rework/coordination/reports/raw/orv14-worker-e2e-verification/attempt-04",
+    "HTTP(S)_PROXY": "inherited unchanged"
+  },
+  "composeProject": "orv14-vfy-20261011-a1",
+  "container": "orv14-vfy-20261011-a1-postgres-1",
+  "sourceScope": "943-file prior attempt dependency input set, refreshed for current sources; source and compiled dependency hashes are pinned; no whole-app freeze implied",
+  "createAppSourceSha256Before": "78ff758d7b0d631bdc5ee75148bdf23c897850ada34c10aaa01f4b0de17ba937",
+  "contractsSourceManifestSha256": "c6aff5e58e05f2cfaeb8d6d8ee441d7365e8340af479870afa7fae834b059831",
+  "contractsDistManifestSha256": "c8b95f0b902b6f05b92033cda8472ae5aa1806809b484668703efa49583fd9dc",
+  "backendRefreshReceipt": "contracts-refresh-2026-10-12T010823Z.md",
+  "dependencyInputs": {
+    "file": "coordination/reports/raw/orv14-worker-e2e-verification/attempt-04/dependency-inputs-before.sha256",
+    "sha256": "4cf7e800c3d81733466c4588ae87ca91314bc687535c1682a00993bc4de14e78",
+    "files": 943,
+    "missing": []
+  },
+  "rootAuthorization": "unique attempt-04 actual HTTPS rerun authorized after attempt-03 test-fixture-only failure and positive cleanup"
+}

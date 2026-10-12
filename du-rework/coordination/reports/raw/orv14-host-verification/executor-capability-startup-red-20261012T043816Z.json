@@ -1,0 +1,17 @@
+{
+  "kind": "harness-startup-red",
+  "recordedAt": "2026-10-12T04:38:16Z",
+  "timestampQuality": "clock read immediately after failure; process start timestamp was not captured by the runner",
+  "cwd": "/workspace/scratch/orv14-host-executor-plan",
+  "argv": [
+    "/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node",
+    "/workspace/scratch/orv14-host-executor-plan/run-capability-smoke.mjs"
+  ],
+  "nodeVersion": "v24.21.0",
+  "exitCode": 1,
+  "failure": "TypeError: os.getuid is not a function at run-capability-smoke.mjs:30:122",
+  "stdout": "",
+  "resourcesCreated": [],
+  "dockerCommandsIssued": false,
+  "disposition": "Preserved as a harness error. Replaced os.getuid/os.getgid with process.getuid/process.getgid in the isolated driver and same-fixture target reader before rerun."
+}

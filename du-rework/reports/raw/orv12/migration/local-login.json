@@ -1,0 +1,14 @@
+{
+  "disabled": 401,
+  "unknown": 401,
+  "activated": 302,
+  "sessionRead": 200,
+  "scope": "54d7d298-8ae1-4607-bac0-d54f4a4b9921",
+  "missingCsrf": 403,
+  "disabledSessionRevoked": true,
+  "replicaOwnRead": 200,
+  "replicaForeignRead": 403,
+  "replicaRevokedSession": 401,
+  "authorizedCsrf": 200,
+  "rateLockedCorrectPassword": 401
+}

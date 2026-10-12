@@ -1,0 +1,31 @@
+{
+  "name": "operations/ade704ec-1109-48e8-b8b2-8daf1469f215",
+  "done": true,
+  "metadata": {
+    "state": "SUCCEEDED",
+    "pipeline": [],
+    "current_step": 0,
+    "progress_percent": 0,
+    "progress_message": "Queued",
+    "create_time": "2026-10-11T16:35:06.583Z",
+    "update_time": "2026-10-11T16:35:06.648Z",
+    "pipeline_steps": []
+  },
+  "result": {
+    "output_format": "json",
+    "content": "{\"content\":\"# System Outline\\n1. Architecture\\n2. Data Flows\\n3. Security\"}",
+    "extracted_data": {
+      "content": "# System Outline\n1. Architecture\n2. Data Flows\n3. Security"
+    },
+    "pipeline_steps": [],
+    "usage": {
+      "input_tokens": null,
+      "output_tokens": null,
+      "pages_processed": null,
+      "model_used": null,
+      "cost_usd": null,
+      "breakdown": []
+    },
+    "download_url": "/api/v1/operations/ade704ec-1109-48e8-b8b2-8daf1469f215/download"
+  }
+}

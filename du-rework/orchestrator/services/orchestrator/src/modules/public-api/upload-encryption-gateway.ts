@@ -19,6 +19,13 @@ import {
 } from '@du/contracts';
 import { HttpError } from '../../http/errors';
 import type { Db } from '../../db/db';
+import type { PoolClient } from 'pg';
+import type {
+  BackupArtifactEffectPort,
+  BackupArtifactEffectProof,
+  BackupArtifactEffectHandle,
+  BackupSnapshotWriteGate,
+} from '../maintenance/backup-effect-fence';
 import {
   CRYPTO_STORAGE_CHUNK_SIZE_BYTES,
   CRYPTO_STORAGE_SINGLE_SHOT_LIMIT_BYTES,
@@ -45,6 +52,7 @@ interface StagingUpload {
   readonly tenantId: string;
   readonly storageKey: string;
   readonly storageBackend: string;
+  readonly storageGenerationId: string | null;
   readonly uploadToken: string | null;
   readonly multipartUploadId: string | null;
   readonly mimeType: string;
@@ -105,9 +113,18 @@ export interface PublicUploadInitAck {
 
 export interface PublicUploadGatewayOptions {
   readonly db: Db;
-  readonly client: S3Client;
-  readonly bucket: string;
+  readonly client?: S3Client;
+  readonly bucket?: string;
+  /** Dynamic S3 targets are resolved from the immutable generation pinned to
+   * each upload row. The callback never chooses a caller-provided endpoint. */
+  readonly storageGeneration?: {
+    current(): Promise<{ generationId: string; backend: string }>;
+    resolveS3Generation(generationId: string): Promise<{ client: S3Client; bucket: string }>;
+  };
   readonly cryptoStorage: Pick<CryptoStorageFacade, 'encrypt' | 'encryptStream'>;
+  /** Required by the assembled production app; optional only for isolated unit callers. */
+  readonly backupArtifactEffects?: BackupArtifactEffectPort;
+  readonly backupSnapshotWriteGate?: BackupSnapshotWriteGate;
   readonly keyRef: string;
   readonly keyVersion?: number;
   readonly maxBytes?: number;
@@ -170,6 +187,65 @@ function mapCryptoError(error: unknown): never {
     throw unavailable('encrypted upload could not be completed');
   }
   throw unavailable();
+}
+
+function sha256(value: Uint8Array | string): string {
+  return createHash('sha256').update(value).digest('hex');
+}
+
+function storageWithEffectActivation(
+  storage: { client: S3Client; bucket: string },
+  beforeFirstSend: () => Promise<void>,
+): { client: S3Client; bucket: string } {
+  let activated = false;
+  const client = new Proxy(storage.client, {
+    get(target, property) {
+      if (property === 'send') {
+        return async (command: unknown) => {
+          if (!activated) {
+            await beforeFirstSend();
+            activated = true;
+          }
+          return target.send(command as never);
+        };
+      }
+      const value = Reflect.get(target, property, target) as unknown;
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+  });
+  return { client, bucket: storage.bucket };
+}
+
+function artifactEffectMetadataDigest(row: {
+  id: string;
+  tenant_id: string;
+  purpose: string;
+  file_name: string | null;
+  mime_type: string;
+  size_bytes: string | number;
+  state: string;
+  storage_key: string;
+  storage_generation_id: string | null;
+  storage_version_id: string | null;
+  manifest_version_id: string | null;
+  sha256: string | null;
+  upload_token: string | null;
+}): string {
+  return sha256(JSON.stringify({
+    id: row.id,
+    tenantId: row.tenant_id,
+    purpose: row.purpose,
+    fileName: row.file_name,
+    mimeType: row.mime_type,
+    sizeBytes: Number(row.size_bytes),
+    state: row.state,
+    storageKey: row.storage_key,
+    storageGenerationId: row.storage_generation_id,
+    storageVersionId: row.storage_version_id,
+    manifestVersionId: row.manifest_version_id,
+    sha256: row.sha256,
+    uploadToken: row.upload_token,
+  }));
 }
 
 async function* countAndHashPlaintext(
@@ -304,8 +380,9 @@ function encryptContext(upload: ClaimedUpload, tenantId: string, options: Public
 }
 
 export function createPublicUploadGateway(options: PublicUploadGatewayOptions): PublicUploadGateway {
-  if (!options || !options.db || !options.client || typeof options.bucket !== 'string' || !options.bucket) {
-    throw new Error('public upload gateway requires database, S3 client, and bucket');
+  if (!options || !options.db || (!options.storageGeneration
+      && (!options.client || typeof options.bucket !== 'string' || !options.bucket))) {
+    throw new Error('public upload gateway requires database and a configured S3 storage target');
   }
   if (!options.cryptoStorage || typeof options.cryptoStorage.encrypt !== 'function'
       || typeof options.cryptoStorage.encryptStream !== 'function') {
@@ -324,6 +401,29 @@ export function createPublicUploadGateway(options: PublicUploadGatewayOptions): 
   const multipartPartBytes = options.multipartPartBytes ?? DEFAULT_S3_PART_BYTES;
   const claimTtlMs = options.claimTtlMs ?? DEFAULT_CLAIM_TTL_MS;
   const now = options.now ?? Date.now;
+  async function assertSnapshotWriteAllowed(
+    client: Pick<PoolClient, 'query'>,
+    tenantId: string,
+    requestKey: string,
+  ): Promise<void> {
+    if (!options.backupSnapshotWriteGate) {
+      throw unavailable('public upload snapshot write gate is not configured');
+    }
+    await options.backupSnapshotWriteGate.assertWriteAllowed(client, {
+      tenantId,
+      domain: 'artifact-metadata',
+      requestKey,
+    });
+  }
+  const resolveStorage = async (generationId: string | null | undefined): Promise<{ client: S3Client; bucket: string }> => {
+    if (options.storageGeneration) {
+      if (!generationId) throw unavailable('upload session has no pinned storage generation');
+      try { return await options.storageGeneration.resolveS3Generation(generationId); }
+      catch { throw unavailable('the upload storage generation is unavailable'); }
+    }
+    if (!options.client || !options.bucket) throw unavailable();
+    return { client: options.client, bucket: options.bucket };
+  };
   if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > DEFAULT_MAX_UPLOAD_BYTES) {
     throw new Error('public upload maxBytes must be between 1 byte and 8 GiB');
   }
@@ -342,9 +442,11 @@ export function createPublicUploadGateway(options: PublicUploadGatewayOptions): 
     const at = new Date(now());
     const expires = new Date(at.getTime() + claimTtlMs);
     return options.db.tx(async (client) => {
+      await assertSnapshotWriteAllowed(client, tenantId, `public-upload-claim:${artifactId}`);
       const selected = await client.query<StagingUpload>(
         `SELECT id AS "artifactId", tenant_id AS "tenantId", storage_key AS "storageKey",
                 storage_backend AS "storageBackend", upload_token AS "uploadToken",
+                storage_generation_id AS "storageGenerationId",
                 multipart_upload_id AS "multipartUploadId", mime_type AS "mimeType",
                 size_bytes AS "sizeBytes", state, token AS "claimToken",
                 token_expires_at AS "claimExpiresAt", storage_version_id AS "storageVersionId",
@@ -394,10 +496,10 @@ export function createPublicUploadGateway(options: PublicUploadGatewayOptions): 
     ).catch(() => undefined);
   }
 
-  async function abortMultipart(uploadId: string, key: string): Promise<void> {
+  async function abortMultipart(storage: { client: S3Client; bucket: string }, uploadId: string, key: string): Promise<void> {
     try {
-      await options.client.send(new AbortMultipartUploadCommand({
-        Bucket: options.bucket,
+      await storage.client.send(new AbortMultipartUploadCommand({
+        Bucket: storage.bucket,
         Key: key,
         UploadId: uploadId,
       }));
@@ -408,6 +510,7 @@ export function createPublicUploadGateway(options: PublicUploadGatewayOptions): 
 
   async function storeCiphertext(input: {
     upload: ClaimedUpload;
+    storage: { client: S3Client; bucket: string };
     source: AsyncIterable<Uint8Array>;
     expectedPlaintextSha256?: string;
     manifestKey: string;
@@ -419,6 +522,7 @@ export function createPublicUploadGateway(options: PublicUploadGatewayOptions): 
     readonly plaintextSha256: string;
   }> {
     const { upload } = input;
+    const { client, bucket } = input.storage;
     const cryptoContext = encryptContext(upload, upload.tenantId, options);
     const metadata = {
       artifactid: upload.artifactId,
@@ -449,8 +553,8 @@ export function createPublicUploadGateway(options: PublicUploadGatewayOptions): 
         stats.bytes = cipherBuffer.length;
         stats.hash.update(cipherBuffer);
         if (stats.bytes !== upload.sizeBytes) throw conflict('ciphertext size does not match the declared size');
-        const output = await options.client.send(new PutObjectCommand({
-          Bucket: options.bucket,
+        const output = await client.send(new PutObjectCommand({
+          Bucket: bucket,
           Key: upload.storageKey,
           Body: cipherBuffer,
           ContentLength: stats.bytes,
@@ -469,8 +573,8 @@ export function createPublicUploadGateway(options: PublicUploadGatewayOptions): 
         });
         if (upload.sizeBytes <= putObjectMaxBytes) {
           const [output, encryptedManifest] = await Promise.all([
-            options.client.send(new PutObjectCommand({
-              Bucket: options.bucket,
+            client.send(new PutObjectCommand({
+              Bucket: bucket,
               Key: upload.storageKey,
               Body: body,
               ContentLength: upload.sizeBytes,
@@ -486,8 +590,8 @@ export function createPublicUploadGateway(options: PublicUploadGatewayOptions): 
             throw conflict('plaintext checksum does not match the encrypted manifest');
           }
         } else {
-          const created = await options.client.send(new CreateMultipartUploadCommand({
-            Bucket: options.bucket,
+          const created = await client.send(new CreateMultipartUploadCommand({
+            Bucket: bucket,
             Key: upload.storageKey,
             ContentType: 'application/octet-stream',
             Metadata: metadata,
@@ -502,8 +606,8 @@ export function createPublicUploadGateway(options: PublicUploadGatewayOptions): 
               part.fill(0);
               throw new HttpError(413, 'PAYLOAD_TOO_LARGE', 'upload exceeds the S3 multipart part limit');
             }
-            const partResult = await options.client.send(new UploadPartCommand({
-              Bucket: options.bucket,
+            const partResult = await client.send(new UploadPartCommand({
+              Bucket: bucket,
               Key: upload.storageKey,
               UploadId: newMultipartId,
               PartNumber: partNumber,
@@ -520,8 +624,8 @@ export function createPublicUploadGateway(options: PublicUploadGatewayOptions): 
           if (plaintextDigest.digest('hex') !== plaintextSha256) {
             throw conflict('plaintext checksum does not match the encrypted manifest');
           }
-          const completed = await options.client.send(new CompleteMultipartUploadCommand({
-            Bucket: options.bucket,
+          const completed = await client.send(new CompleteMultipartUploadCommand({
+            Bucket: bucket,
             Key: upload.storageKey,
             UploadId: newMultipartId,
             MultipartUpload: { Parts: parts },
@@ -555,15 +659,15 @@ export function createPublicUploadGateway(options: PublicUploadGatewayOptions): 
     } catch (error) {
       encryptionStream?.ciphertext.destroy();
       if (newMultipartId && !multipartCompleted) {
-        await options.client.send(new AbortMultipartUploadCommand({
-          Bucket: options.bucket,
+        await client.send(new AbortMultipartUploadCommand({
+          Bucket: bucket,
           Key: upload.storageKey,
           UploadId: newMultipartId,
         })).catch(() => undefined);
       }
       {
-        await options.client.send(new DeleteObjectCommand({
-          Bucket: options.bucket,
+        await client.send(new DeleteObjectCommand({
+          Bucket: bucket,
           Key: upload.storageKey,
           ...(versionId ? { VersionId: versionId } : {}),
         })).catch(() => undefined);
@@ -575,6 +679,7 @@ export function createPublicUploadGateway(options: PublicUploadGatewayOptions): 
   }
 
   async function verifyCiphertext(
+    storage: { client: S3Client; bucket: string },
     upload: Pick<ClaimedUpload, 'artifactId' | 'tenantId' | 'storageKey'>,
     versionId: string,
     manifestKey: string,
@@ -583,8 +688,8 @@ export function createPublicUploadGateway(options: PublicUploadGatewayOptions): 
   ): Promise<void> {
     let head: { ContentLength?: number; VersionId?: string; Metadata?: Record<string, string> };
     try {
-      head = await options.client.send(new HeadObjectCommand({
-        Bucket: options.bucket,
+      head = await storage.client.send(new HeadObjectCommand({
+        Bucket: storage.bucket,
         Key: upload.storageKey,
         VersionId: versionId,
         ChecksumMode: 'ENABLED',
@@ -604,8 +709,8 @@ export function createPublicUploadGateway(options: PublicUploadGatewayOptions): 
     }
     let body: unknown;
     try {
-      const output = await options.client.send(new GetObjectCommand({
-        Bucket: options.bucket,
+      const output = await storage.client.send(new GetObjectCommand({
+        Bucket: storage.bucket,
         Key: upload.storageKey,
         VersionId: versionId,
       }));
@@ -618,12 +723,13 @@ export function createPublicUploadGateway(options: PublicUploadGatewayOptions): 
   }
 
   async function storeAndVerifyManifest(
+    storage: { client: S3Client; bucket: string },
     upload: ClaimedUpload,
     manifestKey: string,
     manifest: EncryptedStorageManifest | EncryptedStorageObject,
     ciphertextSha256: string,
     ciphertextSizeBytes: number,
-  ): Promise<string> {
+  ): Promise<{ versionId: string; sha256: string; sizeBytes: number }> {
     const kind = 'chunks' in manifest ? 'chunked' : 'single';
     const encryption = 'chunks' in manifest
       ? manifest
@@ -649,8 +755,8 @@ export function createPublicUploadGateway(options: PublicUploadGatewayOptions): 
     }), 'utf8');
     let versionId: string | undefined;
     try {
-      const put = await options.client.send(new PutObjectCommand({
-        Bucket: options.bucket,
+      const put = await storage.client.send(new PutObjectCommand({
+        Bucket: storage.bucket,
         Key: manifestKey,
         Body: metadata,
         ContentLength: metadata.length,
@@ -665,8 +771,8 @@ export function createPublicUploadGateway(options: PublicUploadGatewayOptions): 
       if (!versionId || versionId === 'null') {
         throw unavailable('storage did not return an immutable manifest version');
       }
-      const head = await options.client.send(new HeadObjectCommand({
-        Bucket: options.bucket,
+      const head = await storage.client.send(new HeadObjectCommand({
+        Bucket: storage.bucket,
         Key: manifestKey,
         VersionId: versionId,
       })) as { ContentLength?: number; VersionId?: string; Metadata?: Record<string, string> };
@@ -679,19 +785,19 @@ export function createPublicUploadGateway(options: PublicUploadGatewayOptions): 
       ) {
         throw conflict('encrypted upload manifest could not be verified');
       }
-      const output = await options.client.send(new GetObjectCommand({
-        Bucket: options.bucket,
+      const output = await storage.client.send(new GetObjectCommand({
+        Bucket: storage.bucket,
         Key: manifestKey,
         VersionId: versionId,
       }));
       const actual = await hashReadable((output as { Body?: unknown }).Body, metadata.length);
       const expected = createHash('sha256').update(metadata).digest('hex');
       if (actual.sha256 !== expected) throw conflict('encrypted upload manifest checksum does not match');
-      return versionId;
+      return { versionId, sha256: expected, sizeBytes: metadata.length };
     } catch (error) {
       if (versionId) {
-        await options.client.send(new DeleteObjectCommand({
-          Bucket: options.bucket,
+        await storage.client.send(new DeleteObjectCommand({
+          Bucket: storage.bucket,
           Key: manifestKey,
           VersionId: versionId,
         })).catch(() => undefined);
@@ -724,7 +830,31 @@ export function createPublicUploadGateway(options: PublicUploadGatewayOptions): 
     if (!updated.rowCount) throw conflict('upload changed before the encrypted bytes could be committed');
   }
 
+  async function readCommittedEffectMetadataDigest(upload: ClaimedUpload, expected: {
+    versionId: string; manifestVersionId: string; ciphertextSha256: string; ciphertextSizeBytes: number;
+  }): Promise<string> {
+    const result = await options.db.query<{
+      id: string; tenant_id: string; purpose: string; file_name: string | null; mime_type: string;
+      size_bytes: string | number; state: string; storage_key: string; storage_generation_id: string | null;
+      storage_version_id: string | null; manifest_version_id: string | null; sha256: string | null; upload_token: string | null;
+    }>(
+      `SELECT id::text,tenant_id::text,purpose,file_name,mime_type,size_bytes,state,storage_key,
+              storage_generation_id::text,storage_version_id,manifest_version_id,sha256,upload_token
+         FROM artifacts WHERE id=$1 AND tenant_id=$2`,
+      [upload.artifactId, upload.tenantId],
+    );
+    const row = result.rows[0];
+    if (!row || row.state !== 'READY' || row.storage_version_id !== expected.versionId
+        || row.manifest_version_id !== expected.manifestVersionId || row.sha256 !== expected.ciphertextSha256
+        || Number(row.size_bytes) !== expected.ciphertextSizeBytes
+        || row.storage_generation_id !== upload.storageGenerationId || row.storage_key !== upload.storageKey) {
+      throw conflict('committed encrypted upload metadata did not match its immutable object pins');
+    }
+    return artifactEffectMetadataDigest(row);
+  }
+
   async function verifyCommittedManifest(
+    storage: { client: S3Client; bucket: string },
     upload: Pick<ClaimedUpload, 'artifactId' | 'tenantId'>,
     manifestKey: string,
     manifestVersionId: string,
@@ -734,8 +864,8 @@ export function createPublicUploadGateway(options: PublicUploadGatewayOptions): 
     }
     let head: { ContentLength?: number; VersionId?: string; Metadata?: Record<string, string> };
     try {
-      head = await options.client.send(new HeadObjectCommand({
-        Bucket: options.bucket,
+      head = await storage.client.send(new HeadObjectCommand({
+        Bucket: storage.bucket,
         Key: manifestKey,
         VersionId: manifestVersionId,
       })) as typeof head;
@@ -754,8 +884,8 @@ export function createPublicUploadGateway(options: PublicUploadGatewayOptions): 
     }
     let body: unknown;
     try {
-      const output = await options.client.send(new GetObjectCommand({
-        Bucket: options.bucket,
+      const output = await storage.client.send(new GetObjectCommand({
+        Bucket: storage.bucket,
         Key: manifestKey,
         VersionId: manifestVersionId,
       }));
@@ -767,21 +897,22 @@ export function createPublicUploadGateway(options: PublicUploadGatewayOptions): 
   }
 
   async function deleteWrittenObjects(
+    storage: { client: S3Client; bucket: string },
     upload: ClaimedUpload,
     manifestKey: string,
     versionId: string | undefined,
     manifestVersionId: string | undefined,
   ): Promise<void> {
     if (manifestVersionId) {
-      await options.client.send(new DeleteObjectCommand({
-        Bucket: options.bucket,
+      await storage.client.send(new DeleteObjectCommand({
+        Bucket: storage.bucket,
         Key: manifestKey,
         VersionId: manifestVersionId,
       })).catch(() => undefined);
     }
     if (versionId) {
-      await options.client.send(new DeleteObjectCommand({
-        Bucket: options.bucket,
+      await storage.client.send(new DeleteObjectCommand({
+        Bucket: storage.bucket,
         Key: upload.storageKey,
         VersionId: versionId,
       })).catch(() => undefined);
@@ -813,6 +944,7 @@ export function createPublicUploadGateway(options: PublicUploadGatewayOptions): 
 
       const expiresAt = new Date(now() + PUBLIC_SESSION_TTL_MS);
       const result = await options.db.tx(async (client) => {
+        await assertSnapshotWriteAllowed(client, tenantId, `public-upload-init:${tenantId}:${uploadToken}`);
         const selectByToken = `SELECT id AS "artifactId", purpose, file_name AS "fileName",
                                       mime_type AS "mimeType", size_bytes AS "sizeBytes", state,
                                       multipart_expires_at AS "expiresAt"
@@ -848,17 +980,26 @@ export function createPublicUploadGateway(options: PublicUploadGatewayOptions): 
           };
         }
 
+        let storageGenerationId: string | null = null;
+        if (options.storageGeneration) {
+          const active = await options.storageGeneration.current();
+          if (active.backend !== 's3') {
+            throw new HttpError(409, 'STORAGE_UNAVAILABLE', 'public encrypted upload requires an active S3 generation');
+          }
+          storageGenerationId = active.generationId;
+          await resolveStorage(storageGenerationId);
+        }
         const artifactId = randomUUID();
         const storageKey = `art-${artifactId}`;
         const inserted = await client.query(
           `INSERT INTO artifacts (id, tenant_id, purpose, file_name, mime_type, size_bytes,
                                  state, token, storage_key, storage_backend, upload_token,
-                                 part_size_bytes, part_count, multipart_expires_at)
-           VALUES ($1,$2,'input',$3,$4,$5,'STAGING',$6,$7,'s3',$8,$9,1,$10)
+                                 part_size_bytes, part_count, storage_generation_id, multipart_expires_at)
+           VALUES ($1,$2,'input',$3,$4,$5,'STAGING',$6,$7,'s3',$8,$9,1,$10,$11)
            ON CONFLICT (tenant_id, upload_token) WHERE task_id IS NULL AND upload_token IS NOT NULL DO NOTHING
            RETURNING id`,
           [artifactId, tenantId, fileName ?? null, mimeType, sizeBytes, randomUUID(), storageKey,
-            uploadToken, DEFAULT_S3_PART_BYTES, expiresAt],
+            uploadToken, DEFAULT_S3_PART_BYTES, storageGenerationId, expiresAt],
         );
         if (!inserted.rowCount) {
           const winner = await client.query<{
@@ -920,29 +1061,77 @@ export function createPublicUploadGateway(options: PublicUploadGatewayOptions): 
       const manifestKey = manifestKeyFor(upload.storageKey);
       let writtenVersion: string | undefined;
       let writtenManifestVersion: string | undefined;
+      let storage: { client: S3Client; bucket: string } | undefined;
+      let effect: BackupArtifactEffectHandle | undefined;
+      let effectActivated = false;
+      let effectSettled = false;
       try {
-        if (upload.multipartUploadId) await abortMultipart(upload.multipartUploadId, upload.storageKey);
+        const resolvedStorage = await resolveStorage(upload.storageGenerationId);
+        if (options.backupArtifactEffects) {
+          if (!upload.storageGenerationId) throw unavailable('encrypted upload has no immutable storage generation pin');
+          effect = await options.backupArtifactEffects.begin({
+            effectKey: `encrypted-upload:${upload.artifactId}:${upload.claimToken}`,
+            category: 'encrypted-upload',
+            tenantId: upload.tenantId,
+            artifactId: upload.artifactId,
+            storageGenerationId: upload.storageGenerationId,
+            objectKeySha256: sha256(upload.storageKey),
+          });
+          if (effect.state !== 'PREPARED') throw unavailable('encrypted upload effect is not safely prepared');
+          storage = storageWithEffectActivation(resolvedStorage, async () => {
+            const activated = await options.backupArtifactEffects!.activate(effect!.effectId);
+            if (!activated) throw unavailable('encrypted upload was fenced before storage access');
+            effectActivated = true;
+          });
+        } else {
+          storage = resolvedStorage;
+        }
+        if (upload.multipartUploadId) await abortMultipart(storage, upload.multipartUploadId, upload.storageKey);
         const stored = await storeCiphertext({
           upload,
+          storage,
           source: input.source,
           expectedPlaintextSha256: input.plaintextSha256,
           manifestKey,
         });
         writtenVersion = stored.versionId;
-        await verifyCiphertext(upload, stored.versionId, manifestKey, stored.ciphertextSizeBytes, stored.ciphertextSha256);
-        writtenManifestVersion = await storeAndVerifyManifest(
+        await verifyCiphertext(storage, upload, stored.versionId, manifestKey, stored.ciphertextSizeBytes, stored.ciphertextSha256);
+        const manifest = await storeAndVerifyManifest(
+          storage,
           upload,
           manifestKey,
           stored.manifest,
           stored.ciphertextSha256,
           stored.ciphertextSizeBytes,
         );
+        writtenManifestVersion = manifest.versionId;
         await commit(upload, {
           versionId: stored.versionId,
           manifestVersionId: writtenManifestVersion,
           ciphertextSha256: stored.ciphertextSha256,
           ciphertextSizeBytes: stored.ciphertextSizeBytes,
         });
+        if (effect) {
+          const metadataRowSha256 = await readCommittedEffectMetadataDigest(upload, {
+            versionId: stored.versionId,
+            manifestVersionId: manifest.versionId,
+            ciphertextSha256: stored.ciphertextSha256,
+            ciphertextSizeBytes: stored.ciphertextSizeBytes,
+          });
+          const proof: BackupArtifactEffectProof = {
+            objectVersionId: stored.versionId,
+            objectSha256: stored.ciphertextSha256,
+            objectByteSize: stored.ciphertextSizeBytes,
+            sidecarVersionId: manifest.versionId,
+            sidecarSha256: manifest.sha256,
+            sidecarByteSize: manifest.sizeBytes,
+            metadataRowSha256,
+          };
+          if (!await options.backupArtifactEffects!.settle(effect.effectId, proof)) {
+            throw unavailable('encrypted upload effect could not be durably settled');
+          }
+          effectSettled = true;
+        }
         return {
           artifactId: upload.artifactId,
           state: 'READY',
@@ -956,7 +1145,19 @@ export function createPublicUploadGateway(options: PublicUploadGatewayOptions): 
           replayed: false,
         };
       } catch (error) {
-        await deleteWrittenObjects(upload, manifestKey, writtenVersion, writtenManifestVersion);
+        // With the durable effect owner present, all compensating object-store
+        // calls stay beneath the activated permit. A pre-send failure leaves
+        // the PREPARED intent cancelled and performs no remote action.
+        if (storage && (!effect || effectActivated)) {
+          await deleteWrittenObjects(storage, upload, manifestKey, writtenVersion, writtenManifestVersion);
+        }
+        if (effect && !effectSettled) {
+          if (effectActivated) {
+            await options.backupArtifactEffects!.markUnknown(effect.effectId, 'UPLOAD_OUTCOME_AMBIGUOUS').catch(() => undefined);
+          } else {
+            await options.backupArtifactEffects!.cancelPrepared(effect.effectId, 'UPLOAD_FAILED_BEFORE_SEND').catch(() => undefined);
+          }
+        }
         await release(upload);
         if (error instanceof HttpError) throw error;
         mapCryptoError(error);
@@ -970,6 +1171,7 @@ export function createPublicUploadGateway(options: PublicUploadGatewayOptions): 
       const result = await options.db.query<StagingUpload>(
         `SELECT id AS "artifactId", tenant_id AS "tenantId", storage_key AS "storageKey",
                 storage_backend AS "storageBackend", upload_token AS "uploadToken",
+                storage_generation_id AS "storageGenerationId",
                 multipart_upload_id AS "multipartUploadId", mime_type AS "mimeType",
                 size_bytes AS "sizeBytes", state, token AS "claimToken",
                 token_expires_at AS "claimExpiresAt", storage_version_id AS "storageVersionId",
@@ -985,14 +1187,15 @@ export function createPublicUploadGateway(options: PublicUploadGatewayOptions): 
       }
       const sizeBytes = positiveSafeInteger(row.sizeBytes);
       if (sizeBytes === null) throw conflict('completed upload metadata is invalid');
+      const storage = await resolveStorage(row.storageGenerationId);
       const manifestKey = manifestKeyFor(row.storageKey);
-      await verifyCiphertext({
+      await verifyCiphertext(storage, {
         artifactId: row.artifactId,
         tenantId: row.tenantId,
         storageKey: row.storageKey,
       }, row.storageVersionId, manifestKey, sizeBytes, row.sha256);
       if (row.manifestVersionId !== null && row.manifestVersionId !== undefined) {
-        await verifyCommittedManifest(row, manifestKey, row.manifestVersionId);
+        await verifyCommittedManifest(storage, row, manifestKey, row.manifestVersionId);
       }
       return {
         artifactId: row.artifactId,

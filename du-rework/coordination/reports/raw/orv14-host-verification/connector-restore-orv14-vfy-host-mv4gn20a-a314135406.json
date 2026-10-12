@@ -1,0 +1,41 @@
+{
+  "schema": "orv14-host-connector-restore-slice/v1",
+  "disposition": "FAILED_PARTIAL_HOST_CONNECTOR_SLICE_ONLY",
+  "completedAt": "2026-10-11T23:35:01.852Z",
+  "error": "isolated Connector exited before ready (code 1): {\"error\":{\"kind\":\"UNEXPECTED_ERROR\",\"message\":\"Unexpected error; details redacted.\"},\"timestamp\":\"2026-10-11T23:34:51.165Z\",\"level\":\"error\",\"service\":\"connector\",\"version\":\"unknown\",\"environment\":\"dev\",\"correlationId\":\"8c22cc41-9bf0-4add-bc90-e31eb93a3496\",\"operationId\":null,\"taskId\":null,\"invocationId\":null,\"message\":\"connector startup failed\"} ",
+  "cleanup": {
+    "projectId": "orv14-vfy-host-mv4gn20a-a314135406",
+    "removed": {
+      "containers": [
+        "5adecfe3fee7",
+        "1e0bcaff848c",
+        "f3916b3f929b",
+        "f44e5805a40c",
+        "3497193c8e90",
+        "ee5cb0075159",
+        "b371c46c8cba",
+        "46d95691a123",
+        "d323ee07a709",
+        "94b5342cc7b0"
+      ],
+      "volumes": [
+        "orv14-vfy-host-mv4gn20a-a314135406_connector-restore-data",
+        "orv14-vfy-host-mv4gn20a-a314135406_connector-source-data",
+        "orv14-vfy-host-mv4gn20a-a314135406_minio-data",
+        "orv14-vfy-host-mv4gn20a-a314135406_minio-restore-data",
+        "orv14-vfy-host-mv4gn20a-a314135406_orchestrator-restore-data",
+        "orv14-vfy-host-mv4gn20a-a314135406_orchestrator-source-data"
+      ],
+      "networks": [
+        "21af0de63da4"
+      ]
+    },
+    "remaining": {
+      "containers": [],
+      "volumes": [],
+      "networks": []
+    },
+    "temporaryFixtureRemoved": true
+  },
+  "acceptance": "not claimed; source checkpoint and cross-family restore verification remain outstanding"
+}

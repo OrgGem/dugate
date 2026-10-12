@@ -1,0 +1,142 @@
+{
+  "jobId": "e986a52d-ce1e-42a0-87e0-e8f129510433",
+  "durableState": "SUCCEEDED",
+  "perServiceOutcomes": [
+    {
+      "serviceId": "web",
+      "status": "SUCCEEDED",
+      "errorCode": null
+    },
+    {
+      "serviceId": "worker",
+      "status": "SUCCEEDED",
+      "errorCode": null
+    }
+  ],
+  "actualComposeContainers": [
+    {
+      "id": "cc448f20df5e604bba92dad135f82eaa938333616c1fba70c7ba6b430dddf242",
+      "serviceId": "web",
+      "status": "running",
+      "configuredImage": "redis@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499",
+      "imageId": "sha256:f84b0c4678011602b9b98c227a4dcd5468bf8b088b02fdd4165cb7758bad8058"
+    },
+    {
+      "id": "d336b1b5684b95344d16e70bbbb09a40b0463afa1a15e63a28907eedb6e07fb2",
+      "serviceId": "web",
+      "status": "running",
+      "configuredImage": "redis@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499",
+      "imageId": "sha256:f84b0c4678011602b9b98c227a4dcd5468bf8b088b02fdd4165cb7758bad8058"
+    },
+    {
+      "id": "aed533dd293d946c210e45aa05272413796da8d14b4e09443a81ac60395833f3",
+      "serviceId": "worker",
+      "status": "running",
+      "configuredImage": "postgres@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea",
+      "imageId": "sha256:81bd698b4594e751a3269e4dcd3e03a4a0ec0daf7b72e7aa1abd43cce9887542"
+    },
+    {
+      "id": "c7a56d34576d3cf3a351ed4666a491d8870723a662833d37f348ccfeceff8284",
+      "serviceId": "worker",
+      "status": "running",
+      "configuredImage": "postgres@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea",
+      "imageId": "sha256:81bd698b4594e751a3269e4dcd3e03a4a0ec0daf7b72e7aa1abd43cce9887542"
+    }
+  ],
+  "runnerRequests": [
+    {
+      "method": "POST",
+      "path": "/api/internal/compose/runner/snapshot",
+      "status": 200,
+      "dropped": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/internal/compose/runner/claim",
+      "status": 200,
+      "dropped": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/internal/compose/runner/snapshot",
+      "status": 200,
+      "dropped": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/internal/compose/runner/start",
+      "status": 200,
+      "dropped": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/internal/compose/runner/snapshot",
+      "status": 200,
+      "dropped": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/internal/compose/runner/complete",
+      "status": 200,
+      "dropped": true
+    }
+  ],
+  "alteredCompletionReplay": {
+    "status": 409,
+    "code": "RUNNER_REPORT_REJECTED"
+  },
+  "exactCompletionRetry": {
+    "exitCode": 0,
+    "status": 200
+  },
+  "actionOutcomeJournalRecords": 1,
+  "completionAckJournalRecords": 1,
+  "browserUrl": "http://127.0.0.1:37719/admin/system-operations/services",
+  "buttonText": [
+    {
+      "text": "oidc:orv13-compose-fixture · Profile",
+      "ariaLabel": null,
+      "disabled": false
+    },
+    {
+      "text": "Logout",
+      "ariaLabel": null,
+      "disabled": false
+    },
+    {
+      "text": "Open navigation",
+      "ariaLabel": null,
+      "disabled": false
+    },
+    {
+      "text": "Auto refresh: Paused",
+      "ariaLabel": null,
+      "disabled": false
+    },
+    {
+      "text": "Refresh now",
+      "ariaLabel": null,
+      "disabled": false
+    },
+    {
+      "text": "Refresh host state",
+      "ariaLabel": null,
+      "disabled": false
+    },
+    {
+      "text": "Preview action",
+      "ariaLabel": null,
+      "disabled": true
+    },
+    {
+      "text": "Open",
+      "ariaLabel": null,
+      "disabled": false
+    },
+    {
+      "text": "",
+      "ariaLabel": "Close dialog",
+      "disabled": false
+    }
+  ]
+}

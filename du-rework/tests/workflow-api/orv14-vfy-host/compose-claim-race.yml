@@ -1,0 +1,17 @@
+services:
+  pg:
+    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
+    environment:
+      POSTGRES_DB: orv14_host_claim_race
+      POSTGRES_USER: synthetic
+      POSTGRES_HOST_AUTH_METHOD: trust
+    command: ["postgres", "-c", "max_connections=80", "-c", "log_statement=none"]
+    ports:
+      - "127.0.0.1::5432"
+    tmpfs:
+      - /var/lib/postgresql/data:rw,noexec,nosuid,size=512m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U synthetic -d orv14_host_claim_race"]
+      interval: 1s
+      timeout: 3s
+      retries: 30

@@ -1,0 +1,18 @@
+PASS tests/admin-local-identity-cas.test.ts
+  local identity CAS and assignment replacement
+    ✓ denies an administrator demoting or disabling their current local account (3 ms)
+    ✓ denies removal of the last enabled, unlocked local administrator
+    ✓ replaces the complete same-tenant assignment set and bumps the cross-replica session version (2 ms)
+    ✓ rejects foreign or protected grants before replacing assignments
+    ✓ rejects foreign or protected grants before replacing assignments
+    ✓ uses the expected assignment version as a compare-and-swap guard
+    ✓ activates an imported unlocked reset-required account atomically on its versioned password reset (83 ms)
+    ✓ does not activate a locked imported account or consume its reset marker (80 ms)
+    ✓ keeps a normal disabled local account disabled when an administrator resets its password (74 ms)
+    ✓ requires the explicit password-reset activation path before enabling an imported account (1 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       10 passed, 10 total
+Snapshots:   0 total
+Time:        2.109 s, estimated 3 s
+Ran all test suites matching /tests\/admin-local-identity-cas.test.ts/i.

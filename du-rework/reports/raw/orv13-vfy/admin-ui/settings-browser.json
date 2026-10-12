@@ -1,0 +1,71 @@
+{
+  "test": "VFY-UI13 SETTINGS endpoint selector, real revision workflow and stale apply conflict",
+  "endpointValues": [
+    "ingest:parse",
+    "ingest:ocr",
+    "ingest:digitize",
+    "ingest:split",
+    "extract:invoice",
+    "extract:contract",
+    "extract:id-card",
+    "extract:receipt",
+    "extract:table",
+    "extract:custom",
+    "analyze:classify",
+    "analyze:sentiment",
+    "analyze:compliance",
+    "analyze:fact-check",
+    "analyze:quality",
+    "analyze:risk",
+    "analyze:summarize-eval",
+    "transform:convert",
+    "transform:translate",
+    "transform:rewrite",
+    "transform:redact",
+    "transform:template",
+    "generate:summary",
+    "generate:outline",
+    "generate:report",
+    "generate:email",
+    "generate:minutes",
+    "generate:qa",
+    "compare:diff",
+    "compare:semantic",
+    "compare:version"
+  ],
+  "selectedScope": {
+    "tenantId": "3a1e9e7f-0c8e-4e94-a00c-9fb30220ab6a",
+    "apiKeyId": "86608298-2229-4d3d-a876-6201b77cd820",
+    "endpointSlug": "extract:invoice"
+  },
+  "syntheticConnectionId": "50ee2edc-0771-409f-9afc-a33b7c8b2da9",
+  "draftRevision": 1,
+  "competitorRevision": 2,
+  "staleApplyStatus": 409,
+  "draftStateAfterConflict": "VALIDATED",
+  "activeRevisionAfterConflict": 2,
+  "draftContentPreserved": true,
+  "viewportMetrics": [
+    {
+      "viewport": 768,
+      "scrollWidth": 768
+    },
+    {
+      "viewport": 390,
+      "scrollWidth": 390
+    },
+    {
+      "viewport": 320,
+      "scrollWidth": 320
+    }
+  ],
+  "loadedScripts": [
+    {
+      "path": "/admin/assets/index-BO7-bJEd.js",
+      "sha256": "8e55dd6148ae91b2c18e38c4a4176742e574894bbadb36a407ce0f9ddc7c3e6a"
+    }
+  ],
+  "shellUrl": "http://127.0.0.1:34269",
+  "publicUrl": "http://127.0.0.1:38643",
+  "internalUrl": "http://127.0.0.1:40771"
+}

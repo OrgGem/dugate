@@ -1,0 +1,123 @@
+Skip to content
+Orchestrator Portal
+10/11/2026, 6:26:17 PM UTC
+oidc:orv13-vfy · Profile
+Logout
+Platform health details are restricted to platform administrators.
+Open navigation
+Operations
+Newest first
+List
+
+Requests in your authorized scope, newest first.
+
+State
+ALL
+RUNNING
+COMPLETED
+FAILED
+CANCELLED
+TIMED_OUT
+Tenant:
+ORV13 tenant alpha
+Requests per page
+20
+50
+100
+Operation id
+From
+To
+Refresh
+Cancel selected
+From/To are inclusive UTC days and are applied by the server, not by this page.
+	ID	STATE	BUSINESS / ACTION	CREATED	FINISHED	TOTAL ELAPSED	ACTIONS
+	d50fd10d…	
+SUCCEEDED
+	document-core · extract	10/11/2026, 6:26:16 PM	10/11/2026, 6:26:16 PM	0.0 s	
+Detail
+Stop
+Retry
+Delete
+Previous
+Next
+Newest
+1 shown · 1 total
+Operation Details
+SUCCEEDED
+Delete
+Download result
+Refresh detail
+Close
+
+ID: d50fd10d-92ee-4159-9c0d-5255ed787b90
+
+Callback deliveries
+Refresh callbacks
+
+Callbacks reuse the original delivery ID and payload. A lost response can mean the recipient already processed it; check the failure before retrying.
+
+One retry attempt was queued for the same delivery ID. Refresh to see its outcome.
+
+b902696f-1b7f-42bc-8774-d73dc4375e49
+
+DELIVERED · 5 / 5 attempts
+
+Failure: WEBHOOK_TRANSPORT_FAILED
+
+Only a failed delivery can be retried; pending or in-flight deliveries must finish first.
+
+Review one retry
+OVERVIEW & LIFECYCLE
+Tenant
+16072a8e-a66b-40cd-80dc-f17bdb103fb2
+Business
+document-core
+Action
+extract
+Created
+10/11/2026, 6:26:16 PM
+Started
+Unknown
+Finished
+10/11/2026, 6:26:16 PM
+Total elapsed
+0.0 s
+Execution
+Unknown
+Correlation ID
+Unavailable
+EXECUTION TASKS (1)
+TASK	STATE	ATTEMPT	ERROR
+root	
+SUCCEEDED
+	0/3	—
+ARTIFACTS (0)
+
+No artifacts reported for this operation.
+
+OPERATIONS TIMELINE
+✓
+root
+SUCCEEDED
+Attempt 0/3
+OUTPUT RESULT
+{
+  "schemaVersion": "1",
+  "data": {},
+  "artifacts": [],
+  "usage": {
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "costMicrousd": 0,
+    "measurement": "pending",
+    "costStatus": "pending",
+    "pages": 0
+  },
+  "warnings": []
+}
+REQUEST INPUT
+NO_RULES
+
+No redaction rules configured for this request profile.
+
+{}

@@ -1,0 +1,43 @@
+{
+  "dependencyInputsBefore": {
+    "sha256": "c7253700302ba861fdc8f8e17030538567f430ba1475c11139afd84ef6463805",
+    "files": 943,
+    "missing": []
+  },
+  "dependencyInputsAfter": {
+    "sha256": "c7253700302ba861fdc8f8e17030538567f430ba1475c11139afd84ef6463805",
+    "files": 943,
+    "missing": []
+  },
+  "sourcePinsBefore": {
+    "createApp": "2913288498cfd4ffcb3ddb6b03b2f1d8fa7fde336e3a7d27c70a42a5a3b81626",
+    "ingestionStorageS3": "103858a6ce51710aa2612afcc969a8f6e18b37b1e8f08f700948f177dbf2e800",
+    "ingestionConsumer": "b3486252654873ee709cc24eef8b97b66d103adf88b85ff707b5594082a1d7ed",
+    "connectorComposition": "cbb3ebe767f91c9d693ff3b6b7dc4900bbf9cc38f76c83c24df651607750d353",
+    "connectorRuntimeControls": "daa0d34e24a85cc907e6469d7f425e997e2326a69922e0dd02428727bd2ab5fe",
+    "connectorHttpServer": "ee82d33d49ba37d47c00876323110500b6ed720dfcbe074f696b1b3df7c70899",
+    "runtimeControlContract": "8d8a413c2fa8973be28cffc8deb72531fd0c6874b71a2aa281d626a19ced501c",
+    "globalSettingsService": "6f60272612c7b5c6bae341f2f569bbf0c7809df4cd090ad1d4eb8a94f4190035",
+    "globalSettingsBff": "b1f818f3c2fc7114aba31c0293b6799fbd353cccfecd8abc743e7686543def38",
+    "internalGlobalSettingsRoute": "31a989362b4a8616c3ce8a45711d7a5a98d1e9913422bbc9e52dded8350054d1",
+    "providerTestService": "e36911e29c3d27027156c54c6ed6f8d40a145ea71a9df0ff2a1209cfe5691818",
+    "adminWorkbenchService": "d2c8ceaa5783b04aaaeab0ac40f3db1f79f79b0533687e603cf08227b13ab5e3"
+  },
+  "sourcePinsAfter": {
+    "createApp": "2913288498cfd4ffcb3ddb6b03b2f1d8fa7fde336e3a7d27c70a42a5a3b81626",
+    "ingestionStorageS3": "103858a6ce51710aa2612afcc969a8f6e18b37b1e8f08f700948f177dbf2e800",
+    "ingestionConsumer": "b3486252654873ee709cc24eef8b97b66d103adf88b85ff707b5594082a1d7ed",
+    "connectorComposition": "cbb3ebe767f91c9d693ff3b6b7dc4900bbf9cc38f76c83c24df651607750d353",
+    "connectorRuntimeControls": "daa0d34e24a85cc907e6469d7f425e997e2326a69922e0dd02428727bd2ab5fe",
+    "connectorHttpServer": "ee82d33d49ba37d47c00876323110500b6ed720dfcbe074f696b1b3df7c70899",
+    "runtimeControlContract": "8d8a413c2fa8973be28cffc8deb72531fd0c6874b71a2aa281d626a19ced501c",
+    "globalSettingsService": "6f60272612c7b5c6bae341f2f569bbf0c7809df4cd090ad1d4eb8a94f4190035",
+    "globalSettingsBff": "b1f818f3c2fc7114aba31c0293b6799fbd353cccfecd8abc743e7686543def38",
+    "internalGlobalSettingsRoute": "31a989362b4a8616c3ce8a45711d7a5a98d1e9913422bbc9e52dded8350054d1",
+    "providerTestService": "e36911e29c3d27027156c54c6ed6f8d40a145ea71a9df0ff2a1209cfe5691818",
+    "adminWorkbenchService": "d2c8ceaa5783b04aaaeab0ac40f3db1f79f79b0533687e603cf08227b13ab5e3"
+  },
+  "contractsSourceManifestSha256": "d33d0ce970a4f7620dde4854b0df2ddb272d824baf3efda84bafb36d99cde916",
+  "contractsDistManifestSha256": "27cb417f246da2c9b31820af54d310163aaf8d657532c6cacb21b6c9a722c91a",
+  "changedInputs": []
+}

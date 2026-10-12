@@ -1,0 +1,21 @@
+# ORV14-FINANCE-ACCOUNTING-UI-EXPORT
+
+Status: PREPARED_NOT_DISPATCHED. Original released CostUI executor gpt-6-luna/max; await actual capacity and current Backend/Usage typed accounting seam. No source writer or build lease implied by this packet.
+
+Required COST01..04, canonical full compatibility review section6, approved cost-adjustment architecture and actual FINANCIAL-ACCOUNTING-SERVICE packet. Preserve all existing dirty source/owner followups, red/PARTIAL history and source-scoped independent evidence. No product acceptance assigned.
+
+Exclusive future lease: orchestrator/apps/admin-web/src/features/usage/** only; narrow accounting/history/export paragraphs of existing owner guide49 after actual priorownerrelease; new unique owner regression and coordination/reports/orv14-finance-accounting-ui-export.md + NEW raw/orv14-finance-accounting-ui-export/**. No settings/client/BFF/types/contracts/service/bootstrap/migrations/shared dist/tests owned by independent verifiers. Backend owns strict shared/client DTO changes, Usage owns server usage page/history consumers; communicate seam needs rather than duplicate writer.
+
+Actual API envelope approved by root retains immutable original cost separately: rootEventId, initialChargeMicrousd, grossChargeMicrousd, refundedMicrousd, netChargeMicrousd, adjustmentRevision, headAdjustmentEventId, semantics=initial-charge-plus-direct-root-adjustments-v1. UI must consume server calculations, not compute refunds/net. Existing financial history is typed and bounded; expose kind, replacement-gross target or refund delta, direct original root/revision, original effective UTC vs recordedUTC, actor opaque ID/authority and frozen provenance. Missing/basic/unpriced/proof-incomplete is explicit read-only/unavailable, never measuredzero/fabricated currentcost. Opaque actor and no subject/issuer/secret/locator in returned rows.
+
+Ordinary ledger detail/review-confirm/result/history/current net consistent with aggregate and budget readers. Page CSV explicitly page-only; include initial/gross/refunded/net/root/revision/semantics; financial history export explicitly bounded current page with kind/target/refund/effectiveAt/recordedAt/authority. Proper CSV escaping/formula-cell protection for reason/fileName/any untrustedlabel. Do not imply all filtered export or sum adjustment units again. UI no re-price with current prices. Historical proof incomplete flag is clear and blocks new corrections as reported by server.
+
+Preserve request tenant/session/population fences; current localUSER assignedACTIVE nonGlobalkey AND null/assignedProfile may read own financialnet/history, cannot financialwrite/policy/credential. Operator/viewer scopedread, platformAdmin alone currentnormalAppsession maywrite. Channelrecipient revoked never automatically disables valid ordinaryAdmin authority, and UI must not instruct user to un-revoke/enroll channel to gain finance. Expired or rolechanged Admin has no writes. Keep nonsecret draft through409, truthful UNKNOWN only exactsame commandretry, auth expiry and backup-held feedback, no fakeSUCCESS.
+
+Owner focused regression/typecheck source-mapped or noemit only under actual lease; no shared Vite/dist build. Exact changed source manifest/raw command/cwd/Node24.21/UTC/pass-fail-skip/exit and handoff required. Primary independently builds served finalbundle after explicit sharedlease transfer; real finance API/PG/budget/CSV/UI1440/768/390/320 light-dark/keyboard/axe/currentACL proof and correct-model parent reviewer required. Production NOT_PERFORMED, no commit/push/deploy/customerchanges.
+
+## Actual delivery — 2026-10-12T00:58:18.877482+00:00
+
+collaboration.followup_task accepted original /root/orv14_cost_ui_alerts after HostVFYactualFINAL scopednative checkpoint/positive ownedcleanup. OriginalLuna6max runtime reused, startackpending. Exclusivefeaturesusage only, Backendstrictclient/BFF/contracts, Usageserverpage/service monetaryfiles. No sharedbuildlease/acceptance granted.
+
+ActualstartACK 2026-10-12T01:00:07.447152+00:00: originalCostUI adoptedexclusivefeaturesusage+ownregression/report/raw/narrowguide49. No sharedclient/Settings/Backendfiles or builds. Actualcollaborationrunningobserved.

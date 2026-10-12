@@ -1,0 +1,122 @@
+{
+  "scripts": [
+    "/admin/assets/index-D6Ow5y8y.js"
+  ],
+  "screens": [
+    {
+      "route": "settings",
+      "viewport": "desktop",
+      "text": "Skip to content\nOrchestrator Portal\n10/11/2026, 3:53:32 PM UTC\nlegacy:admin · Profile\nLogout\nSystem health: ok\nDatabase: Healthy\nRedis: Healthy\nQueue integrity: Unavailable\nActive leases: 0\nOutbox backlog: Unavailable\nSampled 0s ago\nHealth details\nACTIVE TENANT\nACTIVE\nORV11 verification tenant\nc2be615e-a238-42cd…\n\nWorkspace\n\nOverview\nOperations\nTrace\nUsage\n\nConfiguration\n\nBusinesses\nProfiles\nConnectors\nWorkflows\n\nAdministration\n\nAudit\nSecurity\nSecrets\nIdentity\nSettings\n\nResources\n\nAPI Reference\nDocumentation\nBootstrap\nSettings & Deployment\nEffective deployment\n\nRead from the running orchestrator. Storage changes require deployment configuration and restart.\n\nbackend\npostgres\nbucket\nNot explicitly configured\nregion\nNot explicitly configured\nendpoint\nNot explicitly configured\nmanagedBy\ndeployment\nrestartRequired\ntrue\nMetadata encryption: configured\nConnector management: not configured\nCredential management: not configured\nPrompt editing: configured\n\nConfigured capability does not prove provider health. Test the selected connection in Connectors.\n\nPrompt overrides for new requests\n\nOverrides target an existing API key, endpoint and connection. The exact step wins over _default. An empty prompt clears the override. Provider and model changes use profile and connector revisions.\n\nAPI key\nChoose an active API key\nBrowser legacy key · orv11\nEndpoint slug\nLoad current overrides\nProfile connection\nLoad overrides, then choose a pinned connection\n\nOnly the active profile's pinned connections can receive overrides. Named connector IDs require migration to the legacy connection UUID before using this editor.\n\nScope: connection fallback (_default). Exact-step overrides remain read-only and keep precedence over this fallback; code-provided prompts also take precedence.\n\nPrompt\n\nRevision: new override · Saves are audited. A concurrent edit requires a reload.\n\nSave prompt override\nLegacy global settings need explicit mapping\nGlobal AI and format prompt defaults are not automatically applied to every business. Map them to the applicable profile and connector revision. Storage cache TTL is not the artifact retention policy; migration must reconcile these separately. Credentials are managed through Secrets.\nAI defaults (CFGADM-01)\nAI provider ai_provider\n\naiDefaults.provider · tenant policy + Connector binding revision\n\nAI account credential ai_api_key\n\nGemini account credential (Vault secret-ref) · tenant/account Vault\n\nAI model ai_model\n\naiDefaults.model · tenant default + Profile permitted override\n\nOpenAI-compatible account credential openai_api_key\n\nOpenAI-compatible account credential (Vault secret-ref) · tenant/account\n\nOpenAI-compatible base URL openai_base_url\n\nOpenAI-compatible Connector config revision · tenant/account\n\nLegacy API secret key api_secret_key\n\nretire pending consumer inventory · not managed here\n\nPrompt defaults (CFGADM-02)\nImage prompt default ai_image_prompt\n\npromptDefaults.image · versioned business/tenant defaults\n\nPDF prompt default ai_pdf_prompt\n\npromptDefaults.pdf · versioned business/tenant defaults\n\nDOCX prompt default ai_docx_prompt\n\npromptDefaults.docx · versioned business/tenant defaults\n\nCompare prompt default ai_compare_prompt\n\npromptDefaults.compare · versioned business/tenant defaults\n\nGenerate prompt default ai_generate_prompt\n\npromptDefaults.generate · versioned business/tenant defaults\n\nStorage and retention (CFGADM-03/04)\nS3 endpoint s3_endpoint\n\nstorageConfig.endpoint · platform storage generation\n\nS3 bucket s3_bucket\n\nstorageConfig.bucket · platform storage generation\n\nS3 access key ID s3_access_key\n\nstorage identity/access ID (secret-ref metadata) · platform secret owner\n\nS3 secret key s3_secret_key\n\nstorage credential (deployment secret manager/Vault ref) · platform secret owner\n\nS3 region s3_region\n\nstorageConfig.region · platform storage generation\n\nCache TTL (hours) s3_cache_ttl_hours\n\nretentionPolicy.cacheTtlHours · platform/tenant per storage ownership",
+      "overflow": false
+    },
+    {
+      "route": "settings",
+      "viewport": "mobile",
+      "text": "Skip to content\nOrchestrator Portal\n10/11/2026, 3:53:32 PM UTC\nlegacy:admin · Profile\nLogout\nSystem health: ok\nDatabase: Healthy\nRedis: Healthy\nQueue integrity: Unavailable\nActive leases: 0\nOutbox backlog: Unavailable\nSampled 0s ago\nHealth details\nOpen navigation\nSettings & Deployment\nEffective deployment\n\nRead from the running orchestrator. Storage changes require deployment configuration and restart.\n\nbackend\npostgres\nbucket\nNot explicitly configured\nregion\nNot explicitly configured\nendpoint\nNot explicitly configured\nmanagedBy\ndeployment\nrestartRequired\ntrue\nMetadata encryption: configured\nConnector management: not configured\nCredential management: not configured\nPrompt editing: configured\n\nConfigured capability does not prove provider health. Test the selected connection in Connectors.\n\nPrompt overrides for new requests\n\nOverrides target an existing API key, endpoint and connection. The exact step wins over _default. An empty prompt clears the override. Provider and model changes use profile and connector revisions.\n\nAPI key\nChoose an active API key\nBrowser legacy key · orv11\nEndpoint slug\nLoad current overrides\nProfile connection\nLoad overrides, then choose a pinned connection\n\nOnly the active profile's pinned connections can receive overrides. Named connector IDs require migration to the legacy connection UUID before using this editor.\n\nScope: connection fallback (_default). Exact-step overrides remain read-only and keep precedence over this fallback; code-provided prompts also take precedence.\n\nPrompt\n\nRevision: new override · Saves are audited. A concurrent edit requires a reload.\n\nSave prompt override\nLegacy global settings need explicit mapping\nGlobal AI and format prompt defaults are not automatically applied to every business. Map them to the applicable profile and connector revision. Storage cache TTL is not the artifact retention policy; migration must reconcile these separately. Credentials are managed through Secrets.\nAI defaults (CFGADM-01)\nAI provider ai_provider\n\naiDefaults.provider · tenant policy + Connector binding revision\n\nAI account credential ai_api_key\n\nGemini account credential (Vault secret-ref) · tenant/account Vault\n\nAI model ai_model\n\naiDefaults.model · tenant default + Profile permitted override\n\nOpenAI-compatible account credential openai_api_key\n\nOpenAI-compatible account credential (Vault secret-ref) · tenant/account\n\nOpenAI-compatible base URL openai_base_url\n\nOpenAI-compatible Connector config revision · tenant/account\n\nLegacy API secret key api_secret_key\n\nretire pending consumer inventory · not managed here\n\nPrompt defaults (CFGADM-02)\nImage prompt default ai_image_prompt\n\npromptDefaults.image · versioned business/tenant defaults\n\nPDF prompt default ai_pdf_prompt\n\npromptDefaults.pdf · versioned business/tenant defaults\n\nDOCX prompt default ai_docx_prompt\n\npromptDefaults.docx · versioned business/tenant defaults\n\nCompare prompt default ai_compare_prompt\n\npromptDefaults.compare · versioned business/tenant defaults\n\nGenerate prompt default ai_generate_prompt\n\npromptDefaults.generate · versioned business/tenant defaults\n\nStorage and retention (CFGADM-03/04)\nS3 endpoint s3_endpoint\n\nstorageConfig.endpoint · platform storage generation\n\nS3 bucket s3_bucket\n\nstorageConfig.bucket · platform storage generation\n\nS3 access key ID s3_access_key\n\nstorage identity/access ID (secret-ref metadata) · platform secret owner\n\nS3 secret key s3_secret_key\n\nstorage credential (deployment secret manager/Vault ref) · platform secret owner\n\nS3 region s3_region\n\nstorageConfig.region · platform storage generation\n\nCache TTL (hours) s3_cache_ttl_hours\n\nretentionPolicy.cacheTtlHours · platform/tenant per storage ownership",
+      "overflow": false
+    },
+    {
+      "route": "workflows",
+      "viewport": "desktop",
+      "text": "Skip to content\nOrchestrator Portal\n10/11/2026, 3:53:33 PM UTC\nlegacy:admin · Profile\nLogout\nSystem health: ok\nDatabase: Healthy\nRedis: Healthy\nQueue integrity: Unavailable\nActive leases: 0\nOutbox backlog: Unavailable\nSampled 0s ago\nHealth details\nACTIVE TENANT\nACTIVE\nORV11 verification tenant\nc2be615e-a238-42cd…\n\nWorkspace\n\nOverview\nOperations\nTrace\nUsage\n\nConfiguration\n\nBusinesses\nProfiles\nConnectors\nWorkflows\n\nAdministration\n\nAudit\nSecurity\nSecrets\nIdentity\nSettings\n\nResources\n\nAPI Reference\nDocumentation\nBootstrap\nBusiness Workflows\n\nProvision, import and test multi-stage document processing pipelines (WFA Document Pipelines).\n\nMetadata encryption: configured\nOrganization: ORV11 verification tenant\nRefresh\nCreate / Import Workflow\nBusiness ownership\n\nNew workflow revisions can be registered to a business version. Leave this unassigned to keep the legacy tenant-wide catalog behavior.\n\nBusiness\nUnassigned (legacy)\ndocument-core\nWorkflow templates\n3 Standardized Scenarios\n\nActivate a template for the current organization, configure its profile and connector bindings, then test it.\n\nRECOMMENDED FOR BUSINESS\nIntelligent Document Processing (IDP)\n\nEnd-to-end document processing: ingestion, AI entity extraction and automatic policy compliance checks.\n\nProcessing stages:\ningest_step\nextract_step\ncompliance_verify\nslug: doc-processing-pipeline\nActivate Now\nFINANCE & BANKING\nLetter Of Credit & Contract Audit\n\nInspection of import and export documents, reconciling LC clauses against international banking standards.\n\nProcessing stages:\nparse_doc\nlc_rule_checker\nhuman_audit_review\nslug: lc-compliance-audit\nActivate Now\nHIGH SPEED\nAI OCR Extraction & Markdown Conversion\n\nConverts scanned documents and images into clean Markdown text for large language models.\n\nProcessing stages:\nocr_scan\nmarkdown_clean\nslug: ocr-markdown-transform\nActivate Now\nWorkflow List (0)\n\nThe schemas currently configured for this tenant.\n\nNo workflows yet\n\nActivate a sample workflow above, or load a JSON file, to get started.\n\nActivate The IDP Pipeline Sample\n\nSelect a workflow from the list on the left, or activate a sample workflow, to view its configuration.",
+      "overflow": false
+    },
+    {
+      "route": "workflows",
+      "viewport": "mobile",
+      "text": "Skip to content\nOrchestrator Portal\n10/11/2026, 3:53:33 PM UTC\nlegacy:admin · Profile\nLogout\nSystem health: ok\nDatabase: Healthy\nRedis: Healthy\nQueue integrity: Unavailable\nActive leases: 0\nOutbox backlog: Unavailable\nSampled 0s ago\nHealth details\nOpen navigation\nBusiness Workflows\n\nProvision, import and test multi-stage document processing pipelines (WFA Document Pipelines).\n\nMetadata encryption: configured\nOrganization: ORV11 verification tenant\nRefresh\nCreate / Import Workflow\nBusiness ownership\n\nNew workflow revisions can be registered to a business version. Leave this unassigned to keep the legacy tenant-wide catalog behavior.\n\nBusiness\nUnassigned (legacy)\ndocument-core\nWorkflow templates\n3 Standardized Scenarios\n\nActivate a template for the current organization, configure its profile and connector bindings, then test it.\n\nRECOMMENDED FOR BUSINESS\nIntelligent Document Processing (IDP)\n\nEnd-to-end document processing: ingestion, AI entity extraction and automatic policy compliance checks.\n\nProcessing stages:\ningest_step\nextract_step\ncompliance_verify\nslug: doc-processing-pipeline\nActivate Now\nFINANCE & BANKING\nLetter Of Credit & Contract Audit\n\nInspection of import and export documents, reconciling LC clauses against international banking standards.\n\nProcessing stages:\nparse_doc\nlc_rule_checker\nhuman_audit_review\nslug: lc-compliance-audit\nActivate Now\nHIGH SPEED\nAI OCR Extraction & Markdown Conversion\n\nConverts scanned documents and images into clean Markdown text for large language models.\n\nProcessing stages:\nocr_scan\nmarkdown_clean\nslug: ocr-markdown-transform\nActivate Now\nWorkflow List (0)\n\nThe schemas currently configured for this tenant.\n\nNo workflows yet\n\nActivate a sample workflow above, or load a JSON file, to get started.\n\nActivate The IDP Pipeline Sample\n\nSelect a workflow from the list on the left, or activate a sample workflow, to view its configuration.",
+      "overflow": false
+    },
+    {
+      "route": "operations",
+      "viewport": "desktop",
+      "text": "Skip to content\nOrchestrator Portal\n10/11/2026, 3:53:34 PM UTC\nlegacy:admin · Profile\nLogout\nSystem health: ok\nDatabase: Healthy\nRedis: Healthy\nQueue integrity: Unavailable\nActive leases: 0\nOutbox backlog: Unavailable\nSampled 0s ago\nHealth details\nACTIVE TENANT\nACTIVE\nORV11 verification tenant\nc2be615e-a238-42cd…\n\nWorkspace\n\nOverview\nOperations\nTrace\nUsage\n\nConfiguration\n\nBusinesses\nProfiles\nConnectors\nWorkflows\n\nAdministration\n\nAudit\nSecurity\nSecrets\nIdentity\nSettings\n\nResources\n\nAPI Reference\nDocumentation\nBootstrap\nOperations\nNewest first\nList\n\nRequests in your authorized scope, newest first.\n\nState\nALL\nRUNNING\nCOMPLETED\nFAILED\nCANCELLED\nTIMED_OUT\nTenant:\nORV11 verification tenant\nRequests per page\n20\n50\n100\nOperation id\nFrom\nTo\nRefresh\nCancel selected\nFrom/To are inclusive UTC days and are applied by the server, not by this page.\nNo operations\n\nNo operations match this filter in the session's scope.\n\nRefresh\nPrevious\nNext\nNewest\n0 shown · 0 total",
+      "overflow": false
+    },
+    {
+      "route": "operations",
+      "viewport": "mobile",
+      "text": "Skip to content\nOrchestrator Portal\n10/11/2026, 3:53:34 PM UTC\nlegacy:admin · Profile\nLogout\nSystem health: ok\nDatabase: Healthy\nRedis: Healthy\nQueue integrity: Unavailable\nActive leases: 0\nOutbox backlog: Unavailable\nSampled 0s ago\nHealth details\nOpen navigation\nOperations\nNewest first\nList\n\nRequests in your authorized scope, newest first.\n\nState\nALL\nRUNNING\nCOMPLETED\nFAILED\nCANCELLED\nTIMED_OUT\nTenant:\nORV11 verification tenant\nRequests per page\n20\n50\n100\nOperation id\nFrom\nTo\nRefresh\nCancel selected\nFrom/To are inclusive UTC days and are applied by the server, not by this page.\nNo operations\n\nNo operations match this filter in the session's scope.\n\nRefresh\nPrevious\nNext\nNewest\n0 shown · 0 total",
+      "overflow": false
+    }
+  ],
+  "responses": [
+    {
+      "path": "/admin/api/session",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/session",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/settings",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/health",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/tenants",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/settings",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/api-keys",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/settings",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/workflows",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/api-keys",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/session",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/tenants",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/businesses",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/health",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/session",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/session",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/tenants",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/operations",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/health",
+      "status": 200
+    }
+  ],
+  "errors": []
+}

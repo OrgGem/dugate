@@ -1,0 +1,8 @@
+{
+  "originalOperationId": "e6fa81b1-fc2d-45f9-a622-247abbc2f852",
+  "originalState": "FAILED",
+  "retryOperationId": "e928bf57-26ee-4515-af33-817abc5401a2",
+  "retryState": "SUCCEEDED",
+  "retryStatus": 200,
+  "listenerRequestCount": 2
+}

@@ -1,0 +1,22 @@
+ORV14 finance and Settings UI follow-up — owner check receipts
+Observed 2026-10-12 00:25 UTC. These are owner checks only.
+
+1) Admin source typecheck
+cwd: /workspace/dugate/du-rework/orchestrator
+Node: /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node (Node 24.21.0)
+command: /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node apps/admin-web/node_modules/typescript/bin/tsc --noEmit -p apps/admin-web/tsconfig.json
+result: exit 0, no diagnostics
+
+2) Focused service/UI owner regressions
+cwd: /workspace/dugate/du-rework/orchestrator/services/orchestrator
+Node: /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node (Node 24.21.0)
+command: /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node node_modules/jest/bin/jest.js --config jest.config.cjs --runInBand --runTestsByPath tests/orv14-finance-settings-ui-followup.test.ts tests/orv14-cost-alert-binding-privacy-owner.test.ts
+result: exit 0; suites 2 passed, tests 6 passed, 0 failed, 0 skipped
+covered: typed correction/refund request construction and no client net calculation; platform Admin write authority; exact tenant/root response scope; platform-selected and tenant-operator-pinned Connector search; cross-tenant Connector rejection; Secret Catalog purpose/service/state/tenant filters and exact revision pin; masked ambiguous historical actor labels, including UUID-shaped OIDC subjects
+
+3) Whitespace/diff check
+cwd: /workspace/dugate/du-rework
+command: git diff --check -- orchestrator/apps/admin-web/src/features/usage orchestrator/apps/admin-web/src/features/settings orchestrator/services/orchestrator/src/http/routes/internal-cost-alerts.ts orchestrator/services/orchestrator/src/modules/cost-alerts/service.ts orchestrator/services/orchestrator/tests/orv14-cost-alert-binding-privacy-owner.test.ts orchestrator/services/orchestrator/tests/orv14-finance-settings-ui-followup.test.ts docs/49-cost-policy-alert-operations.md docs/50-admin-settings-guide.md
+result: exit 0
+
+No shared contract build, Admin bundle build, browser/axe run, Compose run, database migration, or live service test was performed in this owner lane.

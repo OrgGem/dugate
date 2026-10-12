@@ -23,6 +23,7 @@ import { encryptionIsRequired } from '../encryption/boot-options';
 import type { ArtifactMultipartStorage, MultipartStoredPart } from './multipart-storage';
 import { multipartUploadHandle } from './multipart-storage';
 import { ArtifactStorageError } from './storage-facade';
+import type { StorageGenerationService } from './storage-generations';
 
 /**
  * DATA-02 server-side multipart upload lifecycle (`init` → per-part grants →
@@ -92,6 +93,7 @@ const SESSION_SELECT = `
   SELECT id AS "artifactId", tenant_id AS "tenantId", operation_id AS "operationId",
          task_id AS "taskId", purpose, file_name AS "fileName", mime_type AS "mimeType",
          size_bytes AS "sizeBytes", state, storage_key AS "storageKey",
+         storage_generation_id AS "storageGenerationId",
          upload_token AS "uploadToken", multipart_upload_id AS "uploadId",
          part_size_bytes AS "partSizeBytes", part_count AS "partCount",
          storage_version_id AS "committedVersionId", sha256 AS "committedSha256",
@@ -163,6 +165,7 @@ interface SessionRow {
   committedVersionId: string | null;
   committedSha256: string | null;
   expiresAt: Date | string | null;
+  storageGenerationId: string | null;
 }
 
 interface Session {
@@ -177,6 +180,7 @@ interface Session {
   declaredSizeBytes: number;
   state: string;
   storageKey: string;
+  storageGenerationId: string | null;
   uploadToken: string;
   uploadId: string | null;
   partSizeBytes: number;
@@ -196,6 +200,8 @@ export interface MultipartServiceOptions {
   /** Absent means the deployment has no backend that can hold an incomplete
    *  upload; every lifecycle call then fails 409 instead of falling back. */
   storage?: ArtifactMultipartStorage;
+  /** Dynamic exact-generation multipart router; sessions store the immutable generation ID. */
+  storageGenerations?: StorageGenerationService;
   /** Server-fixed geometry. Policy may only raise the contract floor. */
   partSizeBytes?: number;
   maxTotalBytes?: number;
@@ -303,7 +309,10 @@ export function createMultipartService(db: Db, options: MultipartServiceOptions 
     ),
   };
 
-  function requireStorage(): ArtifactMultipartStorage {
+  function requireStorage(generationId?: string | null): ArtifactMultipartStorage {
+    if (generationId && options.storageGenerations) {
+      return options.storageGenerations.multipartForGeneration(generationId);
+    }
     if (!storage) {
       throw conflict(
         'MULTIPART_NOT_AVAILABLE',
@@ -311,6 +320,20 @@ export function createMultipartService(db: Db, options: MultipartServiceOptions 
       );
     }
     return storage;
+  }
+
+  async function storageForNewSession(): Promise<{ backend: ArtifactMultipartStorage; generationId: string | null }> {
+    if (options.storageGenerations) {
+      const active = await options.storageGenerations.current();
+      if (active.backend !== 's3') {
+        throw conflict(
+          'MULTIPART_NOT_AVAILABLE',
+          'the active storage generation cannot hold an incomplete multipart upload',
+        );
+      }
+      return { backend: options.storageGenerations.multipartForGeneration(active.generationId), generationId: active.generationId };
+    }
+    return { backend: requireStorage(), generationId: null };
   }
 
   function invalidSchema(operation: string, error: { issues: { path: (string | number)[]; message: string }[] }): HttpError {
@@ -339,6 +362,7 @@ export function createMultipartService(db: Db, options: MultipartServiceOptions 
       declaredSizeBytes: Number(row.sizeBytes ?? 0),
       state: row.state,
       storageKey: row.storageKey,
+      storageGenerationId: row.storageGenerationId ?? null,
       uploadToken: String(row.uploadToken),
       uploadId: row.uploadId,
       partSizeBytes: Number(row.partSizeBytes),
@@ -532,7 +556,15 @@ export function createMultipartService(db: Db, options: MultipartServiceOptions 
     declaredSha256: string,
     sizeBytes: number,
   ): Promise<MultipartPartGrant> {
-    const expiresAt = new Date(now() + policy.partUrlTtlMs).toISOString();
+    const configuredTtlSeconds = session.storageGenerationId && options.storageGenerations
+      ? await options.storageGenerations.presignedUrlTtlSeconds(session.storageGenerationId)
+      : null;
+    const ttlMs = configuredTtlSeconds === null
+      ? policy.partUrlTtlMs
+      : Number.isSafeInteger(configuredTtlSeconds) && configuredTtlSeconds > 0 && configuredTtlSeconds <= 86_400
+        ? configuredTtlSeconds * 1000
+        : (() => { throw conflict('STORAGE_UNAVAILABLE', 'storage generation presigned URL TTL is invalid'); })();
+    const expiresAt = new Date(now() + ttlMs).toISOString();
     let presigned: Awaited<ReturnType<ArtifactMultipartStorage['presignUploadPart']>>;
     try {
       presigned = await backend.presignUploadPart({
@@ -696,9 +728,9 @@ export function createMultipartService(db: Db, options: MultipartServiceOptions 
    * A committed-but-unreferenced generation is deleted before the error is
    * returned: nothing may point at bytes that never passed the commit gate.
    */
-  async function deleteUnpublishedVersion(storageKey: string, versionId: string): Promise<void> {
+  async function deleteUnpublishedVersion(storageKey: string, versionId: string, generationId?: string | null): Promise<void> {
     try {
-      await storage?.delete({ objectKey: storageKey, versionId });
+      await requireStorage(generationId).delete({ objectKey: storageKey, versionId });
     } catch {
       // Cleanup failure must not replace the public result or leak provider text.
     }
@@ -761,11 +793,11 @@ export function createMultipartService(db: Db, options: MultipartServiceOptions 
       pinnedSizeBytes = pinned.sizeBytes;
       pinnedSha256 = pinned.sha256;
     } catch (error) {
-      await deleteUnpublishedVersion(session.storageKey, versionId);
+      await deleteUnpublishedVersion(session.storageKey, versionId, session.storageGenerationId);
       throw storageToHttp(error, 'verify');
     }
     if (pinnedSizeBytes !== session.declaredSizeBytes || pinnedSha256 !== req.sha256) {
-      await deleteUnpublishedVersion(session.storageKey, versionId);
+      await deleteUnpublishedVersion(session.storageKey, versionId, session.storageGenerationId);
       throw conflict('CHECKSUM_MISMATCH', 'committed bytes do not match the declared whole-object hash');
     }
     return { versionId, pinnedSizeBytes, pinnedSha256 };
@@ -777,7 +809,6 @@ export function createMultipartService(db: Db, options: MultipartServiceOptions 
       if (!parsed.success) throw invalidSchema('init', parsed.error);
       assertWorkerMultipartSealingAvailable();
       const req = parsed.data;
-      const backend = requireStorage();
       if (req.purpose === 'input') {
         throw forbidden('multipart init admits only producer artifact purposes');
       }
@@ -799,6 +830,9 @@ export function createMultipartService(db: Db, options: MultipartServiceOptions 
         assertSessionLive(existing);
         return initAck(existing, true);
       }
+
+      const selectedStorage = await storageForNewSession();
+      const backend = selectedStorage.backend;
 
       const artifactId = randomUUID();
       const storageKey = `art-${artifactId}`;
@@ -824,9 +858,10 @@ export function createMultipartService(db: Db, options: MultipartServiceOptions 
       const inserted = await db.query(
         `INSERT INTO artifacts (id, tenant_id, operation_id, task_id, purpose, file_name, mime_type,
                                size_bytes, state, token, storage_key, storage_backend,
+                               storage_generation_id,
                                upload_token, multipart_upload_id, part_size_bytes, part_count,
                                multipart_expires_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'STAGING',$9,$10,'s3',$11,$12,$13,$14,$15)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'STAGING',$9,$10,'s3',$11,$12,$13,$14,$15,$16)
          ON CONFLICT (task_id, upload_token) WHERE upload_token IS NOT NULL DO NOTHING
          RETURNING id`,
         [
@@ -840,6 +875,7 @@ export function createMultipartService(db: Db, options: MultipartServiceOptions 
           req.sizeBytes,
           randomUUID(),
           storageKey,
+          selectedStorage.generationId,
           req.uploadToken,
           uploadId,
           policy.partSizeBytes,
@@ -876,7 +912,6 @@ export function createMultipartService(db: Db, options: MultipartServiceOptions 
       if (!parsed.success) throw invalidSchema('part grant', parsed.error);
       assertWorkerMultipartSealingAvailable();
       const req = parsed.data;
-      const backend = requireStorage();
       const taskId = await ownerTaskOf(artifactId);
 
       const prepared = await db.tx(async (client) => {
@@ -892,7 +927,7 @@ export function createMultipartService(db: Db, options: MultipartServiceOptions 
         return { session, sizeBytes };
       });
 
-      return presignPartGrant(backend, prepared.session, artifactId, req.partNumber, req.sha256, prepared.sizeBytes);
+      return presignPartGrant(requireStorage(prepared.session.storageGenerationId), prepared.session, artifactId, req.partNumber, req.sha256, prepared.sizeBytes);
     },
 
     async complete(artifactId, body): Promise<MultipartCompleteAck> {
@@ -900,7 +935,6 @@ export function createMultipartService(db: Db, options: MultipartServiceOptions 
       if (!parsed.success) throw invalidSchema('complete', parsed.error);
       assertWorkerMultipartSealingAvailable();
       const req = parsed.data;
-      const backend = requireStorage();
       const taskId = await ownerTaskOf(artifactId);
 
       const opened = await db.tx(async (client) => {
@@ -923,6 +957,7 @@ export function createMultipartService(db: Db, options: MultipartServiceOptions 
       if (opened.kind === 'replay') return opened.ack;
 
       const { session, declared } = opened;
+      const backend = requireStorage(session.storageGenerationId);
       const published = await publishVerifiedBytes(backend, session, req, declared);
       const { versionId, pinnedSizeBytes, pinnedSha256 } = published;
 
@@ -956,10 +991,10 @@ export function createMultipartService(db: Db, options: MultipartServiceOptions 
             replayed: false,
           };
         });
-        if (committed.replayed) await deleteUnpublishedVersion(session.storageKey, versionId);
+        if (committed.replayed) await deleteUnpublishedVersion(session.storageKey, versionId, session.storageGenerationId);
         return completeAck(committed.session, committed.replayed);
       } catch (error) {
-        await deleteUnpublishedVersion(session.storageKey, versionId);
+        await deleteUnpublishedVersion(session.storageKey, versionId, session.storageGenerationId);
         throw error;
       }
     },
@@ -968,14 +1003,12 @@ export function createMultipartService(db: Db, options: MultipartServiceOptions 
       const parsed = MultipartAbortRequestSchema.safeParse(body);
       if (!parsed.success) throw invalidSchema('abort', parsed.error);
       const req = parsed.data;
-      const backend = requireStorage();
       const taskId = await ownerTaskOf(artifactId);
-      const outcome = await abortSession(backend, { artifactId, taskId, leaseEpoch: req.leaseEpoch, reason: req.reason });
+      const outcome = await abortSession({ artifactId, taskId, leaseEpoch: req.leaseEpoch, reason: req.reason });
       return { artifactId, state: 'ABORTED', replayed: outcome.replayed };
     },
 
     async sweepExpiredSessions(sweep = {}): Promise<MultipartSweepSummary> {
-      const backend = requireStorage();
       const nowMs = sweep.nowMs ?? now();
       const limit = Math.min(Math.max(Math.trunc(sweep.limit ?? 50), 1), 1000);
       const candidates = await db.query<SessionRow>(
@@ -1010,7 +1043,7 @@ export function createMultipartService(db: Db, options: MultipartServiceOptions 
             if (!claimed) continue;
             summary.aborted += 1;
           }
-          if (await purgeSessionStorage(backend, session.artifactId)) summary.purged += 1;
+          if (await purgeSessionStorage(session.artifactId)) summary.purged += 1;
         } catch {
           summary.failed += 1;
         }
@@ -1024,7 +1057,6 @@ export function createMultipartService(db: Db, options: MultipartServiceOptions 
       const parsed = PublicMultipartInitRequestSchema.safeParse(body);
       if (!parsed.success) throw invalidSchema('uploads init', parsed.error);
       const req = parsed.data;
-      const backend = requireStorage();
       if (req.sizeBytes > policy.maxTotalBytes) {
         throw new HttpError(413, 'PAYLOAD_TOO_LARGE', 'artifact exceeds the configured multipart size limit');
       }
@@ -1041,6 +1073,9 @@ export function createMultipartService(db: Db, options: MultipartServiceOptions 
         assertSessionLive(existing);
         return initAck(existing, true);
       }
+
+      const selectedStorage = await storageForNewSession();
+      const backend = selectedStorage.backend;
 
       const artifactId = randomUUID();
       const storageKey = `art-${artifactId}`;
@@ -1065,10 +1100,10 @@ export function createMultipartService(db: Db, options: MultipartServiceOptions 
       // make the row structurally unreachable from the worker lifecycle.
       const inserted = await db.query(
         `INSERT INTO artifacts (id, tenant_id, purpose, file_name, mime_type, size_bytes,
-                               state, token, storage_key, storage_backend,
+                               state, token, storage_key, storage_backend, storage_generation_id,
                                upload_token, multipart_upload_id, part_size_bytes, part_count,
                                multipart_expires_at)
-         VALUES ($1,$2,'input',$3,$4,$5,'STAGING',$6,$7,'s3',$8,$9,$10,$11,$12)
+         VALUES ($1,$2,'input',$3,$4,$5,'STAGING',$6,$7,'s3',$8,$9,$10,$11,$12,$13)
          ON CONFLICT (tenant_id, upload_token) WHERE task_id IS NULL AND upload_token IS NOT NULL DO NOTHING
          RETURNING id`,
         [
@@ -1079,6 +1114,7 @@ export function createMultipartService(db: Db, options: MultipartServiceOptions 
           req.sizeBytes,
           randomUUID(),
           storageKey,
+          selectedStorage.generationId,
           req.uploadToken,
           uploadId,
           policy.partSizeBytes,
@@ -1113,7 +1149,6 @@ export function createMultipartService(db: Db, options: MultipartServiceOptions 
       const parsed = PublicMultipartPartGrantRequestSchema.safeParse(body);
       if (!parsed.success) throw invalidSchema('uploads part grant', parsed.error);
       const req = parsed.data;
-      const backend = requireStorage();
       const prepared = await db.tx(async (client) => {
         const session = assertSessionLive(lockPublicSession(await lockSessionTenant(client, artifactId, tenantId)));
         if (req.partNumber > session.partCount) {
@@ -1123,7 +1158,7 @@ export function createMultipartService(db: Db, options: MultipartServiceOptions 
         await insertPartDeclaration(client, artifactId, req.partNumber, req.sha256, sizeBytes);
         return { session, sizeBytes };
       });
-      return presignPartGrant(backend, prepared.session, artifactId, req.partNumber, req.sha256, prepared.sizeBytes);
+      return presignPartGrant(requireStorage(prepared.session.storageGenerationId), prepared.session, artifactId, req.partNumber, req.sha256, prepared.sizeBytes);
     },
 
     async publicComplete(artifactId, tenantId, body): Promise<MultipartCompleteAck> {
@@ -1133,7 +1168,6 @@ export function createMultipartService(db: Db, options: MultipartServiceOptions 
       const parsed = PublicMultipartCompleteRequestSchema.safeParse(body);
       if (!parsed.success) throw invalidSchema('uploads complete', parsed.error);
       const req = parsed.data;
-      const backend = requireStorage();
       const opened = await db.tx(async (client) => {
         const session = lockPublicSession(await lockSessionTenant(client, artifactId, tenantId));
         // The replay branch runs BEFORE the liveness gate on this branch: a
@@ -1156,6 +1190,7 @@ export function createMultipartService(db: Db, options: MultipartServiceOptions 
       if (opened.kind === 'replay') return opened.ack;
 
       const { session, declared } = opened;
+      const backend = requireStorage(session.storageGenerationId);
       const { versionId, pinnedSizeBytes, pinnedSha256 } =
         await publishVerifiedBytes(backend, session, req, declared);
 
@@ -1191,10 +1226,10 @@ export function createMultipartService(db: Db, options: MultipartServiceOptions 
             replayed: false,
           };
         });
-        if (committed.replayed) await deleteUnpublishedVersion(session.storageKey, versionId);
+        if (committed.replayed) await deleteUnpublishedVersion(session.storageKey, versionId, session.storageGenerationId);
         return completeAck(committed.session, committed.replayed);
       } catch (error) {
-        await deleteUnpublishedVersion(session.storageKey, versionId);
+        await deleteUnpublishedVersion(session.storageKey, versionId, session.storageGenerationId);
         throw error;
       }
     },
@@ -1203,7 +1238,6 @@ export function createMultipartService(db: Db, options: MultipartServiceOptions 
       const parsed = PublicMultipartAbortRequestSchema.safeParse(body);
       if (!parsed.success) throw invalidSchema('uploads abort', parsed.error);
       const req = parsed.data;
-      const backend = requireStorage();
       const claimed = await db.tx(async (client) => {
         const session = lockPublicSession(await lockSessionTenant(client, artifactId, tenantId));
         if (session.state === 'ABORTED') return { replayed: true };
@@ -1225,7 +1259,7 @@ export function createMultipartService(db: Db, options: MultipartServiceOptions 
       });
       // Mark-then-purge, exactly like the runtime abort: the row is terminal
       // before any byte is dropped; a crash between is finished by the sweep.
-      await purgeSessionStorage(backend, artifactId);
+      await purgeSessionStorage(artifactId);
       return { artifactId, state: 'ABORTED', replayed: claimed.replayed };
     },
   };
@@ -1240,7 +1274,6 @@ export function createMultipartService(db: Db, options: MultipartServiceOptions 
    * `sweepExpiredSessions` looks for to finish the cleanup.
    */
   async function abortSession(
-    backend: ArtifactMultipartStorage,
     input: { artifactId: string; taskId: string; leaseEpoch: number; reason: string },
   ): Promise<{ replayed: boolean }> {
     const claimed = await db.tx(async (client) => {
@@ -1263,15 +1296,16 @@ export function createMultipartService(db: Db, options: MultipartServiceOptions 
     });
     // Mark-then-purge: the row is terminal before any byte is dropped, so a
     // concurrent complete can never commit against a row being aborted.
-    await purgeSessionStorage(backend, input.artifactId);
+    await purgeSessionStorage(input.artifactId);
     return { replayed: claimed.replayed };
   }
 
   /** Best-effort storage cleanup for one ABORTED row; true when it completed. */
-  async function purgeSessionStorage(backend: ArtifactMultipartStorage, artifactId: string): Promise<boolean> {
+  async function purgeSessionStorage(artifactId: string): Promise<boolean> {
     const res = await db.query<SessionRow>(`${SESSION_SELECT} WHERE id=$1`, [artifactId]);
     const session = res.rowCount ? toSession(res.rows[0] as SessionRow) : null;
     if (!session) return false;
+    const backend = requireStorage(session.storageGenerationId);
     let clean = true;
     if (session.committedVersionId) {
       try {

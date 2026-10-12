@@ -13,6 +13,7 @@ import {
 } from '../src/modules/operations/ingestion-storage-s3';
 import { createSourceAcquisitionIngestor } from '@du/worker-sdk';
 import { createIngestionConsumer } from '../src/modules/operations/ingestion-consumer';
+import type { BackupArtifactEffectPort } from '../src/modules/maintenance/backup-effect-fence';
 
 /**
  * SEC-ENC-03 (SD-02) focused tests. Offline only: an in-memory versioned
@@ -232,6 +233,53 @@ describe('SEC-ENC-03 encrypted source acquisition (SD-02)', () => {
     );
     expect(opened.decrypted).toBe(true);
     expect(opened.bytes.equals(plaintext)).toBe(true);
+  });
+
+  it('opens a durable ingestion effect immediately before S3 and returns exact object/sidecar pins for row settlement', async () => {
+    const events: string[] = [];
+    const s3 = makeVersionedS3();
+    const send = async (command: unknown) => {
+      events.push('s3:' + (command as { constructor: { name: string } }).constructor.name);
+      return s3.send(command);
+    };
+    const effectPort = {
+      begin: async (input: { effectKey: string; storageGenerationId: string }) => {
+        events.push('begin');
+        expect(input.effectKey).toMatch(/^ingestion:[a-f0-9]{64}$/);
+        expect(input.storageGenerationId).toBe('33333333-3333-4333-8333-333333333333');
+        return { effectId: '44444444-4444-4444-8444-444444444444', state: 'PREPARED' as const, replayed: false };
+      },
+      activate: async () => { events.push('activate'); return true; },
+      cancelPrepared: async () => true,
+      settle: async () => true,
+      markUnknown: async () => undefined,
+      observe: async () => { throw new Error('not used'); },
+      lookup: async () => undefined,
+      snapshotOpenCapabilities: async () => { throw new Error('not used'); },
+    } as unknown as BackupArtifactEffectPort;
+    const writer = createS3EncryptedPinnedSourceStorage({
+      bucket: BUCKET,
+      send,
+      db: emptyDb,
+      storageGenerationId: '33333333-3333-4333-8333-333333333333',
+      backupArtifactEffects: effectPort,
+      encryption: { facade: new CryptoStorageFacade(makeKeyProvider()), keyRef: 'du-source-kv' },
+    });
+    const { description } = await writer.putEncrypted({
+      storageKey: SOURCE_KEY,
+      body: chunkStream(Buffer.from('fenced source bytes'), 4),
+      maxBytes: 1024,
+    }, contextFor());
+
+    expect(events[0]).toBe('begin');
+    expect(events[1]).toBe('activate');
+    expect(events[2]).toBe('s3:PutObjectCommand');
+    expect(description).toMatchObject({
+      backupEffectId: '44444444-4444-4444-8444-444444444444',
+      storageGenerationId: '33333333-3333-4333-8333-333333333333',
+    });
+    expect(description.manifestSha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(description.manifestSizeBytes).toBeGreaterThan(0);
   });
 
   it('chunked: a source above the single-shot limit roundtrips through the streaming envelope', async () => {

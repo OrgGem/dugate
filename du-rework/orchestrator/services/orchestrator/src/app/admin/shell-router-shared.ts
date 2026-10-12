@@ -103,6 +103,8 @@ export function parseQueryString(raw: string): Record<string, string> {
  * adapter can pass the live orchestrator state. No DB, no Redis.
  */
 export interface ShellRuntimeConfig {
+  localAuth?: import('./local-auth-boot').LocalAdminAuth;
+  tenantCredentialFor?: (tenantId: string) => string | undefined;
   /** HMAC secret for the `du_admin` cookie. Empty string disables signing. */
   cookieSecret: string;
   /** Bearer token that grants admin access to the orchestrator API. */
@@ -326,8 +328,8 @@ export interface ApiKeySectionFetcher {
  *
  * The default fetcher (`fetchOperationDetail` from
  * `./operation-section-data`) targets
- * `{jsonBaseUrl}/api/v1/operations[/<operationId>]`. The platform exposes
- * `GET /api/v1/operations/:id` today; the request is recorded in
+ * `{jsonBaseUrl}/api/internal/operations[/<operationId>]`. The platform exposes
+ * `GET /api/internal/operations/:id` today; the request is recorded in
  * `coordination/reports/openclaude.md`. Until the route is wired the
  * fetcher falls back to the in-process `manifestCatalog` so the renderer
  * can be exercised end-to-end, or returns the matching discriminated

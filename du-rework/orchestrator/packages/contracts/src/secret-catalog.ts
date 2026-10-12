@@ -41,6 +41,8 @@ export const SECRET_PURPOSES = [
   'profile.callback_oauth2_client_secret',
   'oidc.client_secret',
   'source.auth',
+  'storage.credential',
+  'maintenance.backup_encryption',
   'generic',
 ] as const;
 export const SecretPurposeSchema = z.enum(SECRET_PURPOSES);

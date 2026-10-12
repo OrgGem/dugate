@@ -9,6 +9,7 @@ import {
 } from '@aws-sdk/client-s3';
 import { SourceIngestionError, type PinnedSourceStorage, type PinnedSourceWrite, type SourceIngestionReceipt } from '@du/worker-sdk';
 import type { Db } from '../../db/db';
+import type { BackupArtifactEffectPort } from '../maintenance/backup-effect-fence';
 import {
   CRYPTO_STORAGE_SINGLE_SHOT_LIMIT_BYTES,
   CryptoStorageError,
@@ -70,6 +71,22 @@ export interface S3PinnedSourceStorageOptions {
   /** Real deployments pass (command) => client.send(command as never). */
   send: S3PinnedCommandSender;
   db: Db;
+  /** Snapshot permit for encrypted ingestion writes. */
+  backupArtifactEffects?: BackupArtifactEffectPort;
+  /** Exact immutable generation selected for this writer. */
+  storageGenerationId?: string;
+}
+
+export interface S3GenerationWriteTarget {
+  generationId: string;
+  bucket: string;
+  send: S3PinnedCommandSender;
+}
+
+export type S3GenerationWriteResolver = () => Promise<S3GenerationWriteTarget>;
+
+export interface StorageGenerationPinnedSourceStorage extends PinnedSourceStorage {
+  storageGenerationIdFor(storageKey: string, versionId: string): Promise<string | null>;
 }
 
 const PIN_FIND_SQL =
@@ -117,6 +134,10 @@ export interface EncryptedSourceWriteDescription {
   manifestVersionId: string;
   ciphertextSha256: string;
   ciphertextSizeBytes: number;
+  manifestSha256: string;
+  manifestSizeBytes: number;
+  storageGenerationId: string | null;
+  backupEffectId?: string;
 }
 
 export interface S3SourceEncryptionOptions {
@@ -132,6 +153,7 @@ export interface S3EncryptedPinnedSourceStorageOptions extends S3PinnedSourceSto
 }
 
 export interface S3EncryptedPinnedSourceStorage extends PinnedSourceStorage {
+  storageGenerationIdFor(storageKey: string, versionId: string): Promise<string | null>;
   /**
    * Seal `input.body` with the canonical envelope writer and persist
    * ciphertext + manifest sidecar. Returns the SDK write receipt (plaintext
@@ -394,13 +416,16 @@ export function createS3EncryptedPinnedSourceStorage(
   if (!options || typeof options.bucket !== 'string' || !options.bucket) {
     throw new Error('encrypted source storage requires a bucket');
   }
+  if (options.backupArtifactEffects && !options.storageGenerationId) {
+    throw new Error('encrypted source effect tracking requires an immutable storage generation');
+  }
   const encryption = assertEncryptionOptions(options.encryption);
   const resolvePinned = createResolvePinned(options.db);
 
-  const deleteVersion = async (key: string, versionId: string | undefined): Promise<void> => {
+  const deleteVersion = async (key: string, versionId: string | undefined, send: S3PinnedCommandSender): Promise<void> => {
     if (!versionId) return;
     try {
-      await options.send(new DeleteObjectCommand({ Bucket: options.bucket, Key: key, VersionId: versionId }));
+      await send(new DeleteObjectCommand({ Bucket: options.bucket, Key: key, VersionId: versionId }));
     } catch {
       // Best-effort cleanup: the safe failure result must not change.
     }
@@ -445,13 +470,13 @@ export function createS3EncryptedPinnedSourceStorage(
     artifactId: string;
     tenantId: string;
     manifest: Record<string, unknown>;
-  }): Promise<string> => {
+  }, send: S3PinnedCommandSender): Promise<{ versionId: string; sha256: string; sizeBytes: number }> => {
     const manifestKey = manifestKeyFor(input.storageKey);
     const body = Buffer.from(JSON.stringify(input.manifest), 'utf8');
     const expectedSha256 = createHash('sha256').update(body).digest('hex');
     let versionId: string | undefined;
     try {
-      const put = await options.send(new PutObjectCommand({
+      const put = await send(new PutObjectCommand({
         Bucket: options.bucket,
         Key: manifestKey,
         Body: body,
@@ -467,7 +492,7 @@ export function createS3EncryptedPinnedSourceStorage(
       if (!versionId || versionId === 'null') {
         throw new SourceIngestionError(502, 'STORAGE_FAILURE', 'storage did not return an immutable manifest version');
       }
-      const head = await options.send(new HeadObjectCommand({
+      const head = await send(new HeadObjectCommand({
         Bucket: options.bucket,
         Key: manifestKey,
         VersionId: versionId,
@@ -481,7 +506,7 @@ export function createS3EncryptedPinnedSourceStorage(
       ) {
         throw new SourceIngestionError(502, 'STORAGE_FAILURE', 'encrypted source manifest could not be verified');
       }
-      const output = await options.send(new GetObjectCommand({
+      const output = await send(new GetObjectCommand({
         Bucket: options.bucket,
         Key: manifestKey,
         VersionId: versionId,
@@ -490,9 +515,9 @@ export function createS3EncryptedPinnedSourceStorage(
       if (actualSha256 !== expectedSha256) {
         throw new SourceIngestionError(502, 'PIN_MISMATCH', 'encrypted source manifest checksum does not match');
       }
-      return versionId;
+      return { versionId, sha256: expectedSha256, sizeBytes: body.length };
     } catch (error) {
-      await deleteVersion(manifestKey, versionId);
+      await deleteVersion(manifestKey, versionId, send);
       throw error;
     } finally {
       body.fill(0);
@@ -508,8 +533,8 @@ export function createS3EncryptedPinnedSourceStorage(
     tenantId: string;
     ciphertextSha256: string;
     ciphertextSizeBytes: number;
-  }): Promise<void> => {
-    const head = await options.send(new HeadObjectCommand({
+  }, send: S3PinnedCommandSender): Promise<void> => {
+    const head = await send(new HeadObjectCommand({
       Bucket: options.bucket,
       Key: input.storageKey,
       VersionId: input.versionId,
@@ -527,7 +552,7 @@ export function createS3EncryptedPinnedSourceStorage(
     }
     let output: { Body?: unknown };
     try {
-      output = await options.send(new GetObjectCommand({
+      output = await send(new GetObjectCommand({
         Bucket: options.bucket,
         Key: input.storageKey,
         VersionId: input.versionId,
@@ -554,6 +579,15 @@ export function createS3EncryptedPinnedSourceStorage(
 
   return {
     resolvePinned,
+    storageGenerationIdFor: async (storageKey, versionId) => {
+      const result = await options.db.query<{ storage_generation_id: string | null }>(
+        `SELECT storage_generation_id FROM artifacts
+          WHERE storage_key=$1 AND storage_version_id=$2 AND state='READY'
+          ORDER BY created_at DESC LIMIT 1`,
+        [storageKey, versionId],
+      );
+      return result.rows[0]?.storage_generation_id ?? null;
+    },
 
     async putVerified(): Promise<PinnedSourceWrite> {
       // The encrypted adapter never writes raw plaintext: a caller without an
@@ -580,6 +614,29 @@ export function createS3EncryptedPinnedSourceStorage(
         ...(encryption.keyVersion === undefined ? {} : { keyVersion: encryption.keyVersion }),
       };
       const storageKey = input.storageKey;
+      const effect = options.backupArtifactEffects
+        ? await options.backupArtifactEffects.begin({
+            effectKey: `ingestion:${createHash('sha256').update(JSON.stringify([context.tenantId, context.artifactId, context.objectVersion])).digest('hex')}`,
+            category: 'ingestion-write',
+            tenantId: context.tenantId,
+            artifactId: context.artifactId,
+            storageGenerationId: options.storageGenerationId!,
+            objectKeySha256: createHash('sha256').update(storageKey).digest('hex'),
+          })
+        : undefined;
+      if (effect && effect.state !== 'PREPARED') {
+        throw new SourceIngestionError(503, 'STORAGE_FAILURE', 'encrypted source effect is unresolved and cannot be replayed');
+      }
+      let effectActivated = false;
+      const send: S3PinnedCommandSender = async (command) => {
+        if (effect && !effectActivated) {
+          if (!await options.backupArtifactEffects!.activate(effect.effectId)) {
+            throw new SourceIngestionError(503, 'STORAGE_FAILURE', 'encrypted source write was fenced before storage access');
+          }
+          effectActivated = true;
+        }
+        return options.send(command);
+      };
       const manifestKey = manifestKeyFor(storageKey);
       const metadata = {
         artifactid: context.artifactId,
@@ -591,6 +648,8 @@ export function createS3EncryptedPinnedSourceStorage(
       const ciphertextSink: CiphertextSink = { sha256: '', sizeBytes: -1 };
       let versionId: string | undefined;
       let manifestVersionId: string | undefined;
+      let manifestSha256: string | undefined;
+      let manifestSizeBytes: number | undefined;
       let encryptionStream: ReturnType<CryptoStorageFacade['encryptStream']> | undefined;
       let plainBuffer: Buffer | undefined;
       try {
@@ -605,7 +664,7 @@ export function createS3EncryptedPinnedSourceStorage(
           const ciphertext = encrypted.ciphertext;
           ciphertextSink.sha256 = createHash('sha256').update(ciphertext).digest('hex');
           ciphertextSink.sizeBytes = ciphertext.length;
-          const put = await options.send(new PutObjectCommand({
+          const put = await send(new PutObjectCommand({
             Bucket: options.bucket,
             Key: storageKey,
             Body: ciphertext,
@@ -626,7 +685,7 @@ export function createS3EncryptedPinnedSourceStorage(
             { objectMode: false, highWaterMark: CRYPTO_STORAGE_SINGLE_SHOT_LIMIT_BYTES },
           );
           const [put, encryptedManifest] = await Promise.all([
-            options.send(new PutObjectCommand({
+            send(new PutObjectCommand({
               Bucket: options.bucket,
               Key: storageKey,
               Body: body,
@@ -648,12 +707,15 @@ export function createS3EncryptedPinnedSourceStorage(
         if (ciphertextSink.sizeBytes !== plaintextSink.sizeBytes) {
           throw new SourceIngestionError(502, 'PIN_MISMATCH', 'ciphertext length does not match the plaintext length');
         }
-        manifestVersionId = await storeManifest({
+        const storedManifest = await storeManifest({
           storageKey,
           artifactId: context.artifactId,
           tenantId: context.tenantId,
           manifest,
-        });
+        }, send);
+        manifestVersionId = storedManifest.versionId;
+        manifestSha256 = storedManifest.sha256;
+        manifestSizeBytes = storedManifest.sizeBytes;
         await verifyCiphertext({
           storageKey,
           versionId,
@@ -662,7 +724,7 @@ export function createS3EncryptedPinnedSourceStorage(
           tenantId: context.tenantId,
           ciphertextSha256: ciphertextSink.sha256,
           ciphertextSizeBytes: ciphertextSink.sizeBytes,
-        });
+        }, send);
         return {
           write: {
             storageKey,
@@ -676,12 +738,23 @@ export function createS3EncryptedPinnedSourceStorage(
             manifestVersionId,
             ciphertextSha256: ciphertextSink.sha256,
             ciphertextSizeBytes: ciphertextSink.sizeBytes,
+            manifestSha256: manifestSha256!,
+            manifestSizeBytes: manifestSizeBytes!,
+            storageGenerationId: options.storageGenerationId ?? null,
+            ...(effect ? { backupEffectId: effect.effectId } : {}),
           },
         };
       } catch (error) {
         encryptionStream?.ciphertext.destroy();
-        await deleteVersion(storageKey, versionId);
-        await deleteVersion(manifestKey, manifestVersionId);
+        await deleteVersion(storageKey, versionId, send);
+        await deleteVersion(manifestKey, manifestVersionId, send);
+        if (effect) {
+          if (effectActivated) {
+            await options.backupArtifactEffects!.markUnknown(effect.effectId, 'INGESTION_WRITE_OUTCOME_AMBIGUOUS').catch(() => undefined);
+          } else {
+            await options.backupArtifactEffects!.cancelPrepared(effect.effectId, 'INGESTION_WRITE_FAILED_BEFORE_SEND').catch(() => undefined);
+          }
+        }
         mapWriteError(error);
       } finally {
         plainBuffer?.fill(0);
@@ -694,9 +767,18 @@ export function createS3EncryptedPinnedSourceStorage(
 /* Historical plaintext variant                                        */
 /* ------------------------------------------------------------------ */
 
-export function createS3PinnedSourceStorage(options: S3PinnedSourceStorageOptions): PinnedSourceStorage {
+export function createS3PinnedSourceStorage(options: S3PinnedSourceStorageOptions): StorageGenerationPinnedSourceStorage {
   return {
     resolvePinned: createResolvePinned(options.db),
+    async storageGenerationIdFor(storageKey, versionId) {
+      const result = await options.db.query<{ storage_generation_id: string | null }>(
+        `SELECT storage_generation_id FROM artifacts
+          WHERE storage_key=$1 AND storage_version_id=$2 AND state='READY'
+          ORDER BY created_at DESC LIMIT 1`,
+        [storageKey, versionId],
+      );
+      return result.rows[0]?.storage_generation_id ?? null;
+    },
 
     async putVerified(input: {
       storageKey: string;
@@ -762,6 +844,89 @@ export function createS3PinnedSourceStorage(options: S3PinnedSourceStorageOption
         }
       }
       return { storageKey: input.storageKey, versionId, sha256, sizeBytes };
+    },
+  };
+}
+
+/** Resolve the active generation for a new source object, then keep the exact
+ * generation associated with the committed object version until materialize
+ * stores its immutable locator. On retry, lookup falls back to the durable
+ * artifacts.storage_generation_id row and never selects the new active head. */
+export function createGenerationAwareS3PinnedSourceStorage(input: {
+  db: Db;
+  resolveTarget: S3GenerationWriteResolver;
+}): StorageGenerationPinnedSourceStorage {
+  const generationByVersion = new Map<string, string>();
+  const keyOf = (storageKey: string, versionId: string) => `${storageKey}\0${versionId}`;
+  const durableGenerationIdFor = async (storageKey: string, versionId: string): Promise<string | null> => {
+    const cached = generationByVersion.get(keyOf(storageKey, versionId));
+    if (cached) return cached;
+    const result = await input.db.query<{ storage_generation_id: string | null }>(
+      `SELECT storage_generation_id FROM artifacts
+        WHERE storage_key=$1 AND storage_version_id=$2 AND state='READY'
+        ORDER BY created_at DESC LIMIT 1`,
+      [storageKey, versionId],
+    );
+    return result.rows[0]?.storage_generation_id ?? null;
+  };
+  return {
+    resolvePinned: createResolvePinned(input.db),
+    storageGenerationIdFor: durableGenerationIdFor,
+    async putVerified(writeInput) {
+      const target = await input.resolveTarget();
+      if (!target.generationId || !target.bucket || typeof target.send !== 'function') {
+        throw new SourceIngestionError(503, 'STORAGE_FAILURE', 'active storage generation is unavailable');
+      }
+      const writer = createS3PinnedSourceStorage({ db: input.db, bucket: target.bucket, send: target.send });
+      const receipt = await writer.putVerified(writeInput);
+      generationByVersion.set(keyOf(receipt.storageKey, receipt.versionId), target.generationId);
+      return receipt;
+    },
+  };
+}
+
+/** Encrypted counterpart of createGenerationAwareS3PinnedSourceStorage. */
+export function createGenerationAwareS3EncryptedPinnedSourceStorage(input: {
+  db: Db;
+  resolveTarget: S3GenerationWriteResolver;
+  encryption: S3SourceEncryptionOptions;
+  backupArtifactEffects?: BackupArtifactEffectPort;
+}): S3EncryptedPinnedSourceStorage {
+  const generationByVersion = new Map<string, string>();
+  const keyOf = (storageKey: string, versionId: string) => `${storageKey}\0${versionId}`;
+  const durableGenerationIdFor = async (storageKey: string, versionId: string): Promise<string | null> => {
+    const cached = generationByVersion.get(keyOf(storageKey, versionId));
+    if (cached) return cached;
+    const result = await input.db.query<{ storage_generation_id: string | null }>(
+      `SELECT storage_generation_id FROM artifacts
+        WHERE storage_key=$1 AND storage_version_id=$2 AND state='READY'
+        ORDER BY created_at DESC LIMIT 1`,
+      [storageKey, versionId],
+    );
+    return result.rows[0]?.storage_generation_id ?? null;
+  };
+  return {
+    resolvePinned: createResolvePinned(input.db),
+    storageGenerationIdFor: durableGenerationIdFor,
+    async putVerified(): Promise<PinnedSourceWrite> {
+      throw new SourceIngestionError(502, 'STORAGE_FAILURE', 'encrypted source storage requires an envelope context (putEncrypted)');
+    },
+    async putEncrypted(writeInput, context) {
+      const target = await input.resolveTarget();
+      if (!target.generationId || !target.bucket || typeof target.send !== 'function') {
+        throw new SourceIngestionError(503, 'STORAGE_FAILURE', 'active storage generation is unavailable');
+      }
+      const writer = createS3EncryptedPinnedSourceStorage({
+        db: input.db,
+        bucket: target.bucket,
+        send: target.send,
+        storageGenerationId: target.generationId,
+        ...(input.backupArtifactEffects ? { backupArtifactEffects: input.backupArtifactEffects } : {}),
+        encryption: input.encryption,
+      });
+      const result = await writer.putEncrypted(writeInput, context);
+      generationByVersion.set(keyOf(result.write.storageKey, result.write.versionId), target.generationId);
+      return result;
     },
   };
 }

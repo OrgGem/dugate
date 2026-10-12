@@ -1,0 +1,12 @@
+PASS services/orchestrator/tests/budget-reservations.test.ts
+PASS services/orchestrator/tests/orv12-usage-settlement.test.ts
+PASS services/orchestrator/tests/usage-contracts-integration-offline.test.ts
+PASS services/orchestrator/tests/orv14-cost-adjustments-service-owner.test.ts
+PASS services/orchestrator/tests/orv12-spend-admission.test.ts
+PASS services/orchestrator/tests/orv14-effective-charges-owner.test.ts
+
+Test Suites: 6 passed, 6 total
+Tests:       43 passed, 43 total
+Snapshots:   0 total
+Time:        3.085 s, estimated 5 s
+Ran all test suites matching /services\/orchestrator\/tests\/orv14-effective-charges-owner.test.ts|services\/orchestrator\/tests\/orv14-cost-adjustments-service-owner.test.ts|services\/orchestrator\/tests\/budget-reservations.test.ts|services\/orchestrator\/tests\/orv12-usage-settlement.test.ts|services\/orchestrator\/tests\/usage-contracts-integration-offline.test.ts|services\/orchestrator\/tests\/orv12-spend-admission.test.ts/i.

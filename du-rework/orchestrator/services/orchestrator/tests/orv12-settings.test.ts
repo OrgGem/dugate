@@ -1,0 +1,65 @@
+import {randomUUID} from 'node:crypto';
+import {readdirSync,readFileSync} from 'node:fs';
+import {resolve} from 'node:path';
+import {createDb,type Db} from '../src/db/db';
+import {createMetadataCrypto} from '../src/modules/runtime/metadata-crypto';
+import {createSettingsRevision,validateSettingsRevision,applySettingsRevision,readSettingsConfiguration} from '../src/modules/settings/revisions';
+import {createPromptOverrideService} from '../src/modules/profiles/prompt-overrides';
+const root=createDb('postgresql://du_wfa:du_wfa_test_only@127.0.0.1:55498/du_workflow_api_test');
+const schema=`set_owner_${randomUUID().replace(/-/g,'')}`;
+const url=new URL('postgresql://du_wfa:du_wfa_test_only@127.0.0.1:55498/du_workflow_api_test');url.searchParams.set('options',`-c search_path=${schema},public`);
+let db:Db;let scope:{tenantId:string;apiKeyId:string;endpointSlug:string};let connectionId:string;let profileId:string;
+const keys=new Map<string,Buffer>();
+const crypto=createMetadataCrypto({wrapDek:async(dek,keyName)=>{const id=randomUUID();keys.set(id,Buffer.from(dek));return {version:1,keyName,keyVersion:1,wrappedKey:id};},unwrapDek:async(ref)=>keys.get(ref.wrappedKey)!},'synthetic-owner');
+const deps={metadataCrypto:crypto,connectorManagement:{getRevision:async()=>({state:'ACTIVE'})} as never};
+beforeAll(async()=>{await root.query(`CREATE SCHEMA "${schema}"`);db=createDb(url.toString());for(const name of readdirSync(resolve('migrations')).filter(x=>x.endsWith('.sql')).sort())await db.query(readFileSync(resolve('migrations',name),'utf8'));});
+afterAll(async()=>{await db?.close();await root.query(`DROP SCHEMA "${schema}" CASCADE`);await root.close();});
+beforeEach(async()=>{
+ scope={tenantId:randomUUID(),apiKeyId:randomUUID(),endpointSlug:'extract:invoice'};connectionId=randomUUID();profileId=randomUUID();
+ await db.query('INSERT INTO tenants(id,name) VALUES($1,$2)',[scope.tenantId,'Synthetic']);
+ await db.query("INSERT INTO api_keys(id,tenant_id,hash,prefix) VALUES($1,$2,$3,'test')",[scope.apiKeyId,scope.tenantId,randomUUID()]);
+ await db.query("INSERT INTO business_versions(business_id,version,status,is_active,digest,queue,manifest) VALUES('document-core','test','ENABLED',true,'test','test','{}') ON CONFLICT DO NOTHING");
+ await db.query("INSERT INTO profile_bindings(profile_id,revision,tenant_id,api_key_id,business_id,business_version,action,endpoint_slug,connector_bindings) VALUES($1,1,$2,$3,'document-core','test','extract',$4,$5)",[profileId,scope.tenantId,scope.apiKeyId,scope.endpointSlug,JSON.stringify({reasoning:{connectorId:connectionId,revision:1}})]);
+ await db.query('INSERT INTO profile_active_revisions(profile_id,revision) VALUES($1,1)',[profileId]);
+ await db.query("INSERT INTO profile_api_keys(profile_id,api_key_id,tenant_id,state) VALUES($1,$2,$3,'ACTIVE')",[profileId,scope.apiKeyId,scope.tenantId]);
+});
+async function draft(value='new prompt'){return db.tx(c=>createSettingsRevision(c,{...scope,expectedActiveRevision:null,changes:{prompts:[{connectionId,stepId:'_default',promptOverride:value}]}},deps));}
+async function validate(revision:number){return db.tx(c=>validateSettingsRevision(c,{...scope,revision},deps));}
+async function apply(revision:number,expectedActiveRevision:number|null=null,rollback=false){return db.tx(c=>applySettingsRevision(c,{...scope,revision,expectedActiveRevision},deps,rollback));}
+test('encrypted draft→validate→apply changes real prompt reader; baseline rollback creates immutable history',async()=>{
+ const d=await draft();expect(d.revision).toBe(1);expect(await validate(d.revision)).toMatchObject({valid:true});
+ expect(await apply(d.revision)).toMatchObject({activeRevision:1});
+ const rows=await db.query('SELECT prompt_override FROM connector_prompt_overrides WHERE api_key_id=$1',[scope.apiKeyId]);expect(rows.rows[0]!.prompt_override).not.toContain('new prompt');
+ const repository=createPromptOverrideService(db,crypto);expect(await repository.listFor(scope.apiKeyId,scope.endpointSlug,scope.tenantId)).toEqual(expect.arrayContaining([expect.objectContaining({promptOverride:'new prompt'})]));
+ expect(await apply(0,1,true)).toMatchObject({revision:2,restoredFrom:0});expect((await repository.listFor(scope.apiKeyId,scope.endpointSlug,scope.tenantId))).toHaveLength(0);
+ expect((await readSettingsConfiguration(db,scope,deps,1)).selectedRevision?.changes.prompts?.[0]?.promptOverride).toBe('new prompt');
+});
+test('draft external dependency drift blocks validation and apply',async()=>{const d=await draft();await db.query("UPDATE profile_bindings SET connector_bindings='{}' WHERE profile_id=$1",[profileId]);expect(await validate(d.revision)).toMatchObject({valid:false});await expect(apply(d.revision)).rejects.toMatchObject({status:409});});
+test('CAS blocks stale draft and preflight profile',async()=>{await expect(db.tx(c=>createSettingsRevision(c,{...scope,expectedActiveRevision:null,expectedProfileRevision:2,changes:{prompts:[{connectionId,stepId:'_default',promptOverride:'x'}]}},deps))).rejects.toMatchObject({status:409});const d=await draft();await validate(d.revision);await apply(d.revision);await expect(draft()).rejects.toMatchObject({status:409});});
+test('baseline rollback before first apply refuses external overwrite',async()=>{await draft();await expect(apply(0,null,true)).rejects.toMatchObject({status:409});});
+test('generic endpoint connector changes rejected while exact profile pins create actual new revision',async()=>{
+ await db.query('UPDATE profile_bindings SET endpoint_slug=NULL WHERE profile_id=$1',[profileId]);
+ const input={...scope,expectedActiveRevision:null,changes:{connectorBindings:{reasoning:{connectorId:connectionId,revision:2}}}};
+ const d=await db.tx(c=>createSettingsRevision(c,input,deps));expect((await validate(d.revision)).issues).toEqual(expect.arrayContaining([expect.objectContaining({code:'SHARED_ENDPOINT_PROFILE'})]));
+ await db.query('UPDATE profile_bindings SET endpoint_slug=$2 WHERE profile_id=$1',[profileId,scope.endpointSlug]);const good=await db.tx(c=>createSettingsRevision(c,input,deps));expect(await validate(good.revision)).toMatchObject({valid:true});await apply(good.revision);expect((await db.query('SELECT revision FROM profile_active_revisions WHERE profile_id=$1',[profileId])).rows[0]!.revision).toBe(2);
+});
+test('concurrent apply has one winner; reader reports later external drift',async()=>{const a=await draft('a'),b=await draft('b');await validate(a.revision);await validate(b.revision);const outcomes=await Promise.allSettled([apply(a.revision),apply(b.revision)]);expect(outcomes.filter(v=>v.status==='fulfilled')).toHaveLength(1);expect((await readSettingsConfiguration(db,scope,deps)).activeRevisionMatchesEffective).toBe(true);await db.query("UPDATE profile_bindings SET enabled=false WHERE profile_id=$1",[profileId]);await expect(readSettingsConfiguration(db,scope,deps)).rejects.toMatchObject({status:422});});
+test('prompt shorthand emits revision and sealed actual consumer value',async()=>{const {updatePromptSetting}=await import('../src/modules/settings/settings');const result=await db.tx(c=>updatePromptSetting(c,{...scope,connectionId,stepId:'_default',promptOverride:'shortcut',expectedUpdatedAt:null},deps));expect(result).toMatchObject({revision:1});expect((await readSettingsConfiguration(db,scope,deps)).activeRevisionMatchesEffective).toBe(true);await expect(db.tx(c=>updatePromptSetting(c,{...scope,connectionId,stepId:'_default',promptOverride:'lost',expectedUpdatedAt:null},deps))).rejects.toMatchObject({status:409});});
+test('readiness HTTP route rejects anonymous and foreign tenant before DB',async()=>{const {handleAdminRoutes}=await import('../src/http/routes/admin');const ctx={method:'GET',pathname:'/api/v1/admin/legacy-migration/readiness',headers:{},searchParams:new URLSearchParams({tenantId:scope.tenantId}),config:{adminToken:'admin',tenantAdminTokens:{scoped:randomUUID()}},db:{query:jest.fn()}} as never;await expect(handleAdminRoutes(ctx)).rejects.toMatchObject({status:401});(ctx as {headers:unknown}).headers={authorization:'Bearer scoped'};await expect(handleAdminRoutes(ctx)).rejects.toMatchObject({status:403});});
+test('settings writes reject viewer and tenant operator before resolving target',async()=>{const {dispatchAdminAction}=await import('../src/modules/admin-actions/dispatcher');for(const action of ['settings.revision.create','settings.revision.validate','settings.revision.apply','settings.revision.rollback']){await expect(dispatchAdminAction({} as never,{kind:'bearer',principal:{role:'tenant_operator',tenantId:scope.tenantId}},{action,params:scope})).rejects.toMatchObject({status:403});}});
+test('native profile upsert creates exact endpoint pins; policy save preserves pins and selector retarget fails',async()=>{
+ const {runProfileUpsert}=await import('../src/modules/admin-actions/profile-actions');const {createProfileService}=await import('../src/modules/profiles/profiles');
+ const service=createProfileService(db);const command={apiKey:{kind:'id' as const,id:scope.apiKeyId},businessId:'document-core',businessVersion:'test',profileName:'dedicated',action:'extract',endpointSlug:scope.endpointSlug,connectorBindings:{reasoning:{connectorId:connectionId,revision:1}},policy:{}};
+ const created=await db.tx(c=>runProfileUpsert(c,{profiles:service,connectorManagement:deps.connectorManagement} as never,command,()=>undefined));
+ const edited=await db.tx(c=>runProfileUpsert(c,{profiles:service,connectorManagement:deps.connectorManagement} as never,{...command,connectorBindings:undefined,endpointSlug:undefined,expectedRevision:created.revision,policy:{enabled:true}},()=>undefined));
+ const row=(await db.query('SELECT endpoint_slug,connector_bindings FROM profile_bindings WHERE profile_id=$1 AND revision=$2',[edited.profileId,edited.revision])).rows[0]!;expect(row.endpoint_slug).toBe(scope.endpointSlug);expect(row.connector_bindings).toEqual(command.connectorBindings);
+ await expect(db.tx(c=>runProfileUpsert(c,{profiles:service,connectorManagement:deps.connectorManagement} as never,{...command,expectedRevision:edited.revision,endpointSlug:'extract:receipt'},()=>undefined))).rejects.toMatchObject({status:409});
+});
+test('concurrent duplicate create/apply replays before CAS without plaintext markers or duplicate audit',async()=>{
+ const {dispatchAdminAction}=await import('../src/modules/admin-actions/dispatcher');const audit={record:jest.fn(async()=>undefined)};const actionDeps={db,audit,...deps} as never;const auth={kind:'bearer' as const,principal:{role:'platform' as const}};
+ const create={action:'settings.revision.create',idempotencyKey:randomUUID(),params:{...scope,expectedActiveRevision:null,changes:{prompts:[{connectionId,stepId:'_default',promptOverride:'sensitive-test-prompt'}]}}};
+ const created=await Promise.all([dispatchAdminAction(actionDeps,auth,create),dispatchAdminAction(actionDeps,auth,create)]);expect(created[0]?.body.revision).toBe(created[1]?.body.revision);expect(audit.record).toHaveBeenCalledTimes(1);
+ const revision=Number(created[0]!.body.revision);await validate(revision);const command={action:'settings.revision.apply',idempotencyKey:randomUUID(),params:{...scope,revision,expectedActiveRevision:null}};const applied=await Promise.all([dispatchAdminAction(actionDeps,auth,command),dispatchAdminAction(actionDeps,auth,command)]);expect(applied[0]).toEqual(applied[1]);expect(audit.record).toHaveBeenCalledTimes(2);
+ expect(JSON.stringify((await db.query('SELECT * FROM admin_idempotency WHERE key=ANY($1)',[[create.idempotencyKey,command.idempotencyKey]])).rows)).not.toContain('sensitive-test-prompt');
+});
+test('native explicit pins refuse missing/inactive/foreign connector before profile name write',async()=>{const {runProfileUpsert}=await import('../src/modules/admin-actions/profile-actions');const {createProfileService}=await import('../src/modules/profiles/profiles');const command={apiKey:{kind:'id' as const,id:scope.apiKeyId},businessId:'document-core',businessVersion:'test',profileName:'denied',action:'extract',endpointSlug:scope.endpointSlug,connectorBindings:{reasoning:{connectorId:connectionId,revision:1}},policy:{}};for(const target of [undefined,{state:'DISABLED'},{state:'ACTIVE',tenantId:randomUUID()}]){await expect(db.tx(c=>runProfileUpsert(c,{profiles:createProfileService(db),connectorManagement:{getRevision:async()=>target}} as never,command,()=>undefined))).rejects.toMatchObject({status:422});}expect((await db.query('SELECT profile_id FROM profile_names WHERE api_key_id=$1',[scope.apiKeyId])).rowCount).toBe(0);});

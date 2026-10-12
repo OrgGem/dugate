@@ -230,7 +230,19 @@ export function decodeLegacyWire(
     }
     canonicalInputFields.set(canonicalKey, value);
   }
-  canonicalInputFields.set('variant', variant);
+  canonicalInputFields.set(discriminatorName === 'action' ? 'variant' : discriminatorName, variant);
+  if (outputFormat.present) canonicalInputFields.set('outputFormat', outputFormat.value);
+  if (canonicalInputFields.has('maxWords') && typeof canonicalInputFields.get('maxWords') === 'string') {
+    canonicalInputFields.set('maxWords', Number(canonicalInputFields.get('maxWords')));
+  }
+  if (typeof canonicalInputFields.get('schema') === 'string') {
+    canonicalInputFields.set('schema', parseParameterObject(canonicalInputFields.get('schema'), 'schema'));
+  }
+  if (action === 'compare') {
+    for (const side of ['source', 'target']) {
+      if (typeof canonicalInputFields.get(side) === 'string') canonicalInputFields.set(side, { text: canonicalInputFields.get(side) });
+    }
+  }
   if (fileUrlsValue.present) canonicalInputFields.set('fileUrls', fileUrls);
   const input = Object.fromEntries(canonicalInputFields);
 
@@ -407,7 +419,7 @@ function parseFileUrls(value: unknown): Array<Record<string, unknown>> {
       throw new LegacyWireDecodeError('INVALID_FILE_URLS', 'file_urls must contain a JSON array', 'file_urls');
     }
   }
-  if (!Array.isArray(entries)) {
+  if (!Array.isArray(entries) || entries.length > 20) {
     throw new LegacyWireDecodeError('INVALID_FILE_URLS', 'file_urls must be an array', 'file_urls');
   }
   return entries.map((entry, index) => {

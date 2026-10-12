@@ -1,3 +1,4 @@
+import { EffectiveSettingsSchema } from '../src/modules/settings/settings';
 /**
  * BFF-SETTINGS-IDENTITY — settings + identity routes (focused, OFFLINE).
  *
@@ -113,6 +114,8 @@ const SETTINGS_VIEW = {
   capabilities: { readerEnabled: true, writerEnabled: false },
 };
 
+const EFFECTIVE_SETTINGS_VIEW = {storage:{backend:'s3',endpoint:'https://s3.example',bucket:'du-artifacts',region:'ap-southeast-1',managedBy:'deployment',restartRequired:true},capabilities:{metadataEncryptionConfigured:true,connectorManagementConfigured:true,credentialManagementConfigured:true,promptOverridesEditable:true,configurationEditable:true},scope:{tenantId:null,apiKeyId:null,endpointSlug:null},availableConnections:[],promptOverrides:[]};
+
 const IDENTITY_SNAPSHOT = {
   users: [
     {
@@ -170,7 +173,7 @@ function startStub(port: number): Promise<Stub> {
         }
         res.statusCode = 200;
         // Upstream is honest here: presence bit only, never a value.
-        res.end(JSON.stringify({ ...SETTINGS_VIEW, storage: { ...SETTINGS_VIEW.storage, secretValue: SECRET_VALUE } }));
+        res.end(JSON.stringify({ ...EFFECTIVE_SETTINGS_VIEW, storage: { ...EFFECTIVE_SETTINGS_VIEW.storage, secretValue: SECRET_VALUE } }));
         return;
       }
       if (url.pathname === '/api/v1/admin/identity' || url.pathname === '/api/v1/admin/identity/users') {
@@ -370,9 +373,9 @@ describe('BFF-SETTINGS-IDENTITY — routes', () => {
     // narrow it away — this is the load-bearing security assertion.
     expect(res.body).not.toContain(SECRET_VALUE);
     expect(res.body).not.toContain('secretValue');
-    const view = SettingsReadSchema.safeParse(JSON.parse(res.body));
+    const view = EffectiveSettingsSchema.safeParse(JSON.parse(res.body));
     expect(view.success).toBe(true);
-    expect(view.success === true && view.data.storage.secretPresent).toBe(true);
+    expect(view.success === true && view.data.storage.managedBy).toBe('deployment');
   });
 
   it('settings GET: an upstream body that does not match the DTO → 502, never a half-trusted echo', async () => {

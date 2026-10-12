@@ -98,7 +98,7 @@ describe('0039: the request path resolves membership, not the revision author', 
     });
     // KEY_B is not the revision author — membership is what resolved it.
     expect(queries[0]?.sql).toContain(MEMBERSHIP_TABLE);
-    expect(queries[0]?.params).toEqual([KEY_B, BUSINESS, VERSION, ACTION]);
+    expect(queries[0]?.params).toEqual([KEY_B, BUSINESS, VERSION, ACTION, null]);
     expect(queries).toHaveLength(1);
   });
 

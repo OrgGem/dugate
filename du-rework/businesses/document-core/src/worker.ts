@@ -16,10 +16,13 @@ import {
   InvocationResponse,
   CONNECTOR_ARTIFACT_MAX_BYTES,
   InvocationArtifactContent,
+  TenantDefaultsSnapshotSchema,
+  contentHash,
   type PinnedProfilePolicy,
   type PinnedPromptOverride,
+  type TenantDefaultsSnapshot,
 } from '@du/contracts';
-import { DocumentFormatDetector } from '@du/document-kit';
+import { DocumentFormatDetector, type SupportedFormat } from '@du/document-kit';
 import { documentCoreManifest } from './manifest/document-core.manifest';
 import { STEP_KEYS } from './recipes/step-keys';
 import {
@@ -37,7 +40,16 @@ import { AnalyzeAction } from './actions/analyze';
 import { TransformAction } from './actions/transform';
 import { GenerateAction } from './actions/generate';
 import { CompareAction } from './actions/compare';
-import { applyPinnedStepPrompt, type PinnedPromptView } from './actions/prompt-application';
+import {
+  applyPinnedStepPrompt,
+  isTenantPromptStep,
+  resolveTenantPromptCategory,
+  type PinnedPromptView,
+} from './actions/prompt-application';
+import {
+  createWorkflowPrivateHttpsEgressPolicy,
+  type WorkflowPrivateHttpsEgressPolicy,
+} from './workflow-private-https-policy';
 import {
   advanceDisbursement,
   buildApprovalEvidence,
@@ -151,7 +163,9 @@ async function writeEnvelopeArtifact(
   envelope: unknown,
   fileName: string
 ): Promise<ArtifactRef> {
-  const bytes = Buffer.from(JSON.stringify(envelope, null, 2), 'utf8');
+  const versioned = typeof envelope === 'object' && envelope !== null ? { ...envelope, version: 'document-core-result-v1' } : envelope;
+  const bytes = Buffer.from(JSON.stringify(versioned, null, 2), 'utf8');
+  if (bytes.byteLength > 64 * 1024 * 1024) throw new BusinessExecutionError('Document result exceeds 64 MiB', 'RESULT_TOO_LARGE', false);
   const sha256 = createHash('sha256').update(bytes).digest('hex');
   return internalCtx.artifacts.writeStream(
     Readable.from([bytes]),
@@ -192,7 +206,115 @@ function taskCrypto(ctx: SdkTaskContext | TaskContext): TaskArtifactCrypto | und
   return withSeam.cryptoFor({ artifactId: 'step-checkpoint', purpose: 'intermediate' });
 }
 
-export function toInternalContext(ctx: SdkTaskContext | TaskContext): StreamingTaskContext {
+function immutableTenantDefaults(value: unknown): TenantDefaultsSnapshot | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  const parsed = TenantDefaultsSnapshotSchema.safeParse(value);
+  if (!parsed.success) {
+    throw new BusinessExecutionError('Admitted tenant defaults snapshot is invalid', 'TENANT_DEFAULTS_PIN_INVALID', false);
+  }
+  const { settingsDigest, ...content } = parsed.data;
+  if (contentHash(content) !== settingsDigest) {
+    throw new BusinessExecutionError('Admitted tenant defaults digest does not match its content', 'TENANT_DEFAULTS_PIN_INVALID', false);
+  }
+  return Object.freeze({
+    ...parsed.data,
+    ai: Object.freeze({ ...parsed.data.ai }),
+    prompts: Object.freeze({ ...parsed.data.prompts }),
+  });
+}
+
+function promptSourceArtifactIds(action: string | undefined, input: unknown): string[] {
+  if (!isRecord(input)) return [];
+  const ids: string[] = [];
+  const add = (value: unknown): void => {
+    if (typeof value === 'string' && ARTIFACT_ID_PATTERN.test(value) && !ids.includes(value)) ids.push(value);
+  };
+  if (Array.isArray(input.artifactIds)) input.artifactIds.forEach(add);
+  if (action === 'ingest' && isRecord(input.source)) add(input.source.artifactId);
+  if (action === 'compare') {
+    if (isRecord(input.source)) add(input.source.artifactId);
+    if (isRecord(input.target)) add(input.target.artifactId);
+  }
+  return ids.slice(0, 20);
+}
+
+function promptTemplateVariables(
+  action: string | undefined,
+  value: Record<string, unknown>,
+  payload: Record<string, unknown> | undefined,
+  extractedText: string | undefined,
+): Readonly<Record<string, string>> {
+  const variables: Record<string, string> = {};
+  const reserved = new Set(['artifacts', 'artifactIds', 'artifactId', 'sourceArtifactId', 'outputSchema', 'jsonSchema', 'schema', 'prompt']);
+  for (const source of [value, payload]) {
+    if (!source) continue;
+    for (const [name, candidate] of Object.entries(source)) {
+      if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(name) || reserved.has(name)) continue;
+      if (typeof candidate === 'string' || typeof candidate === 'number' || typeof candidate === 'boolean') {
+        variables[name] = String(candidate);
+      } else if (Array.isArray(candidate) && candidate.every((item) =>
+        typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean',
+      )) {
+        variables[name] = JSON.stringify(candidate);
+      }
+    }
+  }
+  const textCandidate = payload?.documentSnippet ?? payload?.text ?? value.text ?? extractedText;
+  if (typeof textCandidate === 'string') variables.input_content = textCandidate;
+
+  if (action === 'compare') {
+    const file1 = payload?.sourceSnippet ?? payload?.file1;
+    const file2 = payload?.targetSnippet ?? payload?.file2;
+    if (typeof file1 === 'string') variables.file1 = file1;
+    if (typeof file2 === 'string') variables.file2 = file2;
+  } else if (action === 'generate') {
+    const explicitRequest = payload?.user_prompt ?? payload?.userPrompt ?? payload?.request ?? payload?.promptText;
+    if (typeof explicitRequest === 'string') {
+      variables.user_prompt = explicitRequest;
+    } else if (payload) {
+      const requestFields = ['task', 'format', 'maxWords', 'tone', 'audience', 'questions']
+        .filter((key) => payload[key] !== undefined)
+        .map((key) => `${key}: ${typeof payload[key] === 'string' ? payload[key] : JSON.stringify(payload[key])}`);
+      if (requestFields.length > 0) variables.user_prompt = requestFields.join('\n');
+    }
+  }
+  return Object.freeze(variables);
+}
+
+async function detectPromptSourceFormats(
+  ctx: SdkTaskContext | TaskContext,
+  artifactFacade: {
+    read(artifactId: string): Promise<Buffer>;
+    readWithMetadata?: (artifactId: string, options?: { signal?: AbortSignal }) => Promise<unknown>;
+  },
+  action: string | undefined,
+): Promise<SupportedFormat[]> {
+  const ids = promptSourceArtifactIds(action, 'input' in ctx ? ctx.input : undefined);
+  const formats: SupportedFormat[] = [];
+  for (const artifactId of ids) {
+    assertActive(ctx);
+    const raw = artifactFacade.readWithMetadata
+      ? await artifactFacade.readWithMetadata(artifactId, { signal: ctx.signal })
+      : await artifactFacade.read(artifactId);
+    assertActive(ctx);
+    const details = Buffer.isBuffer(raw)
+      ? { buffer: raw }
+      : (raw as { buffer?: unknown; filename?: unknown; fileName?: unknown; mimeType?: unknown; formatMetadata?: { canonicalMimeType?: unknown } });
+    if (!Buffer.isBuffer(details.buffer) || details.buffer.byteLength > 64 * 1024 * 1024) return [];
+    const contentDetected = DocumentFormatDetector.detect(details.buffer).format;
+    formats.push(contentDetected === 'unknown' && isWebpContent(details.buffer) ? 'webp' : contentDetected);
+  }
+  return formats;
+}
+
+function isWebpContent(buffer: Buffer): boolean {
+  return buffer.byteLength >= 12 &&
+    buffer.toString('ascii', 0, 4) === 'RIFF' &&
+    buffer.toString('ascii', 8, 12) === 'WEBP';
+}
+
+export function toInternalContext(ctx: SdkTaskContext | TaskContext, trustedAction?: string): StreamingTaskContext {
   const isInternal = typeof (ctx as { step?: unknown }).step === 'function';
   const artifactFacade = ctx.artifacts as unknown as {
     read(artifactId: string): Promise<Buffer>;
@@ -232,8 +354,9 @@ export function toInternalContext(ctx: SdkTaskContext | TaskContext): StreamingT
     profilePolicy?: PinnedProfilePolicy | null;
     promptOverrides?: readonly PinnedPromptOverride[] | null;
     connectorBindings?: Readonly<Record<string, string>>;
+    tenantDefaults?: TenantDefaultsSnapshot | null;
   } = {};
-  const sdkCtx = ctx as SdkTaskContext;
+  const sdkCtx = ctx as SdkTaskContext & { tenantDefaults?: TenantDefaultsSnapshot | null };
   if (sdkCtx.profileRevision !== undefined) pin.profileRevision = sdkCtx.profileRevision;
   if (sdkCtx.promptRevisions !== undefined) pin.promptRevisions = sdkCtx.promptRevisions;
   if (sdkCtx.profilePolicy !== undefined) pin.profilePolicy = sdkCtx.profilePolicy;
@@ -243,6 +366,7 @@ export function toInternalContext(ctx: SdkTaskContext | TaskContext): StreamingT
   // FORWARDED as null (no carrier), never coalesced.
   if (sdkCtx.promptOverrides !== undefined) pin.promptOverrides = sdkCtx.promptOverrides;
   if (sdkCtx.connectorBindings !== undefined) pin.connectorBindings = sdkCtx.connectorBindings;
+  if (sdkCtx.tenantDefaults !== undefined) pin.tenantDefaults = immutableTenantDefaults(sdkCtx.tenantDefaults) ?? null;
   // P745-CARRIER-IMPL-B2 (T7): view of the pinned prompt carrier for the
   // adapter's final-text substitution (Δ-B2-2). Built from the SAME `pin` the
   // context exposes, so adapter and action consumers cannot disagree.
@@ -250,7 +374,9 @@ export function toInternalContext(ctx: SdkTaskContext | TaskContext): StreamingT
     promptOverrides: pin.promptOverrides,
     profilePolicy: pin.profilePolicy,
     connectorBindings: pin.connectorBindings,
+    tenantDefaults: pin.tenantDefaults,
   };
+  let promptSourceFormats: Promise<SupportedFormat[]> | undefined;
   return {
     taskId: ctx.taskId,
     operationId: ctx.operationId,
@@ -430,11 +556,26 @@ export function toInternalContext(ctx: SdkTaskContext | TaskContext): StreamingT
           // without it the adapter SKIPs and the assembled text is used as-is.
           const promptText =
             options && typeof options.promptStepId === 'string' && options.promptStepId.trim().length > 0
-              ? applyPinnedStepPrompt(promptView, {
-                  slot,
-                  stepId: options.promptStepId,
-                  defaultText: assembledPromptText,
-                })
+              ? await (async () => {
+                  const stepId = options.promptStepId!;
+                  const action = trustedAction ?? (typeof sdkCtx.action === 'string' ? sdkCtx.action : undefined);
+                  let tenantPromptCategory = resolveTenantPromptCategory(action ?? '', stepId, []);
+                  if (
+                    !tenantPromptCategory &&
+                    promptView.tenantDefaults &&
+                    isTenantPromptStep(action ?? '', stepId)
+                  ) {
+                    promptSourceFormats ??= detectPromptSourceFormats(ctx, artifactFacade, action);
+                    tenantPromptCategory = resolveTenantPromptCategory(action ?? '', stepId, await promptSourceFormats);
+                  }
+                  return applyPinnedStepPrompt(promptView, {
+                    slot,
+                    stepId,
+                    defaultText: assembledPromptText,
+                    ...(tenantPromptCategory !== null ? { tenantPromptCategory } : {}),
+                    tenantPromptVariables: promptTemplateVariables(action, obj, payloadObj, extractedText),
+                  });
+                })()
               : assembledPromptText;
 
           const rawSchema = obj['outputSchema'] || obj['jsonSchema'] || payloadObj?.['schema'];
@@ -1954,7 +2095,10 @@ async function handleDocCompare(
  * Handlers dictionary for all handler kinds declared in documentCoreManifest.
  * Manifest handlerKinds: ['root', 'ingest', 'extract', 'analyze', 'transform', 'generate', 'compare', 'disbursement', 'doc-compare']
  */
-export const documentCoreHandlers: Record<string, DualTaskHandler> = {
+export function createDocumentCoreHandlers(
+  privateEgressPolicy: WorkflowPrivateHttpsEgressPolicy = createWorkflowPrivateHttpsEgressPolicy(),
+): Record<string, DualTaskHandler> {
+  const handlers: Record<string, DualTaskHandler> = {
   // Root: entrypoint dispatcher delegating to the appropriate action handler based on ctx.action
   root: async (ctx, payload) => {
     const payloadAction = payload && typeof payload === 'object' && 'action' in payload && typeof payload.action === 'string'
@@ -1964,7 +2108,7 @@ export const documentCoreHandlers: Record<string, DualTaskHandler> = {
     if (!action || action === 'root') {
       throw new Error(`Invalid or unspecified action for document-core root handler: "${action}"`);
     }
-    const targetHandler = documentCoreHandlers[action];
+    const targetHandler = handlers[action];
     if (!targetHandler) {
       throw new Error(`No registered handler for action: "${action}"`);
     }
@@ -1974,7 +2118,7 @@ export const documentCoreHandlers: Record<string, DualTaskHandler> = {
   // 1. Ingest
   ingest: async (ctx, payload) => {
     assertActive(ctx);
-    const internalCtx = toInternalContext(ctx);
+    const internalCtx = toInternalContext(ctx, 'ingest');
     const inputPayload = payload ?? (ctx as SdkTaskContext).input ?? {};
     const input = IngestAction.validateInput(inputPayload);
     const recipe = IngestAction.selectRecipe(input);
@@ -1996,7 +2140,7 @@ export const documentCoreHandlers: Record<string, DualTaskHandler> = {
   // 2. Extract
   extract: async (ctx, payload) => {
     assertActive(ctx);
-    const internalCtx = toInternalContext(ctx);
+    const internalCtx = toInternalContext(ctx, 'extract');
     const inputPayload = payload ?? (ctx as SdkTaskContext).input ?? {};
     const input = ExtractAction.validateInput(inputPayload);
     const recipe = ExtractAction.selectRecipe(input);
@@ -2018,7 +2162,7 @@ export const documentCoreHandlers: Record<string, DualTaskHandler> = {
   // 3. Analyze
   analyze: async (ctx, payload) => {
     assertActive(ctx);
-    const internalCtx = toInternalContext(ctx);
+    const internalCtx = toInternalContext(ctx, 'analyze');
     const inputPayload = payload ?? (ctx as SdkTaskContext).input ?? {};
     const input = AnalyzeAction.validateInput(inputPayload);
     const recipe = AnalyzeAction.selectRecipe(input);
@@ -2040,7 +2184,7 @@ export const documentCoreHandlers: Record<string, DualTaskHandler> = {
   // 4. Transform
   transform: async (ctx, payload) => {
     assertActive(ctx);
-    const internalCtx = toInternalContext(ctx);
+    const internalCtx = toInternalContext(ctx, 'transform');
     const inputPayload = payload ?? (ctx as SdkTaskContext).input ?? {};
     const input = TransformAction.validateInput(inputPayload);
     const recipe = TransformAction.selectRecipe(input);
@@ -2062,7 +2206,7 @@ export const documentCoreHandlers: Record<string, DualTaskHandler> = {
   // 5. Generate
   generate: async (ctx, payload) => {
     assertActive(ctx);
-    const internalCtx = toInternalContext(ctx);
+    const internalCtx = toInternalContext(ctx, 'generate');
     const inputPayload = payload ?? (ctx as SdkTaskContext).input ?? {};
     const input = GenerateAction.validateInput(inputPayload);
     const recipe = GenerateAction.selectRecipe(input);
@@ -2084,7 +2228,7 @@ export const documentCoreHandlers: Record<string, DualTaskHandler> = {
   // 6. Compare
   compare: async (ctx, payload) => {
     assertActive(ctx);
-    const internalCtx = toInternalContext(ctx);
+    const internalCtx = toInternalContext(ctx, 'compare');
     const inputPayload = payload ?? (ctx as SdkTaskContext).input ?? {};
     const input = CompareAction.validateInput(inputPayload);
     const recipe = CompareAction.selectRecipe(input);
@@ -2116,9 +2260,13 @@ export const documentCoreHandlers: Record<string, DualTaskHandler> = {
   // Schema-workflow pins a tenant-owned immutable schema revision at admission;
   // branch children run under a distinct durable handler kind and never query
   // the live schema catalog.
-  'schema-workflow': async (ctx, payload) => handleLegacyWorkflowSchema(ctx as SdkTaskContext, payload),
-  'legacy-workflow-branch': async (ctx, payload) => handleLegacyWorkflowBranch(ctx as SdkTaskContext, payload),
-};
+  'schema-workflow': async (ctx, payload) => handleLegacyWorkflowSchema(ctx as SdkTaskContext, payload, privateEgressPolicy),
+  'legacy-workflow-branch': async (ctx, payload) => handleLegacyWorkflowBranch(ctx as SdkTaskContext, payload, privateEgressPolicy),
+  };
+  return handlers;
+}
+
+export const documentCoreHandlers: Record<string, DualTaskHandler> = createDocumentCoreHandlers();
 
 /**
  * Validated BusinessDefinition created via worker-sdk defineBusiness().
@@ -2131,6 +2279,7 @@ export const documentCoreBusinessDefinition: BusinessDefinition = defineBusiness
 
 export interface DocumentCoreWorkerConfig extends WorkerConfig {
   consumer?: QueueConsumer;
+  workflowPrivateHttpsOrigins?: readonly string[];
 }
 
 /**
@@ -2139,5 +2288,11 @@ export interface DocumentCoreWorkerConfig extends WorkerConfig {
 export async function startDocumentCoreWorker(
   config: DocumentCoreWorkerConfig
 ): Promise<WorkerHandle> {
-  return startWorker(documentCoreBusinessDefinition, config);
+  const { workflowPrivateHttpsOrigins, ...sdkConfig } = config;
+  const privateEgressPolicy = createWorkflowPrivateHttpsEgressPolicy(workflowPrivateHttpsOrigins ?? []);
+  const workerDefinition = defineBusiness(
+    documentCoreManifest,
+    createDocumentCoreHandlers(privateEgressPolicy) as Record<string, TaskHandler>
+  );
+  return startWorker(workerDefinition, sdkConfig);
 }

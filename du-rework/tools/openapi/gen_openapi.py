@@ -43,6 +43,8 @@ CONN = "du-rework/orchestrator/services/connector/src/http/server.ts"
 CONTRACT = "du-rework/orchestrator/packages/contracts/src/public-api.ts"
 METRICS = "du-rework/orchestrator/packages/contracts/src/usage-metrics.ts"
 RECON = "du-rework/orchestrator/packages/contracts/src/usage-reconciliation.ts"
+USAGE_SERVICE = "du-rework/orchestrator/services/orchestrator/src/modules/usage/usage.ts"
+COMPOSE = "du-rework/orchestrator/services/orchestrator/src/modules/compose-operations/contracts.ts"
 OUT = "du-rework/docs/21-openapi.json"
 
 # ---- PM-M02 ingress origins (SWAGGER-ORIGIN-DOCS-ALIGNMENT) ------------------
@@ -146,6 +148,12 @@ def ts_object_keys(src, name):
     assert end != -1, "cannot find the .strict() terminator of %s" % name
     return re.findall(r"^ {2}(\w+):", body[:end], re.M)
 
+def ts_interface_keys(src, name):
+    """Top-level fields of a flat TS interface, used for public projection DTOs."""
+    m = re.search(r"export interface " + name + r"\s*\{(.*?)^\}", src, re.S | re.M)
+    assert m, "cannot find interface %s" % name
+    return re.findall(r"^ {2}(\w+)\??:", m.group(1), re.M)
+
 def _usage_limit_bounds(src, key):
     m = re.search(r"^ {2}" + key + r":[^\n]*?\.max\((\d+)\)\.default\((\d+)\)", src, re.M)
     assert m, "cannot find %s bounds and default" % key
@@ -213,6 +221,17 @@ assert TIME_FIELD_VALUES == ["occurredAt", "receivedAt"], (
 assert TIME_FIELD_DEFAULT == "occurredAt", (
     "timeField default changed to %r" % (TIME_FIELD_DEFAULT,))
 
+# BASIC_ADMIN_USAGE_V1 is intentionally a distinct admin projection from the
+# rich public COST exporter above. Keep its persisted-wire fields independently
+# represented; unavailable attribution/provenance fields are not invented.
+_admin_usage = io.open(USAGE_SERVICE, encoding="utf-8").read()
+ADMIN_USAGE_RECORD_FIELDS = ts_interface_keys(_admin_usage, "AdminUsageEventRecord")
+ADMIN_USAGE_PAGE_FIELDS = ts_interface_keys(_admin_usage, "AdminUsageEventPage")
+assert ADMIN_USAGE_RECORD_FIELDS == ["eventId", "operationId", "taskId", "invocationId", "provider", "model", "units", "costMicrousd", "costStatus", "measurement", "occurredAt", "receivedAt"], (
+    "AdminUsageEventRecordSchema changed to %r; update its OpenAPI projection" % ADMIN_USAGE_RECORD_FIELDS)
+assert ADMIN_USAGE_PAGE_FIELDS == ["tenantId", "events", "limit", "hasMore", "nextCursor", "skippedInvalidEvents", "timeSemantics"], (
+    "AdminUsageEventPageSchema changed to %r; update its OpenAPI projection" % ADMIN_USAGE_PAGE_FIELDS)
+
 
 
 # The example token in the operations page response is minted, not typed.
@@ -231,7 +250,7 @@ assert len(EXAMPLE_CURSOR) <= 128, (
     "example cursor exceeds the bound the page schema, route and shell share: %d"
     % len(EXAMPLE_CURSOR))
 
-assert QUERY_PARAMS == ["limit", "cursor", "state", "tenant", "id", "sort"], (
+assert QUERY_PARAMS == ["limit", "cursor", "state", "tenant", "id", "sort", "from", "to"], (
     "OPERATIONS_LIST_QUERY_PARAMS changed to %r; add its OpenAPI parameter here"
     % (QUERY_PARAMS,))
 assert SORT_VALUES == ["created_at:asc", "created_at:desc", "updated_at:asc",
@@ -517,10 +536,197 @@ TENANTS_PAGE_SCHEMA = obj_schema({
               "description": "The clamped page size actually used."},
 }, ["items", "nextCursor", "prevCursor", "total", "limit"], strict=True)
 
+# BASIC_ADMIN_USAGE_V1 — a separate, honest projection over persisted
+# runtime UsageEvent rows. Nullable cost/provenance means those facts were not
+# present in the source row; it never implies measured/estimated cost.
+ADMIN_USAGE_ID = {"type": "string", "pattern": USAGE_ID_PATTERN}
+ADMIN_USAGE_AMOUNT = {"type": "integer", "minimum": 0, "maximum": 9007199254740991}
+ADMIN_USAGE_RECORD_SCHEMA = obj_schema({
+    "eventId": {"type": "string", "minLength": 1, "maxLength": 128},
+    "operationId": {"type": "string", "format": "uuid"},
+    "taskId": {"type": "string", "format": "uuid"},
+    "invocationId": {"type": "string", "minLength": 1, "maxLength": 128},
+    "provider": {**ADMIN_USAGE_ID, "nullable": True, "description": "Null when the persisted event has no provider attribution."},
+    "model": {**ADMIN_USAGE_ID, "nullable": True, "description": "Null when the persisted event has no model attribution."},
+    "units": obj_schema({
+        "inputTokens": dict(ADMIN_USAGE_AMOUNT),
+        "outputTokens": dict(ADMIN_USAGE_AMOUNT),
+        "pages": dict(ADMIN_USAGE_AMOUNT),
+    }, ["inputTokens", "outputTokens"], strict=True),
+    "costMicrousd": {**ADMIN_USAGE_AMOUNT, "nullable": True, "description": "Null when the persisted runtime event had no cost field."},
+    "costStatus": {"type": "string", "enum": ["measured", "estimated", "unpriced"], "nullable": True,
+                   "description": "Null when explicit cost provenance was absent from the persisted event."},
+    "measurement": {"type": "string", "enum": ["measured", "estimated"]},
+    "occurredAt": {"type": "string", "minLength": 1, "maxLength": 128},
+    "receivedAt": {"type": "string", "format": "date-time"},
+}, ADMIN_USAGE_RECORD_FIELDS, strict=True)
+ADMIN_USAGE_RECORD_SCHEMA["description"] = "AdminUsageEventRecordSchema (BASIC_ADMIN_USAGE_V1). Persisted runtime facts only; richer cost attribution is not inferred."
+
+ADMIN_USAGE_PAGE_SCHEMA = obj_schema({
+    "tenantId": ADMIN_USAGE_ID,
+    "events": {"type": "array", "maxItems": 100, "items": ref("AdminUsageEventRecord")},
+    "limit": {"type": "integer", "minimum": 1, "maximum": 100},
+    "hasMore": {"type": "boolean"},
+    "nextCursor": {"type": "string", "minLength": 1, "maxLength": 2048, "pattern": "^[A-Za-z0-9_-]+$"},
+    "skippedInvalidEvents": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+    "timeSemantics": obj_schema({
+        "field": {"type": "string", "enum": ["receivedAt"]},
+        "order": {"type": "string", "enum": ["asc"]},
+        "timezone": {"type": "string", "enum": ["UTC"]},
+    }, ["field", "order", "timezone"], strict=True),
+}, ADMIN_USAGE_PAGE_FIELDS, strict=True)
+ADMIN_USAGE_PAGE_SCHEMA["description"] = "AdminUsageEventPageSchema (BASIC_ADMIN_USAGE_V1). Tenant-scoped keyset page; invalid rows are counted and omitted."
+
+ADMIN_USAGE_QUERY_SCHEMA = obj_schema({
+    "tenantId": {**ADMIN_USAGE_ID, "description": "Optional scope check; tenant role is server-bound. Platform Admin must provide tenantId."},
+    "from": {"type": "string", "format": "date-time"},
+    "to": {"type": "string", "format": "date-time"},
+    "timeField": {"type": "string", "enum": ["receivedAt"], "default": "receivedAt"},
+    "limit": {"type": "integer", "minimum": 1, "maximum": 100, "default": 50},
+    "cursor": {"type": "string", "minLength": 1, "maxLength": 2048, "pattern": "^[A-Za-z0-9_-]+$"},
+    "operationId": {"type": "string", "format": "uuid"},
+    "provider": ADMIN_USAGE_ID,
+    "model": ADMIN_USAGE_ID,
+}, ["from", "to"], strict=True)
+ADMIN_USAGE_QUERY_SCHEMA["description"] = "AdminUsageEventQuerySchema. The [from,to) window is required and bounded to 366 days; provider and model filters are paired; cursor is bound to tenant and full query."
+
+# Bounded Compose DTOs are copied from contracts.ts. These schemas expose only
+# sanitized host observations, state and pinned image facts; no environment,
+# filesystem paths, command output or credentials are present.
+COMPOSE_ID = {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"}
+COMPOSE_SHA = {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+COMPOSE_TIME = {"type": "string", "format": "date-time"}
+COMPOSE_ACTIONS = ["apply_release", "rollback_release", "restart_service"]
+COMPOSE_STATES = ["QUEUED", "CLAIMED", "RUNNING", "SUCCEEDED", "FAILED", "PARTIAL", "UNKNOWN", "RECONCILED"]
+COMPOSE_ERRORS = ["RUNNER_NOT_CONFIGURED", "SNAPSHOT_NOT_RECEIVED", "SNAPSHOT_INVALID", "MANIFEST_DIGEST_MISMATCH",
+    "DOCKER_UNAVAILABLE", "INVENTORY_UNAVAILABLE", "HEALTHCHECK_FAILED", "COMMAND_FAILED", "COMMAND_TIMEOUT",
+    "OUTPUT_LIMIT", "TARGET_BUSY", "STALE_SAMPLE", "STALE_PREVIEW", "TARGET_REVISION_CONFLICT",
+    "IDEMPOTENCY_CONFLICT", "EXECUTION_UNCERTAIN", "RUNNER_REPORT_REJECTED"]
+COMPOSE_ERROR_SCHEMA = {"type": "string", "enum": COMPOSE_ERRORS}
+def _nullable(schema):
+    return {**schema, "nullable": True}
+
+COMPOSE_OBSERVED_SCHEMA = obj_schema({
+    "serviceId": COMPOSE_ID,
+    "containerId": _nullable({"type": "string", "maxLength": 128}),
+    "imageId": _nullable({"type": "string", "maxLength": 256}),
+    "imageDigest": _nullable({"type": "string", "maxLength": 256}),
+    "state": {"type": "string", "enum": ["CREATED", "RUNNING", "PAUSED", "RESTARTING", "EXITED", "DEAD", "REMOVING", "UNKNOWN"]},
+    "health": {"type": "string", "enum": ["HEALTHY", "UNHEALTHY", "STARTING", "NONE", "UNKNOWN"], "nullable": True},
+    "startedAt": _nullable(COMPOSE_TIME),
+    "finishedAt": _nullable(COMPOSE_TIME),
+    "observedReleaseId": _nullable(COMPOSE_ID),
+}, ["serviceId", "containerId", "imageId", "imageDigest", "state", "health", "startedAt", "finishedAt", "observedReleaseId"], strict=True)
+
+COMPOSE_SERVICE_SCHEMA = obj_schema({"serviceId": COMPOSE_ID, "displayName": {"type": "string", "minLength": 1, "maxLength": 128},
+    "restartAllowed": {"type": "boolean"}}, ["serviceId", "displayName", "restartAllowed"], strict=True)
+COMPOSE_RELEASE_SCHEMA = obj_schema({
+    "releaseId": COMPOSE_ID, "displayName": {"type": "string", "minLength": 1, "maxLength": 128}, "releaseDigest": COMPOSE_SHA,
+    "targetServices": {"type": "array", "maxItems": 32, "items": COMPOSE_ID},
+    "images": {"type": "array", "maxItems": 32, "items": obj_schema({"serviceId": COMPOSE_ID, "imageDigest": {"type": "string", "maxLength": 256}}, ["serviceId", "imageDigest"], strict=True)},
+    "migrationCompatibility": {"type": "string", "enum": ["acknowledged", "not_acknowledged"]},
+    "rollbackAllowedFrom": {"type": "array", "maxItems": 64, "items": COMPOSE_ID},
+}, ["releaseId", "displayName", "releaseDigest", "targetServices", "images", "migrationCompatibility", "rollbackAllowedFrom"], strict=True)
+COMPOSE_ACTIVE_JOB_SCHEMA = obj_schema({"jobId": {"type": "string", "format": "uuid"},
+    "state": {"type": "string", "enum": ["QUEUED", "CLAIMED", "RUNNING", "UNKNOWN"]}}, ["jobId", "state"], strict=True)
+COMPOSE_CATALOG_PROJECT_SCHEMA = obj_schema({
+    "projectId": COMPOSE_ID, "displayName": {"type": "string", "minLength": 1, "maxLength": 128},
+    "catalogRevision": _nullable(COMPOSE_SHA), "manifestDigest": _nullable(COMPOSE_SHA),
+    "availability": {"type": "string", "enum": ["FRESH", "STALE", "UNAVAILABLE"]},
+    "sampledAt": _nullable(COMPOSE_TIME), "receivedAt": _nullable(COMPOSE_TIME),
+    "lastErrorCode": _nullable(COMPOSE_ERROR_SCHEMA), "observedDigest": _nullable(COMPOSE_SHA),
+    "targetRevision": {"type": "integer", "minimum": 0}, "desiredReleaseId": _nullable(COMPOSE_ID),
+    "activeJob": {"oneOf": [ref("ComposeActiveJob"), {"type": "null"}]},
+    "services": {"type": "array", "maxItems": 64, "items": ref("ComposeCatalogService")},
+    "releases": {"type": "array", "maxItems": 128, "items": ref("ComposeCatalogRelease")},
+    "observedServices": {"type": "array", "maxItems": 64, "items": ref("ComposeObservedService")},
+}, ["projectId", "displayName", "catalogRevision", "manifestDigest", "availability", "sampledAt", "receivedAt", "lastErrorCode", "observedDigest", "targetRevision", "desiredReleaseId", "activeJob", "services", "releases", "observedServices"], strict=True)
+COMPOSE_CATALOG_SCHEMA = obj_schema({
+    "configured": {"type": "boolean"}, "hostId": _nullable(COMPOSE_ID), "manifestDigest": _nullable(COMPOSE_SHA),
+    "availability": {"type": "string", "enum": ["FRESH", "STALE", "UNAVAILABLE"]},
+    "receivedAt": _nullable(COMPOSE_TIME), "lastErrorCode": _nullable(COMPOSE_ERROR_SCHEMA),
+    "projects": {"type": "array", "maxItems": 64, "items": ref("ComposeCatalogProject")},
+}, ["configured", "hostId", "manifestDigest", "availability", "receivedAt", "lastErrorCode", "projects"], strict=True)
+
+COMPOSE_PREVIEW_REQUEST_SCHEMA = obj_schema({
+    "hostId": COMPOSE_ID, "projectId": COMPOSE_ID, "action": {"type": "string", "enum": COMPOSE_ACTIONS},
+    "releaseId": COMPOSE_ID, "serviceId": COMPOSE_ID, "reason": {"type": "string", "minLength": 3, "maxLength": 500},
+}, ["hostId", "projectId", "action", "reason"], strict=True)
+COMPOSE_PREVIEW_SCHEMA = obj_schema({
+    "previewId": {"type": "string", "format": "uuid"}, "hostId": COMPOSE_ID, "projectId": COMPOSE_ID,
+    "action": {"type": "string", "enum": COMPOSE_ACTIONS}, "releaseId": _nullable(COMPOSE_ID), "serviceId": _nullable(COMPOSE_ID),
+    "reason": {"type": "string", "minLength": 3, "maxLength": 500}, "createdAt": COMPOSE_TIME, "expiresAt": COMPOSE_TIME,
+    "manifestDigest": COMPOSE_SHA, "observedDigest": COMPOSE_SHA, "expectedTargetRevision": {"type": "integer", "minimum": 0},
+    "targetServices": {"type": "array", "maxItems": 64, "items": COMPOSE_ID}, "targetReleaseDigest": _nullable(COMPOSE_SHA),
+    "impact": obj_schema({"affectedServices": {"type": "array", "maxItems": 64, "items": COMPOSE_ID},
+        "downtime": {"type": "string", "enum": ["possible", "likely"]}, "statefulServicesExcluded": {"type": "boolean", "enum": [True]}},
+        ["affectedServices", "downtime", "statefulServicesExcluded"], strict=True),
+    "warnings": {"type": "array", "maxItems": 8, "items": {"type": "string", "enum": ["POSSIBLE_SERVICE_INTERRUPTION", "MIGRATION_COMPATIBILITY_ACKNOWLEDGED"]}},
+}, ["previewId", "hostId", "projectId", "action", "releaseId", "serviceId", "reason", "createdAt", "expiresAt", "manifestDigest", "observedDigest", "expectedTargetRevision", "targetServices", "targetReleaseDigest", "impact", "warnings"], strict=True)
+COMPOSE_SUBMIT_REQUEST_SCHEMA = obj_schema({"previewId": {"type": "string", "format": "uuid"}, "expectedTargetRevision": {"type": "integer", "minimum": 0}}, ["previewId", "expectedTargetRevision"], strict=True)
+COMPOSE_OUTCOME_SCHEMA = obj_schema({"serviceId": COMPOSE_ID, "status": {"type": "string", "enum": ["SUCCEEDED", "FAILED", "SKIPPED", "UNKNOWN"]},
+    "errorCode": _nullable(COMPOSE_ERROR_SCHEMA)}, ["serviceId", "status", "errorCode"], strict=True)
+COMPOSE_JOB_SCHEMA = obj_schema({
+    "jobId": {"type": "string", "format": "uuid"}, "previewId": {"type": "string", "format": "uuid"},
+    "hostId": COMPOSE_ID, "projectId": COMPOSE_ID, "action": {"type": "string", "enum": COMPOSE_ACTIONS},
+    "releaseId": _nullable(COMPOSE_ID), "serviceId": _nullable(COMPOSE_ID), "targetReleaseDigest": _nullable(COMPOSE_SHA),
+    "targetServices": {"type": "array", "maxItems": 64, "items": COMPOSE_ID}, "reason": {"type": "string", "minLength": 3, "maxLength": 500},
+    "actorLabel": {"type": "string", "minLength": 1, "maxLength": 128}, "state": {"type": "string", "enum": COMPOSE_STATES},
+    "stateVersion": {"type": "integer", "minimum": 1}, "expectedTargetRevision": {"type": "integer", "minimum": 0},
+    "targetRevision": {"type": "integer", "minimum": 0}, "createdAt": COMPOSE_TIME, "startedAt": _nullable(COMPOSE_TIME),
+    "completedAt": _nullable(COMPOSE_TIME), "claimExpiresAt": _nullable(COMPOSE_TIME), "observedBeforeDigest": COMPOSE_SHA,
+    "startExpectedObservedDigest": COMPOSE_SHA, "observedBefore": {"type": "array", "maxItems": 64, "items": ref("ComposeObservedService")},
+    "observedAfter": {"type": "array", "maxItems": 64, "items": ref("ComposeObservedService"), "nullable": True},
+    "observedAfterDigest": _nullable(COMPOSE_SHA), "perServiceOutcomes": {"type": "array", "maxItems": 64, "items": ref("ComposePerServiceOutcome")},
+    "uncertainReason": {"type": "string", "enum": ["CLAIM_EXPIRED", "START_ACK_LOST", "RUNNER_LOST", "REPORT_LOST", "EXECUTOR_TIMEOUT", "EXECUTION_UNCERTAIN"], "nullable": True},
+}, ["jobId", "previewId", "hostId", "projectId", "action", "releaseId", "serviceId", "targetReleaseDigest", "targetServices", "reason", "actorLabel", "state", "stateVersion", "expectedTargetRevision", "targetRevision", "createdAt", "startedAt", "completedAt", "claimExpiresAt", "observedBeforeDigest", "startExpectedObservedDigest", "observedBefore", "observedAfter", "observedAfterDigest", "perServiceOutcomes", "uncertainReason"], strict=True)
+COMPOSE_JOB_PAGE_SCHEMA = obj_schema({"items": {"type": "array", "maxItems": 100, "items": ref("ComposeJob")},
+    "limit": {"type": "integer", "minimum": 1, "maximum": 100}, "hasMore": {"type": "boolean"},
+    "nextCursor": {"type": "string", "minLength": 1, "maxLength": 2048, "pattern": "^[A-Za-z0-9_-]+$"}},
+    ["items", "limit", "hasMore"], strict=True)
+COMPOSE_JOB_SUBMISSION_SCHEMA = obj_schema({"job": ref("ComposeJob"), "replayed": {"type": "boolean"}}, ["job", "replayed"], strict=True)
+COMPOSE_ACK_SCHEMA = obj_schema({"job": ref("ComposeJob")}, ["job"], strict=True)
+COMPOSE_RUNNER_CLAIM_SCHEMA = obj_schema({"job": ref("ComposeJob"), "executionToken": {"type": "string", "minLength": 32, "maxLength": 256}}, ["job", "executionToken"], strict=True)
+COMPOSE_RUNNER_CLAIM_RESPONSE_SCHEMA = obj_schema({"claim": {"oneOf": [ref("ComposeRunnerClaim"), {"type": "null"}]}}, ["claim"], strict=True)
+COMPOSE_RUNNER_SNAPSHOT_REQUEST_SCHEMA = obj_schema({"hostId": COMPOSE_ID, "manifestDigest": COMPOSE_SHA, "sampledAt": COMPOSE_TIME,
+    "projects": {"type": "array", "maxItems": 64, "items": ref("ComposeRunnerProjectSnapshot")}}, ["hostId", "manifestDigest", "sampledAt", "projects"], strict=True)
+COMPOSE_RUNNER_START_REQUEST_SCHEMA = obj_schema({"jobId": {"type": "string", "format": "uuid"}, "executionToken": {"type": "string", "minLength": 32, "maxLength": 256},
+    "expectedStateVersion": {"type": "integer", "minimum": 1}, "manifestDigest": COMPOSE_SHA, "observedDigest": COMPOSE_SHA},
+    ["jobId", "executionToken", "expectedStateVersion", "manifestDigest", "observedDigest"], strict=True)
+COMPOSE_RUNNER_START_ACK_SCHEMA = obj_schema({"jobId": {"type": "string", "format": "uuid"}, "state": {"type": "string", "enum": ["RUNNING"]},
+    "stateVersion": {"type": "integer", "minimum": 1}, "startedAt": COMPOSE_TIME}, ["jobId", "state", "stateVersion", "startedAt"], strict=True)
+COMPOSE_RUNNER_COMPLETE_REQUEST_SCHEMA = obj_schema({
+    "jobId": {"type": "string", "format": "uuid"}, "executionToken": {"type": "string", "minLength": 32, "maxLength": 256},
+    "expectedStateVersion": {"type": "integer", "minimum": 1}, "manifestDigest": COMPOSE_SHA, "sampledAt": COMPOSE_TIME,
+    "outcome": {"type": "string", "enum": ["SUCCEEDED", "FAILED", "PARTIAL", "UNKNOWN"]}, "errorCode": _nullable(COMPOSE_ERROR_SCHEMA),
+    "uncertainReason": {"type": "string", "enum": ["CLAIM_EXPIRED", "START_ACK_LOST", "RUNNER_LOST", "REPORT_LOST", "EXECUTOR_TIMEOUT", "EXECUTION_UNCERTAIN"], "nullable": True},
+    "observedServices": {"type": "array", "maxItems": 64, "items": ref("ComposeObservedService"), "nullable": True},
+    "perServiceOutcomes": {"type": "array", "maxItems": 64, "items": ref("ComposePerServiceOutcome")},
+}, ["jobId", "executionToken", "expectedStateVersion", "manifestDigest", "sampledAt", "outcome", "errorCode", "uncertainReason", "observedServices", "perServiceOutcomes"], strict=True)
+COMPOSE_RUNNER_RECONCILE_REQUEST_SCHEMA = obj_schema({
+    "jobId": {"type": "string", "format": "uuid"}, "expectedStateVersion": {"type": "integer", "minimum": 1},
+    "manifestDigest": COMPOSE_SHA, "sampledAt": COMPOSE_TIME, "executorQuiescent": {"type": "boolean"},
+    "evidenceCode": {"type": "string", "enum": ["NO_ACTIVE_EXECUTOR", "EXECUTOR_TERMINATED", "MANUAL_OPERATOR_CONFIRMED", "UNCERTAIN"]},
+    "observedServices": {"type": "array", "maxItems": 64, "items": ref("ComposeObservedService"), "nullable": True},
+    "perServiceOutcomes": {"type": "array", "maxItems": 64, "items": ref("ComposePerServiceOutcome")},
+}, ["jobId", "expectedStateVersion", "manifestDigest", "sampledAt", "executorQuiescent", "evidenceCode", "observedServices", "perServiceOutcomes"], strict=True)
+COMPOSE_RUNNER_PROJECT_SNAPSHOT_SCHEMA = obj_schema({"projectId": COMPOSE_ID, "displayName": {"type": "string", "minLength": 1, "maxLength": 128},
+    "services": {"type": "array", "maxItems": 64, "items": ref("ComposeCatalogService")},
+    "releases": {"type": "array", "maxItems": 128, "items": ref("ComposeCatalogRelease")},
+    "observedServices": {"type": "array", "maxItems": 64, "items": ref("ComposeObservedService")}},
+    ["projectId", "displayName", "services", "releases", "observedServices"], strict=True)
+COMPOSE_RUNNER_SNAPSHOT_ACK_SCHEMA = obj_schema({"hostId": COMPOSE_ID, "manifestDigest": COMPOSE_SHA, "receivedAt": COMPOSE_TIME,
+    "projects": {"type": "array", "maxItems": 64, "items": obj_schema({"projectId": COMPOSE_ID, "catalogRevision": COMPOSE_SHA,
+        "observedDigest": COMPOSE_SHA, "targetRevision": {"type": "integer", "minimum": 0}},
+        ["projectId", "catalogRevision", "observedDigest", "targetRevision"], strict=True)}}, ["hostId", "manifestDigest", "receivedAt", "projects"], strict=True)
+
 # Assembled here, after every schema constant above it is defined.
 SCHEMAS = {
 
     "ArtifactDownloadResponse": ARTIFACT_DOWNLOAD_RESPONSE_SCHEMA,
+    "AdminUsageEventRecord": ADMIN_USAGE_RECORD_SCHEMA,
+    "AdminUsageEventPage": ADMIN_USAGE_PAGE_SCHEMA,
+    "AdminUsageEventQuery": ADMIN_USAGE_QUERY_SCHEMA,
     "AdminTenant": TENANT_SCHEMA,
     "AdminTenantsPage": TENANTS_PAGE_SCHEMA,
     "ArtifactRef": ARTIFACT_REF_SCHEMA,
@@ -536,6 +742,29 @@ SCHEMAS = {
     "UsageLedgerEvent": USAGE_LEDGER_EVENT_SCHEMA,
     "UsageLedgerUnits": USAGE_LEDGER_UNITS_SCHEMA,
     "UsageTimeSemantics": USAGE_TIME_SEMANTICS_SCHEMA,
+    "ComposeActiveJob": COMPOSE_ACTIVE_JOB_SCHEMA,
+    "ComposeCatalog": COMPOSE_CATALOG_SCHEMA,
+    "ComposeCatalogProject": COMPOSE_CATALOG_PROJECT_SCHEMA,
+    "ComposeCatalogRelease": COMPOSE_RELEASE_SCHEMA,
+    "ComposeCatalogService": COMPOSE_SERVICE_SCHEMA,
+    "ComposeJobAck": COMPOSE_ACK_SCHEMA,
+    "ComposeJob": COMPOSE_JOB_SCHEMA,
+    "ComposeJobPage": COMPOSE_JOB_PAGE_SCHEMA,
+    "ComposeJobSubmission": COMPOSE_JOB_SUBMISSION_SCHEMA,
+    "ComposeObservedService": COMPOSE_OBSERVED_SCHEMA,
+    "ComposePerServiceOutcome": COMPOSE_OUTCOME_SCHEMA,
+    "ComposePreview": COMPOSE_PREVIEW_SCHEMA,
+    "ComposePreviewRequest": COMPOSE_PREVIEW_REQUEST_SCHEMA,
+    "ComposeRunnerClaim": COMPOSE_RUNNER_CLAIM_SCHEMA,
+    "ComposeRunnerClaimResponse": COMPOSE_RUNNER_CLAIM_RESPONSE_SCHEMA,
+    "ComposeRunnerCompleteRequest": COMPOSE_RUNNER_COMPLETE_REQUEST_SCHEMA,
+    "ComposeRunnerProjectSnapshot": COMPOSE_RUNNER_PROJECT_SNAPSHOT_SCHEMA,
+    "ComposeRunnerReconcileRequest": COMPOSE_RUNNER_RECONCILE_REQUEST_SCHEMA,
+    "ComposeRunnerSnapshotAck": COMPOSE_RUNNER_SNAPSHOT_ACK_SCHEMA,
+    "ComposeRunnerSnapshotRequest": COMPOSE_RUNNER_SNAPSHOT_REQUEST_SCHEMA,
+    "ComposeRunnerStartAck": COMPOSE_RUNNER_START_ACK_SCHEMA,
+    "ComposeRunnerStartRequest": COMPOSE_RUNNER_START_REQUEST_SCHEMA,
+    "ComposeSubmitJobRequest": COMPOSE_SUBMIT_REQUEST_SCHEMA,
 }
 
 APIKEY = {"ApiKey": []}
@@ -664,12 +893,13 @@ OPERATIONS_PARAMS = [
           "so migration 0019 expression indexes match the ORDER BY form."
           % (SORT_DEFAULT, ", ".join(SORT_VALUES)),
           {"type": "string", "default": SORT_DEFAULT, "enum": SORT_VALUES}),
+    param("from", "Inclusive created-at ISO timestamp", {"type": "string", "format": "date-time"}),
+    param("to", "Exclusive created-at ISO timestamp", {"type": "string", "format": "date-time"}),
 ]
-paths["/api/v1/operations"] = {"get": op(
+paths["/api/internal/operations"] = {"get": op(
     "List operations. server.ts parseOperationsListQuery + listOperationsPage; "
     "contracts public-api.ts OPERATIONS_LIST_QUERY_PARAMS (%d names) and "
-    "OPERATIONS_LIST_SORT_*. Admin bearer is an alternate auth path on the same "
-    "contract (ADM-UX-02)." % len(QUERY_PARAMS), APIKEY, None,
+    "OPERATIONS_LIST_SORT_*. Admin bearer/session only, tenant fenced." % len(QUERY_PARAMS), [ADMIN, {"PortalSession": []}], None,
     {"200": page_response(
         "Five-field page: {items: OperationView[], nextCursor, prevCursor, total, "
         "limit}. total is a COUNT(*) over the FILTERED population, never "
@@ -681,13 +911,21 @@ paths["/api/v1/operations"] = {"get": op(
      "403": {"description": "tenant outside caller scope; a foreign tenant is a fence, not a widened view"},
      "422": {"description": "INVALID_SCHEMA on state, tenant, id, cursor or sort. A query key outside the allow-list is ignored, not 422. This route never returns 400."}},
     OPERATIONS_PARAMS)}
-paths["/api/v1/operations/{id}"] = {"get": op("Poll; ?wait seconds clamped [0,30]. server.ts:602 facade.ts:16.", APIKEY, None, {"200": {"description": "OperationView with nullable startedAt/completedAt (historical unknown times stay null), retryOf and errorCode; updatedAt is not a completion time."}}, [{"name": "wait", "in": "query"}])}
+paths["/api/v1/operations/{id}"] = {"get": op("Legacy result by ID, scoped to submitting API key.", APIKEY, None, {"200": {"description": "Legacy operation envelope (name, done, metadata, response/error)."}, "404": {"description": "Unknown or foreign operation"}})}
+paths["/api/v1/operations/{id}/download"] = {"get": op("Legacy result output download; API-key ownership and delivery policy apply.", APIKEY, None, {"200": {"description": "Output bytes or encrypted delivery envelope"}})}
+paths["/api/internal/operations/{id}"] = {
+    "get": op("Admin operation detail: operation, tasks, humanWaits, result, artifacts, serverNow.", [ADMIN, {"PortalSession": []}], None, {"200": {"description": "Admin detail"}, "404": {"description": "Unknown or foreign operation"}}),
+    "delete": op("Soft-delete terminal operation; admin/operator tenant scope and session CSRF required.", [ADMIN, {"PortalSession": []}], None, {"200": {"description": "Deleted"}, "409": {"description": "Operation still active"}})}
+paths["/api/internal/operations/metrics"] = {"get": op("Tenant-scoped admin metrics.", [ADMIN, {"PortalSession": []}], None, {"200": {"description": "Operation metrics"}}, [param("tenant", "Tenant filter", {"type": "string"}), param("from", "Start ISO timestamp", {"type": "string"}), param("to", "End ISO timestamp", {"type": "string"})])}
+paths["/api/internal/operations/uploads"] = {"post": op("Upload one file for a selected active API key. Internal admin/operator only; session CSRF required. Encrypted storage mandatory, maximum16MiB; S3 streams and PostgreSQL bounded encrypted fallback. Result artifact is key-owned before workflow submission.", [ADMIN, {"PortalSession": []}], {"required": True, "content": {"application/octet-stream": {"schema": {"type": "string", "format": "binary"}}}}, {"201": {"description": "{artifactId,state:READY,fileName,mimeType,sizeBytes}"}, "403": {"description": "Role, tenant or CSRF denied"}, "413": {"description": "File exceeds configured limit"}, "503": {"description": "Encrypted storage unavailable"}}, [{"name": name, "in": "query", "required": True, "schema": {"type": "string"}} for name in ["tenantId", "apiKeyId", "fileName"]])}
+paths["/api/internal/operations/{id}/download"] = {"get": op("Admin operation output download; tenant fence and delivery policy apply.", [ADMIN, {"PortalSession": []}], None, {"200": {"description": "Output bytes or encrypted delivery envelope"}, "404": {"description": "Unknown/foreign operation or absent output"}})}
+paths["/api/internal/operations/{id}/retry"] = {"post": op("Retry original pinned request; platform admin only, session CSRF required.", [ADMIN, {"PortalSession": []}], ex({}), {"200": {"description": "Fresh operation or replay"}, "409": {"description": "Unavailable input or non-retryable state"}})}
 # Two variants on one status code, so the schema is the union and the description
 # carries the selection rule. Citation corrected: server.ts:619 is an abort-path
 # comment today; the handler is the block at server.ts:1724.
-paths["/api/v1/operations/{id}/result"] = {"get": op(
-    "ResultEnvelope or its encrypted delivery wrapper. Handler server.ts:1724.",
-    APIKEY, None,
+paths["/api/internal/operations/{id}/result"] = {"get": op(
+    "Admin result projection or encrypted delivery wrapper; tenant fenced.",
+    [ADMIN, {"PortalSession": []}], None,
     {"200": {"description": "Both variants are application/json and the choice is made by the SERVER-SIDE tenant policy, never by a request parameter: a client cannot ask for plaintext, and a failed encryption is a 503 rather than a downgrade, so this route cannot quietly serve plaintext under a tenant that switched encryption on. PLAIN: ResultEnvelope v1, schemaVersion \"1\", strict. data carries the worker's opaque resultRef verbatim as {resultRef} with no envelope guessing; artifacts carries REAL refs for submit-declared inputs and task-produced READY outputs, each with a relative /api/v1/artifacts/{id}/download URL; usage and warnings complete the envelope. ENCRYPTED: {schemaVersion \"1\", encrypted true, delivery}, strict, and decrypting delivery yields the exact ResultEnvelope above, so a recipient needs the matching recipient private key to rebuild the plain shape.",
              "content": {"application/json": {"schema": ref("ResultResponse")}}},
      "404": {"description": "NOT_FOUND when the operation belongs to another tenant. Deliberately indistinguishable from an unknown id: no existence leak."},
@@ -706,8 +944,8 @@ paths["/api/v1/artifacts/{id}/download"] = {"get": op(
      "409": {"description": "STATE_CONFLICT: the row exists but is not READY, so its bytes are not yet integrity-verified."},
      "413": {"description": "TOO_LARGE: the encrypted variant has to hold the whole payload (AES-GCM is single-shot) and fails closed past maxBlobBytes, default 64 MiB, instead of degrading to an unbounded buffer or to plaintext."},
      "503": {"description": "TEMPORARY_UNAVAILABLE: encrypted delivery failed, including a revoked recipient key."}})}
-paths["/api/v1/operations/{id}/cancel"] = {"post": op("Idempotent cancel. server.ts:646.", APIKEY, ex({"reason": "no longer needed"}), {"202": {"description": "cancelling"}, "200": {"description": "replayed"}})}
-paths["/api/v1/operations/{id}/resume"] = {"post": op("Resume with CAS. server.ts:656.", APIKEY, ex({"waitId": "w1", "input": {}, "expectedStateVersion": 3}), {"202": {"description": "resumed"}, "200": {"description": "replayed"}})}
+paths["/api/internal/operations/{id}/cancel"] = {"post": op("Admin cancel; session CSRF required.", [ADMIN, {"PortalSession": []}], ex({}), {"200": {"description": "CANCEL_REQUESTED for a live worker until provider abort acknowledgement; otherwise CANCELLED, or terminal replay"}})}
+paths["/api/internal/operations/{id}/resume"] = {"post": op("Admin resume with CAS; session CSRF required.", [ADMIN, {"PortalSession": []}], ex({"waitId": "w1", "input": {}, "expectedStateVersion": 3}), {"200": {"description": "resumed or replayed"}})}
 paths["/api/v1/usage/summary"] = {"get": op("Tenant usage projection. server.ts:361.", APIKEY, None, {"200": {"description": "UsageSummary"}}, [{"name": "from", "in": "query"}, {"name": "to", "in": "query"}])}
 # COST-03. Two auth paths on ONE contract: an API key pinned to its own tenant,
 # or an admin bearer that may read any authorized tenant and must then name it.
@@ -722,6 +960,85 @@ paths["/api/v1/usage/events"] = {"get": op(
      "403": {"description": "PERMISSION_DENIED when tenantId does not match the API key tenant, or falls outside the admin credential scope"},
      "422": {"description": "INVALID_SCHEMA for an unsupported or REPEATED parameter (the allow-list has no wildcard, so no arbitrary filter, content or credential can enter this boundary), a non-integer limit or profileRevision, a to that is not strictly after from, half a businessId+action or provider+model pair, or a missing tenantId under an admin bearer. Also INVALID_ARGUMENT when a cursor does not belong to this query. This route never returns 400."}},
     USAGE_EVENTS_PARAMS)}
+
+# BASIC_ADMIN_USAGE_V1: an additive tenant-scoped Admin read API. This is a
+# basic persisted-wire projection and stays distinct from the rich public COST
+# exporter; no rich provenance or budget fields are implied.
+ADMIN_USAGE_PARAMS = [
+    param("tenantId", "Optional consistency/scope input. Tenant sessions are bound by the server; a platform Admin must name the tenant.", _USAGE_ID),
+    param("from", "Required inclusive receivedAt window start.", _USAGE_TS),
+    param("to", "Required exclusive receivedAt window end; after from and no more than 366 days.", _USAGE_TS),
+    param("timeField", "Fixed to receivedAt for this basic projection.", {"type": "string", "enum": ["receivedAt"], "default": "receivedAt"}),
+    param("limit", "Bounded page size, 1..100, default 50.", {"type": "integer", "minimum": 1, "maximum": 100, "default": 50}),
+    param("cursor", "Opaque keyset cursor bound to tenant and full query.", {"type": "string", "minLength": 1, "maxLength": 2048, "pattern": "^[A-Za-z0-9_-]+$"}),
+    param("operationId", "Optional operation UUID filter.", {"type": "string", "format": "uuid"}),
+    param("provider", "Optional provider/model filter; both values are required together.", _USAGE_ID),
+    param("model", "Optional provider/model filter; both values are required together.", _USAGE_ID),
+]
+for _p in ADMIN_USAGE_PARAMS:
+    if _p["name"] in ["from", "to"]:
+        _p["required"] = True
+paths["/api/internal/usage/events"] = {"get": op(
+    "BASIC_ADMIN_USAGE_V1: bounded tenant-fenced page over persisted runtime UsageEvent rows. This read exposes basic event facts with nullable missing cost/provenance; it is not the rich COST ledger exporter.",
+    [ADMIN, {"PortalSession": []}], None,
+    {"200": {"description": "Tenant-scoped basic usage event page; skipped invalid rows are counted, never silently treated as absent.", "content": {"application/json": {"schema": ref("AdminUsageEventPage")}}},
+     "401": {"description": "missing or invalid admin credential/session"},
+     "403": {"description": "tenant scope denied"},
+     "422": {"description": "INVALID_SCHEMA for unsupported/repeated filters, invalid window, paired provider/model mismatch, or cursor/query mismatch"}},
+    ADMIN_USAGE_PARAMS)}
+
+# Compose internal API: platform-admin reads/writes and the separate host
+# runner protocol. The runner credential is intentionally never an Admin
+# bearer, and runner endpoints have no BFF path.
+COMPOSE_JOB_PARAMS = [
+    param("hostId", "Optional host selector; a runner-configured Admin may only access its configured host.", COMPOSE_ID),
+    param("projectId", "Optional manifest project filter.", COMPOSE_ID),
+    param("state", "Optional Compose job state.", {"type": "string", "enum": COMPOSE_STATES}),
+    param("limit", "Bounded keyset page size, 1..100, default 50.", {"type": "integer", "minimum": 1, "maximum": 100, "default": 50}),
+    param("cursor", "Opaque query-bound cursor.", {"type": "string", "minLength": 1, "maxLength": 2048, "pattern": "^[A-Za-z0-9_-]+$"}),
+]
+paths["/api/internal/compose/catalog"] = {"get": op(
+    "Read the sanitized configured host catalog and latest observed project state. Missing host configuration is returned as capability-disabled, not synthetic telemetry.", ADMIN, None,
+    {"200": {"description": "ComposeCatalog", "content": {"application/json": {"schema": ref("ComposeCatalog")}}}, "401": {"description": "missing platform Admin bearer"}, "403": {"description": "platform Admin required"}, "503": {"description": "host runner unavailable"}})}
+paths["/api/internal/compose/previews"] = {"post": op(
+    "Create an expiring, manifest/revision-bound Compose impact preview. State and target are checked server-side.", ADMIN,
+    {"required": True, "content": {"application/json": {"schema": ref("ComposePreviewRequest")}}},
+    {"201": {"description": "ComposePreview", "content": {"application/json": {"schema": ref("ComposePreview")}}}, "401": {"description": "missing platform Admin bearer"}, "403": {"description": "platform Admin or session CSRF denied"}, "409": {"description": "stale observation, unavailable host, or target conflict"}, "422": {"description": "invalid preview request"}, "503": {"description": "runner not configured"}},
+    [{"name": "x-csrf-token", "in": "header", "required": False, "schema": {"type": "string"}, "description": "Required when the Admin BFF forwards a browser session proof; direct trusted bearer calls use the existing bearer policy."}] )}
+paths["/api/internal/compose/jobs"] = {
+    "get": op("List bounded Compose job history by optional host/project/state filter.", ADMIN, None,
+        {"200": {"description": "ComposeJobPage", "content": {"application/json": {"schema": ref("ComposeJobPage")}}}, "401": {"description": "missing platform Admin bearer"}, "403": {"description": "platform Admin required"}}, COMPOSE_JOB_PARAMS),
+    "post": op("Submit a previously issued Compose preview with revision compare-and-swap and idempotency.", ADMIN,
+        {"required": True, "content": {"application/json": {"schema": ref("ComposeSubmitJobRequest")}}},
+        {"201": {"description": "ComposeJobSubmission", "content": {"application/json": {"schema": ref("ComposeJobSubmission")}}}, "401": {"description": "missing platform Admin bearer"}, "403": {"description": "platform Admin or session CSRF denied"}, "409": {"description": "idempotency mismatch, stale preview/revision, or active target fence"}, "422": {"description": "invalid request or missing Idempotency-Key"}, "503": {"description": "runner not configured"}},
+        [{"name": "x-csrf-token", "in": "header", "required": False, "schema": {"type": "string"}}, {"name": "idempotency-key", "in": "header", "required": True, "schema": {"type": "string", "minLength": 8, "maxLength": 200}}])}
+paths["/api/internal/compose/jobs/{jobId}"] = {"get": op(
+    "Read one Compose job by id, host fenced.", ADMIN, None,
+    {"200": {"description": "ComposeJob", "content": {"application/json": {"schema": ref("ComposeJob")}}}, "401": {"description": "missing platform Admin bearer"}, "404": {"description": "unknown or foreign-host job"}})}
+
+COMPOSE_RUNNER = {"ComposeRunnerBearer": []}
+paths["/api/internal/compose/runner/snapshot"] = {"post": op(
+    "Publish a fresh, host-scoped allowlisted manifest and Docker observation snapshot.", COMPOSE_RUNNER,
+    {"required": True, "content": {"application/json": {"schema": ref("ComposeRunnerSnapshotRequest")}}},
+    {"200": {"description": "snapshot acknowledgement with computed catalog and observation digests", "content": {"application/json": {"schema": ref("ComposeRunnerSnapshotAck")}}}, "401": {"description": "dedicated Compose runner bearer required"}, "422": {"description": "invalid or stale host snapshot"}, "503": {"description": "runner unavailable"}})}
+paths["/api/internal/compose/runner/claim"] = {"post": op(
+    "Atomically claim one queued job for the configured host; returns null when no job is ready.", COMPOSE_RUNNER, None,
+    {"200": {"description": "bounded claim and execution token", "content": {"application/json": {"schema": ref("ComposeRunnerClaimResponse")}}}, "401": {"description": "dedicated Compose runner bearer required"}})}
+paths["/api/internal/compose/runner/start"] = {"post": op(
+    "Persist the durable start acknowledgement only when the fresh stored observation digest matches the immutable job expectation.", COMPOSE_RUNNER,
+    {"required": True, "content": {"application/json": {"schema": ref("ComposeRunnerStartRequest")}}},
+    {"200": {"description": "durable RUNNING acknowledgement", "content": {"application/json": {"schema": ref("ComposeRunnerStartAck")}}}, "401": {"description": "dedicated Compose runner bearer required"}, "409": {"description": "stale sample, digest mismatch or claim conflict; no host command is authorized"}})}
+paths["/api/internal/compose/runner/complete"] = {"post": op(
+    "Report a completed host action; exact report replays return the stored acknowledgement, divergent retries conflict.", COMPOSE_RUNNER,
+    {"required": True, "content": {"application/json": {"schema": ref("ComposeRunnerCompleteRequest")}}},
+    {"200": {"description": "accepted completion", "content": {"application/json": {"schema": ref("ComposeJobAck")}}}, "401": {"description": "dedicated Compose runner bearer required"}, "409": {"description": "state/version/token conflict"}})}
+paths["/api/internal/compose/runner/reconcile"] = {"post": op(
+    "Reconcile an UNKNOWN host job only with quiescence evidence and a fresh observation; exact report retries replay the stored acknowledgement.", COMPOSE_RUNNER,
+    {"required": True, "content": {"application/json": {"schema": ref("ComposeRunnerReconcileRequest")}}},
+    {"200": {"description": "accepted reconciliation", "content": {"application/json": {"schema": ref("ComposeJobAck")}}}, "401": {"description": "dedicated Compose runner bearer required"}, "409": {"description": "job is not UNKNOWN or state version changed"}})}
+paths["/api/internal/compose/runner/jobs/{jobId}"] = {"get": op(
+    "Read current runner-visible job state after expiry sweeping, scoped to the configured host. No Admin/BFF proxy exists.", COMPOSE_RUNNER, None,
+    {"200": {"description": "host-scoped ComposeJob", "content": {"application/json": {"schema": ref("ComposeJob")}}}, "401": {"description": "dedicated Compose runner bearer required"}, "404": {"description": "job not found or belongs to another host"}})}
 
 paths["/api/v1/connectors/{id}/test"] = {"get": op("Connector probe proxy, sanitized. server.ts:378.", APIKEY, None, {"200": {"description": "ConnectorProbeOutcome"}, "502": {"description": "unhealthy/unavailable"}})}
 paths["/api/v1/admin/audit"] = {"get": op(
@@ -838,6 +1155,23 @@ paths['/api/v1/admin/actions'] = {'post': op(
     [{'name': 'idempotency-key', 'in': 'header', 'schema': {'type': 'string'},
       'description': 'Idempotency key read from headers, not a body field.'}])}
 paths['/api/v1/admin/actions']['post']['x-source'] = admin_source("if (pathname === '/api/v1/admin/actions')")
+# ORV12: effective configuration revisions and operational callback controls.
+_scope_params = [{"name": name, "in": "query", "required": False, "schema": {"type": "string"}} for name in ["tenantId", "apiKeyId", "endpointSlug"]]
+paths['/api/v1/admin/settings'] = {'get': op('Effective deployment storage metadata and selected core profile/prompt configuration. Scope fields are required together. Latest20 revision history; optional revision selects decrypted authorized diff. activeRevisionMatchesEffective reports external dependency drift. No credential values.', ADMIN, None, {'200': {'description': 'EffectiveSettings with configuration {activeRevision,activeRevisionMatchesEffective,historyLimit:20,profile,revisions,selectedRevision?}'}, '403': {'description': 'Tenant denied'}, '422': {'description': 'Invalid scope'}}, _scope_params + [{'name':'revision','in':'query','schema':{'type':'integer','minimum':0}}])}
+paths['/api/v1/admin/settings']['get']['x-source'] = admin_source("if (pathname === '/api/v1/admin/settings')")
+paths['/api/v1/admin/legacy-migration/readiness'] = {'get': op('Tenant-scoped archived migration inventory/readiness. No archive/configuration payload is exposed; cutoverReady remains false until external verification gates are met.', ADMIN, None, {'200':{'description':'{tenantId,runs:[source digests,counts,latestInventory,status,cutoverReady:false]}'},'403':{'description':'Tenant denied'}}, [{'name':'tenantId','in':'query','required':True,'schema':{'type':'string','format':'uuid'}}])}
+paths['/api/v1/admin/legacy-migration/readiness']['get']['x-source'] = admin_source("if (pathname === '/api/v1/admin/legacy-migration/readiness')")
+paths['/api/internal/operations/{id}/deliveries'] = {'get': op('Tenant-scoped callback delivery status and retry capability. Excludes destination credentials/payload and sanitizes errors. Admin/session only.', [ADMIN, {'PortalSession':[]}], None, {'200':{'description':'{items:[{deliveryId,status,attempts,maxAttempts,lastError,nextAttemptAt,canRetry,disabledReason}]}'},'404':{'description':'Unknown/deleted/foreign operation'}})}
+paths['/api/v1/admin/actions']['post']['x-action-contracts'] = {
+ 'settings.revision.create': {'params':'tenantId, apiKeyId, endpointSlug, expectedActiveRevision:number|null, expectedProfileRevision?:positive integer, changes:{prompts?:[{connectionId:UUID,stepId:_default,promptOverride:string|null}],connectorBindings?:full slot->{connectorId,revision} map}', 'result':'revision detail root; immutable encrypted draft; baseline0 retained; admin only'},
+ 'settings.revision.validate': {'params':'scope + revision', 'result':'{revision,valid,issues:[{code,message}],checks}; configuration checks only, no paid provider execution'},
+ 'settings.revision.apply': {'params':'scope + revision + expectedActiveRevision', 'result':'{revision,activeRevision,profileRevision,appliesTo:new submissions only}; encrypted actual prompts and cloned profile pins; dependency and head CAS'},
+ 'settings.revision.rollback': {'params':'scope + historical revision + expectedActiveRevision', 'result':'new applied revision restoring target; no old operation pin mutation'},
+ 'settings.prompt.update': {'params':'legacy prompt target/value + expectedUpdatedAt', 'result':'timestamp CAS shorthand over create/validate/apply'},
+ 'profile.upsert': {'params':'existing command + endpointSlug?:core action:variant + connectorBindings?:full initial map', 'result':'native exact-endpoint profile creation; endpoint selector immutable; omitted pins preserve active map'},
+ 'operations.callback.retry': {'params':'operationId, deliveryId, expectedAttempts', 'result':'same failed delivery requeued, immutable payload/policy/id and consumed attempts retained; bounded10 attempts; RBAC,tenant,CSRF,idempotency,audit; never reexecute provider'}
+}
+
 paths['/api/v1/admin/connectors'] = {'get': op('Platform proxy: redacted Connector revision list.', ADMIN, None,
     {'200': {'description': '{items: redacted revisions}'}, '401': {'description': 'Missing or invalid admin identity'},
      '403': {'description': 'Admin scope denied'}, '502': {'description': 'Invalid upstream response'},
@@ -956,6 +1290,52 @@ for _action, _model in [('rotate', 'SecretCatalogRotate'), ('disable', 'SecretCa
     else:
         _operation['description'] = 'Accepts a bounded JSON object and forwards {}; does not prove a live secret availability probe.'
 
+# Existing Admin BFF adapters for basic usage and Compose. Portal operations
+# are kept separate from internal JSON routes; no runner endpoint is proxied.
+_portal_security = {'PortalSession': []}
+_portal_paths.add('/admin/api/usage/events')
+paths['/admin/api/usage/events'] = {'get': op(
+    'BASIC_ADMIN_USAGE_V1 BFF page. Resolves the active Admin session and tenant scope before forwarding to Internal JSON.',
+    _portal_security, None,
+    {'200': {'description': 'AdminUsageEventPage; basic persisted runtime facts with nullable absent cost/provenance.', 'content': {'application/json': {'schema': ref('AdminUsageEventPage')}}},
+     '401': {'description': 'missing/expired Portal session'}, '403': {'description': 'tenant scope denied'}, '422': {'description': 'invalid bounded query'}, '503': {'description': 'Admin JSON upstream unavailable'}},
+    ADMIN_USAGE_PARAMS)}
+
+_compose_portal_source = 'du-rework/orchestrator/services/orchestrator/src/app/admin/bff/compose.ts'
+def compose_portal_operation(path, method, summary, request_schema=None, response_schema=None, query_params=None, csrf=False, idem=False, status='200'):
+    params = list(query_params or [])
+    if csrf:
+        params.append({'name': 'x-csrf-token', 'in': 'header', 'required': True, 'schema': {'type': 'string'}})
+    if idem:
+        params.append({'name': 'idempotency-key', 'in': 'header', 'required': True, 'schema': {'type': 'string', 'minLength': 8, 'maxLength': 200}})
+    responses = {
+        status: {'description': summary, **({'content': {'application/json': {'schema': ref(response_schema)}}} if response_schema else {})},
+        '401': {'description': 'missing/expired Portal session'}, '403': {'description': 'platform Admin or CSRF denied'},
+        '422': {'description': 'unsupported/repeated query parameter or invalid DTO'}, '503': {'description': 'Admin JSON upstream unavailable'},
+    }
+    if method == 'post': responses['409'] = {'description': 'stale preview/revision, active target fence or idempotency conflict'}
+    request = {'required': True, 'content': {'application/json': {'schema': ref(request_schema)}}} if request_schema else None
+    result = op(summary, _portal_security, request, responses, params)
+    result['operationId'] = 'portalCompose' + method.title() + ''.join(part.title() for part in path.strip('/').split('/') if part and not part.startswith('{')) + ('ById' if '{jobId}' in path else '')
+    result['x-source'] = _compose_portal_source
+    paths.setdefault(path, {})[method] = result
+    _portal_paths.add(path)
+    return result
+
+compose_portal_operation('/admin/api/compose/catalog', 'get', 'Read the sanitized Compose catalog.', response_schema='ComposeCatalog')
+compose_portal_operation('/admin/api/compose/previews', 'post', 'Create an expiring Compose preview.', request_schema='ComposePreviewRequest', response_schema='ComposePreview', csrf=True, status='201')
+compose_portal_operation('/admin/api/compose/jobs', 'get', 'List bounded Compose job history.', response_schema='ComposeJobPage', query_params=[
+    param('hostId', 'Optional host filter.', COMPOSE_ID), param('projectId', 'Optional project filter.', COMPOSE_ID),
+    param('state', 'Optional job-state filter.', {'type': 'string', 'enum': COMPOSE_STATES}),
+    param('limit', 'Bounded keyset page size, 1..100, default 50.', {'type': 'integer', 'minimum': 1, 'maximum': 100, 'default': 50}),
+    param('cursor', 'Opaque query-bound cursor.', {'type': 'string', 'minLength': 1, 'maxLength': 2048, 'pattern': '^[A-Za-z0-9_-]+$'})])
+compose_portal_operation('/admin/api/compose/jobs', 'post', 'Submit a preview with revision compare-and-swap and idempotency.', request_schema='ComposeSubmitJobRequest', response_schema='ComposeJobSubmission', csrf=True, idem=True, status='201')
+compose_portal_operation('/admin/api/compose/jobs/{jobId}', 'get', 'Read one Compose job.', response_schema='ComposeJob', query_params=[])
+
+_compose_job_detail = paths['/admin/api/compose/jobs/{jobId}']['get']
+_compose_job_detail['parameters'] = [{'name': 'jobId', 'in': 'path', 'required': True, 'schema': {'type': 'string', 'format': 'uuid'}}]
+_compose_job_detail['responses']['404'] = {'description': 'job not found'}
+
 # PM-M07 structural reconciliation: every template variable is an explicit
 # required path parameter; these are wire strings, not guessed UUID enums.
 for _path, _item in paths.items():
@@ -983,7 +1363,7 @@ CONNECTOR_PATHS = {pth for (_method, pth, _summary, _fragment, _responses) in cp
 def _family_of(path):
     if path in CONNECTOR_PATHS:
         return "connector"
-    if path.startswith("/api/v1/admin/") or path in _portal_paths:
+    if path.startswith("/api/internal/operations") or path.startswith("/api/internal/usage/") or path.startswith("/api/internal/compose/") or path.startswith("/api/v1/admin/") or path in _portal_paths:
         return "admin"
     if path.startswith("/api/runtime/"):
         return "runtime"
@@ -1005,17 +1385,34 @@ doc = {"openapi": "3.0.3", "info": {"title": "DUGate rework API (code-derived, W
 doc["components"]["schemas"] = SCHEMAS
 doc['components']['securitySchemes']['PortalSession'] = {'type': 'apiKey', 'in': 'cookie', 'name': 'du_session',
     'description': 'Server-side Portal session; mutations additionally require x-csrf-token and platform admin.'}
-doc['info']['version'] = '1.5.0'
-doc['info']['description'] = ('Since 1.5.0: legacy workflow multipart admission facades at '
+doc['components']['securitySchemes']['ComposeRunnerBearer'] = {'type': 'http', 'scheme': 'bearer',
+    'description': 'Dedicated host-scoped Compose runner token; never an Admin/platform credential and not accepted by the Admin BFF.'}
+doc['info']['version'] = '1.6.0'
+doc['info']['description'] = ('Since 1.6.0: BASIC_ADMIN_USAGE_V1 and bounded Compose Admin/host-runner routes are documented as separate schemas and auth planes; '
+    'since 1.5.0: legacy workflow multipart admission facades at '
     '/api/v1/docs/workflows and /api/v1/docs/workflows/schema are documented; '
     'runtime compatibility acceptance is tracked separately in the WFA plan. ' + doc['info']['description'])
 doc['x-contract-models'] = {'secretCatalog': 'Canonical models + existing BFF routes; /api/v1/admin/secrets upstream absent.',
+    'adminBasicUsage': 'BASIC_ADMIN_USAGE_V1 persisted runtime-event projection; distinct from the rich public COST exporter and does not invent absent provenance.',
+    'composeOperations': 'Platform Admin/BFF catalog-preview-job routes plus distinct host-scoped runner protocol; unavailable host adapter remains an explicit capability state.',
     'callbackPolicy': 'Frozen contract models and offline dispatcher implementation; profile/admission policy.callbackPolicy and production resolver wiring absent. Not a new endpoint.'}
+doc['x-absent'] = [item.replace('admin /api/internal/v1 base + profiles/api-keys/connectors-CRUD/usage/replay',
+    'admin /api/internal/v1 base + profiles/api-keys/connectors-CRUD/replay') for item in doc['x-absent']]
 doc['x-absent'].extend(['Secret catalog upstream /api/v1/admin/secrets* and any plaintext resolve endpoint',
+                      'Rich COST provenance and budget-editing features beyond BASIC_ADMIN_USAGE_V1',
                       'Profile/admission policy.callbackPolicy plumbing (contract models exist)'])
 doc["components"]["securitySchemes"]["Svc"].update({
     "bearerFormat": "JWT", "description": "Connector HS256 service identity: aud=connector, exp, subject and required scopes claim. See x-required-service-scope on each operation."})
 
+# Explicit ORV11 retirement migration: all other documented drops still fail.
+ALLOWED_RETIRED_PATHS = {
+    '/api/v1/operations', '/api/v1/operations/{id}/result',
+    '/api/v1/operations/{id}/cancel', '/api/v1/operations/{id}/resume',
+}
+ALLOWED_RETIRED_OPERATIONS = {(p, m) for p, m in [
+    ('/api/v1/operations', 'get'), ('/api/v1/operations/{id}/result', 'get'),
+    ('/api/v1/operations/{id}/cancel', 'post'), ('/api/v1/operations/{id}/resume', 'post'),
+]}
 before = set()
 before_operations = set()
 if os.path.exists(OUT):
@@ -1023,25 +1420,26 @@ if os.path.exists(OUT):
     before = set(_previous_paths)
     before_operations = {(path, method) for path, item in _previous_paths.items()
                          for method in item if method in ['get', 'post', 'put', 'patch', 'delete', 'head', 'options', 'trace']}
-assert not (before - set(paths)), "regeneration would drop documented paths; refusing write"
+assert not (before - set(paths) - ALLOWED_RETIRED_PATHS), "regeneration would drop documented paths; refusing write"
 _current_operations = {(path, method) for path, item in paths.items()
                        for method in item if method in ['get', 'post', 'put', 'patch', 'delete', 'head', 'options', 'trace']}
-assert not (before_operations - _current_operations), 'regeneration would drop documented operations; refusing write'
+assert not (before_operations - _current_operations - ALLOWED_RETIRED_OPERATIONS), 'regeneration would drop documented operations; refusing write'
 assert not any(p.startswith('/internal/v1') or p.startswith('/management/') for p in paths), (
     "Connector aliases must not be invented by the generator")
 
 # CRLF, not LF: every other file under du-rework/docs is CRLF, and a deterministic
 # newline keeps "generate then diff" clean instead of churning the whole file.
 io.open(OUT, "w", encoding="utf-8", newline="\r\n").write(json.dumps(doc, indent=2))
+io.open("du-rework/orchestrator/docs/21-openapi.json", "w", encoding="utf-8", newline="\r\n").write(json.dumps(doc, indent=2))
 
 # Re-read what was actually written. These are the checks that would have caught
 # T140-D1 at generation time instead of at audit time.
 written = json.load(io.open(OUT, encoding="utf-8"))
 after = set(written["paths"])
 dropped = sorted(before - after)
-assert not dropped, (
+assert not (set(dropped) - ALLOWED_RETIRED_PATHS), (
     "regeneration dropped documented paths %r; re-add them to gen_openapi.py" % (dropped,))
-_written_ops = written["paths"]["/api/v1/operations"]["get"]
+_written_ops = written["paths"]["/api/internal/operations"]["get"]
 assert [p["name"] for p in _written_ops["parameters"]] == QUERY_PARAMS, "operations parameters drifted from the contract"
 assert _written_ops["parameters"][QUERY_PARAMS.index("sort")]["schema"]["enum"] == SORT_VALUES, "sort enum drifted from the contract"
 assert set(_written_ops["responses"]) == {"200", "401", "403", "422"}, "operations responses drifted"
@@ -1083,7 +1481,7 @@ assert set(["ArtifactDownloadResponse", "ArtifactRef",
                             "UsageLedgerEvent", "UsageLedgerUnits",
                             "UsageTimeSemantics"]).issubset(_schemas), (
     "components.schemas drifted to %r" % (sorted(_schemas),))
-_result_200 = written["paths"]["/api/v1/operations/{id}/result"]["get"]["responses"]["200"]
+_result_200 = written["paths"]["/api/internal/operations/{id}/result"]["get"]["responses"]["200"]
 _result_schema = _result_200["content"]["application/json"]["schema"]
 assert _result_schema["$ref"] == "#/components/schemas/ResultResponse", (
     "result 200 no longer points at the delivery union")
@@ -1115,6 +1513,32 @@ assert _schemas["UsageEventExportPage"]["properties"]["events"]["items"]["$ref"]
     "#/components/schemas/UsageLedgerEvent"), "usage event page lost its record schema"
 assert _schemas["UsageEventExportPage"]["additionalProperties"] is False, (
     "the export page is strict in the contract; do not publish it as open")
+assert set(["AdminUsageEventRecord", "AdminUsageEventPage", "AdminUsageEventQuery", "ComposeCatalog", "ComposePreview",
+            "ComposeJob", "ComposeJobPage", "ComposeJobSubmission", "ComposeRunnerSnapshotRequest",
+            "ComposeRunnerStartRequest", "ComposeRunnerCompleteRequest", "ComposeRunnerReconcileRequest"]).issubset(_schemas), (
+    "BASIC_ADMIN_USAGE_V1 or Compose schema outputs are missing")
+assert sorted(_schemas["AdminUsageEventRecord"]["properties"]) == sorted(ADMIN_USAGE_RECORD_FIELDS), (
+    "BASIC_ADMIN_USAGE_V1 record fields drifted from usage.ts")
+assert sorted(_schemas["AdminUsageEventPage"]["properties"]) == sorted(ADMIN_USAGE_PAGE_FIELDS), (
+    "BASIC_ADMIN_USAGE_V1 page fields drifted from usage.ts")
+assert written['paths']['/api/v1/usage/events']['get']['responses']['200']['content']['application/json']['schema']['$ref'] == '#/components/schemas/UsageEventExportPage', (
+    "the rich public COST exporter was replaced by the basic admin projection")
+for _path in ['/api/internal/usage/events', '/admin/api/usage/events', '/api/internal/compose/catalog',
+              '/api/internal/compose/previews', '/api/internal/compose/jobs', '/api/internal/compose/jobs/{jobId}',
+              '/api/internal/compose/runner/snapshot', '/api/internal/compose/runner/claim',
+              '/api/internal/compose/runner/start', '/api/internal/compose/runner/complete',
+              '/api/internal/compose/runner/reconcile', '/api/internal/compose/runner/jobs/{jobId}',
+              '/admin/api/compose/catalog', '/admin/api/compose/previews', '/admin/api/compose/jobs',
+              '/admin/api/compose/jobs/{jobId}']:
+    assert _path in written['paths'], 'missing Admin BASIC_USAGE/Compose route: ' + _path
+for _path in ['/api/internal/compose/runner/snapshot', '/api/internal/compose/runner/claim',
+              '/api/internal/compose/runner/start', '/api/internal/compose/runner/complete',
+              '/api/internal/compose/runner/reconcile', '/api/internal/compose/runner/jobs/{jobId}']:
+    _runner_operations = written['paths'][_path]
+    for _operation in _runner_operations.values():
+        assert _operation['security'] == [{'ComposeRunnerBearer': []}], 'runner auth must stay distinct: ' + _path
+assert not any(path.startswith('/admin/api/compose/runner') for path in written['paths']), 'runner routes must never be proxied through the Admin BFF'
+assert written['components']['securitySchemes']['ComposeRunnerBearer']['scheme'] == 'bearer'
 assert _schemas['SecretCatalogEntryRead']['additionalProperties'] is False
 assert 'value' not in _schemas['SecretCatalogEntryRead']['properties']
 assert _schemas['LiteralValueSource']['properties']['value']['writeOnly'] is True
@@ -1134,7 +1558,7 @@ assert _schemas["AdminTenantsPage"]["additionalProperties"] is False, (
 assert sorted(_schemas["AdminTenant"]["properties"]) == ["id", "name", "state"], (
     "the roster item is the contract shape {id, name, state}; do not invent fields")
 assert all(path in written['paths'] for path in _portal_paths)
-print('NO-DROP paths=%d operations=%d' % (len(before - after), len(before_operations - _current_operations)))
+print('NO-UNAUTHORIZED-DROP paths=%d operations=%d; authorized-retirements=%d' % (len(before - after - ALLOWED_RETIRED_PATHS), len(before_operations - _current_operations - ALLOWED_RETIRED_OPERATIONS), len(before - after)))
 print("OPENAPI-JSON path-count=%d operations-params=%d sort-values=%d usage-events-params=%d dropped-paths=%d schemas=%d origins=public:%s|internal:%s|connector:%s"
       % (len(after), len(QUERY_PARAMS), len(SORT_VALUES), len(USAGE_EVENT_QUERY_PARAMS),
          len(dropped), len(_schemas), PUBLIC_ORIGIN, INTERNAL_ORIGIN, CONNECTOR_ORIGIN))

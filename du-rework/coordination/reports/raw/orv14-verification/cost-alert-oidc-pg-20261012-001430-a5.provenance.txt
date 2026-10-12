@@ -1,0 +1,20 @@
+attempt=cost-alert-oidc-pg-20261012-001430-a5
+started_utc=2026-10-12 00:12:53 UTC (application timestamps in raw log)
+cwd=/workspace/dugate/du-rework
+node=/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node v24.21.0
+command=NODE_PATH=/workspace/dugate/du-rework/orchestrator/node_modules/.pnpm/node_modules /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node /workspace/dugate/du-rework/orchestrator/node_modules/.pnpm/node_modules/jest/bin/jest.js --config tests/workflow-api/jest.config.cjs --runInBand --detectOpenHandles --runTestsByPath tests/workflow-api/orv14-vfy/cost-alert-oidc.test.ts
+postgres_schema=du_test_orv14_vfy_cost_oidc_1791763972188_88a08581
+redis_db=11
+redis_prefix=du:test:orv14_vfy_cost_oidc_1791763972188_88a08581:oidc:
+queue_prefix=du:q:orv14_vfy_cost_oidc_1791763972188_88a08581:
+app_shell_a=http://127.0.0.1:40671
+app_shell_b=http://127.0.0.1:35601
+internal_a=http://127.0.0.1:41197
+synthetic_idp=http://127.0.0.1:44842
+test_sha256=35d6033b29633a6fd12b366e3375cbc45bb244d79527977a4a350f7e042b9979
+source_hashes_at_start=cost-alert-oidc-pg-20261012-001430-a5.pre.sha256
+source_hashes_at_end=cost-alert-oidc-pg-20261012-001430-a5.post.sha256
+result=1 selected test failed, exit 1. Cross-replica verified OIDC, private recipient pinning, budget draft/review/publish, CSRF rejection, binding operation, canonical alert enqueue/deduplication, persisted delivery, repeat zero-claim batch, second-user isolation, inbox listing/read/idempotency, and DB-backed read state assertions completed. Final privacy assertion reported ["binding response:subject"]. The binding response's actor label contains the verified OIDC subject; this is a product privacy finding, not a fixture failure. Other response/catalog/inbox redaction assertions completed without a leak label.
+source_snapshot=the before and after manifests are byte-identical; at run time service.ts=bcd03faf5d1390615d8d2a073bdcc880d89036463e01dbced475f0a55616008e, internal-cost-alerts.ts=afeb3e8347924b368c9c646074531d8cce00349c910f1a9ede9228ef35bc3c10, contracts/dist/cost-alerts.d.ts=b0be2c371223214a75084a27494c235605fe6b9f5230a158c6ddf4cd93d36f14. After the run, these three source hashes changed to service.ts=4a594dc7632d5608ef58bd66312b024ce8dc0684ebc96d07538636bd9f656203, internal-cost-alerts.ts=56f4d11b5e8f4c281e143c88f77f4075309a85626fa1591d4f63f60528193c77, contracts/dist/cost-alerts.d.ts=1b8d21948ffa0759442f211535d0a223ad8930a2c2a8d95b629f7c205b11a95f. This later drift is not included in the tested snapshot; await owner freeze and verify the relevant diff before rerun.
+admin_bundle=explicit no-bundle; not served-UI evidence
+cleanup=raw log records schema absent and namespaced OIDC Redis prefix remaining 0; both apps, OIDC gateways, and synthetic IdP closed; no open-handle warning

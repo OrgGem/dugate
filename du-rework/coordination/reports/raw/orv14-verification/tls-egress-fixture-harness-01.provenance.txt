@@ -1,0 +1,16 @@
+started_utc=2026-10-11T22:45:18Z
+cwd=/workspace/dugate/du-rework
+node=/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node; version=v24.21.0
+jest=/workspace/dugate/du-rework/orchestrator/node_modules/.pnpm/node_modules/jest/bin/jest.js
+NODE_PATH=/workspace/dugate/du-rework/orchestrator/node_modules/.pnpm/node_modules
+NODE_EXTRA_CA_CERTS was SET and readable before this run. A temporary bundle combined that existing CA file with the verifier-generated fixture CA, preserving the original file; the original was not modified.
+fixture=tests/workflow-api/orv14-vfy/https-fixture; host=orv14-vfy.test; synthetic server bound to 127.0.0.1 on an ephemeral port
+command=NODE_EXTRA_CA_CERTS=/tmp/orv14-vfy-tls-ca.ze9mSi/combined-ca-bundle.pem NODE_PATH=/workspace/dugate/du-rework/orchestrator/node_modules/.pnpm/node_modules /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node /workspace/dugate/du-rework/orchestrator/node_modules/.pnpm/node_modules/jest/bin/jest.js --config tests/workflow-api/jest.config.cjs --runInBand --detectOpenHandles --runTestsByPath tests/workflow-api/orv14-vfy-tls-egress-harness.test.ts
+verifier_test_sha256=b548dd14a0721fcf6855f8e5aa801572991a614bf53936238274ed76cecd4883
+pinned_fetch_sha256=8fd4b2116e868338ff150a69f51bf762ac5a4ce88bebfa823589625c48d4543a
+cost_alert_contract_sha256_pre=9814205425ae20dfe00dde4b55cc783eaa3d11cbdd5417d0648e1b53e1ede64f
+fixture_ca_sha256=919927a14a13a868ff3a0dc265fcef4ec0b27bb148ef7a7c9625739026de532e
+fixture_server_key_sha256=401edc648f4efa8f047434828a0489d0829fd21a69aeb9898859e8eb6c4999f9
+result=1 selected test failed, exit 1
+raw_log=tls-egress-fixture-harness-01.log
+failure=NODE_EXTRA_CA_CERTS ignored the malformed concatenation because the existing proxy CA and test CA were joined without a separator newline; real handshake then rejected the self-signed test fixture. This is fixture trust-bundle setup only, not a source/product failure. Preserve this first attempt; corrected bundle/run is attempt 02.

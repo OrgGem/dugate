@@ -161,6 +161,24 @@ describe('createRedisSessionRepository: principal index (revokePrincipal)', () =
   });
 });
 
+describe('createRedisSessionRepository: one-time Cost Alerts recipient pin', () => {
+  it('persists the exact eligible session pin and rejects a divergent re-pin', async () => {
+    const { fake, repo, clock } = world();
+    const store = createSessionStore({ repo, now: clock.now });
+    const session = await store.create({ issuer: ISS, sub: 'platform-admin', role: 'admin', tenantId: null });
+    const principalId = 'd7dbe239-6b17-4df6-9fdc-dfd6a8a632a1';
+
+    const pinned = await store.pinCostAlertRecipient(session.sessionId, principalId, 2);
+    expect(pinned).toMatchObject({ costAlertPrincipalId: principalId, costAlertAuthorizationVersion: 2 });
+    expect(await store.pinCostAlertRecipient(session.sessionId, principalId, 3)).toBeNull();
+    expect(await repo.get(session.sessionId)).toMatchObject({
+      costAlertPrincipalId: principalId,
+      costAlertAuthorizationVersion: 2,
+    });
+    expect(fake.ttlSeconds(sessKey(session.sessionId))).toBe(28800);
+  });
+});
+
 describe('OIDC-02 acceptance shape: two replicas, one Redis, one truth', () => {
   function pair(fake: RedisSessionGateway, now: () => number) {
     const mk = () =>

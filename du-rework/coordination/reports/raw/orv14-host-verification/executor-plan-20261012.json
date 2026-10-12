@@ -1,0 +1,66 @@
+{
+  "task": "VFY-ORV14-HOST-CONTINUITY synthetic native executor capability plan",
+  "startedAt": "2026-10-12T04:13:00Z",
+  "recordedAt": "2026-10-12T04:31:38Z",
+  "cwd": "/workspace/dugate/du-rework",
+  "planDirectory": "/workspace/scratch/orv14-host-executor-plan",
+  "planId": "orv14-vfy-host-executor-20261012-a8c9b16f",
+  "nodeVersion": "v24.21.0",
+  "dockerClientAndServer": "28.4.0|28.4.0",
+  "hostUidGid": "1000:1000",
+  "hostEffectiveCapabilitiesHex": "0000000000000000",
+  "hostNftBinary": null,
+  "hostNamespaceTool": "/usr/bin/nsenter",
+  "hostNamespaceToolVersion": "nsenter from util-linux 2.41.5",
+  "baseImageInspection": "sha256:c10884952bb8c37122fcc3fe6f97af3ab0a80e5eb02ee5df707406b4e11a7e3e|linux|amd64|[PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin NODE_VERSION=24.21.0 YARN_VERSION=1.22.22]",
+  "packageIndexes": {
+    "main": "24fc2ccb08f3125429a38b31bd6c76a7b394c6236df0975760dc8259e50dfbd5",
+    "community": "2784f87a5eb8bad43dedb6a00c1f4b912485405db8b90d1e869236085c45ffcc"
+  },
+  "packageCount": 19,
+  "directToolPackages": [
+    {
+      "name": "nftables",
+      "version": "1.1.6-r1",
+      "archiveSha256": "edca96e6160479bd734bb6cdb8412f84f689c6a771fdec75ce2c1c18f3e7cf42"
+    },
+    {
+      "name": "util-linux-misc",
+      "version": "2.42.3-r1",
+      "archiveSha256": "8cba67c052d9932c61db6b32f3a6042b62cca642f16479ba066c59a5a97ffc55"
+    }
+  ],
+  "staticChecks": {
+    "packageSha256Checks": "19/19 PASS from planDirectory",
+    "nodeCheck": "2/2 PASS on Node 24.21.0 after namespace topology update",
+    "shellSyntax": "seed and Dockerfile RUN shell PASS after final plan update",
+    "imageBuild": "NOT_RUN",
+    "privilegedExecutorLaunch": "NOT_RUN"
+  },
+  "filesSha256": {
+    "Dockerfile": "38b75cba3bd3742d83cd240e336b6ba52951feed92fc3402cf9d1815ee18b3c1",
+    "launch-plan.md": "c8acf17852f6a438e2647a23a2cdb36fea7669de236e450bbd5e61f45c9b523d",
+    "source-isolation.nft": "a8165769f5fe0f80e2ef341bfa0e5a23cc2ea4da3498b56e9d2e92dc306827cd",
+    "seed-volume.sh": "19b60d7140c3fe21b0b78f8762b15f8971d12f45fa552bcee25ffa4ee02de691",
+    "verify-target.mjs": "191f3bbad9a740f2ff96b7e6db7029cc10ea2d53feb31bab91821f34054db70d",
+    "verify-executor.mjs": "d12e006b866d0e533ce358ae8218aebce5365d2a8a8dbece10330a2e794e67cf",
+    "package-resolution.json": "e385d4791211d427612a7bb9613c1fee8ad71dc3f99cead40fe9cbb0afc99245",
+    "package-sha256.txt": "064b0c1fabf1da8be69d6ec9eb63522e5f04ff818d63b7401ff1204ed5b2f266"
+  },
+  "discardedPreparationCommand": {
+    "command": "sha256sum -c /workspace/scratch/orv14-host-executor-plan/package-sha256.txt",
+    "cwd": "/workspace/dugate/du-rework",
+    "exitCode": 1,
+    "reason": "checksum manifest paths are relative to planDirectory; rerun from planDirectory passed 19/19; this was not a build or test"
+  },
+  "proposedResources": {
+    "imageTag": "orv14-vfy-host-executor:20261012-a8c9b16f",
+    "targetContainer": "orv14-vfy-host-target-20261012-a8c9b16f",
+    "executorContainer": "orv14-vfy-host-executor-20261012-a8c9b16f",
+    "protectedVolume": "orv14-vfy-host-protected-20261012-a8c9b16f",
+    "created": false
+  },
+  "reviewStatus": "Sent to root; waiting for safety review before any image build or privileged executor/container creation",
+  "scope": "Capability-only synthetic plan; no customer/source endpoint, source DB, source Vault, Docker socket, host path mount, host PID/network, or production action.",
+  "topology": "Executor shares only the exact target PID namespace, remains in its own Docker network none namespace, verifies netns inode mismatch, then uses nsenter -t 1 -n to enter target; both target and executor have no external network."
+}

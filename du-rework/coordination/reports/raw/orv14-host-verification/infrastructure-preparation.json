@@ -1,0 +1,115 @@
+{
+  "task": "VFY-ORV14-HOST-CONTINUITY",
+  "stage": "source-independent infrastructure preparation",
+  "outcome": "PASSED",
+  "startedAt": "2026-10-11T23:20:11.195Z",
+  "completedAt": "2026-10-11T23:20:40.109Z",
+  "cwd": "/workspace/dugate/du-rework",
+  "nodeVersion": "v24.21.0",
+  "composeProject": "orv14-vfy-host-mv4g4i4c-e08b458953",
+  "composeFile": "tests/workflow-api/orv14-vfy-host/compose.yml",
+  "composeSha256": "7e18e4f71e1211331bca91af270ef50bdd24f1609876201b593a0afdd9a2f1d0",
+  "imageIds": {
+    "postgres": "sha256:81bd698b4594e751a3269e4dcd3e03a4a0ec0daf7b72e7aa1abd43cce9887542",
+    "redis": "sha256:f84b0c4678011602b9b98c227a4dcd5468bf8b088b02fdd4165cb7758bad8058",
+    "vault": "sha256:20bce4b1fc21ee5ccc659e3a13fd479894cfffcf650d8ca3c0c4ae7eaecc2c81",
+    "minio": "sha256:ff768636ea5c1b7bd295ddae1505506ae91a3beff613b14be377d23734cd2915"
+  },
+  "checks": {
+    "passed": 12,
+    "failed": 0,
+    "skipped": 0,
+    "infrastructure": {
+      "postgresClusters": 4,
+      "redis": "PONG",
+      "vaultStatuses": {
+        "vaultSource": 200,
+        "vaultRestore": 200
+      },
+      "minioStatuses": {
+        "s3Source": 200,
+        "s3Restore": 200
+      }
+    },
+    "postgresPlaneIdentities": [
+      {
+        "service": "orchestrator-source",
+        "clusterName": "orv14-host-orchestrator-source"
+      },
+      {
+        "service": "connector-source",
+        "clusterName": "orv14-host-connector-source"
+      },
+      {
+        "service": "orchestrator-restore",
+        "clusterName": "orv14-host-orchestrator-restore"
+      },
+      {
+        "service": "connector-restore",
+        "clusterName": "orv14-host-connector-restore"
+      }
+    ],
+    "rootOwnedReadableFixtureFiles": [
+      {
+        "relativePath": "trusted/config/manifest.json",
+        "uid": 0,
+        "gid": 1000,
+        "mode": 292,
+        "byteSize": 78,
+        "sha256": "3091e2749ab6b91de4aad4aa5611624efeac9ad9c237f35cf9c74b51f287c544"
+      },
+      {
+        "relativePath": "trusted/config/pg_service.conf",
+        "uid": 0,
+        "gid": 1000,
+        "mode": 292,
+        "byteSize": 637,
+        "sha256": "9bd2cc18eb156d971e7e43940ca995b891f48f4002af37d401b1b82bf9f68152"
+      },
+      {
+        "relativePath": "trusted/config/pgpass",
+        "uid": 0,
+        "gid": 1000,
+        "mode": 292,
+        "byteSize": 312,
+        "sha256": "713d63c7cc7900cfcc7f4c5fe4533995ba3d3555cb2fe195151a796a786bec09"
+      }
+    ]
+  },
+  "cleanup": {
+    "projectId": "orv14-vfy-host-mv4g4i4c-e08b458953",
+    "removed": {
+      "containers": [
+        "7c9ee883f369",
+        "e82b97ce30fb",
+        "9063772d6aa5",
+        "0a856f5f20bb",
+        "652598aee115",
+        "b093c14070b1",
+        "7fc31722e9cb",
+        "649a61708594",
+        "e89530bf1aa5",
+        "dcdfdee88f4b"
+      ],
+      "volumes": [
+        "orv14-vfy-host-mv4g4i4c-e08b458953_connector-restore-data",
+        "orv14-vfy-host-mv4g4i4c-e08b458953_connector-source-data",
+        "orv14-vfy-host-mv4g4i4c-e08b458953_minio-data",
+        "orv14-vfy-host-mv4g4i4c-e08b458953_minio-restore-data",
+        "orv14-vfy-host-mv4g4i4c-e08b458953_orchestrator-restore-data",
+        "orv14-vfy-host-mv4g4i4c-e08b458953_orchestrator-source-data"
+      ],
+      "networks": [
+        "c85800cb3a24"
+      ]
+    },
+    "remaining": {
+      "containers": [],
+      "volumes": [],
+      "networks": []
+    },
+    "temporaryFixtureRemoved": true
+  },
+  "verdict": "Preparation evidence only. No source APIs, application workflows, backup, restore, migration, or cutover were executed.",
+  "error": null
+}

@@ -1,0 +1,19 @@
+{
+  "operationId": "610be896-2996-484c-a044-89d04049b9f5",
+  "artifactId": "80c45303-9f1f-475e-99bd-9368458079c8",
+  "tenantId": "d76d75ac-fdef-4728-8b9c-18c0b6628df9",
+  "storageBackend": "s3",
+  "storageGenerationId": "b4fce6e7-272b-46a4-8bd2-74007f0aac3b",
+  "credentialVersionRef": "6ce2ab10-8834-48a9-b397-8a656946271c@1",
+  "credentialOwnerTenantId": "d76d75ac-fdef-4728-8b9c-18c0b6628df9",
+  "storageVersionId": "b55248fd-5fc9-4444-a6f6-cbd35835e815",
+  "manifestVersionId": "6ef9c2d8-b6d5-410f-b23e-3797cb8d49ac",
+  "plaintextBytes": 27,
+  "plaintextSha256": "487dcc2305ae3ffd3b209de72956bac81a21446efeae65063540489d47873437",
+  "storedObjectBytes": 27,
+  "storedObjectSha256": "2738207c0128ff6c526de896858460e1ae26e564c0ded7cc64d82df43d2a724a",
+  "storedObjectEqualsPlaintext": false,
+  "tenantOwnDownloadStatus": 200,
+  "otherSameTenantKeyStatus": 404,
+  "otherTenantKeyStatus": 404
+}

@@ -1,0 +1,1145 @@
+FAIL tests/workflow-api/orv14-vfy-core31.test.ts
+  ORV14 independent public HTTP compatibility with real outbox, worker, and Connector
+    ○ skipped legacy multipart ingest parses exact bytes, projects/downloads result and replays without duplicate blobs
+    ○ skipped sync submit waits for real worker and returns terminal result within its budget
+    ○ skipped browser uploads a document and submits workflow.test to real worker, then polls success
+    31 public multipart variants through production outbox/Redis/worker/Connector
+      ○ skipped DOC-01-01 ingest/parse
+      ○ skipped DOC-01-02 ingest/ocr
+      ○ skipped DOC-01-03 ingest/digitize
+      ○ skipped DOC-01-04 ingest/split
+      ○ skipped DOC-02-01 extract/invoice
+      ○ skipped DOC-02-02 extract/contract
+      ○ skipped DOC-02-03 extract/receipt
+      ○ skipped DOC-02-04 extract/table
+      ○ skipped DOC-02-05 extract/custom
+      ○ skipped DOC-02-06 extract/id-card
+      ○ skipped DOC-03-01 analyze/classify
+      ○ skipped DOC-03-02 analyze/sentiment
+      ○ skipped DOC-03-03 analyze/compliance
+      ○ skipped DOC-03-04 analyze/quality
+      ○ skipped DOC-03-05 analyze/risk
+      ○ skipped DOC-03-06 analyze/fact-check
+      ○ skipped DOC-03-07 analyze/summarize-eval
+      ○ skipped DOC-04-01 transform/convert
+      ○ skipped DOC-04-02 transform/translate
+      ○ skipped DOC-04-03 transform/rewrite
+      ○ skipped DOC-04-04 transform/redact
+      ○ skipped DOC-04-05 transform/template
+      ○ skipped DOC-05-01 generate/summary
+      ○ skipped DOC-05-02 generate/outline
+      ○ skipped DOC-05-03 generate/report
+      ○ skipped DOC-05-04 generate/email
+      ○ skipped DOC-05-05 generate/minutes
+      ○ skipped DOC-05-06 generate/qa
+      ○ skipped DOC-06-01 compare/diff
+      ○ skipped DOC-06-02 compare/semantic
+      ○ skipped DOC-06-03 compare/version
+    configured Worker private HTTPS
+      ✕ configured Worker receives exact private HTTPS policy, validates DNS/SNI/CA, executes callback and download, and exposes public result (1 ms)
+      ✕ parallel branch children share the configured private HTTPS policy
+      ✕ a resumed HITL workflow keeps the Worker policy for its later HTTPS callback
+      ✕ an explicit operation retry reuses the admitted schema pin and reaches HTTPS on the next attempt
+      ✕ worker default deny rejects a tenant-approved private origin when the operator list is empty
+      ✕ tenant schema approval blocks an origin absent from that immutable pin
+      ✕ operator list and tenant pin intersect; operator-only origin cannot be reached
+      ✕ verified TLS rejects a SAN mismatch while preserving the requested SNI
+      ✕ redirects are not followed and oversized file responses fail at the worker byte limit
+      ✕ operation cancellation aborts the active pinned HTTPS request
+      ✕ metadata, link-local, CGNAT, multicast, and reserved IP literals stay blocked with private opt-in
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › legacy multipart ingest parses exact bytes, projects/downloads result and replays without duplicate blobs
+
+    HttpError: storage generation snapshot write gate is not configured
+
+      60 | export const tooManyRequests = (msg: string) => new HttpError(429, 'CAPACITY', msg);
+      61 | export const unavailable = (msg = 'temporarily unavailable') =>
+    > 62 |   new HttpError(503, 'TEMPORARY_UNAVAILABLE', msg);
+         |   ^
+      63 |
+      64 | /** Zod issue list → 422 problem with JSON pointers (no secret echo). */
+      65 | export function zodIssuesToProblem(
+
+      at unavailable (orchestrator/services/orchestrator/src/http/errors.ts:62:3)
+      at assertSnapshotWriteAllowed (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:213:60)
+      at orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:505:15
+      at Object.tx (orchestrator/services/orchestrator/src/db/db.ts:28:30)
+      at Object.ensureInitial (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:504:22)
+      at assembleApp (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:742:27)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:699:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › sync submit waits for real worker and returns terminal result within its budget
+
+    HttpError: storage generation snapshot write gate is not configured
+
+      60 | export const tooManyRequests = (msg: string) => new HttpError(429, 'CAPACITY', msg);
+      61 | export const unavailable = (msg = 'temporarily unavailable') =>
+    > 62 |   new HttpError(503, 'TEMPORARY_UNAVAILABLE', msg);
+         |   ^
+      63 |
+      64 | /** Zod issue list → 422 problem with JSON pointers (no secret echo). */
+      65 | export function zodIssuesToProblem(
+
+      at unavailable (orchestrator/services/orchestrator/src/http/errors.ts:62:3)
+      at assertSnapshotWriteAllowed (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:213:60)
+      at orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:505:15
+      at Object.tx (orchestrator/services/orchestrator/src/db/db.ts:28:30)
+      at Object.ensureInitial (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:504:22)
+      at assembleApp (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:742:27)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:699:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › 31 public multipart variants through production outbox/Redis/worker/Connector › DOC-01-01 ingest/parse
+
+    HttpError: storage generation snapshot write gate is not configured
+
+      60 | export const tooManyRequests = (msg: string) => new HttpError(429, 'CAPACITY', msg);
+      61 | export const unavailable = (msg = 'temporarily unavailable') =>
+    > 62 |   new HttpError(503, 'TEMPORARY_UNAVAILABLE', msg);
+         |   ^
+      63 |
+      64 | /** Zod issue list → 422 problem with JSON pointers (no secret echo). */
+      65 | export function zodIssuesToProblem(
+
+      at unavailable (orchestrator/services/orchestrator/src/http/errors.ts:62:3)
+      at assertSnapshotWriteAllowed (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:213:60)
+      at orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:505:15
+      at Object.tx (orchestrator/services/orchestrator/src/db/db.ts:28:30)
+      at Object.ensureInitial (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:504:22)
+      at assembleApp (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:742:27)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:699:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › 31 public multipart variants through production outbox/Redis/worker/Connector › DOC-01-02 ingest/ocr
+
+    HttpError: storage generation snapshot write gate is not configured
+
+      60 | export const tooManyRequests = (msg: string) => new HttpError(429, 'CAPACITY', msg);
+      61 | export const unavailable = (msg = 'temporarily unavailable') =>
+    > 62 |   new HttpError(503, 'TEMPORARY_UNAVAILABLE', msg);
+         |   ^
+      63 |
+      64 | /** Zod issue list → 422 problem with JSON pointers (no secret echo). */
+      65 | export function zodIssuesToProblem(
+
+      at unavailable (orchestrator/services/orchestrator/src/http/errors.ts:62:3)
+      at assertSnapshotWriteAllowed (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:213:60)
+      at orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:505:15
+      at Object.tx (orchestrator/services/orchestrator/src/db/db.ts:28:30)
+      at Object.ensureInitial (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:504:22)
+      at assembleApp (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:742:27)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:699:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › 31 public multipart variants through production outbox/Redis/worker/Connector › DOC-01-03 ingest/digitize
+
+    HttpError: storage generation snapshot write gate is not configured
+
+      60 | export const tooManyRequests = (msg: string) => new HttpError(429, 'CAPACITY', msg);
+      61 | export const unavailable = (msg = 'temporarily unavailable') =>
+    > 62 |   new HttpError(503, 'TEMPORARY_UNAVAILABLE', msg);
+         |   ^
+      63 |
+      64 | /** Zod issue list → 422 problem with JSON pointers (no secret echo). */
+      65 | export function zodIssuesToProblem(
+
+      at unavailable (orchestrator/services/orchestrator/src/http/errors.ts:62:3)
+      at assertSnapshotWriteAllowed (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:213:60)
+      at orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:505:15
+      at Object.tx (orchestrator/services/orchestrator/src/db/db.ts:28:30)
+      at Object.ensureInitial (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:504:22)
+      at assembleApp (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:742:27)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:699:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › 31 public multipart variants through production outbox/Redis/worker/Connector › DOC-01-04 ingest/split
+
+    HttpError: storage generation snapshot write gate is not configured
+
+      60 | export const tooManyRequests = (msg: string) => new HttpError(429, 'CAPACITY', msg);
+      61 | export const unavailable = (msg = 'temporarily unavailable') =>
+    > 62 |   new HttpError(503, 'TEMPORARY_UNAVAILABLE', msg);
+         |   ^
+      63 |
+      64 | /** Zod issue list → 422 problem with JSON pointers (no secret echo). */
+      65 | export function zodIssuesToProblem(
+
+      at unavailable (orchestrator/services/orchestrator/src/http/errors.ts:62:3)
+      at assertSnapshotWriteAllowed (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:213:60)
+      at orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:505:15
+      at Object.tx (orchestrator/services/orchestrator/src/db/db.ts:28:30)
+      at Object.ensureInitial (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:504:22)
+      at assembleApp (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:742:27)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:699:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › 31 public multipart variants through production outbox/Redis/worker/Connector › DOC-02-01 extract/invoice
+
+    HttpError: storage generation snapshot write gate is not configured
+
+      60 | export const tooManyRequests = (msg: string) => new HttpError(429, 'CAPACITY', msg);
+      61 | export const unavailable = (msg = 'temporarily unavailable') =>
+    > 62 |   new HttpError(503, 'TEMPORARY_UNAVAILABLE', msg);
+         |   ^
+      63 |
+      64 | /** Zod issue list → 422 problem with JSON pointers (no secret echo). */
+      65 | export function zodIssuesToProblem(
+
+      at unavailable (orchestrator/services/orchestrator/src/http/errors.ts:62:3)
+      at assertSnapshotWriteAllowed (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:213:60)
+      at orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:505:15
+      at Object.tx (orchestrator/services/orchestrator/src/db/db.ts:28:30)
+      at Object.ensureInitial (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:504:22)
+      at assembleApp (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:742:27)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:699:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › 31 public multipart variants through production outbox/Redis/worker/Connector › DOC-02-02 extract/contract
+
+    HttpError: storage generation snapshot write gate is not configured
+
+      60 | export const tooManyRequests = (msg: string) => new HttpError(429, 'CAPACITY', msg);
+      61 | export const unavailable = (msg = 'temporarily unavailable') =>
+    > 62 |   new HttpError(503, 'TEMPORARY_UNAVAILABLE', msg);
+         |   ^
+      63 |
+      64 | /** Zod issue list → 422 problem with JSON pointers (no secret echo). */
+      65 | export function zodIssuesToProblem(
+
+      at unavailable (orchestrator/services/orchestrator/src/http/errors.ts:62:3)
+      at assertSnapshotWriteAllowed (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:213:60)
+      at orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:505:15
+      at Object.tx (orchestrator/services/orchestrator/src/db/db.ts:28:30)
+      at Object.ensureInitial (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:504:22)
+      at assembleApp (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:742:27)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:699:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › 31 public multipart variants through production outbox/Redis/worker/Connector › DOC-02-03 extract/receipt
+
+    HttpError: storage generation snapshot write gate is not configured
+
+      60 | export const tooManyRequests = (msg: string) => new HttpError(429, 'CAPACITY', msg);
+      61 | export const unavailable = (msg = 'temporarily unavailable') =>
+    > 62 |   new HttpError(503, 'TEMPORARY_UNAVAILABLE', msg);
+         |   ^
+      63 |
+      64 | /** Zod issue list → 422 problem with JSON pointers (no secret echo). */
+      65 | export function zodIssuesToProblem(
+
+      at unavailable (orchestrator/services/orchestrator/src/http/errors.ts:62:3)
+      at assertSnapshotWriteAllowed (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:213:60)
+      at orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:505:15
+      at Object.tx (orchestrator/services/orchestrator/src/db/db.ts:28:30)
+      at Object.ensureInitial (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:504:22)
+      at assembleApp (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:742:27)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:699:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › 31 public multipart variants through production outbox/Redis/worker/Connector › DOC-02-04 extract/table
+
+    HttpError: storage generation snapshot write gate is not configured
+
+      60 | export const tooManyRequests = (msg: string) => new HttpError(429, 'CAPACITY', msg);
+      61 | export const unavailable = (msg = 'temporarily unavailable') =>
+    > 62 |   new HttpError(503, 'TEMPORARY_UNAVAILABLE', msg);
+         |   ^
+      63 |
+      64 | /** Zod issue list → 422 problem with JSON pointers (no secret echo). */
+      65 | export function zodIssuesToProblem(
+
+      at unavailable (orchestrator/services/orchestrator/src/http/errors.ts:62:3)
+      at assertSnapshotWriteAllowed (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:213:60)
+      at orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:505:15
+      at Object.tx (orchestrator/services/orchestrator/src/db/db.ts:28:30)
+      at Object.ensureInitial (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:504:22)
+      at assembleApp (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:742:27)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:699:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › 31 public multipart variants through production outbox/Redis/worker/Connector › DOC-02-05 extract/custom
+
+    HttpError: storage generation snapshot write gate is not configured
+
+      60 | export const tooManyRequests = (msg: string) => new HttpError(429, 'CAPACITY', msg);
+      61 | export const unavailable = (msg = 'temporarily unavailable') =>
+    > 62 |   new HttpError(503, 'TEMPORARY_UNAVAILABLE', msg);
+         |   ^
+      63 |
+      64 | /** Zod issue list → 422 problem with JSON pointers (no secret echo). */
+      65 | export function zodIssuesToProblem(
+
+      at unavailable (orchestrator/services/orchestrator/src/http/errors.ts:62:3)
+      at assertSnapshotWriteAllowed (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:213:60)
+      at orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:505:15
+      at Object.tx (orchestrator/services/orchestrator/src/db/db.ts:28:30)
+      at Object.ensureInitial (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:504:22)
+      at assembleApp (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:742:27)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:699:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › 31 public multipart variants through production outbox/Redis/worker/Connector › DOC-02-06 extract/id-card
+
+    HttpError: storage generation snapshot write gate is not configured
+
+      60 | export const tooManyRequests = (msg: string) => new HttpError(429, 'CAPACITY', msg);
+      61 | export const unavailable = (msg = 'temporarily unavailable') =>
+    > 62 |   new HttpError(503, 'TEMPORARY_UNAVAILABLE', msg);
+         |   ^
+      63 |
+      64 | /** Zod issue list → 422 problem with JSON pointers (no secret echo). */
+      65 | export function zodIssuesToProblem(
+
+      at unavailable (orchestrator/services/orchestrator/src/http/errors.ts:62:3)
+      at assertSnapshotWriteAllowed (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:213:60)
+      at orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:505:15
+      at Object.tx (orchestrator/services/orchestrator/src/db/db.ts:28:30)
+      at Object.ensureInitial (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:504:22)
+      at assembleApp (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:742:27)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:699:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › 31 public multipart variants through production outbox/Redis/worker/Connector › DOC-03-01 analyze/classify
+
+    HttpError: storage generation snapshot write gate is not configured
+
+      60 | export const tooManyRequests = (msg: string) => new HttpError(429, 'CAPACITY', msg);
+      61 | export const unavailable = (msg = 'temporarily unavailable') =>
+    > 62 |   new HttpError(503, 'TEMPORARY_UNAVAILABLE', msg);
+         |   ^
+      63 |
+      64 | /** Zod issue list → 422 problem with JSON pointers (no secret echo). */
+      65 | export function zodIssuesToProblem(
+
+      at unavailable (orchestrator/services/orchestrator/src/http/errors.ts:62:3)
+      at assertSnapshotWriteAllowed (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:213:60)
+      at orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:505:15
+      at Object.tx (orchestrator/services/orchestrator/src/db/db.ts:28:30)
+      at Object.ensureInitial (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:504:22)
+      at assembleApp (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:742:27)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:699:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › 31 public multipart variants through production outbox/Redis/worker/Connector › DOC-03-02 analyze/sentiment
+
+    HttpError: storage generation snapshot write gate is not configured
+
+      60 | export const tooManyRequests = (msg: string) => new HttpError(429, 'CAPACITY', msg);
+      61 | export const unavailable = (msg = 'temporarily unavailable') =>
+    > 62 |   new HttpError(503, 'TEMPORARY_UNAVAILABLE', msg);
+         |   ^
+      63 |
+      64 | /** Zod issue list → 422 problem with JSON pointers (no secret echo). */
+      65 | export function zodIssuesToProblem(
+
+      at unavailable (orchestrator/services/orchestrator/src/http/errors.ts:62:3)
+      at assertSnapshotWriteAllowed (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:213:60)
+      at orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:505:15
+      at Object.tx (orchestrator/services/orchestrator/src/db/db.ts:28:30)
+      at Object.ensureInitial (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:504:22)
+      at assembleApp (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:742:27)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:699:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › 31 public multipart variants through production outbox/Redis/worker/Connector › DOC-03-03 analyze/compliance
+
+    HttpError: storage generation snapshot write gate is not configured
+
+      60 | export const tooManyRequests = (msg: string) => new HttpError(429, 'CAPACITY', msg);
+      61 | export const unavailable = (msg = 'temporarily unavailable') =>
+    > 62 |   new HttpError(503, 'TEMPORARY_UNAVAILABLE', msg);
+         |   ^
+      63 |
+      64 | /** Zod issue list → 422 problem with JSON pointers (no secret echo). */
+      65 | export function zodIssuesToProblem(
+
+      at unavailable (orchestrator/services/orchestrator/src/http/errors.ts:62:3)
+      at assertSnapshotWriteAllowed (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:213:60)
+      at orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:505:15
+      at Object.tx (orchestrator/services/orchestrator/src/db/db.ts:28:30)
+      at Object.ensureInitial (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:504:22)
+      at assembleApp (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:742:27)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:699:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › 31 public multipart variants through production outbox/Redis/worker/Connector › DOC-03-04 analyze/quality
+
+    HttpError: storage generation snapshot write gate is not configured
+
+      60 | export const tooManyRequests = (msg: string) => new HttpError(429, 'CAPACITY', msg);
+      61 | export const unavailable = (msg = 'temporarily unavailable') =>
+    > 62 |   new HttpError(503, 'TEMPORARY_UNAVAILABLE', msg);
+         |   ^
+      63 |
+      64 | /** Zod issue list → 422 problem with JSON pointers (no secret echo). */
+      65 | export function zodIssuesToProblem(
+
+      at unavailable (orchestrator/services/orchestrator/src/http/errors.ts:62:3)
+      at assertSnapshotWriteAllowed (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:213:60)
+      at orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:505:15
+      at Object.tx (orchestrator/services/orchestrator/src/db/db.ts:28:30)
+      at Object.ensureInitial (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:504:22)
+      at assembleApp (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:742:27)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:699:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › 31 public multipart variants through production outbox/Redis/worker/Connector › DOC-03-05 analyze/risk
+
+    HttpError: storage generation snapshot write gate is not configured
+
+      60 | export const tooManyRequests = (msg: string) => new HttpError(429, 'CAPACITY', msg);
+      61 | export const unavailable = (msg = 'temporarily unavailable') =>
+    > 62 |   new HttpError(503, 'TEMPORARY_UNAVAILABLE', msg);
+         |   ^
+      63 |
+      64 | /** Zod issue list → 422 problem with JSON pointers (no secret echo). */
+      65 | export function zodIssuesToProblem(
+
+      at unavailable (orchestrator/services/orchestrator/src/http/errors.ts:62:3)
+      at assertSnapshotWriteAllowed (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:213:60)
+      at orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:505:15
+      at Object.tx (orchestrator/services/orchestrator/src/db/db.ts:28:30)
+      at Object.ensureInitial (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:504:22)
+      at assembleApp (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:742:27)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:699:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › 31 public multipart variants through production outbox/Redis/worker/Connector › DOC-03-06 analyze/fact-check
+
+    HttpError: storage generation snapshot write gate is not configured
+
+      60 | export const tooManyRequests = (msg: string) => new HttpError(429, 'CAPACITY', msg);
+      61 | export const unavailable = (msg = 'temporarily unavailable') =>
+    > 62 |   new HttpError(503, 'TEMPORARY_UNAVAILABLE', msg);
+         |   ^
+      63 |
+      64 | /** Zod issue list → 422 problem with JSON pointers (no secret echo). */
+      65 | export function zodIssuesToProblem(
+
+      at unavailable (orchestrator/services/orchestrator/src/http/errors.ts:62:3)
+      at assertSnapshotWriteAllowed (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:213:60)
+      at orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:505:15
+      at Object.tx (orchestrator/services/orchestrator/src/db/db.ts:28:30)
+      at Object.ensureInitial (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:504:22)
+      at assembleApp (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:742:27)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:699:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › 31 public multipart variants through production outbox/Redis/worker/Connector › DOC-03-07 analyze/summarize-eval
+
+    HttpError: storage generation snapshot write gate is not configured
+
+      60 | export const tooManyRequests = (msg: string) => new HttpError(429, 'CAPACITY', msg);
+      61 | export const unavailable = (msg = 'temporarily unavailable') =>
+    > 62 |   new HttpError(503, 'TEMPORARY_UNAVAILABLE', msg);
+         |   ^
+      63 |
+      64 | /** Zod issue list → 422 problem with JSON pointers (no secret echo). */
+      65 | export function zodIssuesToProblem(
+
+      at unavailable (orchestrator/services/orchestrator/src/http/errors.ts:62:3)
+      at assertSnapshotWriteAllowed (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:213:60)
+      at orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:505:15
+      at Object.tx (orchestrator/services/orchestrator/src/db/db.ts:28:30)
+      at Object.ensureInitial (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:504:22)
+      at assembleApp (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:742:27)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:699:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › 31 public multipart variants through production outbox/Redis/worker/Connector › DOC-04-01 transform/convert
+
+    HttpError: storage generation snapshot write gate is not configured
+
+      60 | export const tooManyRequests = (msg: string) => new HttpError(429, 'CAPACITY', msg);
+      61 | export const unavailable = (msg = 'temporarily unavailable') =>
+    > 62 |   new HttpError(503, 'TEMPORARY_UNAVAILABLE', msg);
+         |   ^
+      63 |
+      64 | /** Zod issue list → 422 problem with JSON pointers (no secret echo). */
+      65 | export function zodIssuesToProblem(
+
+      at unavailable (orchestrator/services/orchestrator/src/http/errors.ts:62:3)
+      at assertSnapshotWriteAllowed (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:213:60)
+      at orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:505:15
+      at Object.tx (orchestrator/services/orchestrator/src/db/db.ts:28:30)
+      at Object.ensureInitial (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:504:22)
+      at assembleApp (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:742:27)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:699:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › 31 public multipart variants through production outbox/Redis/worker/Connector › DOC-04-02 transform/translate
+
+    HttpError: storage generation snapshot write gate is not configured
+
+      60 | export const tooManyRequests = (msg: string) => new HttpError(429, 'CAPACITY', msg);
+      61 | export const unavailable = (msg = 'temporarily unavailable') =>
+    > 62 |   new HttpError(503, 'TEMPORARY_UNAVAILABLE', msg);
+         |   ^
+      63 |
+      64 | /** Zod issue list → 422 problem with JSON pointers (no secret echo). */
+      65 | export function zodIssuesToProblem(
+
+      at unavailable (orchestrator/services/orchestrator/src/http/errors.ts:62:3)
+      at assertSnapshotWriteAllowed (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:213:60)
+      at orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:505:15
+      at Object.tx (orchestrator/services/orchestrator/src/db/db.ts:28:30)
+      at Object.ensureInitial (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:504:22)
+      at assembleApp (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:742:27)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:699:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › 31 public multipart variants through production outbox/Redis/worker/Connector › DOC-04-03 transform/rewrite
+
+    HttpError: storage generation snapshot write gate is not configured
+
+      60 | export const tooManyRequests = (msg: string) => new HttpError(429, 'CAPACITY', msg);
+      61 | export const unavailable = (msg = 'temporarily unavailable') =>
+    > 62 |   new HttpError(503, 'TEMPORARY_UNAVAILABLE', msg);
+         |   ^
+      63 |
+      64 | /** Zod issue list → 422 problem with JSON pointers (no secret echo). */
+      65 | export function zodIssuesToProblem(
+
+      at unavailable (orchestrator/services/orchestrator/src/http/errors.ts:62:3)
+      at assertSnapshotWriteAllowed (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:213:60)
+      at orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:505:15
+      at Object.tx (orchestrator/services/orchestrator/src/db/db.ts:28:30)
+      at Object.ensureInitial (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:504:22)
+      at assembleApp (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:742:27)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:699:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › 31 public multipart variants through production outbox/Redis/worker/Connector › DOC-04-04 transform/redact
+
+    HttpError: storage generation snapshot write gate is not configured
+
+      60 | export const tooManyRequests = (msg: string) => new HttpError(429, 'CAPACITY', msg);
+      61 | export const unavailable = (msg = 'temporarily unavailable') =>
+    > 62 |   new HttpError(503, 'TEMPORARY_UNAVAILABLE', msg);
+         |   ^
+      63 |
+      64 | /** Zod issue list → 422 problem with JSON pointers (no secret echo). */
+      65 | export function zodIssuesToProblem(
+
+      at unavailable (orchestrator/services/orchestrator/src/http/errors.ts:62:3)
+      at assertSnapshotWriteAllowed (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:213:60)
+      at orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:505:15
+      at Object.tx (orchestrator/services/orchestrator/src/db/db.ts:28:30)
+      at Object.ensureInitial (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:504:22)
+      at assembleApp (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:742:27)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:699:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › 31 public multipart variants through production outbox/Redis/worker/Connector › DOC-04-05 transform/template
+
+    HttpError: storage generation snapshot write gate is not configured
+
+      60 | export const tooManyRequests = (msg: string) => new HttpError(429, 'CAPACITY', msg);
+      61 | export const unavailable = (msg = 'temporarily unavailable') =>
+    > 62 |   new HttpError(503, 'TEMPORARY_UNAVAILABLE', msg);
+         |   ^
+      63 |
+      64 | /** Zod issue list → 422 problem with JSON pointers (no secret echo). */
+      65 | export function zodIssuesToProblem(
+
+      at unavailable (orchestrator/services/orchestrator/src/http/errors.ts:62:3)
+      at assertSnapshotWriteAllowed (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:213:60)
+      at orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:505:15
+      at Object.tx (orchestrator/services/orchestrator/src/db/db.ts:28:30)
+      at Object.ensureInitial (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:504:22)
+      at assembleApp (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:742:27)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:699:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › 31 public multipart variants through production outbox/Redis/worker/Connector › DOC-05-01 generate/summary
+
+    HttpError: storage generation snapshot write gate is not configured
+
+      60 | export const tooManyRequests = (msg: string) => new HttpError(429, 'CAPACITY', msg);
+      61 | export const unavailable = (msg = 'temporarily unavailable') =>
+    > 62 |   new HttpError(503, 'TEMPORARY_UNAVAILABLE', msg);
+         |   ^
+      63 |
+      64 | /** Zod issue list → 422 problem with JSON pointers (no secret echo). */
+      65 | export function zodIssuesToProblem(
+
+      at unavailable (orchestrator/services/orchestrator/src/http/errors.ts:62:3)
+      at assertSnapshotWriteAllowed (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:213:60)
+      at orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:505:15
+      at Object.tx (orchestrator/services/orchestrator/src/db/db.ts:28:30)
+      at Object.ensureInitial (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:504:22)
+      at assembleApp (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:742:27)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:699:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › 31 public multipart variants through production outbox/Redis/worker/Connector › DOC-05-02 generate/outline
+
+    HttpError: storage generation snapshot write gate is not configured
+
+      60 | export const tooManyRequests = (msg: string) => new HttpError(429, 'CAPACITY', msg);
+      61 | export const unavailable = (msg = 'temporarily unavailable') =>
+    > 62 |   new HttpError(503, 'TEMPORARY_UNAVAILABLE', msg);
+         |   ^
+      63 |
+      64 | /** Zod issue list → 422 problem with JSON pointers (no secret echo). */
+      65 | export function zodIssuesToProblem(
+
+      at unavailable (orchestrator/services/orchestrator/src/http/errors.ts:62:3)
+      at assertSnapshotWriteAllowed (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:213:60)
+      at orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:505:15
+      at Object.tx (orchestrator/services/orchestrator/src/db/db.ts:28:30)
+      at Object.ensureInitial (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:504:22)
+      at assembleApp (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:742:27)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:699:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › 31 public multipart variants through production outbox/Redis/worker/Connector › DOC-05-03 generate/report
+
+    HttpError: storage generation snapshot write gate is not configured
+
+      60 | export const tooManyRequests = (msg: string) => new HttpError(429, 'CAPACITY', msg);
+      61 | export const unavailable = (msg = 'temporarily unavailable') =>
+    > 62 |   new HttpError(503, 'TEMPORARY_UNAVAILABLE', msg);
+         |   ^
+      63 |
+      64 | /** Zod issue list → 422 problem with JSON pointers (no secret echo). */
+      65 | export function zodIssuesToProblem(
+
+      at unavailable (orchestrator/services/orchestrator/src/http/errors.ts:62:3)
+      at assertSnapshotWriteAllowed (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:213:60)
+      at orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:505:15
+      at Object.tx (orchestrator/services/orchestrator/src/db/db.ts:28:30)
+      at Object.ensureInitial (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:504:22)
+      at assembleApp (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:742:27)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:699:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › 31 public multipart variants through production outbox/Redis/worker/Connector › DOC-05-04 generate/email
+
+    HttpError: storage generation snapshot write gate is not configured
+
+      60 | export const tooManyRequests = (msg: string) => new HttpError(429, 'CAPACITY', msg);
+      61 | export const unavailable = (msg = 'temporarily unavailable') =>
+    > 62 |   new HttpError(503, 'TEMPORARY_UNAVAILABLE', msg);
+         |   ^
+      63 |
+      64 | /** Zod issue list → 422 problem with JSON pointers (no secret echo). */
+      65 | export function zodIssuesToProblem(
+
+      at unavailable (orchestrator/services/orchestrator/src/http/errors.ts:62:3)
+      at assertSnapshotWriteAllowed (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:213:60)
+      at orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:505:15
+      at Object.tx (orchestrator/services/orchestrator/src/db/db.ts:28:30)
+      at Object.ensureInitial (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:504:22)
+      at assembleApp (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:742:27)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:699:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › 31 public multipart variants through production outbox/Redis/worker/Connector › DOC-05-05 generate/minutes
+
+    HttpError: storage generation snapshot write gate is not configured
+
+      60 | export const tooManyRequests = (msg: string) => new HttpError(429, 'CAPACITY', msg);
+      61 | export const unavailable = (msg = 'temporarily unavailable') =>
+    > 62 |   new HttpError(503, 'TEMPORARY_UNAVAILABLE', msg);
+         |   ^
+      63 |
+      64 | /** Zod issue list → 422 problem with JSON pointers (no secret echo). */
+      65 | export function zodIssuesToProblem(
+
+      at unavailable (orchestrator/services/orchestrator/src/http/errors.ts:62:3)
+      at assertSnapshotWriteAllowed (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:213:60)
+      at orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:505:15
+      at Object.tx (orchestrator/services/orchestrator/src/db/db.ts:28:30)
+      at Object.ensureInitial (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:504:22)
+      at assembleApp (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:742:27)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:699:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › 31 public multipart variants through production outbox/Redis/worker/Connector › DOC-05-06 generate/qa
+
+    HttpError: storage generation snapshot write gate is not configured
+
+      60 | export const tooManyRequests = (msg: string) => new HttpError(429, 'CAPACITY', msg);
+      61 | export const unavailable = (msg = 'temporarily unavailable') =>
+    > 62 |   new HttpError(503, 'TEMPORARY_UNAVAILABLE', msg);
+         |   ^
+      63 |
+      64 | /** Zod issue list → 422 problem with JSON pointers (no secret echo). */
+      65 | export function zodIssuesToProblem(
+
+      at unavailable (orchestrator/services/orchestrator/src/http/errors.ts:62:3)
+      at assertSnapshotWriteAllowed (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:213:60)
+      at orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:505:15
+      at Object.tx (orchestrator/services/orchestrator/src/db/db.ts:28:30)
+      at Object.ensureInitial (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:504:22)
+      at assembleApp (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:742:27)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:699:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › 31 public multipart variants through production outbox/Redis/worker/Connector › DOC-06-01 compare/diff
+
+    HttpError: storage generation snapshot write gate is not configured
+
+      60 | export const tooManyRequests = (msg: string) => new HttpError(429, 'CAPACITY', msg);
+      61 | export const unavailable = (msg = 'temporarily unavailable') =>
+    > 62 |   new HttpError(503, 'TEMPORARY_UNAVAILABLE', msg);
+         |   ^
+      63 |
+      64 | /** Zod issue list → 422 problem with JSON pointers (no secret echo). */
+      65 | export function zodIssuesToProblem(
+
+      at unavailable (orchestrator/services/orchestrator/src/http/errors.ts:62:3)
+      at assertSnapshotWriteAllowed (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:213:60)
+      at orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:505:15
+      at Object.tx (orchestrator/services/orchestrator/src/db/db.ts:28:30)
+      at Object.ensureInitial (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:504:22)
+      at assembleApp (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:742:27)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:699:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › 31 public multipart variants through production outbox/Redis/worker/Connector › DOC-06-02 compare/semantic
+
+    HttpError: storage generation snapshot write gate is not configured
+
+      60 | export const tooManyRequests = (msg: string) => new HttpError(429, 'CAPACITY', msg);
+      61 | export const unavailable = (msg = 'temporarily unavailable') =>
+    > 62 |   new HttpError(503, 'TEMPORARY_UNAVAILABLE', msg);
+         |   ^
+      63 |
+      64 | /** Zod issue list → 422 problem with JSON pointers (no secret echo). */
+      65 | export function zodIssuesToProblem(
+
+      at unavailable (orchestrator/services/orchestrator/src/http/errors.ts:62:3)
+      at assertSnapshotWriteAllowed (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:213:60)
+      at orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:505:15
+      at Object.tx (orchestrator/services/orchestrator/src/db/db.ts:28:30)
+      at Object.ensureInitial (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:504:22)
+      at assembleApp (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:742:27)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:699:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › 31 public multipart variants through production outbox/Redis/worker/Connector › DOC-06-03 compare/version
+
+    HttpError: storage generation snapshot write gate is not configured
+
+      60 | export const tooManyRequests = (msg: string) => new HttpError(429, 'CAPACITY', msg);
+      61 | export const unavailable = (msg = 'temporarily unavailable') =>
+    > 62 |   new HttpError(503, 'TEMPORARY_UNAVAILABLE', msg);
+         |   ^
+      63 |
+      64 | /** Zod issue list → 422 problem with JSON pointers (no secret echo). */
+      65 | export function zodIssuesToProblem(
+
+      at unavailable (orchestrator/services/orchestrator/src/http/errors.ts:62:3)
+      at assertSnapshotWriteAllowed (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:213:60)
+      at orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:505:15
+      at Object.tx (orchestrator/services/orchestrator/src/db/db.ts:28:30)
+      at Object.ensureInitial (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:504:22)
+      at assembleApp (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:742:27)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:699:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › browser uploads a document and submits workflow.test to real worker, then polls success
+
+    HttpError: storage generation snapshot write gate is not configured
+
+      60 | export const tooManyRequests = (msg: string) => new HttpError(429, 'CAPACITY', msg);
+      61 | export const unavailable = (msg = 'temporarily unavailable') =>
+    > 62 |   new HttpError(503, 'TEMPORARY_UNAVAILABLE', msg);
+         |   ^
+      63 |
+      64 | /** Zod issue list → 422 problem with JSON pointers (no secret echo). */
+      65 | export function zodIssuesToProblem(
+
+      at unavailable (orchestrator/services/orchestrator/src/http/errors.ts:62:3)
+      at assertSnapshotWriteAllowed (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:213:60)
+      at orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:505:15
+      at Object.tx (orchestrator/services/orchestrator/src/db/db.ts:28:30)
+      at Object.ensureInitial (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:504:22)
+      at assembleApp (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:742:27)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:699:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › configured Worker private HTTPS › configured Worker receives exact private HTTPS policy, validates DNS/SNI/CA, executes callback and download, and exposes public result
+
+    HttpError: storage generation snapshot write gate is not configured
+
+      60 | export const tooManyRequests = (msg: string) => new HttpError(429, 'CAPACITY', msg);
+      61 | export const unavailable = (msg = 'temporarily unavailable') =>
+    > 62 |   new HttpError(503, 'TEMPORARY_UNAVAILABLE', msg);
+         |   ^
+      63 |
+      64 | /** Zod issue list → 422 problem with JSON pointers (no secret echo). */
+      65 | export function zodIssuesToProblem(
+
+      at unavailable (orchestrator/services/orchestrator/src/http/errors.ts:62:3)
+      at assertSnapshotWriteAllowed (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:213:60)
+      at orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:505:15
+      at Object.tx (orchestrator/services/orchestrator/src/db/db.ts:28:30)
+      at Object.ensureInitial (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:504:22)
+      at assembleApp (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:742:27)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:699:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › configured Worker private HTTPS › configured Worker receives exact private HTTPS policy, validates DNS/SNI/CA, executes callback and download, and exposes public result
+
+    Invalid worker configuration: RUNTIME_URL: RUNTIME_URL must be a valid URL
+
+      77 |   if (!result.success) {
+      78 |     const errorMessages = result.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ');
+    > 79 |     throw new Error(`Invalid worker configuration: ${errorMessages}`);
+         |           ^
+      80 |   }
+      81 |
+      82 |   const data = result.data;
+
+      at parseWorkerConfig (businesses/document-core/src/config.ts:79:11)
+      at DocumentCoreProcess.start (businesses/document-core/src/main.ts:26:33)
+      at installConfiguredWorker (tests/workflow-api/orv14-vfy-core31.test.ts:1213:39)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:1248:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › configured Worker private HTTPS › parallel branch children share the configured private HTTPS policy
+
+    HttpError: storage generation snapshot write gate is not configured
+
+      60 | export const tooManyRequests = (msg: string) => new HttpError(429, 'CAPACITY', msg);
+      61 | export const unavailable = (msg = 'temporarily unavailable') =>
+    > 62 |   new HttpError(503, 'TEMPORARY_UNAVAILABLE', msg);
+         |   ^
+      63 |
+      64 | /** Zod issue list → 422 problem with JSON pointers (no secret echo). */
+      65 | export function zodIssuesToProblem(
+
+      at unavailable (orchestrator/services/orchestrator/src/http/errors.ts:62:3)
+      at assertSnapshotWriteAllowed (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:213:60)
+      at orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:505:15
+      at Object.tx (orchestrator/services/orchestrator/src/db/db.ts:28:30)
+      at Object.ensureInitial (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:504:22)
+      at assembleApp (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:742:27)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:699:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › configured Worker private HTTPS › parallel branch children share the configured private HTTPS policy
+
+    Invalid worker configuration: RUNTIME_URL: RUNTIME_URL must be a valid URL
+
+      77 |   if (!result.success) {
+      78 |     const errorMessages = result.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ');
+    > 79 |     throw new Error(`Invalid worker configuration: ${errorMessages}`);
+         |           ^
+      80 |   }
+      81 |
+      82 |   const data = result.data;
+
+      at parseWorkerConfig (businesses/document-core/src/config.ts:79:11)
+      at DocumentCoreProcess.start (businesses/document-core/src/main.ts:26:33)
+      at installConfiguredWorker (tests/workflow-api/orv14-vfy-core31.test.ts:1213:39)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:1248:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › configured Worker private HTTPS › a resumed HITL workflow keeps the Worker policy for its later HTTPS callback
+
+    HttpError: storage generation snapshot write gate is not configured
+
+      60 | export const tooManyRequests = (msg: string) => new HttpError(429, 'CAPACITY', msg);
+      61 | export const unavailable = (msg = 'temporarily unavailable') =>
+    > 62 |   new HttpError(503, 'TEMPORARY_UNAVAILABLE', msg);
+         |   ^
+      63 |
+      64 | /** Zod issue list → 422 problem with JSON pointers (no secret echo). */
+      65 | export function zodIssuesToProblem(
+
+      at unavailable (orchestrator/services/orchestrator/src/http/errors.ts:62:3)
+      at assertSnapshotWriteAllowed (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:213:60)
+      at orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:505:15
+      at Object.tx (orchestrator/services/orchestrator/src/db/db.ts:28:30)
+      at Object.ensureInitial (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:504:22)
+      at assembleApp (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:742:27)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:699:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › configured Worker private HTTPS › a resumed HITL workflow keeps the Worker policy for its later HTTPS callback
+
+    Invalid worker configuration: RUNTIME_URL: RUNTIME_URL must be a valid URL
+
+      77 |   if (!result.success) {
+      78 |     const errorMessages = result.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ');
+    > 79 |     throw new Error(`Invalid worker configuration: ${errorMessages}`);
+         |           ^
+      80 |   }
+      81 |
+      82 |   const data = result.data;
+
+      at parseWorkerConfig (businesses/document-core/src/config.ts:79:11)
+      at DocumentCoreProcess.start (businesses/document-core/src/main.ts:26:33)
+      at installConfiguredWorker (tests/workflow-api/orv14-vfy-core31.test.ts:1213:39)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:1248:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › configured Worker private HTTPS › an explicit operation retry reuses the admitted schema pin and reaches HTTPS on the next attempt
+
+    HttpError: storage generation snapshot write gate is not configured
+
+      60 | export const tooManyRequests = (msg: string) => new HttpError(429, 'CAPACITY', msg);
+      61 | export const unavailable = (msg = 'temporarily unavailable') =>
+    > 62 |   new HttpError(503, 'TEMPORARY_UNAVAILABLE', msg);
+         |   ^
+      63 |
+      64 | /** Zod issue list → 422 problem with JSON pointers (no secret echo). */
+      65 | export function zodIssuesToProblem(
+
+      at unavailable (orchestrator/services/orchestrator/src/http/errors.ts:62:3)
+      at assertSnapshotWriteAllowed (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:213:60)
+      at orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:505:15
+      at Object.tx (orchestrator/services/orchestrator/src/db/db.ts:28:30)
+      at Object.ensureInitial (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:504:22)
+      at assembleApp (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:742:27)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:699:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › configured Worker private HTTPS › an explicit operation retry reuses the admitted schema pin and reaches HTTPS on the next attempt
+
+    Invalid worker configuration: RUNTIME_URL: RUNTIME_URL must be a valid URL
+
+      77 |   if (!result.success) {
+      78 |     const errorMessages = result.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ');
+    > 79 |     throw new Error(`Invalid worker configuration: ${errorMessages}`);
+         |           ^
+      80 |   }
+      81 |
+      82 |   const data = result.data;
+
+      at parseWorkerConfig (businesses/document-core/src/config.ts:79:11)
+      at DocumentCoreProcess.start (businesses/document-core/src/main.ts:26:33)
+      at installConfiguredWorker (tests/workflow-api/orv14-vfy-core31.test.ts:1213:39)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:1248:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › configured Worker private HTTPS › worker default deny rejects a tenant-approved private origin when the operator list is empty
+
+    HttpError: storage generation snapshot write gate is not configured
+
+      60 | export const tooManyRequests = (msg: string) => new HttpError(429, 'CAPACITY', msg);
+      61 | export const unavailable = (msg = 'temporarily unavailable') =>
+    > 62 |   new HttpError(503, 'TEMPORARY_UNAVAILABLE', msg);
+         |   ^
+      63 |
+      64 | /** Zod issue list → 422 problem with JSON pointers (no secret echo). */
+      65 | export function zodIssuesToProblem(
+
+      at unavailable (orchestrator/services/orchestrator/src/http/errors.ts:62:3)
+      at assertSnapshotWriteAllowed (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:213:60)
+      at orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:505:15
+      at Object.tx (orchestrator/services/orchestrator/src/db/db.ts:28:30)
+      at Object.ensureInitial (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:504:22)
+      at assembleApp (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:742:27)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:699:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › configured Worker private HTTPS › worker default deny rejects a tenant-approved private origin when the operator list is empty
+
+    Invalid worker configuration: RUNTIME_URL: RUNTIME_URL must be a valid URL
+
+      77 |   if (!result.success) {
+      78 |     const errorMessages = result.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ');
+    > 79 |     throw new Error(`Invalid worker configuration: ${errorMessages}`);
+         |           ^
+      80 |   }
+      81 |
+      82 |   const data = result.data;
+
+      at parseWorkerConfig (businesses/document-core/src/config.ts:79:11)
+      at DocumentCoreProcess.start (businesses/document-core/src/main.ts:26:33)
+      at installConfiguredWorker (tests/workflow-api/orv14-vfy-core31.test.ts:1213:39)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:1248:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › configured Worker private HTTPS › tenant schema approval blocks an origin absent from that immutable pin
+
+    HttpError: storage generation snapshot write gate is not configured
+
+      60 | export const tooManyRequests = (msg: string) => new HttpError(429, 'CAPACITY', msg);
+      61 | export const unavailable = (msg = 'temporarily unavailable') =>
+    > 62 |   new HttpError(503, 'TEMPORARY_UNAVAILABLE', msg);
+         |   ^
+      63 |
+      64 | /** Zod issue list → 422 problem with JSON pointers (no secret echo). */
+      65 | export function zodIssuesToProblem(
+
+      at unavailable (orchestrator/services/orchestrator/src/http/errors.ts:62:3)
+      at assertSnapshotWriteAllowed (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:213:60)
+      at orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:505:15
+      at Object.tx (orchestrator/services/orchestrator/src/db/db.ts:28:30)
+      at Object.ensureInitial (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:504:22)
+      at assembleApp (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:742:27)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:699:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › configured Worker private HTTPS › tenant schema approval blocks an origin absent from that immutable pin
+
+    Invalid worker configuration: RUNTIME_URL: RUNTIME_URL must be a valid URL
+
+      77 |   if (!result.success) {
+      78 |     const errorMessages = result.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ');
+    > 79 |     throw new Error(`Invalid worker configuration: ${errorMessages}`);
+         |           ^
+      80 |   }
+      81 |
+      82 |   const data = result.data;
+
+      at parseWorkerConfig (businesses/document-core/src/config.ts:79:11)
+      at DocumentCoreProcess.start (businesses/document-core/src/main.ts:26:33)
+      at installConfiguredWorker (tests/workflow-api/orv14-vfy-core31.test.ts:1213:39)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:1248:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › configured Worker private HTTPS › operator list and tenant pin intersect; operator-only origin cannot be reached
+
+    HttpError: storage generation snapshot write gate is not configured
+
+      60 | export const tooManyRequests = (msg: string) => new HttpError(429, 'CAPACITY', msg);
+      61 | export const unavailable = (msg = 'temporarily unavailable') =>
+    > 62 |   new HttpError(503, 'TEMPORARY_UNAVAILABLE', msg);
+         |   ^
+      63 |
+      64 | /** Zod issue list → 422 problem with JSON pointers (no secret echo). */
+      65 | export function zodIssuesToProblem(
+
+      at unavailable (orchestrator/services/orchestrator/src/http/errors.ts:62:3)
+      at assertSnapshotWriteAllowed (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:213:60)
+      at orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:505:15
+      at Object.tx (orchestrator/services/orchestrator/src/db/db.ts:28:30)
+      at Object.ensureInitial (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:504:22)
+      at assembleApp (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:742:27)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:699:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › configured Worker private HTTPS › operator list and tenant pin intersect; operator-only origin cannot be reached
+
+    Invalid worker configuration: RUNTIME_URL: RUNTIME_URL must be a valid URL
+
+      77 |   if (!result.success) {
+      78 |     const errorMessages = result.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ');
+    > 79 |     throw new Error(`Invalid worker configuration: ${errorMessages}`);
+         |           ^
+      80 |   }
+      81 |
+      82 |   const data = result.data;
+
+      at parseWorkerConfig (businesses/document-core/src/config.ts:79:11)
+      at DocumentCoreProcess.start (businesses/document-core/src/main.ts:26:33)
+      at installConfiguredWorker (tests/workflow-api/orv14-vfy-core31.test.ts:1213:39)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:1248:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › configured Worker private HTTPS › verified TLS rejects a SAN mismatch while preserving the requested SNI
+
+    HttpError: storage generation snapshot write gate is not configured
+
+      60 | export const tooManyRequests = (msg: string) => new HttpError(429, 'CAPACITY', msg);
+      61 | export const unavailable = (msg = 'temporarily unavailable') =>
+    > 62 |   new HttpError(503, 'TEMPORARY_UNAVAILABLE', msg);
+         |   ^
+      63 |
+      64 | /** Zod issue list → 422 problem with JSON pointers (no secret echo). */
+      65 | export function zodIssuesToProblem(
+
+      at unavailable (orchestrator/services/orchestrator/src/http/errors.ts:62:3)
+      at assertSnapshotWriteAllowed (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:213:60)
+      at orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:505:15
+      at Object.tx (orchestrator/services/orchestrator/src/db/db.ts:28:30)
+      at Object.ensureInitial (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:504:22)
+      at assembleApp (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:742:27)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:699:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › configured Worker private HTTPS › verified TLS rejects a SAN mismatch while preserving the requested SNI
+
+    Invalid worker configuration: RUNTIME_URL: RUNTIME_URL must be a valid URL
+
+      77 |   if (!result.success) {
+      78 |     const errorMessages = result.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ');
+    > 79 |     throw new Error(`Invalid worker configuration: ${errorMessages}`);
+         |           ^
+      80 |   }
+      81 |
+      82 |   const data = result.data;
+
+      at parseWorkerConfig (businesses/document-core/src/config.ts:79:11)
+      at DocumentCoreProcess.start (businesses/document-core/src/main.ts:26:33)
+      at installConfiguredWorker (tests/workflow-api/orv14-vfy-core31.test.ts:1213:39)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:1248:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › configured Worker private HTTPS › redirects are not followed and oversized file responses fail at the worker byte limit
+
+    HttpError: storage generation snapshot write gate is not configured
+
+      60 | export const tooManyRequests = (msg: string) => new HttpError(429, 'CAPACITY', msg);
+      61 | export const unavailable = (msg = 'temporarily unavailable') =>
+    > 62 |   new HttpError(503, 'TEMPORARY_UNAVAILABLE', msg);
+         |   ^
+      63 |
+      64 | /** Zod issue list → 422 problem with JSON pointers (no secret echo). */
+      65 | export function zodIssuesToProblem(
+
+      at unavailable (orchestrator/services/orchestrator/src/http/errors.ts:62:3)
+      at assertSnapshotWriteAllowed (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:213:60)
+      at orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:505:15
+      at Object.tx (orchestrator/services/orchestrator/src/db/db.ts:28:30)
+      at Object.ensureInitial (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:504:22)
+      at assembleApp (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:742:27)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:699:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › configured Worker private HTTPS › redirects are not followed and oversized file responses fail at the worker byte limit
+
+    Invalid worker configuration: RUNTIME_URL: RUNTIME_URL must be a valid URL
+
+      77 |   if (!result.success) {
+      78 |     const errorMessages = result.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ');
+    > 79 |     throw new Error(`Invalid worker configuration: ${errorMessages}`);
+         |           ^
+      80 |   }
+      81 |
+      82 |   const data = result.data;
+
+      at parseWorkerConfig (businesses/document-core/src/config.ts:79:11)
+      at DocumentCoreProcess.start (businesses/document-core/src/main.ts:26:33)
+      at installConfiguredWorker (tests/workflow-api/orv14-vfy-core31.test.ts:1213:39)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:1248:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › configured Worker private HTTPS › operation cancellation aborts the active pinned HTTPS request
+
+    HttpError: storage generation snapshot write gate is not configured
+
+      60 | export const tooManyRequests = (msg: string) => new HttpError(429, 'CAPACITY', msg);
+      61 | export const unavailable = (msg = 'temporarily unavailable') =>
+    > 62 |   new HttpError(503, 'TEMPORARY_UNAVAILABLE', msg);
+         |   ^
+      63 |
+      64 | /** Zod issue list → 422 problem with JSON pointers (no secret echo). */
+      65 | export function zodIssuesToProblem(
+
+      at unavailable (orchestrator/services/orchestrator/src/http/errors.ts:62:3)
+      at assertSnapshotWriteAllowed (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:213:60)
+      at orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:505:15
+      at Object.tx (orchestrator/services/orchestrator/src/db/db.ts:28:30)
+      at Object.ensureInitial (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:504:22)
+      at assembleApp (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:742:27)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:699:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › configured Worker private HTTPS › operation cancellation aborts the active pinned HTTPS request
+
+    Invalid worker configuration: RUNTIME_URL: RUNTIME_URL must be a valid URL
+
+      77 |   if (!result.success) {
+      78 |     const errorMessages = result.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ');
+    > 79 |     throw new Error(`Invalid worker configuration: ${errorMessages}`);
+         |           ^
+      80 |   }
+      81 |
+      82 |   const data = result.data;
+
+      at parseWorkerConfig (businesses/document-core/src/config.ts:79:11)
+      at DocumentCoreProcess.start (businesses/document-core/src/main.ts:26:33)
+      at installConfiguredWorker (tests/workflow-api/orv14-vfy-core31.test.ts:1213:39)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:1248:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › configured Worker private HTTPS › metadata, link-local, CGNAT, multicast, and reserved IP literals stay blocked with private opt-in
+
+    HttpError: storage generation snapshot write gate is not configured
+
+      60 | export const tooManyRequests = (msg: string) => new HttpError(429, 'CAPACITY', msg);
+      61 | export const unavailable = (msg = 'temporarily unavailable') =>
+    > 62 |   new HttpError(503, 'TEMPORARY_UNAVAILABLE', msg);
+         |   ^
+      63 |
+      64 | /** Zod issue list → 422 problem with JSON pointers (no secret echo). */
+      65 | export function zodIssuesToProblem(
+
+      at unavailable (orchestrator/services/orchestrator/src/http/errors.ts:62:3)
+      at assertSnapshotWriteAllowed (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:213:60)
+      at orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:505:15
+      at Object.tx (orchestrator/services/orchestrator/src/db/db.ts:28:30)
+      at Object.ensureInitial (orchestrator/services/orchestrator/src/modules/artifacts/storage-generations.ts:504:22)
+      at assembleApp (orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts:742:27)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:699:13)
+
+  ● ORV14 independent public HTTP compatibility with real outbox, worker, and Connector › configured Worker private HTTPS › metadata, link-local, CGNAT, multicast, and reserved IP literals stay blocked with private opt-in
+
+    Invalid worker configuration: RUNTIME_URL: RUNTIME_URL must be a valid URL
+
+      77 |   if (!result.success) {
+      78 |     const errorMessages = result.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ');
+    > 79 |     throw new Error(`Invalid worker configuration: ${errorMessages}`);
+         |           ^
+      80 |   }
+      81 |
+      82 |   const data = result.data;
+
+      at parseWorkerConfig (businesses/document-core/src/config.ts:79:11)
+      at DocumentCoreProcess.start (businesses/document-core/src/main.ts:26:33)
+      at installConfiguredWorker (tests/workflow-api/orv14-vfy-core31.test.ts:1213:39)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-core31.test.ts:1248:13)
+
+Test Suites: 1 failed, 1 total
+Tests:       11 failed, 34 skipped, 45 total
+Snapshots:   0 total
+Time:        3.314 s, estimated 15 s
+Ran all test suites within paths "tests/workflow-api/orv14-vfy-core31.test.ts".
+Jest did not exit one second after the test run has completed.
+
+'This usually means that there are asynchronous operations that weren't stopped in your tests. Consider running Jest with `--detectOpenHandles` to troubleshoot this issue.

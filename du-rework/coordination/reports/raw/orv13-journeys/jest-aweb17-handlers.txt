@@ -1,0 +1,14 @@
+PASS tests/aweb-17-workflow-test-honesty.test.ts
+  AWEB-17 workflow test result honesty
+    ✓ backend rejection renders FAILED with its code and no fabricated operation ID (117 ms)
+    ✓ request exception renders FAILED with an explicit error code and message (33 ms)
+    ✓ simulation is shown only when selected and does not call the backend (25 ms)
+    ✓ the modal exposes an explicit local simulation source choice (1 ms)
+    ✓ accepted result uses only operation ID and stages returned by the backend (26 ms)
+    ○ skipped overview API keys link points at Profiles, where key management lives
+
+Test Suites: 1 passed, 1 total
+Tests:       1 skipped, 5 passed, 6 total
+Snapshots:   0 total
+Time:        1.985 s, estimated 2 s
+Ran all test suites matching /tests\/aweb-17-workflow-test-honesty.test.ts/i with tests matching "(backend rejection|request exception|simulation is shown|modal exposes|accepted result)".

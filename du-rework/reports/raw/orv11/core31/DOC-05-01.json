@@ -1,0 +1,31 @@
+{
+  "name": "operations/a1fe99d4-80ff-4d91-916f-a917f144e7a5",
+  "done": true,
+  "metadata": {
+    "state": "SUCCEEDED",
+    "pipeline": [],
+    "current_step": 0,
+    "progress_percent": 0,
+    "progress_message": "Queued",
+    "create_time": "2026-10-11T16:35:06.459Z",
+    "update_time": "2026-10-11T16:35:06.536Z",
+    "pipeline_steps": []
+  },
+  "result": {
+    "output_format": "json",
+    "content": "{\"content\":\"Project completed ahead of schedule with zero defects.\"}",
+    "extracted_data": {
+      "content": "Project completed ahead of schedule with zero defects."
+    },
+    "pipeline_steps": [],
+    "usage": {
+      "input_tokens": null,
+      "output_tokens": null,
+      "pages_processed": null,
+      "model_used": null,
+      "cost_usd": null,
+      "breakdown": []
+    },
+    "download_url": "/api/v1/operations/a1fe99d4-80ff-4d91-916f-a917f144e7a5/download"
+  }
+}

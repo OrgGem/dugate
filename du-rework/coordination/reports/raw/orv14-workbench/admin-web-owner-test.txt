@@ -1,0 +1,15 @@
+$ cd orchestrator/apps/admin-web && node --test tests/orv14-workbench-ui-owner.test.mjs
+▶ ORV14 Admin Workbench owner source checks
+  ✔ builds ordinary action controls from the admitted manifest and assigned endpoint schemas (1.038406ms)
+  ✔ shows locked values as managed and strips them from the request payload (0.229544ms)
+  ✔ requires placeholder review and offers explicit local-draft acceptance and Profile handoff (0.357545ms)
+✔ ORV14 Admin Workbench owner source checks (2.851564ms)
+ℹ tests 3
+ℹ suites 1
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 119.333349
+exit code: 0

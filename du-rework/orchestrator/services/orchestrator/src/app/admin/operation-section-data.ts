@@ -12,7 +12,7 @@
  *   envelope (display-safe rows + page controls; no detail row, no
  *   `result`, no `artifacts`, no action affordances — W-ADMUX-01).
  * - `operationId` empty AND `jsonBaseUrl` set → the fetcher GETs
- *   `/api/v1/operations?limit=…[&cursor=…][&sort=…]` and maps the platform list
+ *   `/api/internal/operations?limit=…[&cursor=…][&sort=…]` and maps the platform list
  *   envelope (`{rows,total,limit}` admin shape or `{items,nextCursor}`
  *   tenant shape) onto `kind: 'list'`. A full page without a server
  *   `nextCursor` reports `total: null` (the admin route echoes
@@ -26,7 +26,7 @@
  * - `operationId` non-empty + row found → full detail envelope.
  * - `operationId` non-empty + row missing → `kind: 'not-found'`.
  * - With `jsonBaseUrl`, the fetcher GETs
- *   `/api/v1/operations/<operationId>` and parses the envelope.
+ *   `/api/internal/operations/<operationId>` and parses the envelope.
  *   401/403 → `unauthorized`. 404 → `not-found`. Other → `error`.
  *
  * Hard rules:
@@ -69,8 +69,8 @@ import type { OperationDetailView, OperationStatusDisplay } from './operation-vi
 // ---------------------------------------------------------------------------
 
 /**
- * Wire envelope for `GET /api/v1/operations/<operationId>` plus
- * `GET /api/v1/operations/<operationId>/artifacts` merged together so the
+ * Wire envelope for `GET /api/internal/operations/<operationId>` plus
+ * `GET /api/internal/operations/<operationId>/artifacts` merged together so the
  * renderer can paint the full detail pane in a single round-trip.
  *
  * The `result` field is the `ResultEnvelope` from docs 06 — it is
@@ -89,7 +89,7 @@ export interface OperationDetailWireEnvelope {
 }
 
 /**
- * List envelope for `GET /api/v1/operations`. W-ADMUX02-SRV-1 settled the
+ * List envelope for `GET /api/internal/operations`. W-ADMUX02-SRV-1 settled the
  * wire shape to `{ items, nextCursor, prevCursor, total, limit }` on both
  * the admin and the x-api-key path, where `total` is a COUNT of the filtered
  * population. The legacy admin `{ rows, … }` key is still read so an older
@@ -1103,8 +1103,8 @@ export async function fetchOperationDetail(
   try {
     const path =
       operationId.length > 0
-        ? `/api/v1/operations/${encodeURIComponent(operationId)}`
-        : `/api/v1/operations`;
+        ? `/api/internal/operations/${encodeURIComponent(operationId)}`
+        : `/api/internal/operations`;
     url = new URL(path, input.jsonBaseUrl);
     if (operationId.length === 0) {
       // W-ADMUX-01: server-side page size + keyset cursor; the browser never

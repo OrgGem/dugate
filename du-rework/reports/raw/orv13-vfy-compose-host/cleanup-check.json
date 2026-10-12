@@ -1,0 +1,17 @@
+{
+  "timeUtc": "2026-10-11T19:15:42Z",
+  "run": "focused mobile follow-up, first named Jest scenario",
+  "hostId": "orv13-host-590ab94bbe",
+  "projectId": "orv13-compose-vfy-590ab94bbe",
+  "afterAll": "fixture.cleanup and test artifact cleanup ran without a cleanup warning/error in jest-focused-mobile-run.log; afterAll attempted DROP SCHEMA but catches and suppresses any drop error, so no positive PostgreSQL schema-absence query is claimed",
+  "readOnlyPostCleanupChecks": {
+    "dockerContainersByExactComposeProjectLabel": [],
+    "dockerNetworksByExactComposeProjectLabel": [],
+    "fixtureInputAndStateDirectories": []
+  },
+  "verificationCommands": [
+    "docker --context default ps -aq --filter label=com.docker.compose.project=orv13-compose-vfy-590ab94bbe",
+    "docker --context default network ls -q --filter label=com.docker.compose.project=orv13-compose-vfy-590ab94bbe",
+    "find /tmp -maxdepth 1 -type d \\( -name 'orv13-compose-vfy-590ab94bbe-*' -o -name 'orv13-compose-vfy-input-590ab94bbe-*' -o -name 'orv13-compose-vfy-state-590ab94bbe-*' \\) -print"
+  ]
+}

@@ -8,6 +8,7 @@
  */
 import { HttpError } from '../../http/errors';
 import type { Db } from '../../db/db';
+import { createHash } from 'node:crypto';
 import {
   LIST_CURSOR_MAX_LEN,
   OPERATIONS_LIST_LIMIT_DEFAULT,
@@ -24,7 +25,6 @@ import {
   operationsListPage,
   parseOperationsListSort,
   type OperationsListPage,
-  type OperationsListQueryParam,
   type OperationsListSort,
   type OperationsListSortDirection,
   type OperationsListSortField,
@@ -41,9 +41,9 @@ export interface ListQueryDbContext {
 // ---------------------------------------------------------------------------
 
 /**
- * The operations list is an ALLOWLIST, not a free-form query: the six names
- * in `OPERATIONS_LIST_QUERY_PARAMS`, each with its own validator, every value
- * bound to a `$n` placeholder. No caller-supplied text is ever concatenated
+ * The public operations query contract remains untouched. The internal Admin
+ * list accepts its own explicit allowlist (including triage fields), each with
+ * its own validator, and binds every user value to a `$n` placeholder. No caller-supplied text is ever concatenated
  * into SQL — the only interpolated fragments are the predicate TEMPLATES
  * below, which contain no user data. The sort key is one of the SIX literal
  * fragments the route assembles from the validated field and direction, so
@@ -105,7 +105,35 @@ export interface OperationsListCursor {
    * named: see decodeOperationsListCursor.
    */
   sort: OperationsListSort;
+  /**
+   * Short fingerprint of the complete authorized population (scope, every
+   * filter, sort and page size). Legacy cursors have no fingerprint and are
+   * accepted only for the historical unfiltered platform list.
+   */
+  populationHash: string | null;
 }
+
+/** Trusted, live local-user grants resolved by the identity service. */
+export interface OperationsListUserScope {
+  tenantId: string;
+  userId: string;
+  roleVersion: number;
+  profileIds: readonly string[];
+  apiKeyIds: readonly string[];
+}
+
+export type OperationsListAdminQueryParam =
+  | 'limit' | 'cursor' | 'state' | 'tenant' | 'id' | 'sort' | 'from' | 'to'
+  | 'business' | 'action' | 'apiKey' | 'profile' | 'correlation'
+  | 'provider' | 'model' | 'usage' | 'reservation' | 'attention';
+
+const OPERATIONS_ADMIN_QUERY_PARAMS: readonly OperationsListAdminQueryParam[] = [
+  'limit', 'cursor', 'state', 'tenant', 'id', 'sort', 'from', 'to',
+  'business', 'action', 'apiKey', 'profile', 'correlation', 'provider', 'model',
+  'usage', 'reservation', 'attention',
+];
+
+const POPULATION_HASH_BYTES = 8;
 
 export interface OperationsListQuery {
   limit: number;
@@ -118,6 +146,16 @@ export interface OperationsListQuery {
   /** Inclusive UTC timestamp bounds on `created_at`; omitted means unbounded. */
   from?: string;
   to?: string;
+  businessContains: string | null;
+  actionContains: string | null;
+  apiKeyContains: string | null;
+  profileContains: string | null;
+  correlationContains: string | null;
+  providerContains: string | null;
+  modelContains: string | null;
+  usageFilter: 'any' | 'has-recorded-usage' | 'no-recorded-usage';
+  reservationFilter: 'any' | 'unknown';
+  attentionFilter: 'any' | 'waiting-input';
   /**
    * The ORDER BY key, already resolved against the contract's allow-list. Never
    * absent: a missing `?sort=` is `created_at:desc`, the order this route had
@@ -150,12 +188,13 @@ function encodeOperationsListCursor(
   keyValue: string | Date,
   id: string,
   sort: OperationsListSort,
-  direction: OperationsListDirection = 'next'
+  populationHash: string,
+  direction: OperationsListDirection = 'next',
 ): string {
   const ts = typeof keyValue === 'string' && /\.\d{6}Z$/.test(keyValue)
     ? keyValue : new Date(keyValue).toISOString();
   const dir = direction === 'prev' ? '|p' : '';
-  return Buffer.from(`${ts}|${id}|${formatOperationsListSort(sort)}${dir}`, 'utf8').toString('base64url');
+  return Buffer.from(`${ts}|${id}|${formatOperationsListSort(sort)}|${populationHash}${dir}`, 'utf8').toString('base64url');
 }
 
 /**
@@ -189,7 +228,7 @@ function decodeOperationsListCursor(raw: string): OperationsListCursor | null {
   if (raw.length === 0 || raw.length > OPERATIONS_LIST_CURSOR_MAX_LEN) return null;
   const text = Buffer.from(raw, 'base64url').toString('utf8');
   const parts = text.split('|');
-  if (parts.length < 2 || parts.length > 4) return null;
+  if (parts.length < 2 || parts.length > 5) return null;
   const createdAt = parts[0] ?? '';
   const id = parts[1] ?? '';
   const tail = parts.slice(2);
@@ -205,6 +244,7 @@ function decodeOperationsListCursor(raw: string): OperationsListCursor | null {
   // slots, an empty slot, an unknown `field:direction` — is not a position
   // this route produced.
   let sort: OperationsListSort;
+  let populationHash: string | null = null;
   if (tail.length === 0) {
     sort = {
       field: OPERATIONS_LIST_SORT_DEFAULT_FIELD,
@@ -214,6 +254,12 @@ function decodeOperationsListCursor(raw: string): OperationsListCursor | null {
     const bound = parseOperationsListSort(tail[0] ?? '');
     if (!bound) return null;
     sort = bound;
+  } else if (tail.length === 2) {
+    const bound = parseOperationsListSort(tail[0] ?? '');
+    const fingerprint = tail[1] ?? '';
+    if (!bound || !/^[A-Za-z0-9_-]{11}$/.test(fingerprint)) return null;
+    sort = bound;
+    populationHash = fingerprint;
   } else {
     return null;
   }
@@ -221,7 +267,7 @@ function decodeOperationsListCursor(raw: string): OperationsListCursor | null {
   const parsed = new Date(createdAt);
   const millisecondForm = createdAt.replace(/(\.\d{3})\d{3}Z$/, '$1Z');
   if (Number.isNaN(parsed.getTime()) || parsed.toISOString() !== millisecondForm) return null;
-  return { createdAt, id: id.toLowerCase(), direction, sort };
+  return { createdAt, id: id.toLowerCase(), direction, sort, populationHash };
 }
 
 /**
@@ -236,13 +282,21 @@ function decodeOperationsListCursor(raw: string): OperationsListCursor | null {
  * from an undetected behaviour change into something that will not build.
  */
 export interface AllowListedQuery {
-  read(name: OperationsListQueryParam): string | null;
+  read(name: OperationsListAdminQueryParam): string | null;
 }
 
 export function parseOperationsListQuery(params: URLSearchParams): OperationsListQuery {
   // The one place the raw query string is touched; everything below sees only
   // the allow-listed view, so this function cannot gain a parameter quietly.
-  return parseAllowListedOperationsListQuery({ read: (name) => params.get(name) });
+  const allowlist = new Set<string>(OPERATIONS_ADMIN_QUERY_PARAMS);
+  const seen = new Set<string>();
+  for (const [name] of params) {
+    if (!allowlist.has(name) || seen.has(name)) {
+      throw new HttpError(422, 'INVALID_SCHEMA', 'operations query contains an unsupported or repeated parameter');
+    }
+    seen.add(name);
+  }
+  return parseAllowListedOperationsListQuery({ read: (name) => allowlist.has(name) ? params.get(name) : null });
 }
 
 /**
@@ -253,7 +307,7 @@ export function parseOperationsListQuery(params: URLSearchParams): OperationsLis
  * list route in this file.
  */
 function parseAllowListedOperationsListQuery(query: AllowListedQuery): OperationsListQuery {
-  const want = (name: OperationsListQueryParam): string | null => query.read(name);
+  const want = (name: OperationsListAdminQueryParam): string | null => query.read(name);
   const rawLimit = want('limit');
   const parsedLimit = rawLimit === null ? NaN : Number.parseInt(rawLimit, 10);
   const limit = Number.isFinite(parsedLimit)
@@ -276,6 +330,16 @@ function parseAllowListedOperationsListQuery(query: AllowListedQuery): Operation
 
   const tenantId = sanitizeOperationsListToken(want('tenant'), 'tenant');
   const idContains = sanitizeOperationsListToken(want('id'), 'id');
+  const businessContains = sanitizeAdminSearchToken(want('business'), 'business');
+  const actionContains = sanitizeAdminSearchToken(want('action'), 'action');
+  const apiKeyContains = sanitizeAdminSearchToken(want('apiKey'), 'apiKey');
+  const profileContains = sanitizeAdminSearchToken(want('profile'), 'profile');
+  const correlationContains = sanitizeAdminSearchToken(want('correlation'), 'correlation');
+  const providerContains = sanitizeAdminSearchToken(want('provider'), 'provider');
+  const modelContains = sanitizeAdminSearchToken(want('model'), 'model');
+  const usageFilter = parseEnumFilter(want('usage'), ['any', 'has-recorded-usage', 'no-recorded-usage'] as const, 'usage');
+  const reservationFilter = parseEnumFilter(want('reservation'), ['any', 'unknown'] as const, 'reservation');
+  const attentionFilter = parseEnumFilter(want('attention'), ['any', 'waiting-input'] as const, 'attention');
   const from = parseOperationsListTimeBound(want('from'), 'from');
   const to = parseOperationsListTimeBound(want('to'), 'to');
   if (from !== undefined && to !== undefined && compareAdminListTimeBounds(from, to) > 0) {
@@ -318,8 +382,39 @@ function parseAllowListedOperationsListQuery(query: AllowListedQuery): Operation
     idContains,
     ...(from === undefined ? {} : { from }),
     ...(to === undefined ? {} : { to }),
+    businessContains,
+    actionContains,
+    apiKeyContains,
+    profileContains,
+    correlationContains,
+    providerContains,
+    modelContains,
+    usageFilter,
+    reservationFilter,
+    attentionFilter,
     sort,
   };
+}
+
+function sanitizeAdminSearchToken(raw: string | null, name: string): string | null {
+  if (raw === null) return null;
+  const value = raw.trim();
+  if (value.length === 0) return null;
+  // These fields are human names as well as IDs; preserve spaces and
+  // non-ASCII labels while rejecting controls and bounding SQL search work.
+  if (value.length > 128 || /[\u0000-\u001f\u007f]/.test(value)) {
+    throw new HttpError(422, 'INVALID_SCHEMA', `${name} is not an accepted search value`);
+  }
+  return value;
+}
+
+function parseEnumFilter<const T extends readonly string[]>(raw: string | null, values: T, name: string): T[number] {
+  if (raw === null || raw.trim() === '') return values[0]!;
+  const value = raw.trim().toLowerCase();
+  if (!(values as readonly string[]).includes(value)) {
+    throw new HttpError(422, 'INVALID_SCHEMA', `${name} must be one of ${values.join(', ')}`);
+  }
+  return value as T[number];
 }
 
 function parseOperationsListTimeBound(raw: string | null, name: 'from' | 'to'): string | undefined {
@@ -389,7 +484,8 @@ interface OperationsListPredicates {
  */
 function buildOperationsListPredicates(
   query: OperationsListQuery,
-  tenantId: string | null
+  tenantId: string | null,
+  userScope?: OperationsListUserScope | null,
 ): OperationsListPredicates {
   const clauses: string[] = [];
   const params: unknown[] = [];
@@ -409,6 +505,51 @@ function buildOperationsListPredicates(
   }
   if (query.from !== undefined) clauses.push(`created_at >= ${bind(query.from)}::timestamptz`);
   if (query.to !== undefined) clauses.push(`created_at <= ${bind(query.to)}::timestamptz`);
+  if (query.businessContains !== null) clauses.push(`strpos(lower(business_id), lower(${bind(query.businessContains)})) > 0`);
+  if (query.actionContains !== null) clauses.push(`strpos(lower(action), lower(${bind(query.actionContains)})) > 0`);
+  if (query.apiKeyContains !== null) {
+    const term = bind(query.apiKeyContains);
+    clauses.push(`EXISTS (SELECT 1 FROM api_keys ak WHERE ak.id = operations.api_key_id AND ak.tenant_id = operations.tenant_id AND (strpos(lower(ak.id::text), lower(${term})) > 0 OR strpos(lower(coalesce(ak.name,'')), lower(${term})) > 0))`);
+  }
+  if (query.profileContains !== null) {
+    const term = bind(query.profileContains);
+    clauses.push(`EXISTS (SELECT 1 FROM profile_names pn WHERE pn.profile_id = operations.profile_id AND pn.tenant_id = operations.tenant_id AND (strpos(lower(pn.profile_id::text), lower(${term})) > 0 OR strpos(lower(pn.profile_name), lower(${term})) > 0))`);
+  }
+  if (query.correlationContains !== null) clauses.push(`strpos(lower(correlation_id), lower(${bind(query.correlationContains)})) > 0`);
+  if (query.providerContains !== null) {
+    const term = bind(query.providerContains);
+    clauses.push(`EXISTS (SELECT 1 FROM usage_events ue WHERE ue.operation_id = operations.id AND strpos(lower(coalesce(ue.payload->>'provider','')), lower(${term})) > 0)`);
+  }
+  if (query.modelContains !== null) {
+    const term = bind(query.modelContains);
+    clauses.push(`EXISTS (SELECT 1 FROM usage_events ue WHERE ue.operation_id = operations.id AND strpos(lower(coalesce(ue.payload->>'model','')), lower(${term})) > 0)`);
+  }
+  if (query.usageFilter === 'has-recorded-usage') {
+    clauses.push(`EXISTS (SELECT 1 FROM usage_events ue WHERE ue.operation_id = operations.id)`);
+  } else if (query.usageFilter === 'no-recorded-usage') {
+    clauses.push(`NOT EXISTS (SELECT 1 FROM usage_events ue WHERE ue.operation_id = operations.id)`);
+  }
+  if (query.reservationFilter === 'unknown') {
+    clauses.push(`EXISTS (SELECT 1 FROM budget_reservations br WHERE br.operation_id = operations.id AND br.tenant_id = operations.tenant_id AND br.status = 'UNKNOWN')`);
+  }
+  if (query.attentionFilter === 'waiting-input') clauses.push(`state = 'WAITING_INPUT'`);
+  if (userScope) {
+    if (userScope.tenantId !== tenantId) throw new HttpError(403, 'PERMISSION_DENIED', 'local user scope does not match the authorized tenant');
+    // Local USER grants authorize an exact, active non-Global API key. A
+    // profile assignment narrows that key's operations; it cannot authorize
+    // another key which happens to use the same profile. Historical rows
+    // without a profile remain visible through their exact key grant.
+    if (userScope.apiKeyIds.length === 0) {
+      clauses.push('FALSE');
+    } else {
+      // Deleted operations are hidden by lifecycle authorization; keep them
+      // out of this assigned population so list, detail and totals agree.
+      clauses.push('deleted_at IS NULL');
+      const profileIds = bind([...userScope.profileIds]);
+      const apiKeyIds = bind([...userScope.apiKeyIds]);
+      clauses.push(`api_key_id = ANY(${apiKeyIds}::uuid[]) AND (profile_id IS NULL OR profile_id = ANY(${profileIds}::uuid[]))`);
+    }
+  }
   return { clauses, params };
 }
 
@@ -557,9 +698,19 @@ export async function listOperationsPage(
   ctx: ListQueryDbContext,
   query: OperationsListQuery,
   tenantId: string | null,
-  project: (row: Record<string, unknown>) => Record<string, unknown>
+  project: (row: Record<string, unknown>) => Record<string, unknown>,
+  userScope?: OperationsListUserScope | null,
 ): Promise<Record<string, unknown>> {
-  const filters = buildOperationsListPredicates(query, tenantId);
+  const populationHash = operationsPopulationHash(query, tenantId, userScope);
+  if (query.cursor) {
+    if (query.cursor.populationHash !== null && query.cursor.populationHash !== populationHash) {
+      throw new HttpError(422, 'INVALID_SCHEMA', 'cursor belongs to another authorized scope or filter population; drop the cursor to start at the first page');
+    }
+    if (query.cursor.populationHash === null && !isLegacyCursorPopulation(query, tenantId, userScope)) {
+      throw new HttpError(422, 'INVALID_SCHEMA', 'legacy cursor cannot be used with this scope or filter population; drop the cursor to start at the first page');
+    }
+  }
+  const filters = buildOperationsListPredicates(query, tenantId, userScope);
   const filtersWhere = whereClause(filters.clauses);
   const sort = query.sort;
   const descending = sort.direction === 'desc';
@@ -607,7 +758,8 @@ export async function listOperationsPage(
       ? encodeOperationsListCursor(
           operationsListBoundaryKey(lastRow, sort),
           lastRow['id'] as string,
-          sort
+          sort,
+          populationHash,
         )
       : null;
 
@@ -632,7 +784,8 @@ export async function listOperationsPage(
       operationsListBoundaryKey(firstRow, sort),
       firstRow['id'] as string,
       sort,
-      'prev'
+      populationHash,
+      'prev',
     );
   }
 
@@ -651,4 +804,57 @@ export async function listOperationsPage(
     total,
     limit: query.limit,
   }) satisfies OperationsListPage;
+}
+
+function operationsPopulationHash(
+  query: OperationsListQuery,
+  tenantId: string | null,
+  userScope?: OperationsListUserScope | null,
+): string {
+  const stableScope = userScope ? {
+    tenantId: userScope.tenantId,
+    userId: userScope.userId,
+    roleVersion: userScope.roleVersion,
+    profileIds: [...userScope.profileIds].sort(),
+    apiKeyIds: [...userScope.apiKeyIds].sort(),
+  } : null;
+  const population = {
+    tenantId,
+    userScope: stableScope,
+    limit: query.limit,
+    state: query.stateFilter,
+    requestedTenant: query.tenantId,
+    id: query.idContains,
+    from: query.from ?? null,
+    to: query.to ?? null,
+    business: query.businessContains,
+    action: query.actionContains,
+    apiKey: query.apiKeyContains,
+    profile: query.profileContains,
+    correlation: query.correlationContains,
+    provider: query.providerContains,
+    model: query.modelContains,
+    usage: query.usageFilter,
+    reservation: query.reservationFilter,
+    attention: query.attentionFilter,
+    sort: formatOperationsListSort(query.sort),
+  };
+  return createHash('sha256').update(JSON.stringify(population)).digest().subarray(0, POPULATION_HASH_BYTES).toString('base64url');
+}
+
+function isLegacyCursorPopulation(
+  query: OperationsListQuery,
+  tenantId: string | null,
+  userScope?: OperationsListUserScope | null,
+): boolean {
+  return tenantId === null && userScope == null && query.tenantId === null
+    && query.stateFilter === 'ALL' && query.idContains === null
+    && query.from === undefined && query.to === undefined
+    && query.businessContains === null && query.actionContains === null
+    && query.apiKeyContains === null && query.profileContains === null
+    && query.correlationContains === null && query.providerContains === null
+    && query.modelContains === null && query.usageFilter === 'any'
+    && query.reservationFilter === 'any' && query.attentionFilter === 'any'
+    && query.sort.field === OPERATIONS_LIST_SORT_DEFAULT_FIELD
+    && query.sort.direction === OPERATIONS_LIST_SORT_DEFAULT_DIRECTION;
 }

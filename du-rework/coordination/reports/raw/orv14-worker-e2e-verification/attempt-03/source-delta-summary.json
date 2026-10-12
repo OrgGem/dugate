@@ -1,0 +1,18 @@
+{
+  "dependencyInputsBefore": {
+    "file": "coordination/reports/raw/orv14-worker-e2e-verification/attempt-03/dependency-inputs-before.sha256",
+    "sha256": "17ebc36d537683af04077a8cb994b8001d7749d7b37a27a8abc2f847f2e2ff97",
+    "files": 943,
+    "missing": []
+  },
+  "dependencyInputsAfter": {
+    "file": "coordination/reports/raw/orv14-worker-e2e-verification/attempt-03/dependency-inputs-after.sha256",
+    "sha256": "3da30c9a660e1e6848cd87b6d4a6207abde473a0c2a30540d992f69df2b9b1a0",
+    "files": 943,
+    "missing": []
+  },
+  "createAppSha256Before": "127cfa8612bf62daf998b683050df0999c69c483bf9aa019233115dbc39c2578",
+  "createAppSha256After": "127cfa8612bf62daf998b683050df0999c69c483bf9aa019233115dbc39c2578",
+  "contractsSourceManifestSha256": "c6aff5e58e05f2cfaeb8d6d8ee441d7365e8340af479870afa7fae834b059831",
+  "contractsDistManifestSha256": "c8b95f0b902b6f05b92033cda8472ae5aa1806809b484668703efa49583fd9dc"
+}

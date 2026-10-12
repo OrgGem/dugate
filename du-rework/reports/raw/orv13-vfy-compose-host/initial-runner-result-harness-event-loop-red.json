@@ -1,0 +1,8 @@
+{
+  "classification": "harness defect, not product finding",
+  "initialInvocation": "CLI via spawnSync in Jest process while Jest owns the internal HTTP listener",
+  "safeRunnerCode": "runner_api_network",
+  "cause": "spawnSync blocked the parent event loop and prevented the same-process HTTP listener from answering",
+  "correction": "switch CLI invocation to async spawn and preserve parent event loop",
+  "followup": "after async spawn, snapshot returned HTTP 200; claim returned HTTP 500 with PostgreSQL 42702, recorded separately"
+}

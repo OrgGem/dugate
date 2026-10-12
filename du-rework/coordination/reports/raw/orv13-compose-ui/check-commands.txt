@@ -1,0 +1,20 @@
+Admin-web owner tests (exit 0):
+  cd /workspace/dugate/du-rework/orchestrator/apps/admin-web
+  node --experimental-strip-types --test tests/orv13-compose-ui-owner.test.mjs tests/orv13-cockpit-owner.test.mjs
+
+Admin-web typecheck (exit 0; stdout/stderr empty):
+  cd /workspace/dugate/du-rework/orchestrator/apps/admin-web
+  ./node_modules/.bin/tsc --noEmit -p tsconfig.json --pretty false
+
+Overview regression (exit 0):
+  cd /workspace/dugate/du-rework/orchestrator/services/orchestrator
+  node_modules/.bin/jest --runInBand tests/aweb-17-workflow-test-honesty.test.ts
+
+Whitespace check (exit 0; no output):
+  git diff --check -- orchestrator/apps/admin-web/src/app-shell/app-shell.tsx orchestrator/apps/admin-web/src/features/overview/overview-screen.tsx orchestrator/apps/admin-web/src/router.tsx
+
+New-file trailing whitespace scan (exit 1; no matches):
+  rg -n '[[:blank:]]+$' orchestrator/apps/admin-web/src/app-shell/session-events.ts orchestrator/apps/admin-web/src/features/system-operations orchestrator/apps/admin-web/src/routes/system-operations.tsx orchestrator/apps/admin-web/tests/orv13-cockpit-owner.test.mjs orchestrator/apps/admin-web/tests/orv13-compose-ui-owner.test.mjs
+
+Source hash verification (exit 0; all entries OK):
+  sha256sum -c coordination/reports/raw/orv13-compose-ui/source-sha256.txt

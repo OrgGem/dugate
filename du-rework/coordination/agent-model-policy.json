@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "effectiveDate": "2026-10-11",
+  "authority": "User instruction: implementation/test agents use Luna 6 max; review/architecture/plan use Sol or Astra matching the user-facing chat model.",
+  "implementationAndTest": {
+    "model": "gpt-6-luna",
+    "reasoning_effort": "max",
+    "fork_turns": "none",
+    "taskContext": "Concise self-contained packet with objective, scope, file lease, contracts, acceptance and evidence paths."
+  },
+  "reviewArchitectureAndPlan": {
+    "model": "inherit_user_facing_parent",
+    "families": ["sol", "astra"],
+    "fork_turns": "all",
+    "reasoning_effort": "inherit_parent",
+    "dispatchFrom": "User-facing coordinator, not a Luna implementation/test parent."
+  },
+  "existingAgents": {
+    "reuseOnlyWhenModelMatchesRole": true,
+    "availableModelSetter": false,
+    "createIdleReplacements": false,
+    "retroactiveModelOrCostChange": false
+  },
+  "enforcement": "Coordinator must pass the model/effort/fork fields when spawning. This file is a persisted instruction; it does not configure the platform automatically."
+}

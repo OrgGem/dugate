@@ -108,14 +108,14 @@ export interface LegacyCompatHost {
     processors: string[];
   }): Promise<{ rows: LegacyOperationRow[]; hasMore: boolean }>;
   /** Per-key spend for the billing balance/usage routes. */
-  billingFor?(apiKeyId: string): Promise<LegacyBillingSnapshot | null>;
+  billingFor?(apiKeyId: string, window?: { from: Date; to: Date }): Promise<LegacyBillingSnapshot | null>;
   /**
    * The service catalogue with profile locks already applied. Unwired (or an
    * `undefined` answer) degrades to an empty list with the legacy 200 shape —
    * WFA 6b: discovery must answer even while this slice has no catalogue
    * source to wire. A host that wires it controls the contents.
    */
-  serviceCatalogue?(apiKeyId: string): Record<string, unknown>[] | undefined;
+  serviceCatalogue?(apiKeyId: string): Record<string, unknown>[] | undefined | Promise<Record<string, unknown>[]>;
 }
 
 /**
@@ -156,6 +156,7 @@ function hasAdminBearer(request: LegacyRouteRequest): boolean {
  * both backends use it.
  */
 function legacyDownloadContentType(outputFormat: string | null | undefined): string {
+  if (outputFormat === 'csv') return 'text/csv; charset=utf-8';
   if (outputFormat === 'html') return 'text/html; charset=utf-8';
   if (outputFormat === 'json') return 'application/json; charset=utf-8';
   return 'text/markdown; charset=utf-8';
@@ -371,6 +372,7 @@ function parseLegacyListFilter(raw: string | null):
 }
 
 export interface LegacyBillingSnapshot {
+  periodCostUsd?: number;
   readonly name: string | null;
   readonly spendingLimit: number;
   readonly totalUsed: number;
@@ -425,10 +427,15 @@ function workflowDecodeErrorResponse(
   return legacyError(400, 'Missing Parameter', error.message, correlationId);
 }
 
+function spendingLimitResponse(error: HttpError): LegacyRouteResponse {
+  return { status: 402, headers: {}, body: { type: 'https://dugate.vn/errors/spending-limit-exceeded', title: 'Payment Required', status: 402, detail: error.message } };
+}
+
 function workflowHostErrorResponse(
   error: unknown,
   correlationId: string | undefined,
 ): LegacyRouteResponse {
+  if (error instanceof HttpError && error.status === 402 && error.code === 'SPENDING_LIMIT_EXCEEDED') return spendingLimitResponse(error);
   if (error instanceof HttpError) {
     const title = error.status === 422 ? 'Invalid Parameter' : titleForStatus(error.status);
     return legacyError(error.status, title, error.message, correlationId);
@@ -487,6 +494,12 @@ export async function handleLegacyRoute(
   host: LegacyCompatHost,
 ): Promise<LegacyRouteResponse | null> {
   const { method, pathname } = request;
+  // Management is available only through the authenticated internal surface.
+  if (pathname === '/api/v1/operations' ||
+      /^\/api\/v1\/operations\/[^/]+\/(?:cancel|resume|retry|result|metrics)$/.test(pathname) ||
+      (/^\/api\/v1\/operations\/[^/]+$/.test(pathname) && method !== 'GET')) {
+    return legacyError(404, 'Not Found', 'Operation management is internal.', correlationIdOf(request));
+  }
   const correlationId = correlationIdOf(request);
 
   // ---- Submit: the six core actions -------------------------------------
@@ -605,7 +618,7 @@ export async function handleLegacyRoute(
     try {
       principal = await request.resolvePrincipal();
     } catch {
-      return internalError(correlationId);
+      return legacyError(401, 'Unauthorized', 'A valid API key is required.', correlationId);
     }
 
     let decoded;
@@ -633,13 +646,21 @@ export async function handleLegacyRoute(
     // The host owns admission, artifact creation and the queue. It receives
     // the operation row so the wire projection below is the only thing this
     // module decides.
-    const outcome = await host.submitLegacy?.(
-      principal,
-      docs.action,
-      decoded.decoded,
-    );
+    let outcome;
+    try {
+      outcome = await host.submitLegacy?.(principal, docs.action, decoded.decoded);
+    } catch (error) {
+      if (error instanceof HttpError && error.status === 402 && error.code === 'SPENDING_LIMIT_EXCEEDED') return spendingLimitResponse(error);
+      throw error;
+    }
     if (outcome === undefined) return internalError(correlationId);
-    const row = await host.loadOperation(outcome.operationId, principal.tenantId, principal.apiKeyId);
+    let row = await host.loadOperation(outcome.operationId, principal.tenantId, principal.apiKeyId);
+    const configuredBudget = Number(process.env.SYNC_TIMEOUT_MS ?? 30_000);
+    const deadline = Date.now() + Math.max(0, Math.min(Number.isFinite(configuredBudget) ? configuredBudget : 30_000, 120_000));
+    while (decoded.decoded.executeSync && row && !row.done && row.state !== 'WAITING_USER_INPUT' && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, Math.min(100, deadline - Date.now())));
+      row = await host.loadOperation(outcome.operationId, principal.tenantId, principal.apiKeyId);
+    }
     if (row === null) return internalError(correlationId);
     return legacySubmitResponse({
       decoded: decoded.decoded,
@@ -662,7 +683,7 @@ export async function handleLegacyRoute(
     const id = decodeURIComponent(read[1]!);
     if (method === 'DELETE') {
       const principal = await safePrincipal(request);
-      if (principal === null) return internalError(correlationId);
+      if (principal === null) return legacyError(401, 'Unauthorized', 'A valid API key is required.', correlationId);
       if (host.softDeleteOperation === undefined) return internalError(correlationId);
       const ok = await host.softDeleteOperation(id, principal.tenantId, principal.apiKeyId);
       if (!ok) {
@@ -675,7 +696,7 @@ export async function handleLegacyRoute(
       return legacyError(405, 'Method Not Allowed', 'operations/{id} accepts GET and DELETE', correlationId);
     }
     const principal = await safePrincipal(request);
-    if (principal === null) return internalError(correlationId);
+    if (principal === null) return legacyError(401, 'Unauthorized', 'A valid API key is required.', correlationId);
     const row = await host.loadOperation(id, principal.tenantId, principal.apiKeyId);
     if (row === null) {
       return {
@@ -699,7 +720,7 @@ export async function handleLegacyRoute(
       return legacyError(405, 'Method Not Allowed', 'operations accepts GET', correlationId);
     }
     const principal = await safePrincipal(request);
-    if (principal === null) return internalError(correlationId);
+    if (principal === null) return legacyError(401, 'Unauthorized', 'A valid API key is required.', correlationId);
     const filter = parseLegacyListFilter(request.searchParams.get('filter'));
     if (!filter.ok) {
       // `{error}`, not problem+json — the legacy list route used NextResponse.json
@@ -732,7 +753,7 @@ export async function handleLegacyRoute(
     const id = decodeURIComponent(sub[1]!);
     const which = sub[2]!;
     const principal = await safePrincipal(request);
-    if (principal === null) return internalError(correlationId);
+    if (principal === null) return legacyError(401, 'Unauthorized', 'A valid API key is required.', correlationId);
 
     if (which === 'cancel') {
       if (method !== 'POST') {
@@ -812,7 +833,7 @@ export async function handleLegacyRoute(
       return legacyError(405, 'Method Not Allowed', 'billing/balance accepts GET', correlationId);
     }
     const principal = await safePrincipal(request);
-    if (principal === null) return internalError(correlationId);
+    if (principal === null) return legacyError(401, 'Unauthorized', 'A valid API key is required.', correlationId);
     if (host.billingFor === undefined) return internalError(correlationId);
     const snapshot = await host.billingFor(principal.apiKeyId);
     if (snapshot === null) {
@@ -845,7 +866,7 @@ export async function handleLegacyRoute(
       return legacyError(405, 'Method Not Allowed', 'billing/usage accepts GET', correlationId);
     }
     const principal = await safePrincipal(request);
-    if (principal === null) return internalError(correlationId);
+    if (principal === null) return legacyError(401, 'Unauthorized', 'A valid API key is required.', correlationId);
     const startRaw = request.searchParams.get('start_date');
     const endRaw = request.searchParams.get('end_date');
     const start = startRaw !== null ? new Date(startRaw) : new Date(Date.now() - 30 * 864e5);
@@ -859,7 +880,7 @@ export async function handleLegacyRoute(
       };
     }
     if (host.billingFor === undefined) return internalError(correlationId);
-    const snapshot = await host.billingFor(principal.apiKeyId);
+    const snapshot = await host.billingFor(principal.apiKeyId, { from: start, to: end });
     if (snapshot === null) {
       return { status: 404, body: { error: 'API key not found' }, headers: {} };
     }
@@ -869,7 +890,7 @@ export async function handleLegacyRoute(
         object: 'billing_usage',
         start_date: start.toISOString().split('T')[0],
         end_date: end.toISOString().split('T')[0],
-        total_cost_usd: snapshot.totalUsed,
+        total_cost_usd: snapshot.periodCostUsd ?? snapshot.totalUsed,
         total_input_tokens: snapshot.byModel.reduce((a, r) => a + r.promptTokens, 0),
         total_output_tokens: snapshot.byModel.reduce((a, r) => a + r.completionTokens, 0),
         total_operations: snapshot.operationCount,
@@ -891,8 +912,8 @@ export async function handleLegacyRoute(
       return legacyError(405, 'Method Not Allowed', 'services accepts GET', correlationId);
     }
     const principal = await safePrincipal(request);
-    if (principal === null) return internalError(correlationId);
-    const catalogue = host.serviceCatalogue?.(principal.apiKeyId) ?? [];
+    if (principal === null) return legacyError(401, 'Unauthorized', 'A valid API key is required.', correlationId);
+    const catalogue = await host.serviceCatalogue?.(principal.apiKeyId) ?? [];
     return {
       status: 200,
       body: {

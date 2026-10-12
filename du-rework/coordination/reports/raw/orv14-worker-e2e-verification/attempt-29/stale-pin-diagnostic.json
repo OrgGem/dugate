@@ -1,0 +1,10 @@
+{
+  "recordedAtUtc": "2026-10-12T04:21:56.019342+00:00",
+  "attemptLaunched": false,
+  "liveResourcesCreated": false,
+  "staleRunnerExpectedCreateAppSha256": "319df64dcb524182b8eb0e003a262eb9377ea4ff38e6cb9dc4750a78d8267a59",
+  "observedCreateAppSha256BeforeRepin": "3087a077b641aa34d220f0621f92d4a586400a60a68b873e7157eda9fdbd324c",
+  "reason": "Backend completed the authorized restore-observation source work and supplied a new source/dist snapshot; the attempt runner was repinned before launch.",
+  "currentContractsSourceAggregateSha256": "a6b228bb45d9f3d321190ccbfdf25a7c9e16dc060967bbbf0ab81ac2a4e26fa2",
+  "currentContractsDistAggregateSha256": "67b57485869e739bb7aadbf12843fb771f41587b716151e16b68586efaa0ed40"
+}

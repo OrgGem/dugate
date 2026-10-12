@@ -1,0 +1,44 @@
+ts-jest[ts-jest-transformer] (WARN) Define `ts-jest` config under `globals` is deprecated. Please do
+transform: {
+    <transform_regex>: ['ts-jest', { /* ts-jest config goes here in Jest */ }],
+},
+See more at https://kulshekhar.github.io/ts-jest/docs/getting-started/presets#advanced
+FAIL businesses/document-core/tests/orv14-worker-private-https-owner.test.ts
+  ORV14 Worker private HTTPS configuration
+    ✓ defaults to the empty list and logs only a safe policy digest (6 ms)
+    ✓ projects only the exact SHA-256 deployment digest through safe log metadata (3 ms)
+    ✓ accepts only bounded canonical exact HTTPS origins (18 ms)
+    ✓ isolates immutable policies per worker and retains an empty default (1 ms)
+    ✓ rejects a malformed environment setting during worker configuration parsing (2 ms)
+    ✕ passes configured origins to the worker start seam without logging the list (3 ms)
+  ORV14 tenant prompt precedence and category selection
+    ✓ uses Code, Profile exact, Profile default, tenant defaults, then the existing callsite
+    ✓ classifies only registered steps and homogeneous content-derived formats (1 ms)
+    ✓ applies all five admitted templates at the SDK connector adapter with their variables (4 ms)
+    ✓ keeps legacy callsite text when the admitted defaults snapshot is missing
+    ✓ does not infer a PDF tenant category from caller-supplied filename or MIME (1 ms)
+    ✓ fails closed before any provider call if the pinned defaults digest is forged (21 ms)
+    ✓ forwards a detached, deeply frozen admitted snapshot into the local task context (1 ms)
+
+  ● ORV14 Worker private HTTPS configuration › passes configured origins to the worker start seam without logging the list
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected substring: "workflowPrivateHttpsPolicyDigest"
+    Received string:    "[{\"concurrency\":1,\"heartbeatIntervalMs\":10000,\"workerInstanceId\":\"worker-document-core-3e250203-3c9c-44d9-bebc-718839809141\",\"shutdownGraceMs\":15000,\"timestamp\":\"2026-10-12T00:09:49.360Z\",\"level\":\"info\",\"service\":\"document-core\",\"version\":\"unknown\",\"environment\":\"test\",\"correlationId\":\"2293693c-7b07-44f5-a5dd-cf1c4eac8249\",\"operationId\":null,\"taskId\":null,\"invocationId\":null,\"message\":\"Starting Document Core Worker service\"},{\"workerInstanceId\":\"worker-1\",\"queueName\":\"document-core\",\"timestamp\":\"2026-10-12T00:09:49.361Z\",\"level\":\"info\",\"service\":\"document-core\",\"version\":\"unknown\",\"environment\":\"test\",\"correlationId\":\"e71e800a-4af9-43ef-8319-497f88189e00\",\"operationId\":null,\"taskId\":null,\"invocationId\":null,\"message\":\"Document Core Worker successfully registered and listening\"}]"
+
+      168 |     expect(startedConfig?.workflowPrivateHttpsOrigins).toEqual(['https://private.example.test']);
+      169 |     expect(JSON.stringify(logs)).not.toContain('private.example.test');
+    > 170 |     expect(JSON.stringify(logs)).toContain('workflowPrivateHttpsPolicyDigest');
+          |                                  ^
+      171 |   });
+      172 | });
+      173 |
+
+      at Object.<anonymous> (tests/orv14-worker-private-https-owner.test.ts:170:34)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 12 passed, 13 total
+Snapshots:   0 total
+Time:        2.407 s, estimated 4 s
+Ran all test suites matching /businesses\/document-core\/tests\/orv14-worker-private-https-owner.test.ts/i.

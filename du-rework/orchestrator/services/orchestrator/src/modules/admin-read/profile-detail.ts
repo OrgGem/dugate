@@ -4,6 +4,7 @@ import {
   FileUrlAuthConfigSchema,
   ProfileCallbackPolicySchema,
   RequestRedactionRulesSchema,
+  ProfileDetailReadSchema,
 } from '@du/contracts';
 import type { Db } from '../../db/db';
 import type { ProfileEndpointPolicyRead } from '@du/contracts';
@@ -40,6 +41,7 @@ export interface ProfileDetailDbRow extends Record<string, unknown> {
   callback_policy?: unknown;
   /** OR10-01: exact source credential origins, pinned with this revision. */
   allowed_origins?: unknown;
+  connector_bindings?: unknown;
 }
 
 export type ProfileDetailLookup =
@@ -58,7 +60,7 @@ export async function loadProfileDetail(
     `SELECT n.profile_id, a.revision, n.api_key_id,
             p.enabled, p.parameters, p.job_priority, p.allowed_file_extensions,
             p.connections_override, p.file_url_auth_cipher, p.request_redaction, p.callback_policy,
-            p.allowed_origins
+            p.allowed_origins, p.connector_bindings
        FROM profile_names n
        JOIN profile_active_revisions a ON a.profile_id = n.profile_id
        JOIN profile_bindings p
@@ -76,6 +78,18 @@ export async function loadProfileDetail(
     [businessId, businessVersion, profileName]
   );
   return orphan.rowCount ? { kind: 'pointer-missing' } : { kind: 'not-found' };
+}
+
+/** Validate and project only connector IDs and revision numbers from the active row. */
+export function profileDetailConnectorBindingsRead(row: ProfileDetailDbRow): Record<string, { connectorId: string; revision: number }> {
+  const raw = typeof row.connector_bindings === 'string'
+    ? (() => { try { return JSON.parse(row.connector_bindings) as unknown; } catch { return null; } })()
+    : row.connector_bindings ?? {};
+  const parsed = ProfileDetailReadSchema.shape.connectorBindings.safeParse(raw);
+  if (!parsed.success) {
+    throw new Error('stored profile connector bindings do not satisfy the read contract');
+  }
+  return parsed.data;
 }
 
 /** The schema-valid EMPTY read policy for the `/new` blank-editor shape. */

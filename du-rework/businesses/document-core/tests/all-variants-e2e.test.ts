@@ -1,3 +1,4 @@
+import { decodeLegacyWire } from '../../../orchestrator/services/orchestrator/src/compat/legacy-wire-decoders';
 import { VARIANT_TRACEABILITY_MATRIX, VariantTraceabilityEntry } from '../src/manifest/traceability';
 import { documentCoreHandlers } from '../src/worker';
 import { MockTaskContext } from './fixtures/mock-context';
@@ -443,7 +444,9 @@ describe('Deterministic 31-Variant Full-Business Local E2E Matrix (WORKLOAD-REBA
       const handler = documentCoreHandlers[entry.action]!;
       expect(handler).toBeDefined();
 
-      const disposition = await handler(ctx, fixture.input);
+      // ORV11: exercise the real compatibility producer before the manifest and worker consumers.
+      const decoded = decodeLegacyWire(entry.action, { body: fixture.input });
+      const disposition = await handler(ctx, decoded.submission.input);
 
       // 2. Assert successful terminal disposition
       expect(disposition.kind).toBe('completed');
@@ -459,7 +462,9 @@ describe('Deterministic 31-Variant Full-Business Local E2E Matrix (WORKLOAD-REBA
       expect(envelope.status).toBe('COMPLETED');
       expect(envelope.data).toBeDefined();
 
-      const corpusVerification = verifyAgainstCorpus(entry.brdCaseId, envelope);
+      expect(envelope.version).toBe('document-core-result-v1');
+      const { version: _version, ...businessEnvelope } = envelope;
+      const corpusVerification = verifyAgainstCorpus(entry.brdCaseId, businessEnvelope);
       expect(corpusVerification.matched).toBe(true);
       expect(corpusVerification.mismatches).toEqual([]);
 

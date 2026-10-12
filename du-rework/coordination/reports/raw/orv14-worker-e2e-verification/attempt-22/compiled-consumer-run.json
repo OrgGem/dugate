@@ -1,0 +1,43 @@
+{
+  "cwd": "/workspace/dugate/du-rework",
+  "node": "/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node",
+  "nodeVersion": "v24.21.0",
+  "typescriptBinary": "/workspace/dugate/du-rework/businesses/document-core/node_modules/typescript/bin/tsc",
+  "typescriptRealPath": "/workspace/dugate/du-rework/node_modules/.pnpm/typescript@5.9.3/node_modules/typescript/bin/tsc",
+  "compileCommand": [
+    "/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node",
+    "/workspace/dugate/du-rework/businesses/document-core/node_modules/typescript/bin/tsc",
+    "-p",
+    "businesses/document-core/tsconfig.json",
+    "--outDir",
+    "/workspace/scratch/orv14-worker-e2e-attempt22-document-core/dist",
+    "--tsBuildInfoFile",
+    "/workspace/scratch/orv14-worker-e2e-attempt22-document-core/document-core.tsbuildinfo",
+    "--pretty",
+    "false"
+  ],
+  "startedAtUtc": "2026-10-12T03:08:48.155168+00:00",
+  "compileStartedAtUtc": "2026-10-12T03:08:48.875341+00:00",
+  "compileFinishedAtUtc": "2026-10-12T03:08:51.087747+00:00",
+  "finishedAtUtc": "2026-10-12T03:08:51.717659+00:00",
+  "exitCode": 0,
+  "stdoutLog": "compile-output.log",
+  "inputManifestBefore": {
+    "sha256": "3d7083bd1daed52a130f400dd89d0d7a979a9ad4e6d9bff0b9a592d31d3d26f6",
+    "files": 334
+  },
+  "inputManifestAfter": {
+    "sha256": "3d7083bd1daed52a130f400dd89d0d7a979a9ad4e6d9bff0b9a592d31d3d26f6",
+    "files": 334
+  },
+  "inputsIdentical": true,
+  "scratchOutput": "/workspace/scratch/orv14-worker-e2e-attempt22-document-core/dist",
+  "outputManifest": {
+    "sha256": "664d07c14bd561d0fa8318a129c63b90bcf000d33515d6288ce8cd7fcc7529d0",
+    "files": 164
+  },
+  "taskContextDistSha256": "420a5db392478959c476a5bbeef2ad21792791cbbfe6e00348338c32778c91b8",
+  "workerSdkIndexDistSha256": "a76f5c3f3cc264c39aa194fc5f6a4d09b89612e47a0934d596dd5bb6e212a3e1",
+  "contractsIndexTypesDistSha256": "bb1db2cb7854b83684c411ba130ac2a1daaf2b0c46b447d864b98ec921b6cbf7",
+  "observabilityLoggerDistSha256": "9d67342f26c100a077417048aae7c34ffb0a6ba26675b5140b1bb8728fc2a3a3"
+}

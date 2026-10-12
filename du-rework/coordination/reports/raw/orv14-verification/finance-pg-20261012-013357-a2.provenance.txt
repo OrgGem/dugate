@@ -1,0 +1,14 @@
+Attempt: finance-pg-20261012-013357-a2
+Actual UTC start: 2026-10-12 01:33:57 UTC (clock tool)
+Scope: selected independent actual-PostgreSQL COST-01 correction/refund through the normal Orchestrator app/migrations, signed cost-control preflight, real Usage ingestion, encrypted evidence upload and verified synthetic OIDC Admin BFF.
+CWD: /workspace/dugate/du-rework
+Command: /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node orchestrator/services/orchestrator/node_modules/jest/bin/jest.js --runInBand --config tests/workflow-api/orv14-vfy/jest.config.cjs tests/workflow-api/orv14-vfy/cost-adjustments.test.ts --testNamePattern='records 100'
+Node: direct binary /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node (v24.21.0)
+Jest/ts-jest: installed packages under orchestrator/services/orchestrator/node_modules; unique config directly resolves its ts-jest path and contracts source.
+Namespace: unique PostgreSQL schema, Redis DB and prefix, ephemeral localhost internal/shell/IdP ports, and unique artifact directory emitted in raw Jest output.
+Existing Compose services reused only; this command starts/stops no containers and does not use customer/provider credentials or real provider billing.
+Source pre-manifest: finance-pg-20261012-013357-a2.sources-pre.sha256
+Test/config pre-manifest: finance-pg-20261012-013357-a2.harness-pre.sha256
+Raw Jest output: finance-pg-20261012-013357-a2.log
+Exit artifact: finance-pg-20261012-013357-a2.exit
+Post-run source/hash and owned-resource cleanup checks will follow.

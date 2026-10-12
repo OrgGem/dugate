@@ -1,0 +1,30 @@
+This is a verbatim transcription of the stdout returned by the functions.exec_command result for the a53 command recorded in command.txt; the test process exited 1.
+ORV14_STORAGE_GENERATION_NAMESPACE runId=orv14_vfy_generation_1791779208538_90425ef86a postgresSchema=du_test_orv14_vfy_generation_1791779208538_90425ef86a redisDb=8 redisDbEmptyBefore=true artifactDir=tests/workflow-api/orv14-vfy/storage-generation-artifacts/orv14_vfy_generation_1791779208538_90425ef86a
+ORV14_STORAGE_GENERATION_MIGRATIONS appliedThisRun=62 recorded=62
+{"subsystem":"api","timestamp":"2026-10-12T04:26:51.188Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"78af1a35-e243-4bcf-8951-9fec6beb3ca5","operationId":null,"taskId":null,"invocationId":null,"message":"[REDACTED]"}
+{"subsystem":"api","timestamp":"2026-10-12T04:26:52.436Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"5637c174-fc81-49e2-9291-5b8a358c4a3b","operationId":null,"taskId":null,"invocationId":null,"message":"[REDACTED]"}
+ORV14_STORAGE_GENERATION_RESULT generationA=1b64ad02-a17b-4388-bc69-08f6d165dd5c generationB=3d5f1142-cc45-4b23-b976-c0a1a42b615b artifactAGeneration=1b64ad02-a17b-4388-bc69-08f6d165dd5c artifactBGeneration=3d5f1142-cc45-4b23-b976-c0a1a42b615b artifactACipherBytes=76 artifactBCipherBytes=76 artifactAStoredSha=a84d2e0f8e011f43345fd664d7c21fa7d03c4c179adef69eb899e2f1fa5ba313 artifactBStoredSha=eb6b3ef485a7fd56bbcfd5def1052ef67b21318e747187401b91dff33fcc5b23 plaintextAsha=4f78f0a00f10d0118a75959b866b2442a2f7adfd9b9fac1a19a647296e45ca5c plaintextBsha=2616ce188a81172b2a4b6183217b1ccc8f2d06d7ca6991297a38c7491892ffca publicAndRuntimeRoutes=8 restartPreservedActiveB=true
+ORV14_STORAGE_GENERATION_CLEANUP schemaAbsent=true redisDb=8 redisKeysAfter=0 appCloseCount=2
+ORV14_STORAGE_GENERATION_MINIO_CLEANUP generation=A bucketVersionsDeleted=2 bucketAbsent=true containerAbsent=true runLabelAbsent=true
+FAIL tests/workflow-api/orv14-vfy/storage-generation-downloads.test.ts (5.84 s)
+
+
+  ● Test suite failed to run
+
+    storage-generation fixture cleanup incomplete: minio-B-cleanup
+
+      457 |   }
+      458 |   try { await baseDb.close(); } catch { cleanupErrors.push('base-db-close'); }
+    > 459 |   if (cleanupErrors.length) throw new Error(`storage-generation fixture cleanup incomplete: ${cleanupErrors.join(',')}`);
+          |                                   ^
+      460 | });
+      461 |
+      462 | describe('ORV14 row-pinned encrypted storage-generation downloads', () => {
+
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy/storage-generation-downloads.test.ts:459:35)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 passed, 1 total
+Snapshots:   0 total
+Time:        6.058 s
+Ran all test suites within paths "tests/workflow-api/orv14-vfy/storage-generation-downloads.test.ts".

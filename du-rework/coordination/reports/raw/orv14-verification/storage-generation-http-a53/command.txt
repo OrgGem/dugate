@@ -1,0 +1,7 @@
+CWD=/workspace/dugate/du-rework
+NODE=/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node
+NODE_VERSION=v24.21.0
+TS_COMMAND=/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node /workspace/dugate/du-rework/orchestrator/node_modules/.pnpm/typescript@5.9.3/node_modules/typescript/bin/tsc --noEmit -p /workspace/scratch/orv14-generation-test-tsconfig.json
+TS_EXIT=0
+JEST_COMMAND=NODE_PATH=/workspace/dugate/du-rework/orchestrator/node_modules/.pnpm/node_modules /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node /workspace/dugate/du-rework/orchestrator/node_modules/.pnpm/node_modules/jest/bin/jest.js --config tests/workflow-api/jest.config.cjs --runInBand --detectOpenHandles --runTestsByPath tests/workflow-api/orv14-vfy/storage-generation-downloads.test.ts
+JEST_EXIT=1

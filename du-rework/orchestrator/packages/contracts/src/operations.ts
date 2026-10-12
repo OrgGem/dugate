@@ -157,6 +157,9 @@ export const UsageSchema = z.object({
   inputTokens: z.number().int().min(0),
   outputTokens: z.number().int().min(0),
   costMicrousd: z.number().int().min(0),
+  costStatus: z.enum(['measured', 'estimated', 'unpriced', 'pending']).optional(),
+  pages: z.number().int().min(0).optional(),
+  model: z.string().optional(),
   measurement: UsageMeasurementSchema,
 });
 export type Usage = z.infer<typeof UsageSchema>;

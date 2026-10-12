@@ -1,6 +1,12 @@
 import { createHmac, randomUUID } from 'node:crypto';
 
-export type ConnectorManagementAuthorizationProvider = () => string;
+export type ConnectorManagementScope =
+  | 'connector:manage'
+  | 'connector:management'
+  | 'connector:provider-test'
+  | 'connector:signals:read'
+  | 'connector:runtime-control';
+export type ConnectorManagementAuthorizationProvider = (scope?: ConnectorManagementScope) => string;
 
 const IDENTITY_SUBJECT = 'orchestrator-management';
 const IDENTITY_AUDIENCE = 'connector';
@@ -23,7 +29,10 @@ export function createConnectorManagementAuthorizationProvider(
   }
   const signingKey = Buffer.from(secret);
 
-  return () => {
+  return (scope: ConnectorManagementScope = MANAGEMENT_SCOPE) => {
+    if (!['connector:manage', 'connector:management', 'connector:provider-test', 'connector:signals:read', 'connector:runtime-control'].includes(scope)) {
+      throw new Error('connector service identity scope is not allowed');
+    }
     const issuedAt = Math.floor(nowMs() / 1000);
     if (!Number.isSafeInteger(issuedAt) || issuedAt < 0) {
       throw new Error('service identity clock is invalid');
@@ -32,7 +41,7 @@ export function createConnectorManagementAuthorizationProvider(
     const encodedClaims = Buffer.from(JSON.stringify({
       sub: IDENTITY_SUBJECT,
       aud: IDENTITY_AUDIENCE,
-      scopes: [MANAGEMENT_SCOPE],
+      scopes: [scope],
       iat: issuedAt,
       exp: issuedAt + TOKEN_LIFETIME_SECONDS,
       jti: createTokenId(),

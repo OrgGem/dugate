@@ -1,0 +1,4 @@
+FROM scratch
+COPY .cache/minio.linux-amd64.RELEASE.2025-09-07T16-13-09Z /usr/bin/minio
+ENTRYPOINT ["/usr/bin/minio"]
+CMD ["server", "/data", "--console-address", ":9001"]

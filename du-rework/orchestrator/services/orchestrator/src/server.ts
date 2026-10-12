@@ -38,11 +38,28 @@ import type {
 } from './modules/secrets/vault-resolver';
 import type { OutboundSecretResolver } from './modules/webhooks/outbound-auth';
 import type { OAuth2TokenClientOptions } from './modules/webhooks/oauth2-client';
+import type { ComposeRunnerConfig } from './modules/compose-operations/contracts';
+import type { ServiceRuntimeConfig } from './modules/service-runtime/service-runtime';
+import type { IdentityAuth } from '@du/contracts';
+import type { SecretCatalogKeyring } from './modules/secrets/secret-revision-resolver';
 
 
 // CONV-02: the audience families moved to src/http/routes/*, and the route
 // context type to src/http/route-context.ts. Public names stay importable here.
 import { handleRuntimeRoutes } from './http/routes/runtime';
+import { handleInternalOperationsRoutes } from './http/routes/internal-operations';
+import { handleInternalUsageRoutes } from './http/routes/internal-usage';
+import { handleInternalComposeRoutes } from './http/routes/internal-compose';
+import { handleInternalGlobalSettingsRoutes } from './http/routes/internal-global-settings';
+import { handleInternalIncidentRoutes } from './http/routes/internal-incidents';
+import { handleInternalWorkflowImportRoutes } from './http/routes/internal-workflow-import';
+import { handleInternalAdminWorkbenchRoutes } from './http/routes/internal-admin-workbench';
+import { handleInternalParityRoutes } from './http/routes/internal-parity';
+import { handleInternalMaintenanceRoutes } from './http/routes/internal-maintenance';
+import { handleInternalCostControlRoutes } from './http/routes/internal-cost-control';
+import { handleInternalCostAlertRoutes } from './http/routes/internal-cost-alerts';
+import { handleInternalCostAdjustmentRoutes } from './http/routes/internal-cost-adjustments';
+import { handleInternalServiceRuntimeRoutes } from './http/routes/internal-service-runtime';
 import { handlePublicRoutes } from './http/routes/public';
 import { handleAdminRoutes } from './http/routes/admin';
 import type { RouteContext, RouteResult } from './http/route-context';
@@ -80,6 +97,11 @@ export interface ServerConfig {
   workerIdentityTokensByBusiness?: Record<string, string>;
   /** Dedicated admin bearer token. Missing → admin endpoints closed (fail-closed). */
   adminToken?: string;
+  /** Explicit local mode; boot requires shared Redis and local credential reader. */
+  adminLocalAuthEnabled?: boolean;
+  adminLocalServiceSecret?: string;
+  adminTenantCredentialFor?: (tenantId: string) => string | undefined;
+  adminLocalAuth?: import('./app/admin/local-auth-boot').LocalAdminAuth;
   /** OIDC-02/03: opaque admin session store (modules/auth/session-store).
    *  When wired, the dispatcher cookie path prefers a server-side
    *  du_session id over the legacy self-contained cookie; identity comes
@@ -97,6 +119,35 @@ export interface ServerConfig {
   tenantAdminTokens?: Record<string, string>;
   /** Dedicated Connector usage identity. Missing token disables ingestion. */
   usageToken?: string;
+  /** Dedicated Connector-to-Orchestrator cost reservation identity. */
+  costControlToken?: string;
+  /** Dedicated host-only Compose runner identity and pinned manifest. */
+  composeRunner?: ComposeRunnerConfig;
+  /** Dedicated per-replica Orchestrator control identity. */
+  serviceRuntime?: ServiceRuntimeConfig;
+  /** Fixed deployment mode for a restored isolated rehearsal database. This
+   * mode keeps identity/auth/history reads available while denying provider,
+   * dispatch, storage, and operational mutations. It is never request-derived. */
+  isolatedRuntimeMode?: 'restore-rehearsal';
+  /** Root-owned deployment manifest pin enabling real maintenance adapters. */
+  maintenanceManifest?: { manifestPath: string; expectedManifestSha256: string };
+  /** Separate root-owned backup/restore manifest. Rollout and backup manifests
+   * have distinct strict schemas and must never share a path implicitly. */
+  maintenanceBackupManifest?: { manifestPath: string; expectedManifestSha256: string };
+  /** Dedicated execution plane. Web is the default and may only enqueue/read
+   * durable maintenance work; the host role is selected by the trusted host
+   * launcher and never serves HTTP. */
+  maintenanceExecutionRole?: 'web' | 'host';
+  /** Boot-pinned identity for the dedicated maintenance host executor. */
+  maintenanceHostIdentity?: string;
+  /** Independently retained exact-version backup recovery key file pin. */
+  maintenanceRecoveryKeyFile?: import('./modules/maintenance/recovery-key-file').BackupRecoveryKeyFilePin;
+  /** Independently retained, purpose-scoped runtime crypto key registry pin. */
+  maintenanceRecoveryKeyRegistry?: import('./modules/maintenance/recovery-key-file').MaintenanceRecoveryKeyRegistryPin;
+  /** Exact-version managed-secret encryption keyring. No default key is used. */
+  secretCatalogKeyring?: SecretCatalogKeyring;
+  /** Safe identity mode metadata for the Admin identity snapshot. */
+  adminIdentityAuth?: IdentityAuth;
   /** Secret used to sign Connector invocation grants (HS256). Fail-closed. */
   invocationGrantSecret?: string;
   /** Connector identity the platform is authorized to issue grants for. */
@@ -199,6 +250,9 @@ export interface ServerConfig {
         region?: string;
         endpoint?: string;
         forcePathStyle?: boolean;
+        /** Exact immutable Secret Catalog revision + its canonical owner UUID. */
+        credentialVersionRef?: string | null;
+        credentialOwnerTenantId?: string | null;
         /** New writes use S3 while READY reads prefer S3 then the retained PG backup.
          *  CRX-02: for the encrypted read path this flag is also the
          *  operator-signed migration policy — while it is set, objects written
@@ -206,6 +260,8 @@ export interface ServerConfig {
          *  without it the read path requires the marker and fails closed. */
         migrationWindow?: boolean;
       };
+  /** Deployment-owned endpoint origins allowed for staged S3 generations. */
+  storageEndpointAllowlist?: readonly string[];
   /** DATA-02 multipart upload policy. Every value may only narrow the wire
    *  bounds exported by @du/contracts; a PostgreSQL-only deployment has no
    *  multipart backend at all and the lifecycle answers 409. */
@@ -281,6 +337,9 @@ export interface ServerConfig {
    * policy is observable instead of inferred from environment strings.
    */
   encryptionPolicy?: EncryptionPolicySummary;
+  /** Explicit in-memory profile file cipher key for isolated restore. This is
+   * never copied into process.env or returned by any status surface. */
+  profileCipherKey?: string;
   /**
    * SC-02 seam: a prebuilt runtime secret resolver (catalog resolution for
    * approved consumers). Consumers read it from the route context; absent
@@ -305,6 +364,9 @@ export interface ServerConfig {
 }
 
 export async function createApp(config: ServerConfig) {
+  if (config.maintenanceExecutionRole === 'host') {
+    throw new Error('maintenance host execution cannot create an HTTP app');
+  }
   // CONV-03: assembly/lifecycle live in src/app/bootstrap/create-app.ts; this
   // module keeps the single public entry point and injects the route table, so
   // the bootstrap layer never imports server.ts at value level.
@@ -373,6 +435,32 @@ export async function route(ctx: RouteContext): Promise<RouteResult> {
   // function route() used.
   const runtimeResult = await handleRuntimeRoutes(ctx);
   if (runtimeResult) return runtimeResult;
+  const internalServiceRuntimeResult = await handleInternalServiceRuntimeRoutes(ctx);
+  if (internalServiceRuntimeResult) return internalServiceRuntimeResult;
+  const internalOperationsResult = await handleInternalOperationsRoutes(ctx);
+  if (internalOperationsResult) return internalOperationsResult;
+  const internalUsageResult = await handleInternalUsageRoutes(ctx);
+  if (internalUsageResult) return internalUsageResult;
+  const internalComposeResult = await handleInternalComposeRoutes(ctx);
+  if (internalComposeResult) return internalComposeResult;
+  const internalGlobalSettingsResult = await handleInternalGlobalSettingsRoutes(ctx);
+  if (internalGlobalSettingsResult) return internalGlobalSettingsResult;
+  const internalIncidentResult = await handleInternalIncidentRoutes(ctx);
+  if (internalIncidentResult) return internalIncidentResult;
+  const internalWorkflowImportResult = await handleInternalWorkflowImportRoutes(ctx);
+  if (internalWorkflowImportResult) return internalWorkflowImportResult;
+  const internalAdminWorkbenchResult = await handleInternalAdminWorkbenchRoutes(ctx);
+  if (internalAdminWorkbenchResult) return internalAdminWorkbenchResult;
+  const internalParityResult = await handleInternalParityRoutes(ctx);
+  if (internalParityResult) return internalParityResult;
+  const internalMaintenanceResult = await handleInternalMaintenanceRoutes(ctx, ctx.maintenanceService);
+  if (internalMaintenanceResult) return internalMaintenanceResult;
+  const internalCostControlResult = await handleInternalCostControlRoutes(ctx);
+  if (internalCostControlResult) return internalCostControlResult;
+  const internalCostAlertResult = await handleInternalCostAlertRoutes(ctx);
+  if (internalCostAlertResult) return internalCostAlertResult;
+  const internalCostAdjustmentResult = await handleInternalCostAdjustmentRoutes(ctx);
+  if (internalCostAdjustmentResult) return internalCostAdjustmentResult;
   const publicResult = await handlePublicRoutes(ctx);
   if (publicResult) return publicResult;
   const adminResult = await handleAdminRoutes(ctx);

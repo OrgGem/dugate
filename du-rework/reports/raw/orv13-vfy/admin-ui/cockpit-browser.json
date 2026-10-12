@@ -1,0 +1,211 @@
+{
+  "test": "VFY-UI13 cockpit tenant filter, truthful empty heartbeat inventory, unknown outcome and stale last-good rendering",
+  "syntheticOperation": {
+    "id": "d9a91e84-d60f-424c-b1d4-e1017bd75a88",
+    "tenantId": "3a1e9e7f-0c8e-4e94-a00c-9fb30220ab6a",
+    "state": "FAILED",
+    "errorCode": "PROVIDER_OUTCOME_UNKNOWN",
+    "source": "isolated PostgreSQL operation row"
+  },
+  "actualBaselineBff": {
+    "health200": 2,
+    "workers200": 1,
+    "tenantAOperationsQuery": "?limit=100&sort=created_at%3Adesc&tenant=3a1e9e7f-0c8e-4e94-a00c-9fb30220ab6a",
+    "tenantAMetricsQuery": "?from=2026-10-10T18%3A31%3A36.097Z&to=2026-10-11T18%3A31%3A36.097Z&tenant=3a1e9e7f-0c8e-4e94-a00c-9fb30220ab6a"
+  },
+  "tenantBExcludesTenantAUnknownOperation": true,
+  "workerEmptyClaim": "No worker heartbeat records were returned. This inventory cannot establish whether unreported deployments exist.",
+  "staleUIFaultInjection": {
+    "injectedAfterActualBffBaseline": true,
+    "path": "/admin/api/operations/metrics",
+    "status": 503,
+    "retainedUnknownOperation": true
+  },
+  "restrictedRolesNoHostReads": [
+    {
+      "role": "operator",
+      "requests": [
+        {
+          "path": "/admin/api/session",
+          "query": ""
+        },
+        {
+          "path": "/admin/api/session",
+          "query": ""
+        },
+        {
+          "path": "/admin/api/tenants",
+          "query": "?limit=100"
+        },
+        {
+          "path": "/admin/api/operations/metrics",
+          "query": "?from=2026-10-10T18%3A31%3A37.475Z&to=2026-10-11T18%3A31%3A37.475Z&tenant=3a1e9e7f-0c8e-4e94-a00c-9fb30220ab6a"
+        },
+        {
+          "path": "/admin/api/operations",
+          "query": "?limit=100&sort=created_at%3Adesc&tenant=3a1e9e7f-0c8e-4e94-a00c-9fb30220ab6a"
+        }
+      ],
+      "scrollWidth": 390
+    },
+    {
+      "role": "viewer",
+      "requests": [
+        {
+          "path": "/admin/api/session",
+          "query": ""
+        },
+        {
+          "path": "/admin/api/session",
+          "query": ""
+        },
+        {
+          "path": "/admin/api/tenants",
+          "query": "?limit=100"
+        }
+      ],
+      "scrollWidth": 390
+    }
+  ],
+  "viewportWidths": [
+    {
+      "width": 768,
+      "scrollWidth": 768
+    },
+    {
+      "width": 390,
+      "scrollWidth": 390
+    },
+    {
+      "width": 320,
+      "scrollWidth": 320
+    }
+  ],
+  "responses": [
+    {
+      "path": "/admin/api/session",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/session",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/tenants",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/operations/metrics",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/operations",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/health",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/worker-instances",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/compose/catalog",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/health",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/compose/jobs",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/session",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/operations",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/operations/metrics",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/worker-instances",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/health",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/compose/catalog",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/compose/jobs",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/session",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/operations/metrics",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/worker-instances",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/operations",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/health",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/compose/jobs",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/compose/catalog",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/session",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/compose/catalog",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/compose/jobs",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/operations/metrics",
+      "status": 503
+    },
+    {
+      "path": "/admin/api/operations",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/worker-instances",
+      "status": 200
+    },
+    {
+      "path": "/admin/api/health",
+      "status": 200
+    }
+  ],
+  "shellUrl": "http://127.0.0.1:34269"
+}

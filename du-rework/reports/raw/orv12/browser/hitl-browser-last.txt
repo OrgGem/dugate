@@ -1,0 +1,155 @@
+Skip to content
+Orchestrator Portal
+10/11/2026, 4:32:42 PM UTC
+legacy:admin · Profile
+Logout
+System health: ok
+Database: Healthy
+Redis: Healthy
+Queue integrity: Unavailable
+Active leases: 0
+Outbox backlog: Unavailable
+Sampled 10s ago
+Health details
+ACTIVE TENANT
+ACTIVE
+WFA other tenant
+WFA worker tenant
+750cbc50-449a-4230…
+
+Workspace
+
+Overview
+Operations
+Trace
+Usage
+
+Configuration
+
+Businesses
+Profiles
+Connectors
+Workflows
+
+Administration
+
+Audit
+Security
+Secrets
+Identity
+Settings
+
+Resources
+
+API Reference
+Documentation
+Bootstrap
+Operations
+Newest first
+List
+
+Requests in your authorized scope, newest first.
+
+State
+ALL
+RUNNING
+COMPLETED
+FAILED
+CANCELLED
+TIMED_OUT
+Tenant:
+WFA worker tenant
+Requests per page
+20
+50
+100
+Operation id
+From
+To
+Refresh
+Cancel selected
+From/To are inclusive UTC days and are applied by the server, not by this page.
+	ID	STATE	BUSINESS / ACTION	CREATED	FINISHED	TOTAL ELAPSED	ACTIONS
+	dd6db81b…	
+WAITING_INPUT
+	document-core · schema-workflow	10/11/2026, 4:32:31 PM	In progress	11.7 s	
+Detail
+Stop
+Retry
+Previous
+Next
+Newest
+1 shown · 1 total
+Human review required
+
+Choose a pending review and complete the requested fields. The server checks the response and rejects stale operation revisions.
+
+Pending review
+Choose a pending review
+wait_7c826ffe-06e8-4e4d-89e8-fba7e8481910
+Submit review and resume
+Operation Details
+WAITING_INPUT
+Stop
+Refresh detail
+Close
+
+ID: dd6db81b-c6fd-46d1-898e-58ff8b238275
+
+Callback deliveries
+Refresh callbacks
+
+Callbacks reuse the original delivery ID and payload. A lost response can mean the recipient already processed it; check the failure before retrying.
+
+No callback deliveries recorded.
+
+OVERVIEW & LIFECYCLE
+Tenant
+750cbc50-449a-4230-8a36-c2ed0596ba6c
+Business
+document-core
+Action
+schema-workflow
+Created
+10/11/2026, 4:32:31 PM
+Started
+10/11/2026, 4:32:31 PM
+Finished
+Unknown
+Total elapsed
+11.7 s
+Execution
+11.6 s
+Correlation ID
+Unavailable
+EXECUTION TASKS (1)
+TASK	STATE	ATTEMPT	ERROR
+root	
+WAITING_INPUT
+	1/3	—
+ARTIFACTS (0)
+
+No artifacts reported for this operation.
+
+OPERATIONS TIMELINE
+1
+root
+WAITING_INPUT
+Attempt 1/3
+OUTPUT RESULT
+
+No output result generated yet.
+
+REQUEST INPUT
+NO_RULES
+
+No redaction rules configured for this request profile.
+
+{
+  "artifactIds": [],
+  "artifacts": [],
+  "fileNames": [],
+  "variables": {
+    "reference": "ORV12 guided fixture"
+  }
+}

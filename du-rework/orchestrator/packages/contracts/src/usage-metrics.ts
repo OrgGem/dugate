@@ -33,8 +33,8 @@ export const MICROUSD_PER_USD = 1_000_000;
 export const USAGE_ATTRIBUTION_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.:@\/-]{0,127}$/;
 
 const SafeIdSchema = z.string().regex(USAGE_ATTRIBUTION_ID_PATTERN);
-const TokenCountSchema = z.number().int().min(0);
-const NonNegativeIntSchema = z.number().int().min(0);
+const TokenCountSchema = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
+const NonNegativeIntSchema = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 /** RFC 3339 with optional numeric offset; UTC 'Z' always accepted. */
 const TimestampSchema = z.string().datetime({ offset: true });
 
@@ -42,6 +42,80 @@ const TimestampSchema = z.string().datetime({ offset: true });
 export const UsageCostStatus = ['measured', 'estimated', 'pending', 'unpriced'] as const;
 export const UsageCostStatusSchema = z.enum(UsageCostStatus);
 export type UsageCostStatus = z.infer<typeof UsageCostStatusSchema>;
+
+/** Immutable price and reservation lineage attached by the trusted Connector
+ * after Orchestrator preflight. It carries no request content or credential.
+ * Legacy UsageEvent rows may omit this object and remain explicitly BASIC. */
+const CostProvenanceSafeAmount = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
+/** Optional raw provider money is preserved only as a visibly unverified
+ * diagnostic. The trusted `costMicrousd` remains the Connector-computed
+ * amount used by budgets and settlement. */
+export const ProviderReportedCostSchema = z.object({
+  costMicrousd: CostProvenanceSafeAmount,
+  currency: z.literal('USD'),
+  source: z.literal('provider-response'),
+  status: z.literal('unverified'),
+}).strict();
+export type ProviderReportedCost = z.infer<typeof ProviderReportedCostSchema>;
+
+const CostProvenancePinSchema = z.object({
+  budgetId: z.string().uuid(),
+  revision: z.number().int().min(1),
+}).strict();
+export const UsageCostPriceSnapshotSchema = z.object({
+  provider: SafeIdSchema,
+  modelId: SafeIdSchema,
+  priceVersion: z.number().int().min(1),
+  effectiveFrom: TimestampSchema,
+  effectiveTo: TimestampSchema.optional(),
+  currency: z.literal('USD'),
+  inputMicrousdPerMillion: CostProvenanceSafeAmount,
+  outputMicrousdPerMillion: CostProvenanceSafeAmount,
+  cachedInputMicrousdPerMillion: CostProvenanceSafeAmount.optional(),
+  pageMicrousdPerPage: CostProvenanceSafeAmount.optional(),
+}).strict().superRefine((price, context) => {
+  if (price.effectiveTo !== undefined && Date.parse(price.effectiveTo) <= Date.parse(price.effectiveFrom)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['effectiveTo'], message: 'price snapshot window must be non-empty' });
+  }
+});
+export type UsageCostPriceSnapshot = z.infer<typeof UsageCostPriceSnapshotSchema>;
+
+export const UsageCostProvenanceSchema = z.object({
+  version: z.literal(1),
+  tenantId: z.string().uuid(),
+  apiKeyId: z.string().uuid().nullable(),
+  profileId: z.string().uuid().nullable(),
+  profileRevision: z.number().int().min(1).nullable(),
+  businessId: SafeIdSchema,
+  businessVersion: SafeIdSchema,
+  action: SafeIdSchema,
+  attempt: z.number().int().min(1),
+  stepKey: SafeIdSchema,
+  connectorId: SafeIdSchema,
+  connectorRevision: z.number().int().min(1),
+  durationMs: CostProvenanceSafeAmount,
+  reservationGroupId: z.string().uuid(),
+  selectedAt: TimestampSchema,
+  confidence: z.enum(['upper-bound', 'best-effort']),
+  priceRevision: z.number().int().min(1).nullable(),
+  priceSnapshot: UsageCostPriceSnapshotSchema.nullable(),
+  budgetPins: z.array(CostProvenancePinSchema).max(32),
+  costBoundCapabilityId: SafeIdSchema.nullable(),
+  inputUpperBoundTokens: CostProvenanceSafeAmount.nullable(),
+  outputLimitTokens: CostProvenanceSafeAmount.nullable(),
+}).strict().superRefine((provenance, context) => {
+  const pinKeys = provenance.budgetPins.map((pin) => `${pin.budgetId}:${pin.revision}`);
+  if (new Set(pinKeys).size !== pinKeys.length) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['budgetPins'], message: 'budget pins must be unique' });
+  }
+  if ((provenance.priceRevision === null) !== (provenance.priceSnapshot === null)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['priceSnapshot'], message: 'price snapshot and revision must be present together' });
+  }
+  if ((provenance.confidence === 'upper-bound') !== (provenance.costBoundCapabilityId !== null && provenance.inputUpperBoundTokens !== null && provenance.outputLimitTokens !== null)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['confidence'], message: 'upper-bound provenance requires a verified bound capability and both bounded token dimensions' });
+  }
+});
+export type UsageCostProvenance = z.infer<typeof UsageCostProvenanceSchema>;
 
 /* ------------------------------------------------------------------ */
 /* Per-operation usage metrics (view model)                            */
@@ -248,6 +322,7 @@ export const UsageLedgerEventSchema = z
     unitType: UsageUnitTypeSchema,
     units: UsageLedgerUnitsSchema,
     costMicrousd: NonNegativeIntSchema.default(0),
+    providerReportedCost: ProviderReportedCostSchema.optional(),
     currency: z.literal('USD').default('USD'),
     costStatus: UsageCostStatusSchema,
     durationMs: NonNegativeIntSchema,

@@ -36,7 +36,11 @@ export interface AdminOperationDetailContext {
  * admin-only tenant pin.
  */
 export function toOperationDetailWire(r: Record<string, unknown>): Record<string, unknown> {
-  return { ...toOperationView(r), tenantId: r.tenant_id };
+  return { ...toOperationView(r), tenantId: r.tenant_id, stateVersion: r.state_version,
+    // Keep correlation metadata on the authenticated admin surface only. The
+    // public OperationView intentionally remains unchanged.
+    correlationId: typeof r.correlation_id === 'string' ? r.correlation_id : null,
+    links: { self: `/api/internal/operations/${String(r.id)}`, result: `/api/internal/operations/${String(r.id)}/result` } };
 }
 
 /** Current rules also protect historical requests; execution still uses its pin. */
@@ -160,7 +164,16 @@ export async function buildAdminOperationDetail(ctx: AdminOperationDetailContext
             error_code AS "errorCode" FROM tasks WHERE operation_id=$1 ORDER BY created_at ASC, id ASC`,
     [operationId],
   );
+  const waits = await ctx.db.query(
+    `SELECT w.wait_id AS "waitId", w.status, w.input_schema AS "inputSchema",
+            w.ui_schema AS "uiSchema", w.expires_at AS "expiresAt"
+       FROM human_waits w JOIN operations o ON o.id=w.operation_id
+      WHERE w.operation_id=$1 AND o.tenant_id=$2
+      ORDER BY w.created_at ASC, w.id ASC`,
+    [operationId, op.tenant_id],
+  );
   return {
+    humanWaits: waits.rows,
     tasks: tasks.rows,
     operation: toOperationDetailWire(op),
     ...(op.input_ref != null ? { requestInput: await buildAdminRequestInput(ctx, op) } : {}),

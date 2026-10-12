@@ -1,0 +1,15 @@
+{
+  "schema": "orv14-native-a2-preflight/v1",
+  "command": "/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node tests/workflow-api/orv14-vfy-host/verify-native-a2-fixture.mjs /tmp/orv14-vfy-host-native-mv4koyze-e961911f5a /tmp/orv14-vfy-host-native-mv4kecuu-c0811e6e73 http://127.0.0.1:41503",
+  "cwd": "/workspace/dugate/du-rework",
+  "startedAt": "2026-10-12T01:45:39.000Z",
+  "completedAt": "2026-10-12T01:45:39.500Z",
+  "node": "v24.21.0",
+  "status": "HARNESS_START_FAILURE",
+  "stage": "module initialization before infrastructure/database access",
+  "error": "ReferenceError: Cannot access 'orchRequire' before initialization",
+  "resourcesCreated": false,
+  "sourceWrites": false,
+  "productChanges": false,
+  "fix": "Moved the createRequire binding before its first use; no assertion was relaxed."
+}

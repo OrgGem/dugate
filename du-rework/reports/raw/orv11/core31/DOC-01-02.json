@@ -1,0 +1,37 @@
+{
+  "name": "operations/01a0c94c-e4d4-4d02-9bc0-7408f02a6ae8",
+  "done": true,
+  "metadata": {
+    "state": "SUCCEEDED",
+    "pipeline": [],
+    "current_step": 0,
+    "progress_percent": 0,
+    "progress_message": "Queued",
+    "create_time": "2026-10-11T16:35:02.954Z",
+    "update_time": "2026-10-11T16:35:03.085Z",
+    "pipeline_steps": []
+  },
+  "result": {
+    "output_format": "json",
+    "content": "{\"text\":\"Scanned receipt text\",\"markdown\":\"# Scanned receipt\",\"metadata\":{\"detectedFormat\":\"image/scan\",\"parser\":\"connector:ocr\",\"provenance\":\"ocr\"}}",
+    "extracted_data": {
+      "text": "Scanned receipt text",
+      "markdown": "# Scanned receipt",
+      "metadata": {
+        "detectedFormat": "image/scan",
+        "parser": "connector:ocr",
+        "provenance": "ocr"
+      }
+    },
+    "pipeline_steps": [],
+    "usage": {
+      "input_tokens": null,
+      "output_tokens": null,
+      "pages_processed": null,
+      "model_used": null,
+      "cost_usd": null,
+      "breakdown": []
+    },
+    "download_url": "/api/v1/operations/01a0c94c-e4d4-4d02-9bc0-7408f02a6ae8/download"
+  }
+}

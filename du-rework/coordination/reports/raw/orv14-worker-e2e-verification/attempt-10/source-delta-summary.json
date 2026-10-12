@@ -1,0 +1,31 @@
+{
+  "dependencyInputsBefore": {
+    "sha256": "f71dae9e4e72fb7da2114f5fbfa33ce25d9488bbdb6a240a797fd43a4a19a674",
+    "files": 943,
+    "missing": []
+  },
+  "dependencyInputsAfter": {
+    "sha256": "895e22ee9459d209dd77482914e0bb0b6793ba7f048b4a33cc9264ae1f285be2",
+    "files": 943,
+    "missing": []
+  },
+  "sourcePinsBefore": {
+    "createApp": "2913288498cfd4ffcb3ddb6b03b2f1d8fa7fde336e3a7d27c70a42a5a3b81626",
+    "ingestionStorageS3": "103858a6ce51710aa2612afcc969a8f6e18b37b1e8f08f700948f177dbf2e800",
+    "ingestionConsumer": "b3486252654873ee709cc24eef8b97b66d103adf88b85ff707b5594082a1d7ed"
+  },
+  "sourcePinsAfter": {
+    "createApp": "2913288498cfd4ffcb3ddb6b03b2f1d8fa7fde336e3a7d27c70a42a5a3b81626",
+    "ingestionStorageS3": "103858a6ce51710aa2612afcc969a8f6e18b37b1e8f08f700948f177dbf2e800",
+    "ingestionConsumer": "b3486252654873ee709cc24eef8b97b66d103adf88b85ff707b5594082a1d7ed"
+  },
+  "contractsSourceManifestSha256": "fd6f92da8c6948f42b28b5126b6de4d8feb801140a8c5f73d448444a16f81934",
+  "contractsDistManifestSha256": "4880c7cc7e0da0e01e3a0895078096c7a4009f7fa47be45f32727d4f1eb85b44",
+  "changedInputs": [
+    {
+      "path": "orchestrator/services/orchestrator/src/modules/maintenance/backup-effect-fence.ts",
+      "before": "455cb0e39916f9e8062e0406de7b0f95f6a2f238a267fd5bdb2827c8120656eb",
+      "after": "4a099f20b9d4915e205a88bbfe399fa05c816a4460edb254802ecff9d76c47a3"
+    }
+  ]
+}

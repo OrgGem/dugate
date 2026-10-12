@@ -1,0 +1,7 @@
+Start: 2026-10-12T03:53:08Z
+CWD: /workspace/dugate/du-rework
+Runtime: /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node v24.21.0
+Private app bundle: /workspace/scratch/orv14-primary-ui-20261012T0341Z/admin-dist
+Private spec: tests/browser/admin-web/orv14-profile-docs-handoff.spec.ts
+Preflight: responseShapes=12, exit 0 before normal app boot
+No shared build output or product source edit.

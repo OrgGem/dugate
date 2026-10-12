@@ -1,0 +1,1 @@
+Private Vite: ORV14_ADMIN_PRIVATE_DIST=/workspace/scratch/orv14-primary-ui-20261012T0408Z/admin-dist node orchestrator/apps/admin-web/node_modules/vite/bin/vite.js build --config tests/workflow-api/orv14-vfy/private-admin-ui.vite.config.mjs

@@ -1,0 +1,23 @@
+▶ UI13 platform scope and system projections
+  ✔ allows aggregate health and worker inventory only to a platform administrator (0.732588ms)
+  ✔ requires an admin platform BFF scope for Compose and denies incomplete sessions (0.238046ms)
+  ✔ pins tenant sessions to their credential tenant and uses the picker only for platform sessions (0.192168ms)
+  ✔ validates health observations while preserving unavailable values as null (1.111777ms)
+  ✔ keeps UNKNOWN and overdue HITL signals bounded to the fetched page rows (0.391096ms)
+  ✔ classifies bad or old timestamps as unknown or stale instead of healthy (0.209634ms)
+✔ UI13 platform scope and system projections (9.938535ms)
+▶ UI13 Compose operator safety and freshness
+  ✔ fails closed on unavailable, stale, invalid, and future host observations (1.085287ms)
+  ✔ allows preview only for a configured, fresh, digest-matched and idle project (0.515553ms)
+  ✔ offers only releases explicitly approved as rollback targets from the current desired release (1.143824ms)
+  ✔ fences preview submission by expiry, host/project, observed digest and desired revision (0.280089ms)
+  ✔ gives UNKNOWN jobs human reconciliation guidance without a retry path (0.34065ms)
+✔ UI13 Compose operator safety and freshness (5.613594ms)
+ℹ tests 11
+ℹ suites 2
+ℹ pass 11
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 189.849467

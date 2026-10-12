@@ -1,0 +1,26 @@
+{
+  "schema": "orv14-native-a2-attempt/v1",
+  "command": "/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node tests/workflow-api/orv14-vfy-host/verify-native-a2-fixture.mjs /tmp/orv14-vfy-host-native-mv4koyze-e961911f5a /tmp/orv14-vfy-host-native-mv4kecuu-c0811e6e73 http://127.0.0.1:41503",
+  "cwd": "/workspace/dugate/du-rework",
+  "node": "v24.21.0",
+  "verifierUid": 1000,
+  "startTimeBracketUtc": { "after": "2026-10-12T01:46:00Z", "before": "2026-10-12T01:48:41Z" },
+  "execReportedWallSeconds": 22.4,
+  "status": "HARNESS_EXIT_WITH_UNHANDLED_POOL_SHUTDOWN",
+  "stage": "isolated source/restore fixture launch and A2 harness; original main error was masked before its JSON receipt could be written",
+  "observedError": { "code": "57P01", "message": "terminating connection due to administrator command", "emitter": "idle pg BoundPool error while fixture cleanup closed its own PostgreSQL service" },
+  "fixture": { "composeProject": "orv14-vfy-host-mv4ld0cl-b510cbe90b", "temporaryRoot": "/tmp/orv14-vfy-host-mv4ld0cl-b510cbe90b-jjBPiF" },
+  "cleanup": {
+    "command": "cleanupHostInfrastructureFixture with exact owned project/root",
+    "completedAt": "2026-10-12T01:48:41Z",
+    "removed": { "containers": [], "volumes": [], "networks": [] },
+    "remaining": { "containers": [], "volumes": [], "networks": [] },
+    "temporaryFixtureRemoved": true
+  },
+  "resourcesCreated": "owned isolated Compose resources were started and then removed; source and restore databases/volumes are gone",
+  "providerRequests": "not observed; no provider call was requested by the A2 harness",
+  "productionOrCustomerData": false,
+  "productSourceWrites": false,
+  "privateScratchWrite": "orchestrator migrations copied into the unique private /tmp build tree; next attempt copies compiled migration module and SQL under its unique fixture root instead",
+  "harnessCorrection": "Track all pg pools and record pool errors; close all tracked pools before Compose cleanup. No assertion or policy was changed."
+}

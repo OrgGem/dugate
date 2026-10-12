@@ -12,7 +12,7 @@
  * keystream), not an echo: an echo provider would make a broken AAD binding
  * look authenticated, which is exactly the negative this file exists to pin.
  */
-import { createHmac } from 'node:crypto';
+import { createHmac, createHash } from 'node:crypto';
 import { CryptoStorageFacade } from '../src/modules/encryption/crypto-storage-facade';
 import type { KeyProvider, WrapDekInput, WrappedDek } from '../src/modules/encryption/vault-transit-provider';
 import {
@@ -670,5 +670,42 @@ describe('F1: an over-bound read is 413 TOO_LARGE, not an authentication verdict
     expect(out.decrypted).toBe(true);
     expect(out.bytes.length).toBe(plaintext.length);
     expect(out.bytes.equals(plaintext)).toBe(true);
+  });
+});
+
+
+describe('ORV12 public-upload envelope reader', () => {
+  async function wrapped() {
+    const provider = makeKeyProvider();
+    const fixture = await sealStoredObject(provider, UPLOAD_TOKEN);
+    const sha = createHash('sha256').update(fixture.ciphertext).digest('hex');
+    const ref: SealedArtifactRef = { ...REF, storageVersionId: 'committed-body-v1', manifestVersionId: 'committed-manifest-v1', ciphertextSha256: sha, ciphertextSizeBytes: fixture.ciphertext.length };
+    const wrapper: Record<string, unknown> = { version: 1, kind: 'single', tenantId: TENANT, artifactId: ARTIFACT, objectVersion: UPLOAD_TOKEN, ciphertextSha256: sha, ciphertextSizeBytes: fixture.ciphertext.length, encryption: fixture.manifest };
+    const head = jest.fn(async (_key: string, version?: string) => { expect(version).toBe(ref.storageVersionId); return fixture.metadata; });
+    const read = jest.fn(async (_key: string, version?: string) => { expect(version).toBe(ref.storageVersionId); return fixture.ciphertext; });
+    const readManifest = jest.fn(async (_key: string, version?: string) => { expect(version).toBe(ref.manifestVersionId); return wrapper; });
+    return { fixture, wrapper, ref, deps: depsFor({ head, read, readManifest }, provider), read, head };
+  }
+  it('opens gateway wrapper using pinned body+manifest versions and committed SHA/size', async () => {
+    const f = await wrapped();
+    const result = await decryptStoredArtifact(f.deps, f.ref);
+    expect(result.bytes.toString('utf8')).toBe(SECRET);
+    expect(result.decrypted).toBe(true);
+    expect(f.read).toHaveBeenCalledWith(STORAGE_KEY, 'committed-body-v1');
+  });
+  it.each(['tenantId','artifactId','objectVersion','ciphertextSha256','ciphertextSizeBytes','kind','version'])('refuses wrapper %s tampering before returning bytes', async field => {
+    const f = await wrapped();
+    f.wrapper[field] = 'tampered';
+    await expect(decryptStoredArtifact(f.deps, f.ref)).rejects.toMatchObject({ status: 503, code: 'STORAGE_FAILURE' });
+  });
+  it('requires committed body/manifest pins and checks trusted body digest', async () => {
+    const f = await wrapped();
+    await expect(decryptStoredArtifact(f.deps, { ...f.ref, storageVersionId: null })).rejects.toBeDefined();
+    await expect(decryptStoredArtifact(f.deps, { ...f.ref, manifestVersionId: null })).rejects.toBeDefined();
+    await expect(decryptStoredArtifact(f.deps, f.ref, Buffer.alloc(f.fixture.ciphertext.length))).rejects.toMatchObject({ status: 503, code: 'STORAGE_FAILURE' });
+  });
+  it('never treats malformed wrapper encryption as a raw legacy manifest', async () => {
+    const f = await wrapped(); f.wrapper.encryption = null;
+    await expect(decryptStoredArtifact(f.deps, f.ref)).rejects.toMatchObject({ status: 503, code: 'STORAGE_FAILURE' });
   });
 });

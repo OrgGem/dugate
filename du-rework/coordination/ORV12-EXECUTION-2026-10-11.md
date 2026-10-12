@@ -1,0 +1,126 @@
+# ORV12 continuation — implement remaining ORV11 plan
+
+Authority: latest user request “hãy imlement theo plan”. Canonical plan remains [ORV11 review/plan](../tasks/ORCHESTRATOR-COMPATIBILITY-REVIEW-2026-10-11.md); [prior implementation](ORV11-EXECUTION-2026-10-11.md) and its scoped approvals remain valid for their exact code/evidence. Current base HEAD7e36a1e + prior uncommitted implementation. Do not overwrite/reset prior source or four pre-existing CRLF report differences. Legacy root is read-only reference. No commit/push or production switch.
+
+Coordinator `/root` writes metadata only. Actual roster inspected: six prior workers completed, no current product writer. Continue through actual followup deliveries with nonoverlapping leases. No scheduler created; old scheduler remains UNVERIFIED.
+
+| Packet | Owner | Exclusive lease | Deliverable and acceptance |
+|---|---|---|---|
+| ORV12-SET | internal_ops | Orchestrator `src/modules/settings/**`, `src/modules/admin-actions/dispatcher.ts`, `src/http/routes/admin.ts`, `src/app/admin/bff/settings.ts`; new SQL0046; named settings owner tests | Real configuration draft/revision/diff/validate/apply/rollback on supported consumer paths; tenant/RBAC/CSRF/CAS/audit; preserve settings.prompt.update; actual pin consumption after apply and prior pinned operations unaffected |
+| ORV12-UI | admin_ui | `orchestrator/apps/admin-web/**`; UI unit tests | Settings revision/diff/test/apply/rollback consumer, schema-guided HITL with explicit advanced JSON fallback, operator errors/deep links/readiness; exact build browser evidence; no backend shared writes |
+| ORV12-DATA | migration | Existing `scripts/ldba-*.cjs`, new legacy reconciliation/mapping scripts, `src/modules/identity/**`, `src/modules/auth/admin-local/**`; named DATA owner tests; SQL0047 only after confirmed need | Auditable effective-config mapping and reconciliation tooling, full source/target inventory with explicit omissions/conflicts, snapshot-bound report; activation/replay mechanisms consumer evidence; no fake source proof/no production mutation |
+| ORV12-USAGE | api_compat | Connector `src/usage*.ts`, `src/db/usage-outbox.ts`; Orchestrator `src/modules/usage/**`, legacy usage projection only in compat; named usage owner tests | Verify/fix provider→Connector usage outbox→Orchestrator ledger→legacy result/billing read; accurate pending/final/measured semantics, retry dedup/tenant/key; no paid providers |
+| VFY-ORV12 | verification | New distinct `orv12-vfy-*` tests; scratch infra/build outputs; `coordination/reports/orv12-verification.md` and raw | Independent real PG/Redis/browser + local S3-compatible storage, encrypted connector/schema replay, migrated local login and populated source fixture where feasible; meaningful regression and no synthetic-as-customer claims |
+| REVIEW-ORV12 | independent_review | Readonly source/tests + `coordination/reports/orv12-independent-review.md` | Independent backend and exact-build UI verdict; scope/evidence audit, no self acceptance |
+
+Paths relative to `du-rework/` unless noted. Owner receipts `coordination/reports/orv12-{settings,ui,data,usage}.md`. Additional shared writes/migration numbers must be assigned before mutation. Initial rows SPECIFIED, not dispatch proof or implementation evidence. Settings design must reuse real consumers and avoid writing global settings that businesses ignore. Storage/deployment config can be surfaced with accurate ownership; automatic inference of customer connector/global settings is not authorized by missing data.
+
+## Remaining external inputs
+
+Customer snapshot/blobs/timezone observations and actual deployment credentials are absent. Implement required tooling and test representative synthetic full-entity data; keep real customer cutover/SSO/provider sizing gates explicit. Existing public result-by-ID AND download remain public; controls internal.
+
+## Dispatch cycle1
+
+Actual followup deliveries sent to existing completed agents `/root/internal_ops`, `/root/admin_ui`, `/root/migration`, `/root/api_compat`, `/root/verification`, `/root/independent_review`. API/reviewer explicit acceptance received; remaining acceptance messages pending actual turn start. No duplicate writer/spawn/scheduler. Product scopes disjoint; ROOT retains documentation/metadata only.
+
+## Coordination cycle2 — accepted designs and lease expansions
+
+All six existing agents explicitly accepted new packets and started work. No new agent/scheduler. Root remains metadata-only.
+
+- SET: immutable per tenant/key/endpoint snapshots of actual profile connector pins and prompt consumer rows; draft/diff/validate/apply/rollback with head+dependency CAS. Provider/model route through actual immutable connector revisions. Shared-profile connector edits refuse until dedicated profile exists; no silently widening other keys. SQL0046 reserved. Additional lease: runtime metadata-crypto slots, `profiles/prompt-overrides.ts`, bootstrap prompt reader crypto injection; legacy read compatibility must follow existing policy.
+- DATA: approved SQL0047 `legacy_migration_runs` provenance committed atomically with imported rows; no circular final report digest. Reviewed manifest binds source/import inventory/archive digests and every setting gets apply/deployment/manual disposition. Calls authenticated settings action path rather than direct duplicate DB configuration writes.
+- USAGE: actual gaps found in billing date filtering/ledger totals and provider/model/cost attribution plus non-atomic completion/outbox. Additional usage-only leases Connector `services.ts`, `db/repository.ts`, `types.ts`; contracts `runtime.ts`, `operations.ts`; billing-only interfaces/date forwarding in compat mount. Missing prices remain explicit unpriced/pending, historical spend+new ledger must not double count.
+- VFY: existing Node/PG/Redis live; Docker MinIO registries denied pulls, official binary or accurate local S3 emulator fallback being investigated. No TLS/proxy policy bypass or fabricated live-S3 evidence. Full source9entity fixture/identity/crypto replay setup underway.
+- UI: frontend-only lease; backend settings contracts owned SET. Guided schema inputs must preserve unsupported advanced JSON fallback and tenant/wait/state stale-response fences.
+- Reviewer initialized scoped evidence gates, early CAS/immutable consumer/provenance/unknown-cost feedback delivered to owners. No new approval yet.
+
+## Coordination cycle3 — consumer integration and discovered login gap
+
+Live runtime list: all six delegated agents executing; no duplicate writer or new scheduler. SET/UI/DATA contracts are being exchanged directly; source presence is still owner implementation evidence, not acceptance.
+
+- DATA additional exclusive lease confirmed: new `src/modules/legacy-migration/**` read service and SQL0047. Sanitized persisted migration run/list/readiness DTO is mounted by SET in its already leased `admin.ts`; DATA does not write that shared route. UI consumes `/admin/api/legacy-migration/readiness?tenantId=…` once BFF mount is frozen.
+- UI checkpoint: bounded schema-guided HITL and configuration draft/diff/validate/apply/restore implemented; encoded JSON-path field IDs fix the reviewer collision edge. Typecheck/tests/browser integration pending; new wait/tenant/selection response fences remain required.
+- VFY discovered a real P04 consumer gap: migrated local credential reader/password authentication have no login call site; `/admin/login` remains token-only. API owner asked to finish usage handoff then propose explicit auth/session lease before editing. DATA retains reset/identity lease. Login cannot be reported verified from reset-only tests.
+- USAGE checkpoint: atomic completion/outbox and explicit unpriced cost/billing date filters implemented; owner typechecks pass, focused tests/reviewer pending. Rich reconciliation/export provenance is not yet produced end-to-end and remains an explicit separate gap.
+- Storage: official MinIO download unavailable and registries denied. VFY is preparing an isolated versioned local HTTP S3 emulator; this can prove product storage behavior but cannot prove customer cloud IAM/configuration.
+
+## Coordination cycle4 — explicit added leases and red evidence
+
+- SET owns additional new BFF `src/app/admin/bff/legacy-migration.ts` and `handle.ts` registration limited to migration readiness/run read forwarding. DATA/UI notified; no shared writer.
+- Independent usage smoke settlement5/outbox1 passed, but reviewer found legacy spend admission absent. API owner granted `src/modules/operations/submission.ts` spend-admission-only plus new `src/modules/usage/spend-admission.ts`: preserve 402 when positive limit reached, zero unlimited, replay before budget check, tenant/key fence, same deduplicated known balance as billing, no writes on rejection. Fresh administrative retry must consume the same rule; rich optional provenance does not excuse missing legacy enforcement.
+- DATA requested explicit reset-required predicate in its credential-reader lease. Actual auth/session integration remains pending API owner scope proposal.
+- VFY representative populated nine-entity import now passes preliminarily after DATA fixed normal x-api-key header and connector timestamp SQL boundary. This is synthetic clone evidence, not a customer snapshot claim.
+- Local versioned Moto S3 upload/encrypted bytes/version pins pass; owned public download currently fails503: encrypted manifest missing algorithm. This is a real red storage consumer finding. DATA asked for exact producer/consumer paths before allocating source lease; do not waive download or label storage complete.
+- P07 callback delivery control and UNKNOWN retry fence requested as next SET packet after settings handoff; source lease/contract pending. UI consumer will be delegated on a frozen DTO.
+
+- ORV12-STORAGE delivered to DATA with exclusive additional lease `src/modules/encryption/artifact-read-decrypt.ts`, `src/modules/public-api/upload-encryption-gateway.ts` and named owner tests. Fix wrapper producer/raw manifest consumer mismatch with authenticated tenant/artifact/object-version/ciphertext digest/size checks; retain worker raw-manifest compatibility. Bootstrap crypto wiring remains SET-owned; coordinate rather than share writes. Reviewer and VFY notified.
+
+## Coordination cycle5 — login and pinned storage consumers
+
+Actual owner messages identified required paths; additional packets delivered through current running agent turns, no duplicate worker.
+
+- **ORV12-LOCAL** API owner exclusive lease: `src/app/admin/{auth-dispatch.ts,shell-router.ts,shell-router-shared.ts,shell-server.ts,shell-render.ts}`, new `local-auth-boot.ts`, `server.ts` auth configuration types, `main.ts` auth lifecycle only and named owner tests. Explicit `DU_ADMIN_AUTH_MODE=local`; no automatic enablement from presence of imported users. Existing OIDC/default token modes retained. Password auth uses server roles/tenant, disabled/locked/reset-required rejection, shared bounded Redis guard, opaque expiring/revocable session, live identity revalidation, login nonce/same-origin/CSRF/TLS/audit. Bootstrap hook is written by SET only after API freezes its contract. Internal BFF credential generation must be trusted and shared with the platform verifier; no anonymous fallback.
+- STORAGE DATA additional exclusive lease: `src/http/routes/public.ts` public download and `src/http/routes/runtime.ts` artifact GET fields/ref only. Reader must use trusted DB body-version, ciphertext SHA/size and wrapper identity/token. SET alone writes `create-app.ts` version-aware S3 reader integration, alongside auth hook and prompt crypto injection; owners send exact contracts rather than concurrently edit that file.
+- VFY/reviewer notified of both additions and negative/compatibility gates. Settings/readiness/backend integration remains active; owner handoff still pending. No production or full-plan acceptance declared.
+
+## Coordination cycle6 — frozen usage/UI and actual callback dispatch
+
+Live roster rechecked 2026-10-11 16:17 UTC: six agents running. Progress received on all lanes; current watch counters reset for observed progress in `agent-watch-state.json`. Historical terminal/scheduler claims preserved separately, no new scheduler.
+
+- USAGE/SPEND owner froze source with receipt/hash manifest:120 Orchestrator +33 Connector owner checks, typechecks pass. Independent reviewer settlement/spend9PASS; independent live VFY final receipt still pending. IR12-01 cannot close from owner checks alone.
+- UI first build handoff:8 owner tests/build pass, `index-CB-XGwBq.js` SHA256 `ce016b33a352e4f357ff840ed6823de654590d75eacf070dc8e4e830e4ebbd41`. Pending independent browser/UI acceptance. This bundle will be superseded by callback panel; final review must use the later exact digest.
+- SET real-PG owner5/5 passed. Reviewer found generic-profile connector edits widening other endpoint variants and baseline rollback0 bypassing external drift. Owner applied exact-endpoint pin guard and baseline drift guard; final independent verification remains required. DATA resumed effective configuration must recheck more than active revision number.
+- **ORV12-CALLBACK** actual followup delivered to free UI owner after completed handoff. Additional exclusive backend leases new `src/modules/webhooks/admin-delivery.ts`, `src/modules/operations/retry.ts` guard/budget only plus frontend/test files. SET owns additional `internal-operations.ts` GET deliveries mount, BFF `operations.ts` forwarding and existing dispatcher action registration. Failed-only row-lock/CAS manual retry, bounded additional attempts, stable delivery ID/payload/policy, no provider execution/operation mutation; audit/idempotency/RBAC/CSRF/tenant and sanitized read DTO. UNKNOWN/uncertain task or operation outcomes block fresh retries; fresh retry consumes stable API-owned spend helper. Independent VFY/review assigned.
+- LOCAL API additive `rbac.ts` security event-kind lease limited to login success/logout; no role authorization behavior change. SET continues sole writer on shared bootstrap.
+
+## Coordination cycle7 — native profile usability gate
+
+- VFY actual initial slice:5/6 backend cases pass; remaining assertion expected object pin while trusted operation pin is documented `uuid@revision` string. Fix fixture expectation, retain initial red log. Local versioned S3 download now returns exact bytes after DATA fix; full nine-entity replay/reset seam and usage measured/zero/unpriced/historical balance/key isolation/402/replay pass preliminarily. Final aggregate receipt pending; actual local HTTP login still implementing.
+- SET owner handoff9 real-PG +24 BFF checks/typecheck pass. Reviewer storage checks authenticated wrapper/pins and DATA replay8PASS; no whole-plan approval from these smaller checks.
+- **Native profile creation gap:** VFY found `createRevision` ignores `endpointSlug`, so fresh operators cannot satisfy exact-endpoint-only settings pin safety. SET granted exclusive narrow `profiles/profiles.ts`, `admin-actions/profile-actions.ts`, contracts `profile-commands.ts`, BFF `profiles.ts` forwarding lease. Optional exact selector validated against core endpoint/action, omitted selector carries existing identity; no silent retargeting existing profiles. `runProfileUpsert` also hardcodes empty pins, so policy edits must preserve existing pins and native first creation must support validated pin maps. UI owner adds actual endpoint/pin inputs; VFY must use native API/browser rather than SQL-seed the required exact profile. Reviewer notified.
+
+## Coordination cycle8 — source handoff and independent callback verification
+
+- DATA/STORAGE final owner receipt:62 CJS +59 Jest/typecheck pass, source frozen except independently found fixes. Independent reviewer decrypt42/settings9/DATA reconcile8 pass; HTTP/native/browser gates still pending. These overlapping checks are not added into a synthetic test total.
+- Actual followup to completed DATA agent starts **VFY-ORV12-CB** independent callback/retry testing, which DATA did not implement. New exclusive test `tests/workflow-api/orv12-vfy-callback-controls.test.ts`, receipt `coordination/reports/orv12-callback-verification.md` and raw namespace only. No product writes or own DATA/STORAGE acceptance. Coordinate isolated resources with main VFY; main VFY retains browser/settings/auth/S3/usage/mapping. Third-party reviewer still owns acceptance.
+- Root read-only auth check found auxiliary Redis version keys containing raw opaque session tokens. API owner asked to hash keys consistently; reviewer notified. Raw session secrets cannot be retained in auxiliary keys even when the primary repository hashes them.
+- Generator artifacts assigned SET: `tools/openapi/gen_openapi.py` limited to new scoped admin/readiness/callback/profile declarations, `docs/21-openapi.json` and `orchestrator/docs/21-openapi.json` outputs. Public operation contract remains result-by-ID/download only.
+
+## Coordination cycle9 — final UI bundle and local tenant credential seam
+
+- UI/callback/native-profile source frozen with15 owner checks, backend typecheck and frontend build pass. Final candidate bundle `index-DYRIRIfm.js` SHA256 `0ab292f776d094a6efddb15cb243744c8ab3926aa4d7c4cc50447d43646b0eac`; supersedes earlier ORV12 UI bundle. Browser/reviewer must use this digest or a later explicitly superseding build. Receipt `orv12-callback.md`.
+- VFY native HTTP profile.upsert exact selector/pins → settings apply/rollback/new submission changed pins/prior sealed snapshot immutable passed preliminarily without SQL profile seeding. SET owner11 settings checks cover concurrent same-key create/apply replay; implementation serializes key/replays before CAS. Regenerated OpenAPI70paths53schemas pending final contract checks.
+- LOCAL owner116 checks including real Redis/HTTP pass; auxiliary version metadata now hashes session tokens. Independent actual migrated local login succeeds, but own tenant BFF operations returns403 because server tenant credential is missing. Red retained; no local journey acceptance yet.
+- API additional exclusive `src/app/admin/bff/upstream.ts` credential selection/config shell forwarding lease approved. SET alone supplies trusted tenant factory. Server-derived tenant-scoped credential only; never platform fallback. Single-process registration and cross-replica shared-secret/verification have different requirements; do not claim automatic replica support from random per-process credentials. Reviewer/VFY notified.
+- Regression fixture `tests/p730-profile-snapshot*.test.ts` leased API to supply legitimate new scoped spend baseline;6 old mock failures retained, production admission cannot be bypassed merely to green tests.
+
+## Coordination cycle10 — source frozen, final independent gates
+
+Live roster: four owners completed, main VFY/reviewer still executing. User asked about models/token cost; current agents inherit parent model, no separate override configured. Runtime does not expose exact model ID/per-agent billing. Limit remaining work to final required checks/review; no new agents or broad feature packets.
+
+- Final native settings/shared integration owner12 settings +54 BFF checks/build pass; OpenAPI70paths53schemas and23 example schemas validate. Explicit validator lease adopted scoped changes in `tools/openapi/validate_openapi.py`; required public result-by-ID/download remain and retired public management routes are forbidden.
+- LOCAL final source owner129 checks/typecheck pass. Scoped stateless tenant credential verifier uses shared domain-separated HMAC, strict tenant UUID/prefix/MAC and constant-time validation only in explicit local mode, always tenant_operator. Removes co-located map dependency; stable shared deployment key still required. Reviewer independent HTTP/Redis local6PASS; actual migrated two-app proof pending main VFY.
+- Independent callback final **11/11 PASS**,0fail/0skip,exit0; source hashes/raw receipt `orv12-callback-verification.md`. Operator BFF permission defect corrected and rerun; stable callback retry verifies actual loopback204, frozen payload/policy and no operation/task/outbox/usage/grant execution mutations. Reviewer APPROVED delivered callback scope, external authenticated customer/TLS delivery separate.
+- Final browser native profile → settings apply/rollback passed preliminarily. Typed HITL test uses an explicitly synthetic typed schema on a real paused workflow; current legacy human business schemas still use supported advanced JSON fallback. No claim all domain schemas emit typed forms.
+- Wrong S3 manifest generation fails closed with sanitized500 and no plaintext/ciphertext fallback; reviewer confirms no explicit503 requirement. Test status assumption corrected without weakening fail-closed checks. Hash mismatch503 remains a separate negative. Final main receipt and UI verdict pending.
+
+## Final handoff — 2026-10-11 16:39 UTC
+
+All six delegated agents completed their assigned source/test/review turns. No active product writer; root finishes metadata only. No commit/push/deployment or production migration. Earlier cycle red findings were fixed by owners or narrowed only where the asserted status was absent from the actual contract; raw failures remain retained.
+
+| Scope | Implemented / owner smoke | Independently verified | Accepted scope |
+|---|---|---|---|
+| Settings/native profiles | Immutable encrypted revisions, diff/validate/apply/restore, CAS/dependency/idempotency/audit, native exact selector/ACTIVE pins, policy edits preserve pins; build/typecheck | Real PG/API plus native browser creation→apply/rollback→new admission/prior pin immutability | APPROVED backend; UI_APPROVED tested journeys |
+| Migration/config/identity/storage | SQL0047 provenance/journal/inventory, reviewed all-key disposition mapping, drift-safe replay, bounded readiness; authenticated/pinned S3 wrapper read |9 populated synthetic entities, fresh adapter/CLI crypto+mapping replay,9MiB history; versioned S3 readback/tamper/foreign; actual activated local login | APPROVED delivered mechanisms; customer migration/cutover NOT ACCEPTED |
+| Usage/budget | Atomic completion+outbox, tagged measured/zero/unpriced cost, per-key/time-window billing, exact shared spend admission after replay | Actual provider→HTTP→ledger plus history/dedup/isolation/402/replay/unlimited | APPROVED delivered legacy usage/spend; rich COST export provenance open |
+| Local authentication | Explicit local mode, Redis guard/opaque sessions/version revocation, CSRF/TLS/audit, stable stateless scoped HMAC BFF credential | Migrated reset/login→own read/cancel200, missing CSRF403, foreign403, two-app/shared Redis/different internal tokens, disable/rate lock | APPROVED delivered local mechanisms; real load-balancer/deployment review separate |
+| Callback/operator controls | Stable frozen failed-only bounded callback retry, tenant/RBAC/CSRF/CAS/idempotency/audit; UNKNOWN and spend guards; BFF exact operator cancel/resume/callback allowlist | Separate tester11/11 actual BFF/PG/loopback204 and no new execution; final migrated operator cancel after narrow guard fix | APPROVED backend; populated callback browser not yet accepted |
+| UI | Final bundle `index-DYRIRIfm.js` SHA256 `0ab292f776d094a6efddb15cb243744c8ab3926aa4d7c4cc50447d43646b0eac` | Actual settings/HITL browser, screenshots, exact served script | UI_APPROVED native profile/settings and guided/fallback HITL only |
+
+Final main receipt: [8 unique main checks, core31 selected, workflow4 selected](reports/orv12-verification.md); separate [callback11](reports/orv12-callback-verification.md). Test deselections outside selected regression scope are explicit, not passes; owner/reviewer repeats are not added into a fleet total. Main before/after source hashes record the late narrow BFF operator guard and test assertion changes; bundle unchanged. [Final independent reviewer](reports/orv12-independent-review.md) reports no blocker in delivered scope.
+
+Plan/evidence indexes and billing documentation reconciled. Full plan/cutover remains open for actual customer DB/blobs/timezone/mapping, deployment/provider/SSO/TLS/IAM/key-provider, sizing/backup-restore/drain/retry/callback/rollback windows. Additional limits: imported encrypted schema authenticated/replayed but not worker-executed in the DATA fixture; model setting manually classified, no guessed customer mapping; typed HITL schema synthetic, existing generic domains use explicit advanced JSON; new mobile/keyboard matrix and populated callback browser not comprehensive. No historical parent task/release tick inferred.
+
+## Future model policy — explicit user instruction
+
+After ORV12 workers completed, user selected implementation/test `gpt-6-luna` reasoning `max`; review/architecture/plan inherit the current user-facing Sol/Astra. Persisted in root `AGENTS.md` and `coordination/agent-model-policy.json`. New Luna workers require `fork_turns:none` plus concise packets; previous inherited-model workers are not eligible for new implementation/test reuse. No new idle agent created, no claim of retroactive model/cost change or runtime setter. Future coordinator must pass the configured fields explicitly.

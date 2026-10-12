@@ -1,0 +1,35 @@
+{
+  "hostId": "orv13-host-590ab94bbe",
+  "projectId": "orv13-compose-vfy-590ab94bbe",
+  "manifestDigest": "2c5502f3704f411c48953a132af10459e57b96b1aea4e7d842f5c6c58d584662",
+  "engineVersion": "28.4.0",
+  "composeVersion": "2.40.3",
+  "dockerContextEndpoint": "unix:///var/run/docker.sock",
+  "rootOwnedFixture": {
+    "manifestUid": 0,
+    "manifestMode": "0644",
+    "projectUid": 0,
+    "projectMode": "0755",
+    "bindVisibleMarker": true
+  },
+  "envFileProof": {
+    "implicitProjectDotEnvIgnored": {
+      "image": "redis@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499",
+      "sentinel": "default-sentinel"
+    },
+    "explicitPinnedEnvFileApplied": {
+      "image": "redis@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499",
+      "sentinel": "explicit-pinned-env"
+    }
+  },
+  "initialRunner": {
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  "catalog": {
+    "availability": "FRESH",
+    "projectCount": 1,
+    "observedServiceCount": 0
+  }
+}

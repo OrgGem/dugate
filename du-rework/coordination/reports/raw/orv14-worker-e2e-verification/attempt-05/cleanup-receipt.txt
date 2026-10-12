@@ -1,0 +1,6 @@
+cleanup check UTC: 2026-10-12T01:28:33.367179+00:00
+namespace=du_test_wfa_1791768351381_2dc4390bec
+postgresSchemaExists=f
+redisNamespaceKeyCount=0
+redisQueueNamespaceKeyCount=0
+test-owned resource absence checked; Compose stack left running; no foreign/customer resources deleted

@@ -1,0 +1,37 @@
+{
+  "tenantId": "3ba8d7db-985a-4e6f-a5ba-8c46973da446",
+  "revisions": {
+    "openAiA": 1,
+    "openAiB": 2,
+    "gemini": 3
+  },
+  "operationIds": {
+    "oldOpenAi": "9bb9c60c-1be4-44e6-8568-1c0b937c3606",
+    "newOpenAi": "2ae8665c-5321-4b12-b873-9f8ac1a4c55a",
+    "profileOverride": "3f9fecd6-c57d-40da-8939-74f6701ca3d1",
+    "gemini": "687299e9-c626-47ed-a680-1863b3dec713"
+  },
+  "providerObservations": [
+    {
+      "task": "",
+      "model": "ORV14_OPENAI_MODEL_A",
+      "promptSha256": "bc68e6a95bea548bef5d0b063844389ece54be966c16244576d8e1f29748eb46"
+    },
+    {
+      "task": "",
+      "model": "ORV14_OPENAI_MODEL_B",
+      "promptSha256": "ba8511423683ce70cb9ff3659ca2a8bb3ca5684290975ca22ccdc5daae5f6a5a"
+    },
+    {
+      "task": "",
+      "model": "ORV14_PROFILE_MODEL_WINS",
+      "promptSha256": "6a64a5adf0102654d1a878ee6fa1a3cc4f931570731fbb7122d2a2aa8fef7af4"
+    },
+    {
+      "task": "",
+      "model": "ORV14_GEMINI_MODEL",
+      "promptSha256": "d89e29e53d364ad475e35e0c200bfe8e7aab4a51e93241a7d7d57c28cc836040"
+    }
+  ],
+  "profileModelWins": true
+}

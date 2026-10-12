@@ -1,0 +1,8 @@
+Attempt: finance-pg-20261012-022156-a14-wrapperfailure
+UTC start: 2026-10-12T02:21:56Z
+Working directory: /workspace/dugate/du-rework
+Node: /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node v24.21.0
+Command: node tests/workflow-api/run-jest.cjs finance-pg-20261012-0222-a14-target.log --testPathPattern=orv14-vfy/cost-adjustments.test.ts --testNamePattern='records 100 → 80 → refund 30'
+Harness result: wrapper exit 1 while writing its receipt because tests/workflow-api/logs did not exist (ENOENT). The wrapper had already synchronously invoked Jest, but did not print or persist the child output. Jest assertion outcome is therefore unknown and is not counted as feature evidence.
+Cleanup recheck: no owned finance MinIO container appeared in docker ps; no Postgres schemas matching du_test_orv14_vfy_finance%; no Redis DB 14 keys matching du:test:orv14_vfy_finance_*; isolated artifact directory absent. Existing Compose containers remain running.
+Action: rerun the exact filtered test with the wrapper receipt directory available and a unique attempt name.

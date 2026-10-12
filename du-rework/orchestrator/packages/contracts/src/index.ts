@@ -39,3 +39,23 @@ export * from './request-redaction';
 export * from './profile-callback';
 export * from './secret-catalog';
 export * from './legacy-workflow';
+// ORV14 centrally integrated admin feature contracts. Leaf owners author the
+// schema files; this public barrel remains single-writer for all additions.
+export * from './global-settings';
+export * from './maintenance';
+export * from './incidents';
+export * from './workflow-import';
+export * from './admin-workbench';
+export * from './parity';
+// Keep this value export explicit for browser bundlers that statically scan
+// the CommonJS barrel (runtime `__exportStar` is not discoverable by Rollup).
+import { ConnectorRecipeSchema as ParityConnectorRecipeSchema } from './parity';
+export const ConnectorRecipeSchema = ParityConnectorRecipeSchema;
+export * from './profile-self-service';
+export * from './cost-control';
+export * from './connector-signals';
+export * from './connector-runtime-control';
+export * from './service-runtime';
+export * from './cost-alerts';
+export * from './cost-adjustments';
+export * from './tenant-connectors';

@@ -1,0 +1,41 @@
+{
+  "schema": "orv14-host-connector-restore-slice/v1",
+  "disposition": "FAILED_PARTIAL_HOST_CONNECTOR_SLICE_ONLY",
+  "completedAt": "2026-10-11T23:32:05.766Z",
+  "error": "Cannot find module './db/pg-client.js' Require stack: - /tmp/orv14-vfy-host-mv4gje7z-63f3cbf75e-rdsn3C/work/connector-build/src/entrypoint.js",
+  "cleanup": {
+    "projectId": "orv14-vfy-host-mv4gje7z-63f3cbf75e",
+    "removed": {
+      "containers": [
+        "0646c548a544",
+        "121a79cc6d70",
+        "65593b953447",
+        "01aa671b17bf",
+        "7cdb2e04b661",
+        "dcff17ec5e37",
+        "33d38d59d8ec",
+        "d8a895c6218d",
+        "87a726b96e04",
+        "338b7d0d2b3f"
+      ],
+      "volumes": [
+        "orv14-vfy-host-mv4gje7z-63f3cbf75e_connector-restore-data",
+        "orv14-vfy-host-mv4gje7z-63f3cbf75e_connector-source-data",
+        "orv14-vfy-host-mv4gje7z-63f3cbf75e_minio-data",
+        "orv14-vfy-host-mv4gje7z-63f3cbf75e_minio-restore-data",
+        "orv14-vfy-host-mv4gje7z-63f3cbf75e_orchestrator-restore-data",
+        "orv14-vfy-host-mv4gje7z-63f3cbf75e_orchestrator-source-data"
+      ],
+      "networks": [
+        "a802c2dbe906"
+      ]
+    },
+    "remaining": {
+      "containers": [],
+      "volumes": [],
+      "networks": []
+    },
+    "temporaryFixtureRemoved": true
+  },
+  "acceptance": "not claimed; source checkpoint and cross-family restore verification remain outstanding"
+}

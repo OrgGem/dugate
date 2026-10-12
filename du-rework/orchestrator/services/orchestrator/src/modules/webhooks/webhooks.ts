@@ -131,7 +131,7 @@ function parsePinnedCallbackPolicy(value: unknown): PinnedCallbackPolicyResult {
  */
 export async function maybeScheduleWebhook(client: DbClient, operationId: string): Promise<void> {
   const res = await client.query(
-    `SELECT id, tenant_id, state, state_version, callback_url, updated_at, completed_at, callback_policy
+    `SELECT id, tenant_id, state, state_version, callback_url, updated_at, completed_at, callback_policy, pipeline_json
      FROM operations WHERE id=$1`,
     [operationId]
   );
@@ -145,6 +145,7 @@ export async function maybeScheduleWebhook(client: DbClient, operationId: string
     updated_at: string;
     completed_at: string | Date | null;
     callback_policy: unknown;
+    pipeline_json?: unknown;
   };
   if (!op.callback_url) return;
   if (!TERMINAL_STATES.includes(op.state as TerminalState)) return;
@@ -155,10 +156,13 @@ export async function maybeScheduleWebhook(client: DbClient, operationId: string
   const occurredAt = new Date(op.completed_at ?? op.updated_at).toISOString();
   const pinnedResult = parsePinnedCallbackPolicy(op.callback_policy);
   const pinned = pinnedResult.kind === 'valid' ? pinnedResult : null;
-  const mode = pinned?.policy.mode ?? CALLBACK_DEFAULT_MODE;
+  const legacyWire = Array.isArray(op.pipeline_json) && op.pipeline_json.some((marker: Record<string, unknown>) => marker.legacyCallback === true);
+  const mode = legacyWire ? 'notification_only' : pinned?.policy.mode ?? CALLBACK_DEFAULT_MODE;
 
-  let payload: WebhookPayload | CallbackResultEnvelope;
-  if (mode === 'notification_with_result') {
+  let payload: WebhookPayload | CallbackResultEnvelope | { operation_id: string; state: string; done: boolean };
+  if (legacyWire) {
+    payload = { operation_id: op.id, state: terminalState, done: true };
+  } else if (mode === 'notification_with_result') {
     payload = await buildCallbackResultEnvelope(client, {
       operationId: op.id,
       state: terminalState,
@@ -204,7 +208,7 @@ export async function maybeScheduleWebhook(client: DbClient, operationId: string
   );
   if (!inserted.rowCount) return; // already scheduled for this terminal revision
   const deliveryId = (inserted.rows[0] as { delivery_id: string }).delivery_id;
-  if (mode === 'notification_only') {
+  if (mode === 'notification_only' && !legacyWire) {
     await client.query('UPDATE webhook_deliveries SET payload = jsonb_set(payload, \'{deliveryId}\', to_jsonb($2::text)) WHERE delivery_id=$1', [
       deliveryId,
       deliveryId,

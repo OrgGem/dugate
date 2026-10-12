@@ -1,6 +1,7 @@
-import { parseContractGrantClaims, localGrantClaimsFromContract } from './contracts';
+import { parseContractGrantClaims, localGrantClaimsFromContract, parseProviderTestGrantClaims } from './contracts';
 import type { GrantClaims } from './types';
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import type { ProviderTestGrantClaims } from '@du/contracts';
 
 export interface SignedGrantSource {
   verify(token: string): Promise<unknown>;
@@ -15,13 +16,24 @@ export class ContractSignedGrantVerifier {
   }
 }
 
+export class ContractSignedProviderTestGrantVerifier {
+  public constructor(private readonly source: SignedGrantSource) {}
+
+  public async verify(token: string): Promise<ProviderTestGrantClaims> {
+    return parseProviderTestGrantClaims(await this.source.verify(token));
+  }
+}
+
 export class HmacSignedGrantSource implements SignedGrantSource {
   public constructor(private readonly secret: Uint8Array) {}
 
   public async verify(token: string): Promise<unknown> {
     const parts = token.split('.');
     if (parts.length !== 3) throw new Error('Invalid token.');
-    const [encodedHeader, encodedPayload, signature] = parts;
+    const encodedHeader = parts[0];
+    const encodedPayload = parts[1];
+    const signature = parts[2];
+    if (!encodedHeader || !encodedPayload || !signature) throw new Error('Invalid token.');
     const expected = createHmac('sha256', this.secret)
       .update(`${encodedHeader}.${encodedPayload}`)
       .digest('base64url');

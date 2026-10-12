@@ -1,0 +1,33 @@
+started_precheck_utc=2026-10-11T22:38:34Z
+cwd=/workspace/dugate/du-rework
+compose_project=orv14-vfy-20261011-a1
+postgres=127.0.0.1:25414/orv14_vfy; schema=du_test_orv14_vfy_ops_1791758323607_29ce98d0
+redis=127.0.0.1:26414; db=9; prefix=du:test:orv14_vfy_ops_1791758323607_29ce98d0:
+queue_prefix=du:q:orv14_vfy_ops_1791758323607_29ce98d0:
+artifact_dir=tests/workflow-api/orv14-vfy/ops-artifacts/orv14_vfy_ops_1791758323607_29ce98d0
+node=/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node; version=v24.21.0
+jest=/workspace/dugate/du-rework/orchestrator/node_modules/.pnpm/node_modules/jest/bin/jest.js
+NODE_PATH=/workspace/dugate/du-rework/orchestrator/node_modules/.pnpm/node_modules
+command=env WFA_DATABASE_URL=postgresql://orv14_vfy:orv14-vfy-local-only@127.0.0.1:25414/orv14_vfy WFA_REDIS_URL=redis://127.0.0.1:26414/0 NODE_PATH=/workspace/dugate/du-rework/orchestrator/node_modules/.pnpm/node_modules /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node /workspace/dugate/du-rework/orchestrator/node_modules/.pnpm/node_modules/jest/bin/jest.js --config tests/workflow-api/jest.config.cjs --runInBand --detectOpenHandles --runTestsByPath tests/workflow-api/orv14-vfy-ops.test.ts
+verifier_test_sha256=2d270a95e7855deefdd6852d57df7c965e69fe93f2b8455c390561f5f8b24a9b
+incident_service_sha256=49866b884652564a859b627d23814495492e30c0aa34573324f3feed44388c3b
+internal_operations_mapper_sha256=2cd8882e9d589cea9d8a15f7469f25adedf146e808c903312db789bd77c8fede
+operations_list_query_sha256=dd283828e12b6e5ef5841a03306cf7146e2fa4e8678774568782e0019969dfb3
+internal_incident_route_sha256=927a477e7861848aa528117aa8084c5d1496082328048b204e63d092e613aa14
+admin_bff_incidents_sha256=d562128e10bd39f9c70c131d19043afa33377a45b31c2a9570e2690ad1d185d2
+internal_operations_route_sha256=607f6617a02518888539d7361ce509fdebbb1c4397c35c495d58c477f47da081
+admin_bff_operations_sha256=3a069ed807abc8491662b301e54283f7b3a8f94955b773b42429c6c7de31fba8
+cost_alert_contract_sha256_precheck=04e55557e4f9f2ab86a04cd3372009a14be72a5263f40bc9dc25ac02a4cd7409
+result=3 tests passed; 0 failed; 0 skipped; Jest exit code 0
+raw_log=ops-full-incident-49866-rerun.log
+build_or_served_bundle_hash=none; Admin shell explicitly used DU_ADMIN_WEB_DIST=tests/workflow-api/orv14-vfy/no-bundle; this is direct BFF/source verification, no browser claims
+
+Coverage: 1,200-row actual-Postgres operations search/sort/keyset/deep correlation/admin list+detail correlation projection/current USER key+Profile grants/negative boundaries/metrics; actual incident signals, dedupe/repeated samples, lifecycle ownership/ack/CSRF/audit, active-source resolve rejection, exact recovery event evidence resolve, stale older ACTIVE signal cannot reopen resolved recovered incident or append history, suppression TTL and annotation; concurrent first-time same-source empty-read interleaving with observed PostgreSQL lock wait and monotonic latest payload.
+
+cost_alert_contract_sha256_postcheck=04e55557e4f9f2ab86a04cd3372009a14be72a5263f40bc9dc25ac02a4cd7409 (unchanged; import stability only, no overall cost source freeze claimed)
+cleanup_check_utc=2026-10-11T22:39:17Z
+postgres schema count=0
+Redis test-prefix scan=empty
+Redis queue-prefix scan=empty
+owned artifact directory=ABSENT
+open-handle-warning=none

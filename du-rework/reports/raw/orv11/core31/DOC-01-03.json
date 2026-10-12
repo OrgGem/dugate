@@ -1,0 +1,41 @@
+{
+  "name": "operations/55c2867e-4fcd-469c-901c-8c0a5aebcbd9",
+  "done": true,
+  "metadata": {
+    "state": "SUCCEEDED",
+    "pipeline": [],
+    "current_step": 0,
+    "progress_percent": 0,
+    "progress_message": "Queued",
+    "create_time": "2026-10-11T16:35:03.208Z",
+    "update_time": "2026-10-11T16:35:03.344Z",
+    "pipeline_steps": []
+  },
+  "result": {
+    "output_format": "json",
+    "content": "{\"text\":\"Patient Intake Form\",\"markdown\":\"\",\"formFields\":{\"patientName\":\"John Doe\",\"age\":35},\"metadata\":{\"detectedFormat\":\"image/form\",\"parser\":\"connector:vision\",\"provenance\":\"vision\"}}",
+    "extracted_data": {
+      "text": "Patient Intake Form",
+      "markdown": "",
+      "formFields": {
+        "patientName": "John Doe",
+        "age": 35
+      },
+      "metadata": {
+        "detectedFormat": "image/form",
+        "parser": "connector:vision",
+        "provenance": "vision"
+      }
+    },
+    "pipeline_steps": [],
+    "usage": {
+      "input_tokens": null,
+      "output_tokens": null,
+      "pages_processed": null,
+      "model_used": null,
+      "cost_usd": null,
+      "breakdown": []
+    },
+    "download_url": "/api/v1/operations/55c2867e-4fcd-469c-901c-8c0a5aebcbd9/download"
+  }
+}

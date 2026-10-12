@@ -1,0 +1,11 @@
+Attempt: finance-pg-20261012-014814-a6
+Cleanup verification UTC: 2026-10-12 01:49:44 UTC
+CWD: /workspace/dugate/du-rework
+PostgreSQL: exact schema `du_test_orv14_vfy_finance_1791769728472_5260e369` query => absent, exit 0.
+Redis: exact database 7 key scan for `du:test:orv14_vfy_finance_1791769728472_5260e369:*` => 0 keys, exit 0.
+Artifact directory `tests/workflow-api/orv14-vfy/cost-adjustments-artifacts/orv14_vfy_finance_1791769728472_5260e369` => absent.
+Owned MinIO container `orv14-vfy-finance-minio-36b0719901f4` => absent after cleanup; its unique versioned bucket `orv14-fin-f8723a3c79d44373a86af18c` was deleted before the tmpfs container was stopped. Jest printed `ORV14_VFY_CLEANUP schemaAbsent=true ownedBucketAbsent=true ownedContainerAbsent=true`.
+Raw Jest log contains no open-handle, force-exit, AggregateError, cleanup-failed, or owned-container-remains diagnostic.
+Relevant service/bootstrap/migration source pre/post manifest diff: no changes during run. See `finance-pg-20261012-014814-a6.sources-pre.sha256` and `.sources-post.sha256` (identical).
+Harness pre/post hashes: `.harness-pre.sha256` and `.harness-post.sha256` (identical for this run).
+Functional result: one selected correction case reached the actual OIDC BFF and returned HTTP 409; the original assertion did not print the body, so exact cause is unclassified pending a fresh diagnostic attempt. No finance behavior pass claimed. Six other cases were filtered/skipped.

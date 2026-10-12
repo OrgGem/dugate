@@ -125,6 +125,17 @@ export function parseProfileDetail(value: unknown): ProfileDetail | null {
         .map(parseCapability)
         .filter((capability): capability is ProfileCapability => capability !== null)
     : [];
+  const connectorBindings: ProfileDetail['connectorBindings'] = {};
+  if (isRecord(value['connectorBindings'])) {
+    for (const [slot, rawPin] of Object.entries(value['connectorBindings'])) {
+      if (!isRecord(rawPin)) continue;
+      const connectorId = str(rawPin['connectorId']);
+      const revision = rawPin['revision'];
+      if (connectorId !== null && typeof revision === 'number' && Number.isInteger(revision) && revision > 0) {
+        connectorBindings[slot] = { connectorId, revision };
+      }
+    }
+  }
   // T-API-01 closure: the write identity rides the read wire; carry it through
   // (absent on `/new` and unstored profiles — never synthesize one).
   const apiKeyId = str(value['apiKeyId']);
@@ -137,6 +148,7 @@ export function parseProfileDetail(value: unknown): ProfileDetail | null {
     policy,
     manifest: { actions },
     capabilities,
+    connectorBindings,
     ...(apiKeyId !== null && apiKeyId.length > 0 ? { apiKeyId } : {}),
   };
 }

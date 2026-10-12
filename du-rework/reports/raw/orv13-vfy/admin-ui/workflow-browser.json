@@ -1,0 +1,89 @@
+{
+  "test": "VFY-UI13 workflows viewer write gates and real stale revision compare-and-swap",
+  "workflow": {
+    "tenantId": "3a1e9e7f-0c8e-4e94-a00c-9fb30220ab6a",
+    "slug": "orv13-vfy-flow-9c1eaf80c4b6"
+  },
+  "admin": {
+    "originalRevision": 1,
+    "competitorRevision": 2,
+    "staleApplyStatus": 409,
+    "draftPreserved": "VFY draft preserved after server revision conflict",
+    "rowsAfter": [
+      {
+        "revision": 1,
+        "status": "retired"
+      },
+      {
+        "revision": 2,
+        "status": "active"
+      }
+    ]
+  },
+  "operator": {
+    "role": "tenant_operator",
+    "createDisabled": true,
+    "editButtonHidden": true,
+    "writeRequestsFromUI": []
+  },
+  "viewer": {
+    "role": "viewer",
+    "catalogDeniedByServer": true,
+    "actualBffWriteStatus": 403,
+    "databaseRowsUnchanged": true
+  },
+  "viewportWidths": {
+    "admin": 1440,
+    "operator": {
+      "width": 390,
+      "scrollWidth": 390
+    }
+  },
+  "responses": [
+    {
+      "method": "GET",
+      "path": "/admin/api/session",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/admin/api/session",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/admin/api/workflows",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/admin/api/settings",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/admin/api/api-keys",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/admin/api/businesses",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/admin/api/tenants",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/admin/api/health",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/actions",
+      "status": 409
+    }
+  ]
+}

@@ -172,6 +172,20 @@ describe('multipart init', () => {
     expect(harness.db.artifacts.size).toBe(0);
   });
 
+  test('reports multipart unavailable while the active immutable generation is PostgreSQL', async () => {
+    const harness = createMultipartHarness();
+    const service = createMultipartService(harness.db as never, {
+      storageGenerations: {
+        current: async () => ({ generationId: '00000000-0000-4000-8000-000000000052', backend: 'postgres' }),
+      } as never,
+      now: () => clock.ms,
+    });
+    await expect(service.init(TASK_ID, initBody())).rejects.toMatchObject({
+      status: 409, code: 'MULTIPART_NOT_AVAILABLE',
+    });
+    expect(harness.db.artifacts.size).toBe(0);
+  });
+
   test('rejects a size at or below the single-PUT ceiling on the wire', async () => {
     const harness = createMultipartHarness();
     await expect(harness.service.init(TASK_ID, initBody({ sizeBytes: MULTIPART_MIN_TOTAL_BYTES - 1 })))

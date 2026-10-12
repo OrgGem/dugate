@@ -1,4 +1,5 @@
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { InitialBindings, coreEndpoints, type InitialBinding } from './initial-bindings';
+import { Fragment, type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,6 +10,7 @@ import { AlertBanner, DeniedState, ErrorState, LoadingState } from '@/components
 import { Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
   createAdminApiClient,
+  type AdminWebSession,
   type AdminApiProblem,
   type ConnectionStep,
   type FileUrlAuthConfigWrite,
@@ -16,6 +18,8 @@ import {
   type ProfileListPage,
   type ProfileWorkflowItem,
   type RequestRedactionRule,
+  type ProfileSelfServiceAssignedPage,
+  type ProfileSelfServiceAssignedApiKeyPage,
 } from '@/lib/api';
 import { groupProfileListRows, profileErrorHint, parseProfileDetail, parseProfileListPage, parseProfileWorkflowPage } from './state';
 import { buildPublishBody, buildRollbackBody, buildUpsertBody } from './command-bodies';
@@ -27,6 +31,7 @@ import { parseSecretListPage } from '@/features/secrets/state';
 import type { SecretOption } from '@/features/secrets/value-source-selector';
 import { useTenant } from '@/lib/tenant-context';
 import { parseBusinessPage, parseBusinessVersions } from '@/features/businesses/state';
+import { useLocation, useNavigate } from 'react-router';
 
 type Priority = 'LOW' | 'MEDIUM' | 'HIGH';
 type FileUrlAuthType = 'none' | 'bearer' | 'header' | 'query';
@@ -82,6 +87,507 @@ interface RowResult {
   detail: string;
 }
 
+type AssignedProfile = ProfileSelfServiceAssignedPage['items'][number];
+type AssignedApiKey = ProfileSelfServiceAssignedApiKeyPage['items'][number];
+type WorkbenchPromptProposal = {
+  handoffId: string;
+  businessId: string;
+  businessVersion: string;
+  profileName: string;
+  expectedRevision: number;
+  tenantId?: string;
+  profileId?: string;
+  parameterKey?: string | null;
+  prompt: string;
+};
+
+function recordValue(value: unknown): Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function parseWorkbenchPromptProposal(value: unknown): WorkbenchPromptProposal | null {
+  const wrapper = recordValue(value);
+  const item = recordValue(wrapper['workbenchPromptProposal']);
+  if (item['businessId'] !== 'document-core'
+      || typeof item['handoffId'] !== 'string' || item['handoffId'].length > 128
+      || typeof item['businessVersion'] !== 'string' || item['businessVersion'].length > 128
+      || typeof item['profileName'] !== 'string' || item['profileName'].length > 255
+      || typeof item['expectedRevision'] !== 'number' || !Number.isSafeInteger(item['expectedRevision']) || item['expectedRevision'] < 1
+      || typeof item['prompt'] !== 'string' || item['prompt'].trim().length === 0 || item['prompt'].length > 16_000) return null;
+  if (item['tenantId'] !== undefined && (typeof item['tenantId'] !== 'string' || item['tenantId'].length > 128)) return null;
+  if (item['profileId'] !== undefined && (typeof item['profileId'] !== 'string' || !/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(item['profileId']))) return null;
+  if (item['parameterKey'] !== undefined && item['parameterKey'] !== null && (typeof item['parameterKey'] !== 'string' || item['parameterKey'].length > 128)) return null;
+  return {
+    handoffId: item['handoffId'],
+    businessId: 'document-core',
+    businessVersion: item['businessVersion'],
+    profileName: item['profileName'],
+    expectedRevision: item['expectedRevision'],
+    ...(typeof item['tenantId'] === 'string' ? { tenantId: item['tenantId'] } : {}),
+    ...(typeof item['profileId'] === 'string' ? { profileId: item['profileId'] } : {}),
+    ...(typeof item['parameterKey'] === 'string' ? { parameterKey: item['parameterKey'] } : {}),
+    prompt: item['prompt'],
+  };
+}
+
+function parameterValuesFor(item: AssignedProfile): Record<string, unknown> {
+  const properties = recordValue(item.inputSchema.properties);
+  const values: Record<string, unknown> = {};
+  for (const [key, definition] of Object.entries(properties)) {
+    const draftKey = Object.keys(item.parameters).find((candidate) => parameterSchemaKey(item, candidate) === key) ?? key;
+    const current = item.parameters[draftKey];
+    if (current !== undefined) values[draftKey] = current.value;
+    else if (typeof definition === 'object' && definition !== null && Object.hasOwn(definition, 'default')) {
+      values[draftKey] = (definition as Record<string, unknown>).default;
+    }
+  }
+  for (const [key, current] of Object.entries(item.parameters)) values[key] = current.value;
+  return values;
+}
+
+function parameterSchemaKey(item: AssignedProfile, key: string): string {
+  if (item.endpointSlug && item.action === 'transform' && key === 'action') return 'variant';
+  if (!item.endpointSlug) return key;
+  return key.replace(/_+([a-zA-Z0-9])/g, (_match, letter: string) => letter.toUpperCase());
+}
+
+function sameJson(left: unknown, right: unknown): boolean {
+  try { return JSON.stringify(left) === JSON.stringify(right); }
+  catch { return false; }
+}
+
+function AssignedProfilesWorkspace({
+  client,
+  tenantId,
+  proposalDraft,
+  onProposalConsumed,
+}: {
+  client: ReturnType<typeof createAdminApiClient>;
+  tenantId: string;
+  proposalDraft: WorkbenchPromptProposal | null;
+  onProposalConsumed: () => void;
+}) {
+  const [query, setQuery] = useState('');
+  const [page, setPage] = useState<ProfileSelfServiceAssignedPage | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [problem, setProblem] = useState<AdminApiProblem | null>(null);
+  const [selected, setSelected] = useState<AssignedProfile | null>(null);
+  const [keys, setKeys] = useState<AssignedApiKey[]>([]);
+  const [keyQuery, setKeyQuery] = useState('');
+  const [keyPage, setKeyPage] = useState<ProfileSelfServiceAssignedApiKeyPage | null>(null);
+  const [selectedKey, setSelectedKey] = useState('');
+  const [draftValues, setDraftValues] = useState<Record<string, unknown>>({});
+  const [baseValues, setBaseValues] = useState<Record<string, unknown>>({});
+  const [jsonDrafts, setJsonDrafts] = useState<Record<string, string>>({});
+  const [draftConnections, setDraftConnections] = useState<AssignedProfile['connectionsOverride']>([]);
+  const [baseConnections, setBaseConnections] = useState<AssignedProfile['connectionsOverride']>([]);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [keyLoading, setKeyLoading] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [keyNextCursor, setKeyNextCursor] = useState<string | null>(null);
+  const [conflictRow, setConflictRow] = useState<AssignedProfile | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const searchGeneration = useRef(0);
+  const keyGeneration = useRef(0);
+  const saveInFlight = useRef(false);
+  const proposalHandoffAttempt = useRef('');
+  const workbenchId = useMemo(() => `assigned-${crypto.randomUUID()}`, []);
+
+  async function fetchAssigned(next?: string | null): Promise<ProfileSelfServiceAssignedPage | null> {
+    const generation = ++searchGeneration.current;
+    setLoading(true);
+    setProblem(null);
+    try {
+      const result = await client.listAssignedProfileEndpoints({ query: query.trim() || undefined, cursor: next ?? undefined, limit: 50 });
+      if (generation !== searchGeneration.current) return null;
+      if (!result.ok) {
+        setProblem(result.problem);
+        return null;
+      }
+      if (result.data.tenantId !== tenantId) {
+        setProblem({ status: 502, code: 'SCOPE_MISMATCH', title: 'The assigned Profile response belongs to a different session tenant.' });
+        return null;
+      }
+      return result.data;
+    } catch {
+      if (generation === searchGeneration.current) setProblem({ status: 0, code: 'NETWORK_ERROR', title: 'Assigned Profiles could not be loaded.' });
+      return null;
+    } finally {
+      if (generation === searchGeneration.current) setLoading(false);
+    }
+  }
+
+  async function refreshAssigned(): Promise<void> {
+    const result = await fetchAssigned();
+    if (!result) return;
+    setPage(result);
+    setNextCursor(result.nextCursor);
+    if (selected) {
+      const refreshed = result.items.find((item) => item.profileId === selected.profileId);
+      if (refreshed && refreshed.revision !== selected.revision) setConflictRow(refreshed);
+    }
+  }
+
+  useEffect(() => {
+    let active = true;
+    const generation = ++searchGeneration.current;
+    void (async () => {
+      const result = await client.listAssignedProfileEndpoints({ limit: 50 });
+      if (!active || generation !== searchGeneration.current) return;
+      if (!result.ok) { setProblem(result.problem); return; }
+      if (result.data.tenantId !== tenantId) { setProblem({ status: 502, code: 'SCOPE_MISMATCH', title: 'The assigned Profile response belongs to a different session tenant.' }); return; }
+      setPage(result.data);
+      setNextCursor(result.data.nextCursor);
+    })().catch(() => { if (active && generation === searchGeneration.current) setProblem({ status: 0, code: 'NETWORK_ERROR', title: 'Assigned Profiles could not be loaded.' }); });
+    return () => { active = false; };
+  }, [client, tenantId]);
+
+  useEffect(() => {
+    let active = true;
+    const generation = ++keyGeneration.current;
+    setKeys([]);
+    setKeyPage(null);
+    setSelectedKey('');
+    setKeyNextCursor(null);
+    if (!selected) return () => { active = false; };
+    setKeyLoading(true);
+    void client.listAssignedProfileApiKeys(selected.profileId, { query: keyQuery.trim() || undefined, limit: 50 }).then((result) => {
+      if (!active || generation !== keyGeneration.current) return;
+      if (!result.ok) { setProblem(result.problem); return; }
+      if (result.data.profileId !== selected.profileId || result.data.tenantId !== tenantId) {
+        setProblem({ status: 502, code: 'SCOPE_MISMATCH', title: 'Assigned API keys did not match the selected Profile and tenant.' });
+        return;
+      }
+      setKeyPage(result.data);
+      setKeys(result.data.items);
+      setKeyNextCursor(result.data.nextCursor);
+      if (result.data.items.length === 1) setSelectedKey(result.data.items[0]!.apiKeyId);
+    }).catch(() => { if (active) setProblem({ status: 0, code: 'NETWORK_ERROR', title: 'Assigned API keys could not be loaded.' }); })
+      .finally(() => { if (active && generation === keyGeneration.current) setKeyLoading(false); });
+    return () => { active = false; };
+  }, [client, selected?.profileId, tenantId, keyQuery]);
+
+  function chooseProfile(item: AssignedProfile): void {
+    if (saving) return;
+    const values = parameterValuesFor(item);
+    const jsonValues: Record<string, string> = {};
+    for (const [key, value] of Object.entries(values)) {
+      const definition = recordValue(recordValue(item.inputSchema.properties)[parameterSchemaKey(item, key)]);
+      if (definition.type === 'object' || definition.type === 'array') jsonValues[key] = JSON.stringify(value, null, 2);
+    }
+    setSelected(item);
+    setBaseValues(values);
+    setDraftValues(values);
+    setJsonDrafts(jsonValues);
+    setBaseConnections(item.connectionsOverride);
+    setDraftConnections(item.connectionsOverride);
+    setFieldErrors({});
+    setConflictRow(null);
+    setNotice(null);
+    setProblem(null);
+  }
+
+  useEffect(() => {
+    if (!proposalDraft?.profileId || !proposalDraft.parameterKey || proposalHandoffAttempt.current === proposalDraft.handoffId) return;
+    proposalHandoffAttempt.current = proposalDraft.handoffId;
+    const generation = ++searchGeneration.current;
+    setLoading(true);
+    setProblem(null);
+    void client.listAssignedProfileEndpoints({ query: proposalDraft.profileName, limit: 50 }).then((result) => {
+      if (generation !== searchGeneration.current) return;
+      if (!result.ok) { setProblem(result.problem); onProposalConsumed(); return; }
+      if (result.data.tenantId !== tenantId) { setProblem({ status: 502, code: 'SCOPE_MISMATCH', title: 'The Profile proposal belongs to a different session tenant.' }); onProposalConsumed(); return; }
+      const item = result.data.items.find((entry) => entry.profileId === proposalDraft.profileId);
+      if (!item) { setProblem({ status: 404, code: 'PROFILE_NOT_ASSIGNED', title: 'This Profile is no longer assigned to your local account.' }); onProposalConsumed(); return; }
+      if (item.revision !== proposalDraft.expectedRevision) {
+        setConflictRow(item);
+        setProblem({ status: 409, code: 'PROFILE_CHANGED', title: `The Profile changed from revision ${proposalDraft.expectedRevision} to ${item.revision}. Review its current values before accepting the prompt.` });
+        onProposalConsumed();
+        return;
+      }
+      const properties = recordValue(item.inputSchema.properties);
+      const schemaKey = parameterSchemaKey(item, proposalDraft.parameterKey!);
+      const actualKey = Object.keys(item.parameters).find((key) => parameterSchemaKey(item, key) === schemaKey) ?? proposalDraft.parameterKey!;
+      if (!Object.hasOwn(properties, schemaKey) || item.parameters[actualKey]?.isLocked === true || /pass(word)?|secret|token|api.?key|credential|authorization|private.?key/i.test(actualKey)) {
+        setProblem({ status: 422, code: 'PARAMETER_NOT_EDITABLE', title: 'This prompt field is missing, locked, or sensitive on the current endpoint.' });
+        onProposalConsumed();
+        return;
+      }
+      setPage(result.data);
+      setNextCursor(result.data.nextCursor);
+      setQuery(proposalDraft.profileName);
+      chooseProfile(item);
+      setDraftValues({ ...parameterValuesFor(item), [actualKey]: proposalDraft.prompt });
+      setNotice('Wizard proposal loaded into the local assigned-Profile draft. Review and save to create a new revision.');
+      onProposalConsumed();
+    }).catch(() => {
+      if (generation === searchGeneration.current) setProblem({ status: 0, code: 'NETWORK_ERROR', title: 'The assigned Profile draft could not be loaded.' });
+      onProposalConsumed();
+    }).finally(() => { if (generation === searchGeneration.current) setLoading(false); });
+  }, [client, proposalDraft, tenantId, onProposalConsumed]);
+
+  async function searchProfiles(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    const result = await fetchAssigned();
+    if (result) { setPage(result); setNextCursor(result.nextCursor); }
+  }
+
+  async function loadMoreProfiles(): Promise<void> {
+    if (!nextCursor || loading || !page) return;
+    const result = await fetchAssigned(nextCursor);
+    if (!result) return;
+    setPage((current) => current ? { ...result, items: [...current.items, ...result.items] } : result);
+    setNextCursor(result.nextCursor);
+  }
+
+  async function loadMoreKeys(): Promise<void> {
+    if (!selected || !keyNextCursor || keyLoading) return;
+    const generation = keyGeneration.current;
+    setKeyLoading(true);
+    try {
+      const result = await client.listAssignedProfileApiKeys(selected.profileId, { query: keyQuery.trim() || undefined, cursor: keyNextCursor, limit: 50 });
+      if (generation !== keyGeneration.current) return;
+      if (result.ok && result.data.profileId === selected.profileId && result.data.tenantId === tenantId) {
+        setKeys((current) => [...current, ...result.data.items]);
+        setKeyNextCursor(result.data.nextCursor);
+      } else if (!result.ok) setProblem(result.problem);
+      else setProblem({ status: 502, code: 'SCOPE_MISMATCH', title: 'More API keys did not match the selected Profile and tenant.' });
+    } catch {
+      if (generation === keyGeneration.current) setProblem({ status: 0, code: 'NETWORK_ERROR', title: 'More assigned API keys could not be loaded.' });
+    } finally {
+      if (generation === keyGeneration.current) setKeyLoading(false);
+    }
+  }
+
+  function updateParameter(key: string, value: unknown): void {
+    setDraftValues((current) => ({ ...current, [key]: value }));
+    setFieldErrors((current) => { const next = { ...current }; delete next[key]; return next; });
+  }
+
+  function validateDraft(): { values: Record<string, unknown>; errors: Record<string, string> } {
+    const values = { ...draftValues };
+    const errors: Record<string, string> = {};
+    if (!selected) return { values, errors };
+    for (const [key, text] of Object.entries(jsonDrafts)) {
+      const definition = recordValue(recordValue(selected.inputSchema.properties)[parameterSchemaKey(selected, key)]);
+      if (definition.type !== 'object' && definition.type !== 'array') continue;
+      try { values[key] = JSON.parse(text) as unknown; }
+      catch { errors[key] = 'Enter valid JSON for this object or array.'; }
+    }
+    const required = Array.isArray(selected.inputSchema.required) ? selected.inputSchema.required.filter((value): value is string => typeof value === 'string') : [];
+    const bySchema = new Map(Object.entries(recordValue(selected.inputSchema.properties)).map(([key, value]) => [key, recordValue(value)]));
+    for (const [key, definition] of bySchema) {
+      const draftKey = Object.keys(selected.parameters).find((candidate) => parameterSchemaKey(selected, candidate) === key) ?? key;
+      if (required.includes(key) && (values[draftKey] === undefined || values[draftKey] === '')) errors[draftKey] = 'This field is required by the active endpoint schema.';
+      if ((definition.type === 'number' || definition.type === 'integer') && values[draftKey] !== undefined && values[draftKey] !== ''
+          && (typeof values[draftKey] !== 'number' || !Number.isFinite(values[draftKey] as number)
+            || (definition.type === 'integer' && !Number.isInteger(values[draftKey] as number)))) errors[draftKey] = definition.type === 'integer' ? 'Enter a whole number.' : 'Enter a finite number.';
+    }
+    const captured = new Set(valuesFromConnections(draftConnections, 'captureSession'));
+    for (const slot of valuesFromConnections(draftConnections, 'injectSession')) {
+      if (!captured.has(slot)) errors.connectionsOverride = `Session slot "${slot}" is injected but no existing step captures it.`;
+    }
+    return { values, errors };
+  }
+
+  async function saveAssignedProfile(): Promise<void> {
+    if (!selected || !page || saveInFlight.current || saving) return;
+    const validation = validateDraft();
+    setFieldErrors(validation.errors);
+    if (Object.keys(validation.errors).length > 0) return;
+    const changedValues = Object.fromEntries(Object.entries(validation.values).filter(([key, value]) => !sameJson(value, baseValues[key])));
+    const changedConnections = !sameJson(draftConnections, baseConnections);
+    if (Object.keys(changedValues).length === 0 && !changedConnections) { setNotice('There are no unsaved Profile changes.'); return; }
+    saveInFlight.current = true;
+    setSaving(true);
+    setProblem(null);
+    setNotice(null);
+    try {
+      const response = await client.editAssignedProfile({
+        businessId: selected.businessId,
+        businessVersion: selected.businessVersion,
+        profileName: selected.profileName,
+        profileId: selected.profileId,
+        expectedRevision: selected.revision,
+        ...(Object.keys(changedValues).length ? { parameterValues: changedValues } : {}),
+        ...(changedConnections ? { connectionsOverride: draftConnections } : {}),
+      }, crypto.randomUUID());
+      if (!response.ok) {
+        setProblem(response.problem);
+        if (response.status === 409) {
+          const latest = await fetchAssigned();
+          const latestRow = latest?.items.find((item) => item.profileId === selected.profileId);
+          if (latest && latestRow) {
+            setPage(latest);
+            setNextCursor(latest.nextCursor);
+            setConflictRow(latestRow);
+          }
+        }
+        return;
+      }
+      const updated: AssignedProfile = { ...selected, revision: response.data.revision };
+      setSelected(updated);
+      setBaseValues(validation.values);
+      setDraftValues(validation.values);
+      setBaseConnections(draftConnections);
+      setConflictRow(null);
+      setNotice(`Saved as Profile revision ${response.data.revision}.`);
+      const refreshed = await fetchAssigned();
+      if (refreshed) {
+        setPage(refreshed);
+        setNextCursor(refreshed.nextCursor);
+        const row = refreshed.items.find((item) => item.profileId === updated.profileId);
+        if (row) { setSelected(row); setBaseValues(parameterValuesFor(row)); setDraftValues(parameterValuesFor(row)); setBaseConnections(row.connectionsOverride); setDraftConnections(row.connectionsOverride); }
+      }
+    } catch {
+      setProblem({ status: 0, code: 'NETWORK_ERROR', title: 'The Profile edit could not be confirmed. The draft is still available; refresh before retrying.' });
+    } finally {
+      saveInFlight.current = false;
+      setSaving(false);
+    }
+  }
+
+  function rebaseDraft(): void {
+    if (!conflictRow) return;
+    const nextBase = parameterValuesFor(conflictRow);
+    setSelected(conflictRow);
+    setBaseValues(nextBase);
+    setBaseConnections(conflictRow.connectionsOverride);
+    setConflictRow(null);
+    setNotice(`Draft kept. Review the new server revision ${conflictRow.revision} before saving again.`);
+  }
+
+  const properties = selected ? recordValue(selected.inputSchema.properties) : {};
+  const keysToEdit = selected ? [...new Set([...Object.keys(properties).map((schemaKey) => Object.keys(selected.parameters).find((key) => parameterSchemaKey(selected, key) === schemaKey) ?? schemaKey), ...Object.keys(selected.parameters)])] : [];
+  const requiredFields = selected && Array.isArray(selected.inputSchema.required)
+    ? selected.inputSchema.required.filter((field): field is string => typeof field === 'string')
+    : [];
+  const hasChanges = selected !== null && (
+    !sameJson(draftConnections, baseConnections)
+    || Object.entries(draftValues).some(([key, value]) => !sameJson(value, baseValues[key]))
+  );
+
+  return (
+    <section aria-labelledby="assigned-profiles-title" className="flex min-w-0 flex-col gap-5">
+      <div>
+        <h1 id="assigned-profiles-title" className="text-lg font-semibold">Assigned Profiles</h1>
+        <p className="mt-1 text-sm text-[var(--text-sub)]">Edit parameters and existing session mappings on enabled endpoints assigned to your account. Changes create a new Profile revision.</p>
+      </div>
+      <AlertBanner variant="info" title="Your assigned tenant">This list is scoped by your signed-in local account. API keys, credentials, enablement, priority, and connector bindings remain managed by an administrator. Tenant: <code>{tenantId}</code></AlertBanner>
+      <Card>
+        <CardHeader>
+          <CardTitle>Enabled assigned endpoints</CardTitle>
+          <CardDescription>{page ? `${page.items.length} of ${page.total} endpoint${page.total === 1 ? '' : 's'} loaded.` : 'Only active, enabled endpoint assignments are shown.'}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <form className="flex flex-wrap items-end gap-2" onSubmit={(event) => void searchProfiles(event)}>
+            <div className="min-w-56 flex-1"><FormField id={`${workbenchId}-search`} label="Search assigned endpoints"><Input value={query} onChange={(event) => setQuery(event.target.value)} maxLength={128} placeholder="Business, version, profile, action" /></FormField></div>
+            <Button type="submit" variant="outline" disabled={loading}>Search</Button>
+            <Button type="button" variant="outline" onClick={() => void refreshAssigned()} disabled={loading}>Refresh</Button>
+          </form>
+          {problem ? <AlertBanner variant="error" title={problem.title ?? 'Assigned Profile action failed'}>{problem.status || 'Network error'} · {problem.code ?? 'ERROR'}</AlertBanner> : null}
+          {loading && !page ? <LoadingState title="Loading assigned endpoints" description="The server is checking your current local-user assignments." /> : null}
+          {page?.items.length === 0 ? <div role="status" className="rounded border border-dashed p-6 text-sm text-[var(--text-sub)]">No enabled Profile endpoints are assigned to this account.</div> : null}
+          {page?.items.length ? (
+            <div className="grid gap-2 md:grid-cols-2">
+              {page.items.map((item) => (
+                <button key={item.profileId} type="button" onClick={() => chooseProfile(item)} aria-pressed={selected?.profileId === item.profileId} disabled={saving}
+                  className={`min-w-0 rounded border p-3 text-left transition-colors ${selected?.profileId === item.profileId ? 'border-[var(--cf-blue)] bg-[var(--bg-subtle)]' : 'border-[var(--border-subtle)] hover:bg-[var(--bg-subtle)]'}`}>
+                  <span className="block truncate font-medium">{item.profileName} · {item.action}</span>
+                  <span className="mt-1 block text-xs text-[var(--text-sub)]">{item.businessId}@{item.businessVersion} · revision {item.revision}{item.endpointSlug ? ` · ${item.endpointSlug}` : ''}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
+          {nextCursor ? <Button type="button" variant="outline" onClick={() => void loadMoreProfiles()} disabled={loading}>Load more assigned endpoints</Button> : null}
+        </CardContent>
+      </Card>
+
+      {selected ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>{selected.profileName} parameters and session mappings</CardTitle>
+            <CardDescription>{selected.businessId}@{selected.businessVersion} · active revision {selected.revision} · {selected.action}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            {conflictRow ? (
+              <AlertBanner variant="warning" title={`Profile changed on the server (revision ${conflictRow.revision})`}>
+                Your draft remains intact. Server changes since revision {selected.revision}: parameters {Object.keys(conflictRow.parameters).filter((key) => !sameJson(conflictRow.parameters[key]?.value, baseValues[key])).join(', ') || 'none detected'}; session mappings {sameJson(conflictRow.connectionsOverride, baseConnections) ? 'unchanged' : 'changed'}. Review before rebasing.
+                <div className="mt-2"><Button type="button" size="sm" variant="outline" onClick={() => void rebaseDraft()}>Keep draft on revision {conflictRow.revision}</Button></div>
+              </AlertBanner>
+            ) : null}
+            <div className="grid gap-4 sm:grid-cols-2">
+              {keysToEdit.map((key) => {
+                const schemaKey = parameterSchemaKey(selected, key);
+                const definition = recordValue(properties[schemaKey]);
+                const current = selected.parameters[key];
+                const locked = current?.isLocked === true || (current === undefined && definition.defaultLocked === true);
+                const type = Array.isArray(definition.enum) ? 'enum' : definition.type;
+                const label = typeof definition.title === 'string' ? definition.title : typeof definition.label === 'string' ? definition.label : key;
+                const description = typeof definition.description === 'string' ? definition.description : locked ? 'Locked by an administrator.' : undefined;
+                const error = fieldErrors[key];
+                const enumValues: unknown[] = Array.isArray(definition.enum) ? definition.enum : [];
+                return (
+                  <FormField key={key} id={`${workbenchId}-param-${key}`} label={label} description={description} error={error} required={requiredFields.includes(schemaKey)}>
+                    {type === 'boolean' ? (
+                      <span className="flex items-center gap-2 text-sm"><input type="checkbox" aria-label={label} checked={draftValues[key] === true} disabled={locked || saving} onChange={(event) => updateParameter(key, event.target.checked)} /><span>Enabled</span></span>
+                    ) : type === 'object' || type === 'array' ? (
+                      <textarea className="min-h-24 w-full rounded-[var(--radius-sm)] border border-[var(--border-dark)] bg-[var(--bg-card)] p-2 font-mono text-xs" aria-label={label} aria-invalid={error ? true : undefined} value={jsonDrafts[key] ?? JSON.stringify(draftValues[key] ?? (type === 'array' ? [] : {}), null, 2)} disabled={locked || saving}
+                        onChange={(event) => { setJsonDrafts((currentDraft) => ({ ...currentDraft, [key]: event.target.value })); setFieldErrors((currentErrors) => { const next = { ...currentErrors }; delete next[key]; return next; }); }} />
+                    ) : type === 'enum' && enumValues.length > 0 ? (
+                      <select className="h-9 w-full rounded border border-[var(--border-dark)] bg-[var(--bg-card)] px-2 text-sm" aria-label={label} value={String(draftValues[key] ?? '')} disabled={locked || saving} onChange={(event) => updateParameter(key, enumValues.find((entry: unknown) => String(entry) === event.target.value) ?? event.target.value)}>
+                        <option value="">Select…</option>{enumValues.filter((entry): entry is string | number | boolean => typeof entry === 'string' || typeof entry === 'number' || typeof entry === 'boolean').map((entry) => <option key={String(entry)} value={String(entry)}>{String(entry)}</option>)}
+                      </select>
+                    ) : (
+                      <Input type={type === 'number' || type === 'integer' ? 'number' : 'text'} step={type === 'integer' ? '1' : type === 'number' ? 'any' : undefined} aria-label={label} value={String(draftValues[key] ?? '')} disabled={locked || saving}
+                        onChange={(event) => updateParameter(key, type === 'number' || type === 'integer' ? (event.target.value === '' ? '' : Number(event.target.value)) : event.target.value)} />
+                    )}
+                  </FormField>
+                );
+              })}
+            </div>
+            <section aria-labelledby={`${workbenchId}-connections-title`} className="space-y-3 rounded border border-[var(--border-subtle)] p-3">
+              <h3 id={`${workbenchId}-connections-title`} className="font-medium">Existing connector session mappings</h3>
+              {draftConnections.length === 0 ? <p className="text-sm text-[var(--text-sub)]">This Profile has no existing connection steps to edit.</p> : draftConnections.map((step, index) => (
+                <div key={`${step.slug}:${step.stepId ?? index}`} className="grid gap-3 sm:grid-cols-3">
+                  <FormField label="Existing step"><Input value={`${step.slug}${step.stepId ? ` · ${step.stepId}` : ''}`} disabled aria-label={`Existing step ${index + 1}`} /></FormField>
+                  <FormField label="Capture session slot"><Input maxLength={64} value={step.captureSession ?? ''} aria-label={`Capture session slot for ${step.slug}`} onChange={(event) => setDraftConnections((current) => current.map((entry, row) => row === index ? { ...entry, captureSession: event.target.value || null } : entry))} disabled={saving} /></FormField>
+                  <FormField label="Inject session slot"><Input maxLength={64} value={step.injectSession ?? ''} aria-label={`Inject session slot for ${step.slug}`} onChange={(event) => setDraftConnections((current) => current.map((entry, row) => row === index ? { ...entry, injectSession: event.target.value || null } : entry))} disabled={saving} /></FormField>
+                </div>
+              ))}
+              {fieldErrors.connectionsOverride ? <p role="alert" className="text-sm text-[var(--badge-danger-text)]">{fieldErrors.connectionsOverride}</p> : null}
+              <p className="text-xs text-[var(--text-sub)]">Step order, slugs, IDs, connector revisions, and credentials are read-only. Session slot names are checked on save.</p>
+            </section>
+            <section aria-labelledby={`${workbenchId}-key-title`} className="space-y-3 rounded border border-[var(--border-subtle)] p-3">
+              <div><h3 id={`${workbenchId}-key-title`} className="font-medium">Assigned active API key for tests</h3><p className="text-xs text-[var(--text-sub)]">Only keys currently assigned to both your account and this Profile are listed. This view never returns key material.</p></div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <FormField label="Search assigned API keys"><Input value={keyQuery} onChange={(event) => setKeyQuery(event.target.value)} maxLength={128} placeholder="Name or prefix" /></FormField>
+                <FormField label="API key"><select className="h-9 w-full rounded border border-[var(--border-dark)] bg-[var(--bg-card)] px-2 text-sm" value={selectedKey} onChange={(event) => setSelectedKey(event.target.value)} disabled={keyLoading}>
+                  <option value="">Select an assigned key</option>{keys.map((key) => <option key={key.apiKeyId} value={key.apiKeyId}>{key.name || 'Unnamed key'} · {key.prefix} · {key.apiKeyId}</option>)}
+                </select></FormField>
+              </div>
+              {keyPage?.total === 0 ? <p role="status" className="text-sm text-[var(--text-sub)]">No active key is currently assigned to this Profile and your account.</p> : null}
+              {keyNextCursor ? <Button type="button" variant="outline" size="sm" onClick={() => void loadMoreKeys()} disabled={keyLoading}>Load more keys</Button> : null}
+            </section>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button type="button" onClick={() => void saveAssignedProfile()} disabled={saving || !hasChanges}>{saving ? 'Saving revision…' : 'Save assigned Profile changes'}</Button>
+              {selected.revision > 0 ? <Badge variant="neutral">CAS revision {selected.revision}</Badge> : null}
+              {notice ? <span role="status" className="text-sm text-[var(--text-sub)]">{notice}</span> : null}
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+    </section>
+  );
+}
+
+function valuesFromConnections(steps: AssignedProfile['connectionsOverride'], field: 'captureSession' | 'injectSession'): string[] {
+  return steps.flatMap((step) => typeof step[field] === 'string' && step[field] !== '' ? [step[field]!] : []);
+}
+
 /**
  * Profile vertical slice (AWEB-04) — conformant with the frozen Phase-1 wire:
  * read = `{businessId, businessVersion, profileName, revision, currentValues,
@@ -90,14 +596,21 @@ interface RowResult {
  */
 export function ProfilesScreen() {
   const { tenantId: globalTenantId, tenant } = useTenant();
+  const location = useLocation();
+  const navigate = useNavigate();
   const client = useMemo(() => createAdminApiClient(), []);
+  const workbenchProposal = useMemo(() => parseWorkbenchPromptProposal(location.state), [location.state]);
+  const consumedWorkbenchProposal = useRef('');
+  const [access, setAccess] = useState<{ kind: 'loading' } | { kind: 'ready'; session: AdminWebSession } | { kind: 'failed'; problem: AdminApiProblem }>({ kind: 'loading' });
   const [businesses, setBusinesses] = useState<string[]>([]);
   const [versions, setVersions] = useState<string[]>([]);
   const [apiKeys, setApiKeys] = useState<{ id: string; name?: string | null; status: string }[]>([]);
   const [selectedApiKeyId, setSelectedApiKeyId] = useState<string>('');
-  const [businessId, setBusinessId] = useState('document-core');
-  const [businessVersion, setBusinessVersion] = useState('1.1.0');
-  const [profileName, setProfileName] = useState('default');
+  const [businessId, setBusinessId] = useState(() => new URLSearchParams(window.location.search).get('businessId') ?? 'document-core');
+  const [businessVersion, setBusinessVersion] = useState(() => new URLSearchParams(window.location.search).get('businessVersion') ?? '1.1.0');
+  const [endpointSlug, setEndpointSlug] = useState('');
+  const [initialBindings, setInitialBindings] = useState<InitialBinding[]>([]);
+  const [profileName, setProfileName] = useState(() => new URLSearchParams(window.location.search).get('profileName') ?? 'default');
   const [profileListBusinessId, setProfileListBusinessId] = useState('');
   const [profileListPage, setProfileListPage] = useState<ProfileListPage | null>(null);
   const [profileListLoading, setProfileListLoading] = useState(false);
@@ -117,15 +630,36 @@ export function ProfilesScreen() {
   const [notice, setNotice] = useState<string | null>(null);
   const [rowResults, setRowResults] = useState<RowResult[] | null>(null);
   const [busy, setBusy] = useState(false);
-  const [testOpen, setTestOpen] = useState(false);
-  const [testFileUrls, setTestFileUrls] = useState('');
-  const [testResult, setTestResult] = useState<Record<string, unknown> | null>(null);
-  const [testProblem, setTestProblem] = useState<AdminApiProblem | null>(null);
+  const [workbenchConfirmOpen, setWorkbenchConfirmOpen] = useState(false);
+  const [pendingWorkbenchHandoff, setPendingWorkbenchHandoff] = useState<{
+    handoffId: string;
+    tenantId: string;
+    businessId: string;
+    businessVersion: string;
+    profileName: string;
+    expectedRevision: number;
+  } | null>(null);
   const [secretOptions, setSecretOptions] = useState<SecretOption[]>([]);
   const [secretsLoading, setSecretsLoading] = useState(false);
   const [secretsProblem, setSecretsProblem] = useState<AdminApiProblem | null>(null);
 
+  function consumeWorkbenchProposal(): void {
+    navigate({ pathname: location.pathname, search: location.search }, { replace: true, state: null });
+  }
+
   useEffect(() => {
+    let active = true;
+    void client.getSession().then((result) => {
+      if (active) setAccess(result.ok ? { kind: 'ready', session: result.data } : { kind: 'failed', problem: result.problem });
+    }).catch(() => {
+      if (active) setAccess({ kind: 'failed', problem: { status: 0, code: 'NETWORK_ERROR', title: 'Admin session could not be read.' } });
+    });
+    return () => { active = false; };
+  }, [client]);
+
+  useEffect(() => {
+    setEndpointSlug('');
+    setInitialBindings([]);
     setApiKeys([]);
     setSelectedApiKeyId('');
     setDetail(null);
@@ -136,14 +670,16 @@ export function ProfilesScreen() {
     setProfileWorkflows([]);
     setProfileWorkflowsProblem(null);
     setNotice(null);
-    setTestResult(null);
-    setTestProblem(null);
   }, [globalTenantId]);
 
   useEffect(() => {
     let active = true;
     setProfileListPage(null);
     setProfileListProblem(null);
+    if (access.kind !== 'ready' || access.session.localUser || access.session.role === 'viewer') {
+      setProfileListLoading(false);
+      return () => { active = false; };
+    }
     if (!globalTenantId) {
       setProfileListLoading(false);
       return () => { active = false; };
@@ -169,7 +705,7 @@ export function ProfilesScreen() {
       if (active) setProfileListLoading(false);
     });
     return () => { active = false; };
-  }, [client, globalTenantId, profileListBusinessId, profileListRefresh]);
+  }, [client, globalTenantId, profileListBusinessId, profileListRefresh, access]);
 
   // AWEB-14: workflow choices are loaded only for the stored profile's exact
   // business/version and current tenant. The backend applies the same fence.
@@ -178,7 +714,7 @@ export function ProfilesScreen() {
     setProfileWorkflows([]);
     setProfileWorkflowsProblem(null);
     const targetName = loadedAs?.profileName;
-    if (detail === null || detail.revision < 1 || targetName === undefined || !globalTenantId) {
+    if (access.kind !== 'ready' || access.session.localUser || access.session.role === 'viewer' || detail === null || detail.revision < 1 || targetName === undefined || !globalTenantId) {
       setProfileWorkflowsLoading(false);
       return () => { active = false; };
     }
@@ -208,11 +744,12 @@ export function ProfilesScreen() {
       if (active) setProfileWorkflowsLoading(false);
     });
     return () => { active = false; };
-  }, [client, detail, loadedAs, globalTenantId]);
+  }, [client, detail, loadedAs, globalTenantId, access]);
 
   // Load registered businesses
   useEffect(() => {
     let active = true;
+    if (access.kind !== 'ready' || access.session.localUser || access.session.role === 'viewer') return () => { active = false; };
     void client.listBusinesses().then((result) => {
       if (!active) return;
       const page = result.ok ? parseBusinessPage(result.data) : null;
@@ -223,11 +760,12 @@ export function ProfilesScreen() {
       }
     });
     return () => { active = false; };
-  }, [client]);
+  }, [client, access]);
 
   // Load versions for selected business
   useEffect(() => {
     let active = true;
+    if (access.kind !== 'ready' || access.session.localUser || access.session.role === 'viewer') return () => { active = false; };
     if (!businessId.trim()) return;
     void client.getBusinessVersions(businessId.trim()).then((result) => {
       if (!active) return;
@@ -239,13 +777,14 @@ export function ProfilesScreen() {
       }
     });
     return () => { active = false; };
-  }, [client, businessId]);
+  }, [client, businessId, access]);
 
   // Load API keys for global tenant
   useEffect(() => {
     let active = true;
     setApiKeys([]);
     setSelectedApiKeyId('');
+    if (access.kind !== 'ready' || access.session.localUser || access.session.role === 'viewer') return () => { active = false; };
     if (!globalTenantId) return () => { active = false; };
     void client.listApiKeys({ tenantId: globalTenantId }).then((result) => {
       if (!active) return;
@@ -258,11 +797,16 @@ export function ProfilesScreen() {
       }
     });
     return () => { active = false; };
-  }, [client, globalTenantId]);
+  }, [client, globalTenantId, access]);
 
   // CB-04: the callback credential fields select from the live secret catalog
   useEffect(() => {
     let active = true;
+    if (access.kind !== 'ready' || access.session.localUser || access.session.role === 'viewer') {
+      setSecretsLoading(false);
+      setSecretOptions([]);
+      return () => { active = false; };
+    }
     setSecretsLoading(true);
     void client.listSecrets({ limit: '100' }).then((result) => {
       if (!active) return;
@@ -291,14 +835,14 @@ export function ProfilesScreen() {
     return () => {
       active = false;
     };
-  }, [client]);
+  }, [client, access]);
 
   const identifiers = { businessId: businessId.trim(), businessVersion: businessVersion.trim() || 'latest', profileName: profileName.trim() || 'default' };
 
   async function load(
     nameToLoad?: string,
     identityOverride?: { businessId: string; businessVersion: string; profileName: string },
-  ): Promise<void> {
+  ): Promise<ProfileDetail | null> {
     setLoading(true);
     setProblem(null);
     setNotice(null);
@@ -316,21 +860,21 @@ export function ProfilesScreen() {
         setDraft(null);
         setLoadedAs(null);
         setProblem(sessionResult.problem);
-        return;
+        return null;
       }
       const result = await client.getProfile(target.businessId, target.businessVersion, targetName);
       if (!result.ok) {
         setDetail(null);
         setDraft(null);
         setProblem(result.problem);
-        return;
+        return null;
       }
       const parsed = parseProfileDetail(result.data);
       if (parsed === null) {
         setDetail(null);
         setDraft(null);
         setProblem({ status: 502, code: 'UNREADABLE_RESPONSE', title: 'Unreadable profile payload.' });
-        return;
+        return null;
       }
       if (!parsed.apiKeyId && selectedApiKeyId) {
         parsed.apiKeyId = selectedApiKeyId;
@@ -345,10 +889,45 @@ export function ProfilesScreen() {
       setLoadedAs({ businessId: target.businessId, businessVersion: target.businessVersion, profileName: targetName });
       setDraft(draftFromDetail(parsed));
       setNotice(`Profile "${targetName}" loaded (Revision ${parsed.revision}).`);
+      return parsed;
     } finally {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    const proposal = workbenchProposal;
+    if (!proposal || access.kind !== 'ready' || access.session.localUser || access.session.role !== 'admin'
+        || consumedWorkbenchProposal.current === proposal.handoffId) return;
+    consumedWorkbenchProposal.current = proposal.handoffId;
+    if (!globalTenantId || (proposal.tenantId !== undefined && proposal.tenantId !== globalTenantId)) {
+      setProblem({ status: 403, code: 'TENANT_SCOPE_MISMATCH', title: 'Select the tenant used by the workbench proposal before opening it in Profiles.' });
+      consumeWorkbenchProposal();
+      return;
+    }
+    void (async () => {
+      const loaded = await load(proposal.profileName, {
+        businessId: proposal.businessId,
+        businessVersion: proposal.businessVersion,
+        profileName: proposal.profileName,
+      });
+      if (!loaded) { consumeWorkbenchProposal(); return; }
+      if (loaded.revision !== proposal.expectedRevision) {
+        setProblem({ status: 409, code: 'PROFILE_CHANGED', title: `The Profile changed from revision ${proposal.expectedRevision} to ${loaded.revision}. Review the current revision before applying this proposal.` });
+        setNotice('The generated prompt remains available in the workbench. The newer Profile draft was loaded without applying it.');
+        consumeWorkbenchProposal();
+        return;
+      }
+      setDraft((current) => current ? { ...current, prompt: { ...current.prompt, text: proposal.prompt } } : current);
+      setNotice(`Wizard proposal loaded into the local Profile prompt draft at revision ${loaded.revision}. Review and save it explicitly.`);
+      consumeWorkbenchProposal();
+    })().catch(() => {
+      setProblem({ status: 0, code: 'NETWORK_ERROR', title: 'The Profile draft could not be loaded for the Wizard proposal.' });
+      consumeWorkbenchProposal();
+    });
+  // The route state is consumed once per proposal; loading and user interaction remain in the existing Profile editor.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [access, globalTenantId, workbenchProposal]);
 
   async function loadMoreProfiles(): Promise<void> {
     if (!globalTenantId || profileListPage?.nextCursor === null || profileListPage === null || profileListLoadingMore) return;
@@ -426,7 +1005,9 @@ export function ProfilesScreen() {
       }
       setDetail(parsed);
       setLoadedAs({ businessId: bId, businessVersion: bVer, profileName: pName });
-      setDraft(draftFromDetail(parsed));
+      const initialized = draftFromDetail(parsed);
+      if (parsed.revision === 0 && bId === 'document-core' && endpointSlug) initialized.rows = initialized.rows.map((r,i) => i === 0 ? { ...r, profileName: endpointSlug.split(':')[0]! } : r);
+      setDraft(initialized);
       if (parsed.revision === 0) {
         setNotice(`New profile "${pName}" initialized from manifest. Configure options below and click "Save Profile" to create it.`);
       } else {
@@ -468,9 +1049,10 @@ export function ProfilesScreen() {
 
   const caps = detail?.capabilities ?? [];
   const policyShipped = true;
-  const canTest = true;
   const canPublish = detail !== null && detail.revision >= 1;
   const canRollback = detail !== null && detail.revision >= 2;
+  const profileDraftHasChanges = detail !== null && draft !== null
+    && !sameJson(draft, draftFromDetail(detail));
 
   function updateDraft(mutate: (current: Draft) => Draft): void {
     setDraft((current) => (current === null ? current : mutate(current)));
@@ -514,6 +1096,9 @@ export function ProfilesScreen() {
       return { result: { profileName: row.profileName, ok: false, detail: 'no profile loaded' } };
     }
     const profileKey = row.profileName.trim() || target.profileName;
+    if (detail.revision === 0 && (initialBindings.some(b => !b.slot.trim() || !b.connectorId) || new Set(initialBindings.map(b => b.slot.trim())).size !== initialBindings.length)) return { result: { profileName: profileKey, ok: false, detail: 'Every connector slot must be unique and have a selected revision.' } };
+    if (detail.revision === 0 && endpointSlug && endpointSlug.split(':')[0] !== profileKey) return { result: { profileName: profileKey, ok: false, detail: 'Endpoint action must match the profile action row.' } };
+
     if (row.callback !== null && row.callback.touched) {
       const callbackErrors = validateCallbackDraft(row.callback);
       if (callbackErrors.length > 0) {
@@ -534,7 +1119,7 @@ export function ProfilesScreen() {
       target.businessId,
       target.businessVersion,
       profileKey,
-      buildUpsertBody(effectiveDetail, buildPolicy(row)),
+      { ...buildUpsertBody(effectiveDetail, buildPolicy(row)), ...(detail.revision === 0 && target.businessId === 'document-core' && endpointSlug ? { endpointSlug } : {}), ...(detail.revision === 0 && initialBindings.length ? { connectorBindings: Object.fromEntries(initialBindings.map(b => [b.slot.trim(), { connectorId:b.connectorId, revision:b.revision }])) } : {}) },
       crypto.randomUUID(),
     );
     if (response.ok) {
@@ -674,31 +1259,51 @@ export function ProfilesScreen() {
     }
   }
 
-  async function runTestEndpoint(): Promise<void> {
-    if (detail === null || draft === null || loadedAs === null) return;
-    setTestResult(null);
-    setTestProblem(null);
-    const row = draft.rows[0];
-    const parameters: Record<string, { value: unknown }> = {};
-    for (const param of row?.params ?? []) {
-      if (!param.isLocked) parameters[param.key] = { value: param.value };
+  function requestWorkbenchHandoff(): void {
+    if (!detail || !loadedAs || !globalTenantId || detail.revision < 1) {
+      setProblem({ status: 409, code: 'PROFILE_REVISION_REQUIRED', title: 'Save a Profile revision and select a tenant before opening the Test Workbench.' });
+      return;
     }
-    const result = await client.testProfileEndpoint(
-      {
-        businessId: loadedAs.businessId,
-        businessVersion: loadedAs.businessVersion,
-        profileName: loadedAs.profileName,
-        endpointSlug: row?.profileName ?? '',
-        parameters,
-        file_urls: testFileUrls.split('\n').map((line) => line.trim()).filter((line) => line.length > 0),
-      },
-      crypto.randomUUID(),
-    );
-    if (result.ok) setTestResult(result.data);
-    else setTestProblem(result.problem);
+    const handoff = {
+      handoffId: crypto.randomUUID(),
+      tenantId: globalTenantId,
+      businessId: detail.businessId,
+      businessVersion: detail.businessVersion,
+      profileName: detail.profileName,
+      expectedRevision: detail.revision,
+    };
+    setPendingWorkbenchHandoff(handoff);
+    if (profileDraftHasChanges) {
+      setWorkbenchConfirmOpen(true);
+      return;
+    }
+    navigate('/docs', { state: { profileWorkbenchHandoff: handoff } });
+  }
+
+  function confirmWorkbenchHandoff(): void {
+    if (!pendingWorkbenchHandoff) return;
+    const handoff = pendingWorkbenchHandoff;
+    setWorkbenchConfirmOpen(false);
+    setPendingWorkbenchHandoff(null);
+    navigate('/docs', { state: { profileWorkbenchHandoff: handoff } });
   }
 
   const profileGroups = groupProfileListRows(profileListPage?.items ?? []);
+
+  if (access.kind === 'loading') {
+    return <LoadingState title="Checking Profile access" description="The session must load before catalog or write actions are enabled." />;
+  }
+  if (access.kind === 'failed') {
+    return <ErrorState title={access.problem.title ?? 'Profile access could not be checked.'} statusCode={access.problem.status || undefined} error={access.problem.code} onRetry={() => { setAccess({ kind: 'loading' }); void client.getSession().then((result) => setAccess(result.ok ? { kind: 'ready', session: result.data } : { kind: 'failed', problem: result.problem })); }} />;
+  }
+  if (access.session.localUser) {
+    const assignedTenantId = access.session.principal.kind === 'tenant_operator' ? access.session.principal.tenantId : null;
+    if (!assignedTenantId) return <DeniedState title="Assigned Profile scope unavailable" description="This local-user session has no validated tenant scope." />;
+    return <AssignedProfilesWorkspace client={client} tenantId={assignedTenantId} proposalDraft={workbenchProposal} onProposalConsumed={consumeWorkbenchProposal} />;
+  }
+  if (access.session.role !== 'admin') {
+    return <DeniedState title="Profile management requires an administrator session" description="Operator and viewer sessions can’t create, publish, roll back, or manage Profile assignments here." tenantId={globalTenantId ?? undefined} />;
+  }
 
   return (
     <section aria-labelledby="profiles-title" className="flex flex-col gap-5 min-w-0">
@@ -871,6 +1476,8 @@ export function ProfilesScreen() {
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <div className="flex flex-wrap items-end gap-3">
+            {businessId === 'document-core' && <label className="block text-sm">Legacy endpoint (optional)<select aria-label="Legacy endpoint" className="block border rounded p-2 w-full" value={endpointSlug} onChange={e => setEndpointSlug(e.target.value)}><option value="">Generic action profile</option>{coreEndpoints.map(slug => <option key={slug} value={slug}>{slug}</option>)}</select><span>Exact endpoint profiles override generic action profiles; the action row must match.</span></label>}
+            <InitialBindings value={initialBindings} onChange={setInitialBindings} />
             <div className="w-full max-w-xs">
               <FormField id="profile-business" label="Business Service">
                 <select
@@ -1053,8 +1660,8 @@ export function ProfilesScreen() {
                 <Button variant="outline" onClick={() => void rollback(Math.max(1, detail.revision - 1))} disabled={!canRollback || busy || detail.revision < 2} title={canRollback ? 'Rollback to previous revision' : 'Rollback capability not reported'}>
                   Rollback to v{Math.max(1, detail.revision - 1)}
                 </Button>
-                <Button variant="outline" onClick={() => setTestOpen(true)} disabled={!canTest} title={canTest ? 'Test Endpoint' : 'T-UI-06 gated: POST /api/v1/admin/profile-test-endpoint not shipped'}>
-                  Test Endpoint
+                <Button variant="outline" onClick={requestWorkbenchHandoff} disabled={busy || loading || detail.revision < 1 || !globalTenantId} title="Open the exact saved Profile revision in the Test Workbench">
+                  Test in Workbench
                 </Button>
                 <Button
                   variant="secondary"
@@ -1453,55 +2060,43 @@ export function ProfilesScreen() {
 
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between gap-2">
-                <CardTitle>Effective config preview</CardTitle>
-                <Badge variant="warning" dot>
-                  requires backend
-                </Badge>
-              </div>
+              <CardTitle>Profile snapshot</CardTitle>
               <CardDescription>
-                Preview requires backend: the frozen read wire carries no <code>effective</code> field (coordinator
-                decision #2), so the merged preview waits for a dedicated capability — no sample is synthesised.
+                This is the selected saved Profile revision. The Test Workbench rechecks this exact revision and current tenant access before running it; this screen does not synthesize a merged callsite configuration.
               </CardDescription>
             </CardHeader>
+            <CardContent className="flex flex-col gap-2 text-sm">
+              <div><span className="font-medium">Profile:</span> {detail.businessId}@{detail.businessVersion} · {detail.profileName} · revision {detail.revision}</div>
+              <div><span className="font-medium">Connector bindings:</span> {Object.keys(detail.connectorBindings ?? {}).length === 0
+                ? 'none recorded'
+                : Object.entries(detail.connectorBindings).map(([slot, binding]) => `${slot}: ${binding.connectorId}@${binding.revision}`).join(' · ')}</div>
+              <div className="text-xs text-[var(--text-sub)]">Credentials and effective provider configuration are not shown here.</div>
+            </CardContent>
           </Card>
         </>
       ) : null}
 
       <Modal
-        open={testOpen}
-        onOpenChange={setTestOpen}
-        title="Test Endpoint (T-UI-06)"
-        description="Runs the pipeline with the merged profile. Gated on POST /api/v1/admin/profile-test-endpoint."
+        open={workbenchConfirmOpen}
+        onOpenChange={(open) => {
+          setWorkbenchConfirmOpen(open);
+          if (!open) setPendingWorkbenchHandoff(null);
+        }}
+        title="Open the Test Workbench?"
+        description="The Workbench will load the current saved revision. Local Profile edits on this screen will not be carried over."
         footer={
           <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => setTestOpen(false)}>
-              Close
+            <Button variant="secondary" onClick={() => { setWorkbenchConfirmOpen(false); setPendingWorkbenchHandoff(null); }}>
+              Keep editing
             </Button>
-            <Button onClick={() => void runTestEndpoint()} disabled={!canTest}>
-              Run test
+            <Button onClick={confirmWorkbenchHandoff} disabled={!pendingWorkbenchHandoff}>
+              Discard local edits and continue
             </Button>
           </div>
         }
       >
         <div className="flex flex-col gap-3">
-          <textarea
-            aria-label="file urls"
-            className="min-h-20 w-full rounded-[var(--radius-sm)] border border-[var(--border-dark)] bg-[var(--bg-card)] p-3 text-sm"
-            placeholder="file_urls (one per line)"
-            value={testFileUrls}
-            onChange={(e) => setTestFileUrls(e.target.value)}
-          />
-          {testProblem !== null ? (
-            <AlertBanner variant="error" title={testProblem.title ?? 'Test Endpoint failed'}>
-              {testProblem.status} · {testProblem.code ?? 'ERROR'}
-            </AlertBanner>
-          ) : null}
-          {testResult !== null ? (
-            <pre className="max-h-64 overflow-auto rounded-[var(--radius-sm)] bg-[var(--bg-subtle)] p-3 text-xs">
-              {JSON.stringify(testResult, null, 2)}
-            </pre>
-          ) : null}
+          <p className="text-sm">Unsaved Profile changes stay in this page only. The Workbench loads the saved revision and displays a conflict if it has changed since this screen read it.</p>
         </div>
       </Modal>
     </section>

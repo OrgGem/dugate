@@ -1,0 +1,25 @@
+{
+  "dependencyInputsBefore": {
+    "sha256": "593a376a427c1e28488328367c7adc994a537c1c9c81d38d07592cec05ec789a",
+    "files": 943,
+    "missing": []
+  },
+  "dependencyInputsAfter": {
+    "sha256": "593a376a427c1e28488328367c7adc994a537c1c9c81d38d07592cec05ec789a",
+    "files": 943,
+    "missing": []
+  },
+  "sourcePinsBefore": {
+    "createApp": "2913288498cfd4ffcb3ddb6b03b2f1d8fa7fde336e3a7d27c70a42a5a3b81626",
+    "ingestionStorageS3": "103858a6ce51710aa2612afcc969a8f6e18b37b1e8f08f700948f177dbf2e800",
+    "ingestionConsumer": "b3486252654873ee709cc24eef8b97b66d103adf88b85ff707b5594082a1d7ed"
+  },
+  "sourcePinsAfter": {
+    "createApp": "2913288498cfd4ffcb3ddb6b03b2f1d8fa7fde336e3a7d27c70a42a5a3b81626",
+    "ingestionStorageS3": "103858a6ce51710aa2612afcc969a8f6e18b37b1e8f08f700948f177dbf2e800",
+    "ingestionConsumer": "b3486252654873ee709cc24eef8b97b66d103adf88b85ff707b5594082a1d7ed"
+  },
+  "contractsSourceManifestSha256": "f251c25ce1a8edc555c9d2fb9242f8785c7a0915a9a6396844fef93cc71243e1",
+  "contractsDistManifestSha256": "70464110d8397c141235e132d5d0c951ce72bb07f83d65c765fbd0f2276ec255",
+  "changedInputs": []
+}

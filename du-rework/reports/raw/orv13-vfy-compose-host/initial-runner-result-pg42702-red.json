@@ -1,0 +1,24 @@
+{
+  "label": "initial genuine inventory",
+  "exitCode": 1,
+  "stdout": "",
+  "stderr": "compose operations runner stopped (runner_api_http)",
+  "requests": [
+    {
+      "method": "POST",
+      "path": "/api/internal/compose/runner/snapshot",
+      "status": 200,
+      "dropped": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/internal/compose/runner/claim",
+      "status": 500,
+      "dropped": false
+    }
+  ],
+  "claimSqlDiagnostic": {
+    "pgCode": "42702",
+    "safeMessage": "column reference \"host_id\" is ambiguous"
+  }
+}

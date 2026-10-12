@@ -1,0 +1,31 @@
+{
+  "name": "operations/72f19183-5fb7-4eb9-b631-0c6abb47160c",
+  "done": true,
+  "metadata": {
+    "state": "SUCCEEDED",
+    "pipeline": [],
+    "current_step": 0,
+    "progress_percent": 0,
+    "progress_message": "Queued",
+    "create_time": "2026-10-11T16:35:06.708Z",
+    "update_time": "2026-10-11T16:35:06.773Z",
+    "pipeline_steps": []
+  },
+  "result": {
+    "output_format": "json",
+    "content": "{\"content\":\"# Security Audit Report\\nAll audit controls passed.\"}",
+    "extracted_data": {
+      "content": "# Security Audit Report\nAll audit controls passed."
+    },
+    "pipeline_steps": [],
+    "usage": {
+      "input_tokens": null,
+      "output_tokens": null,
+      "pages_processed": null,
+      "model_used": null,
+      "cost_usd": null,
+      "breakdown": []
+    },
+    "download_url": "/api/v1/operations/72f19183-5fb7-4eb9-b631-0c6abb47160c/download"
+  }
+}

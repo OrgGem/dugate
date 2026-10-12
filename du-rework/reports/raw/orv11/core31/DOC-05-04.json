@@ -1,0 +1,31 @@
+{
+  "name": "operations/074f50f8-4510-46f2-a0ce-c511de7ba06d",
+  "done": true,
+  "metadata": {
+    "state": "SUCCEEDED",
+    "pipeline": [],
+    "current_step": 0,
+    "progress_percent": 0,
+    "progress_message": "Queued",
+    "create_time": "2026-10-11T16:35:06.833Z",
+    "update_time": "2026-10-11T16:35:06.899Z",
+    "pipeline_steps": []
+  },
+  "result": {
+    "output_format": "json",
+    "content": "{\"content\":\"Subject: Delivery Announcement\\n\\nDear Partner, ...\"}",
+    "extracted_data": {
+      "content": "Subject: Delivery Announcement\n\nDear Partner, ..."
+    },
+    "pipeline_steps": [],
+    "usage": {
+      "input_tokens": null,
+      "output_tokens": null,
+      "pages_processed": null,
+      "model_used": null,
+      "cost_usd": null,
+      "breakdown": []
+    },
+    "download_url": "/api/v1/operations/074f50f8-4510-46f2-a0ce-c511de7ba06d/download"
+  }
+}

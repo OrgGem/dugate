@@ -1,0 +1,412 @@
+{
+  "schema": "orv14-native-a2-synthetic-fixture/v1",
+  "command": "/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node tests/workflow-api/orv14-vfy-host/verify-native-a2-fixture.mjs /tmp/orv14-vfy-host-native-mv4koyze-e961911f5a /tmp/orv14-vfy-host-native-mv4kecuu-c0811e6e73 http://127.0.0.1:41503",
+  "cwd": "/workspace/dugate/du-rework",
+  "node": "v24.21.0",
+  "verifierUid": 1000,
+  "startedAt": "2026-10-12T01:53:06.823Z",
+  "fixtureNamespace": "orv14-vfy-host-mv4ll63h-dd171c92aa",
+  "stage": "capture actual frozen legacy table snapshot and UTC evidence",
+  "providerOrigin": "http://127.0.0.1:41503",
+  "sourceHashesBefore": {
+    "orchestrator/src/db/migrations.ts": "519fd20731acac579acde4f5908844ddf98c4948661e408ad64e1c74852d5eed",
+    "connector/src/db/pg-client.ts": "1046b417be4e0902bffa909142deb8bb57f2a1855d48640803cf12fa13c13227",
+    "orchestrator/scripts/ldba-03-backfill.cjs": "cbfb0f743c219f2f9c788d26ca375ef93efc075b4b170422ef0898b106e58099",
+    "orchestrator/scripts/ldba-03-production-adapter.cjs": "0dcefbb095b356d51538f00a963708386f46bbdc4db60df2084721139c5bc443",
+    "orchestrator/scripts/ldba-context-provider.cjs": "c0208013748da82a14cf8548859413f51057f87f75d67889fd0d70dbd3a0b34e",
+    "orchestrator/scripts/ldba-inventory.cjs": "ce7ea6cbc6b2ec491c18395891d8d2490a12aa58157ba2a1db3ac8edc569cd7c",
+    "orchestrator/scripts/ldba-continuity-plan.cjs": "469f96228377e2db95ed772f25044de31e04559bb3c549cf604a1631cd92b47e",
+    "orchestrator/scripts/ldba-continuity-source.cjs": "2f7830ee3bf7258604b1c6f6a3b4f49375daa77e2301bb0d0da31ca1f9b348f8",
+    "orchestrator/scripts/ldba-continuity-runner.cjs": "8bca7f6ff96d47a8e9cb01243055c91088ad1949fc342f36557eda123dd08bec",
+    "orchestrator/scripts/ldba-continuity-runtime.cjs": "8a6d9b7717d5d78bae7ecbe6059b2635322c4d64a9a5281eac94626d7cee1f73",
+    "orchestrator/src/app/bootstrap/create-app.ts": "2913288498cfd4ffcb3ddb6b03b2f1d8fa7fde336e3a7d27c70a42a5a3b81626",
+    "orchestrator/src/modules/global-settings/service.ts": "6f60272612c7b5c6bae341f2f569bbf0c7809df4cd090ad1d4eb8a94f4190035",
+    "legacy/0000_violet_franklin_storm.sql": "4c90803b3d7a5b084ce143a0bf63c6d760240dcdf253e4e98cdec347100bfd3f",
+    "legacy/0001_add-profile-endpoint-limits.sql": "f5a320a4604f8806221c6b9d006734721ccacbd8076771c2daf41811dd170c13",
+    "lib/settings.ts": "3276d1f80d115611d3858d3e94658d818e6c2fdcb91b0bbcc98a9b57ec5e2500",
+    "orchestrator/migrations/0064_cost_financial_adjustments.sql": "7e0e33aff73afd019bcfabc57e8833bdbc9ca91a939e3c9f57d3f9bb76230070",
+    "orchestrator/migrations/0065_cost_adjustment_object_pins.sql": "d1b02bfed455ebb6fb508b0cb307159c89d024192d1f8c88cba148d50bd4b0b4",
+    "connector/migrations/015_backup_effect_fences.sql": "fa61d2514a0e688789537557aed5156d594ab3410859d61d6105fe219443ff6e"
+  },
+  "sourceHashesAfter": {},
+  "migrationCounts": {
+    "orchestratorFirstApplied": 62,
+    "orchestratorLedger": 62,
+    "connectorLedger": 15,
+    "connectorReplayCount": 15
+  },
+  "poolErrors": [],
+  "a2": {
+    "first": null,
+    "replay": null
+  },
+  "externalEffects": {
+    "providerRequests": 0,
+    "paidProvider": false,
+    "customerSource": false,
+    "production": false
+  },
+  "sharedDistWritten": false,
+  "productSourceWritten": false,
+  "retainedForNativeContinuityStep": false,
+  "cleanup": {
+    "projectId": "orv14-vfy-host-mv4ll63h-dd171c92aa",
+    "removed": {
+      "containers": [
+        "e6316475e290",
+        "16e6fce3ba37",
+        "d2582c49990d",
+        "89792afe6131",
+        "baeffc2be4ea",
+        "cd7ae2675cbe",
+        "c3fefdf070d4",
+        "98bb626b5cb0",
+        "1459bab9cc96",
+        "6065f250c824"
+      ],
+      "volumes": [
+        "orv14-vfy-host-mv4ll63h-dd171c92aa_connector-restore-data",
+        "orv14-vfy-host-mv4ll63h-dd171c92aa_connector-source-data",
+        "orv14-vfy-host-mv4ll63h-dd171c92aa_minio-data",
+        "orv14-vfy-host-mv4ll63h-dd171c92aa_minio-restore-data",
+        "orv14-vfy-host-mv4ll63h-dd171c92aa_orchestrator-restore-data",
+        "orv14-vfy-host-mv4ll63h-dd171c92aa_orchestrator-source-data"
+      ],
+      "networks": [
+        "b4cefba7258b"
+      ]
+    },
+    "remaining": {
+      "containers": [],
+      "volumes": [],
+      "networks": []
+    },
+    "temporaryFixtureRemoved": true
+  },
+  "status": "FAILED",
+  "composeFileSha256": "7e18e4f71e1211331bca91af270ef50bdd24f1609876201b593a0afdd9a2f1d0",
+  "imageIds": {
+    "postgres": "sha256:81bd698b4594e751a3269e4dcd3e03a4a0ec0daf7b72e7aa1abd43cce9887542",
+    "redis": "sha256:f84b0c4678011602b9b98c227a4dcd5468bf8b088b02fdd4165cb7758bad8058",
+    "vault": "sha256:20bce4b1fc21ee5ccc659e3a13fd479894cfffcf650d8ca3c0c4ae7eaecc2c81",
+    "minio": "sha256:ff768636ea5c1b7bd295ddae1505506ae91a3beff613b14be377d23734cd2915"
+  },
+  "migrationSource": {
+    "orchestrator": [
+      {
+        "name": "0001_platform_v1.sql",
+        "sha256": "b594c9917482ce65ab57a09405904f9229fe4e982de854db6e1a81fa8a42ec70"
+      },
+      {
+        "name": "0002_usage_events.sql",
+        "sha256": "796310a76a213b9dc76b4189c0380f6ac48ba0d6a98514f3bd59d263cc8985f0"
+      },
+      {
+        "name": "0003_artifacts_grants.sql",
+        "sha256": "66f9fcd8ebb39050a2bfe9b81cda12182099a840c48f5f52aff7405c824a2919"
+      },
+      {
+        "name": "0004_profile_bindings.sql",
+        "sha256": "94333d0e186d0c252eb2770b87fb0c690824ac12420de634c5dcd73e6ad990d5"
+      },
+      {
+        "name": "0005_continuation.sql",
+        "sha256": "d89a1419142dae5be6647552432a698c3fd6a1e2e03890df6382a2d4d1b47fad"
+      },
+      {
+        "name": "0006_active_version.sql",
+        "sha256": "04cdf3b012545419c89923f137fea4c79eb3a56b231040b1f291db02473e2789"
+      },
+      {
+        "name": "0007_webhook_deliveries.sql",
+        "sha256": "70875e5ce8cdd241b014d1e981b64742f793a78ce2f82e0b55b25f7c57589ce8"
+      },
+      {
+        "name": "0008_artifact_grant_fencing.sql",
+        "sha256": "4e559fa57565dcc5b3e58316c9323b99cea53928d203e4f512b2e061350a8fe2"
+      },
+      {
+        "name": "0009_operation_submit_artifacts.sql",
+        "sha256": "629a21ada4f9148779246390d1d2f1be32572e82352762e6ae6182e16d542176"
+      },
+      {
+        "name": "0010_admin_audit.sql",
+        "sha256": "5d967fcc3a98a83813587ffd5f976c8bfd0f38119c7c136abd3aa489ddfbf562"
+      },
+      {
+        "name": "0011_artifact_finalize_epoch.sql",
+        "sha256": "75adbf5363525aa86607230650debf776390b09024449f4170f1be091717f40b"
+      },
+      {
+        "name": "0012_admin_idempotency.sql",
+        "sha256": "9e4a1142753ad3b9fe66c8c39bfd2fb7e635f2075ef0714827d37bbe54f2fbef"
+      },
+      {
+        "name": "0013_artifact_storage_version.sql",
+        "sha256": "d28637607d7a1953f5704de631f0ecbc5872384c88aa92d36df4106c46b0ceeb"
+      },
+      {
+        "name": "0014_artifact_declared_filename.sql",
+        "sha256": "160d88a3160ed22df416c13f5cc8a93c4962eeac9b9dde8df7ecc102e75e277d"
+      },
+      {
+        "name": "0015_artifact_multipart.sql",
+        "sha256": "41a797d29ce1f54e06ea2f76ebc61eba2a3ffeccf51e5dce17e629f27bec4121"
+      },
+      {
+        "name": "0016_public_upload_token_index.sql",
+        "sha256": "34628c723c5bf80de0f8d07506276d23e384324265a47012e1df1d0aa29f2d15"
+      },
+      {
+        "name": "0017_operations_keyset_index.sql",
+        "sha256": "8588af12614cec4e07bbcb3c3a067f170a790517587d8303212c41434d5ac00a"
+      },
+      {
+        "name": "0018_operations_sort_keyset_indexes.sql",
+        "sha256": "dd3e60c7828ec64c2e967e8f63066b6dc8df2a9bba5b7e3f32880e3006a54600"
+      },
+      {
+        "name": "0019_operations_deadline_coalesce_index.sql",
+        "sha256": "8554cbbac49325a487ee2fb0f028044219d8ccffad5c3914c78bc09979b41529"
+      },
+      {
+        "name": "0020_admin_crypto_config.sql",
+        "sha256": "e424084c52ef66c4005353a42abb779e834686b221a9226b7af7a34e74c9896d"
+      },
+      {
+        "name": "0021_admin_list_sort_timestamps.sql",
+        "sha256": "437ba45c9ff66718df48597ed88665ec8d46907fbda009cd08be9522e266a026"
+      },
+      {
+        "name": "0022_budget_reservations.sql",
+        "sha256": "e2192b37a9ac06b03aa39871f87d7d4b591ce239efae76ffb38149b098496d10"
+      },
+      {
+        "name": "0023_admin_local_users.sql",
+        "sha256": "4fa9f8cb03a9ca3e35cea00c1ca57e7bf0e04dc2c36acb2cb3fe2f0bd6925d09"
+      },
+      {
+        "name": "0024_legacy_parity_columns.sql",
+        "sha256": "99b61459f9dd33595378e287e0b401a18bbb923320ab2f5b4b42cfc5cb3e2c57"
+      },
+      {
+        "name": "0025_artifact_manifest_version.sql",
+        "sha256": "2b8b64cbb69ee7f5fd9c49a5e7bfb6a30ccfd8058940f4423b13184f5e81c4d1"
+      },
+      {
+        "name": "0026_profile_policy.sql",
+        "sha256": "b98615f802af4f20ff7db83039d14525e600d5d53a13e94be298ce40f2302d72"
+      },
+      {
+        "name": "0027_profile_active_pointer.sql",
+        "sha256": "ec28dd7cfbbefcd49e46f62ee23fcfc5662097232fd4c580446c9f956111fbdf"
+      },
+      {
+        "name": "0028_profile_name.sql",
+        "sha256": "5289210ac79726cc5f02a7095a65db8c23d66de65bcbb4772f29d200e51c206b"
+      },
+      {
+        "name": "0029_audit_actor_principal.sql",
+        "sha256": "96c03d2b5c06f3297cd87bd0ac0a66017129e12f7b6dcbe455b499af9f6c9c44"
+      },
+      {
+        "name": "0030_prompt_revisions_pin.sql",
+        "sha256": "3709a5d4df0e3f8bf3021aca39ebe84f9818118af1c418490f095f67b2016625"
+      },
+      {
+        "name": "0031_prompt_overrides_ref.sql",
+        "sha256": "3bd0abe39f69fa2cdab2ed52b9c85378fc1fda18c25cde3962000635e5b26ec5"
+      },
+      {
+        "name": "0032_checkpoint_session_ref.sql",
+        "sha256": "69a9cc6bea5df9a999546ab5bb98a43ee1a1a0c3835be5d7e8c6aee72788e55e"
+      },
+      {
+        "name": "0033_profile_request_redaction.sql",
+        "sha256": "f1ccaf06b540e0b37a7d9a227b7109847fb8059afce840935f7590c33377f815"
+      },
+      {
+        "name": "0034_operation_execution_times.sql",
+        "sha256": "fe519992e9825ea5816dc2e5b92d70266b8b9bb9b58ff75b5016530c0b2c84f1"
+      },
+      {
+        "name": "0035_webhook_result_delivery.sql",
+        "sha256": "ac769d1b51130e51582466a7c96025ac5c2771032182184f61f0ce413ca8bd61"
+      },
+      {
+        "name": "0036_profile_callback_policy.sql",
+        "sha256": "5ad75bff28014f70776233910d1e5c995f5ec04657557c5778f1f871840c8896"
+      },
+      {
+        "name": "0037_legacy_workflow_schema_catalog.sql",
+        "sha256": "f6066bcd42c15e89b2d954cb61578aba4875bcfa3ab5640acd6bc7c40b427909"
+      },
+      {
+        "name": "0038_secret_catalog.sql",
+        "sha256": "8fc030d23eef1a6c229b56b21979d69d5033a8e151fb89c30e1241a0b6a9041f"
+      },
+      {
+        "name": "0039_profile_api_keys.sql",
+        "sha256": "2097139711139924b5572c1e0d94704764244aedf0aeab23ca18d749b5cd47e0"
+      },
+      {
+        "name": "0040_workflow_business_profile_bindings.sql",
+        "sha256": "2877de6f1cc6e70374ef60ec69613f96958e538596a71ad3d63c8993947b0b3a"
+      },
+      {
+        "name": "0041_profile_binding_allowed_origins.sql",
+        "sha256": "93cabcf84b39c4e14965b821a81e064d6e903b97d77ef126d0f6127f0a9cd618"
+      },
+      {
+        "name": "0042_worker_instances.sql",
+        "sha256": "57e8d76885a0be43c4923099e0f444847986eed2dbc938b3891d20ab1e76de6e"
+      },
+      {
+        "name": "0043_business_catalog.sql",
+        "sha256": "166c468a2d93a2df8b1595c248a6dbd4463b3fd2d79ce08b0c5994d09c70e70b"
+      },
+      {
+        "name": "0044_legacy_cutover.sql",
+        "sha256": "27eabcfb150cdd9dd6775c5bff3d3931f04d9c21bb87eeb6da42a856c01d3ba2"
+      },
+      {
+        "name": "0045_artifact_upload_owner.sql",
+        "sha256": "040d46a43050a4eee16f502894ff4d0fd84dacf34e85f152c3e92b382a07dbf4"
+      },
+      {
+        "name": "0046_settings_revisions.sql",
+        "sha256": "27082e3bae5fc2242f6868bc5796083e95eae2b504b09ba4dffdd4626fd3c27d"
+      },
+      {
+        "name": "0047_legacy_migration_runs.sql",
+        "sha256": "e6bc25f71f1370832a552c5986a64655f36dbaf2ad3a1c3a43603df747d76144"
+      },
+      {
+        "name": "0048_compose_operations.sql",
+        "sha256": "877668787df96943264175f0fbf2fafaa3a0620052e48b8f1862c51afbcb40e1"
+      },
+      {
+        "name": "0049_global_settings.sql",
+        "sha256": "fdf5db00b35a39949d6a561aee5dddefca45a3dc110b49972879758f2c4412ef"
+      },
+      {
+        "name": "0050_cost_control.sql",
+        "sha256": "b0402cc55a6af32f084403fb1b8451e245c0418b59a82f99f521c5206e180162"
+      },
+      {
+        "name": "0051_incident_lifecycle.sql",
+        "sha256": "ffd467523c34a9ac0740de8cdb8fec71c02d7ce4508e116687f3973f51cffbb9"
+      },
+      {
+        "name": "0052_maintenance_storage_controls.sql",
+        "sha256": "d8c6e092839c23607760ef0748a7cf4ffd1954462f3b4ffd4c7d5732efcab5a6"
+      },
+      {
+        "name": "0054_admin_parity.sql",
+        "sha256": "46b3623f6a070ac5fc24db5dada94113e789810e94ce0dcc74e847402a4e8e7f"
+      },
+      {
+        "name": "0055_secret_catalog_versions.sql",
+        "sha256": "9df7d3815da7fb8f6655695d99db170fd3dfb0ae9d3d07a24b1cc353289d8b87"
+      },
+      {
+        "name": "0056_service_replica_controls.sql",
+        "sha256": "c7adde99274aac269a1021acee03237f42966a8f010a2c865641b1d4e23b51f3"
+      },
+      {
+        "name": "0057_legacy_continuity_evidence.sql",
+        "sha256": "7a57b386925e5421a8c9324907a6d76d48d31f942491aa3ec6695a487baddf36"
+      },
+      {
+        "name": "0059_cost_alert_delivery.sql",
+        "sha256": "024311381419f18a03ae238f96cb899f2eb0b0beb3033ff96702eb83564ba0ce"
+      },
+      {
+        "name": "0060_connector_secret_imports.sql",
+        "sha256": "457c8ef9a12a495fecc91f20d8f81af28bbdacb04422a1b477bad9fa45ec5e12"
+      },
+      {
+        "name": "0061_cost_alert_oidc_recipients.sql",
+        "sha256": "bb5c93ca7edf671bc2d46cb779ef7a5431f6f1eee5ff2f73608954d8aeee0b82"
+      },
+      {
+        "name": "0063_backup_effect_fences.sql",
+        "sha256": "6d7c285fbe4ccf697baf62ad6835949615924e1e182d2757333c89d21ac7749a"
+      },
+      {
+        "name": "0064_cost_financial_adjustments.sql",
+        "sha256": "7e0e33aff73afd019bcfabc57e8833bdbc9ca91a939e3c9f57d3f9bb76230070"
+      },
+      {
+        "name": "0065_cost_adjustment_object_pins.sql",
+        "sha256": "d1b02bfed455ebb6fb508b0cb307159c89d024192d1f8c88cba148d50bd4b0b4"
+      }
+    ],
+    "connector": [
+      {
+        "name": "001_connector.sql",
+        "sha256": "f05cfbc132189abe562af8ff83ff72fd27285d7b76620036a242857af90e637e"
+      },
+      {
+        "name": "002_connector_poll_recovery.sql",
+        "sha256": "c9fcb0a8b873b6294633ea9483279b862433b4c26668cda92fa4a02b03d11125"
+      },
+      {
+        "name": "003_connector_quota_carry.sql",
+        "sha256": "c7c00d33ea76087bbb13b7c0a11b68bd9d4358dda0581136c393068ea1617315"
+      },
+      {
+        "name": "004_connector_poll_backoff.sql",
+        "sha256": "df443a147469c08ff5013d9e04f61a884beea851f8dc41f6cdce5140891b0cc0"
+      },
+      {
+        "name": "005_connector_polling_state.sql",
+        "sha256": "959e2fb37f104890aa463464b604edeb2f0786eb5abc35ed9e78ee981c040249"
+      },
+      {
+        "name": "006_connector_revision_lifecycle.sql",
+        "sha256": "818f626f85dcbea9fd9c1a4759b8dc94116a3d00b5afebbc34de62397d3ecb3b"
+      },
+      {
+        "name": "007_connector_credential_source.sql",
+        "sha256": "748060a06b360e76449d95c9ed82acbb04deeecf0942dc74678bfbe37f33c7a2"
+      },
+      {
+        "name": "008_connector_revision_binding.sql",
+        "sha256": "8ec4f06340cdb7e5de785a3f6803ee4b961b7be4e185af0c73a641e37ca49d2c"
+      },
+      {
+        "name": "009_connector_invocation_session_ref.sql",
+        "sha256": "04a5947f4e80c243bd577ac2a9c9b27089b511887b639735c00c562b63f4f1d5"
+      },
+      {
+        "name": "010_connector_invocation_state_version.sql",
+        "sha256": "4d1f7d4067f5fb7fce3107f3fdc93deb559fbb7d2421df260da449e3b865829d"
+      },
+      {
+        "name": "011_connector_usage_delivery_evidence.sql",
+        "sha256": "1240b93412eef7a666e12657c8bdd61dd89e61394dac719a168806d95ba168fa"
+      },
+      {
+        "name": "012_replica_runtime_controls.sql",
+        "sha256": "067becf6aa673ea98ec04e8e6c245375c5d1615013b727daad9af6413e580303"
+      },
+      {
+        "name": "013_connector_recipe_revisions.sql",
+        "sha256": "466336394d26205f3bfc3fb0ec5b5f767c98baa6822b1239fe296c92be6a6c31"
+      },
+      {
+        "name": "014_connector_recipe_retirement.sql",
+        "sha256": "1cd0845a9ce99dac8e818274124ebf7cbbed51b08d21d9db65b0a1e00a45fc36"
+      },
+      {
+        "name": "015_backup_effect_fences.sql",
+        "sha256": "fa61d2514a0e688789537557aed5156d594ab3410859d61d6105fe219443ff6e"
+      }
+    ],
+    "compiledOrchestratorMigrationModuleSha256": "107d87a6024835e4fb8feaee8f33f01b274f196e9adea7108c7cad3d5a20fca2",
+    "migrationModuleIsolatedUnderFixtureRoot": true
+  },
+  "error": "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:\n\n  assert.ok(observed && observed.updatedAt === stamp)\n\n    at main (file:///workspace/dugate/du-rework/tests/workflow-api/orv14-vfy-host/verify-native-a2-fixture.mjs:459:10)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async file:///workspace/dugate/du-rework/tests/workflow-api/orv14-vfy-host/verify-native-a2-fixture.mjs:561:3",
+  "completedAt": "2026-10-12T01:53:28.686Z"
+}

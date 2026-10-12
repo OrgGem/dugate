@@ -27,15 +27,49 @@ import { authorizeAuditTenantRead } from '../../../modules/admin-actions/rbac';
 import { resolveBffContext } from './context';
 import { readBoundedBody } from './body';
 import { boundedMessage } from './envelope';
-import { callUpstream, credentialFor, credentialForTenant, decodePathSegment, firstHeaderValue, rbacPrincipal, relayUpstream, writeProblem, type BffRuntimeConfig } from './upstream';
+import { callUpstream, credentialFor, credentialForTenant, decodePathSegment, firstHeaderValue, rbacPrincipal, relayUpstream, writeJson, writeProblem, type BffRuntimeConfig } from './upstream';
 import { withMintedRawKey } from './key-minting';
 
 export type ProfileKeyOp = 'attach' | 'rotate';
 
+interface LocalProfileActor {
+  tenantId: string;
+  issuer: string;
+  userId: string;
+  roleVersion: number;
+}
+
+interface ProfileSelfServiceBff {
+  listAssignedProfileEndpoints(rawQuery: unknown, actor: LocalProfileActor): Promise<unknown>;
+  listAssignedProfileApiKeys(profileId: string, rawQuery: unknown, actor: LocalProfileActor): Promise<unknown>;
+  editAssignedProfile(rawInput: unknown, actor: LocalProfileActor, idempotencyKey: string, correlationId: string): Promise<unknown>;
+}
+
+function localProfileActor(ctx: NonNullable<Awaited<ReturnType<typeof resolveBffContext>>>): LocalProfileActor | null {
+  const roleVersion = ctx.roleVersion;
+  if (ctx.plane !== 'oidc' || ctx.role !== 'operator' || ctx.principal.kind !== 'tenant_operator'
+      || !ctx.tenantId || ctx.principal.tenantId !== ctx.tenantId
+      || !/^[0-9a-f-]{36}$/i.test(ctx.tenantId)
+      || !ctx.issuer || ctx.issuer.trim().length === 0
+      || !ctx.sub || !/^[0-9a-f-]{36}$/i.test(ctx.sub)
+      || typeof roleVersion !== 'number' || !Number.isSafeInteger(roleVersion) || roleVersion < 1) return null;
+  return { tenantId: ctx.tenantId, issuer: ctx.issuer, userId: ctx.sub, roleVersion };
+}
+
+function profileSelfService(runtime: BffRuntimeConfig): ProfileSelfServiceBff | null {
+  const service = (runtime as BffRuntimeConfig & { profileSelfService?: ProfileSelfServiceBff }).profileSelfService;
+  if (!service || typeof service.listAssignedProfileEndpoints !== 'function'
+      || typeof service.listAssignedProfileApiKeys !== 'function'
+      || typeof service.editAssignedProfile !== 'function') return null;
+  return service;
+}
+
 export type ProfilesRoute =
   | { kind: 'list' }
+  | { kind: 'assigned' }
+  | { kind: 'assigned-api-keys'; profileId: string }
   | { kind: 'detail'; businessId: string; businessVersion: string; profileName: string }
-  | { kind: 'upsert' | 'publish' | 'rollback'; businessId: string; businessVersion: string; profileName: string }
+  | { kind: 'upsert' | 'publish' | 'rollback' | 'self-service'; businessId: string; businessVersion: string; profileName: string }
   /** 0039: the key set the profile owns (GET). */
   | { kind: 'api-keys'; businessId: string; businessVersion: string; profileName: string }
   /** 0039: membership write for one key of this profile (POST). */
@@ -47,11 +81,18 @@ export type ProfilesRoute =
 
 export function matchProfilesRoute(relative: string): ProfilesRoute | null {
   if (relative === '/profiles') return { kind: 'list' };
+  if (relative === '/profiles/assigned') return { kind: 'assigned' };
+  const assignedApiKeys = /^\/profiles\/assigned\/([^/]+)\/api-keys$/.exec(relative);
+  if (assignedApiKeys) {
+    const profileId = decodePathSegment(assignedApiKeys[1] ?? '');
+    if (profileId === null || !/^[0-9a-f-]{36}$/i.test(profileId)) return { kind: 'invalid' };
+    return { kind: 'assigned-api-keys', profileId };
+  }
   if (relative === '/profiles/test-endpoint') return { kind: 'test-endpoint' };
   // The op alternation must capture the BARE segment: with
   // `api-keys(?:/(attach|rotate))?` INSIDE the group, group 4 receives the
   // whole `api-keys/attach` and every comparison against a bare op fails.
-  const m = /^\/profiles\/([^/]+)\/([^/]+)\/([^/]+)(?:\/(upsert|publish|rollback|api-keys|workflows)(?:\/(attach|rotate))?)?$/.exec(
+  const m = /^\/profiles\/([^/]+)\/([^/]+)\/([^/]+)(?:\/(upsert|publish|rollback|self-service|api-keys|workflows)(?:\/(attach|rotate))?)?$/.exec(
     relative,
   );
   if (!m) return null;
@@ -63,7 +104,7 @@ export function matchProfilesRoute(relative: string): ProfilesRoute | null {
   const sub = m[5];
   // Only the key set has sub-resources; `/upsert/attach` is not a profile route.
   if (op !== 'api-keys' && sub !== undefined) return null;
-  if (op === 'upsert' || op === 'publish' || op === 'rollback') {
+  if (op === 'upsert' || op === 'publish' || op === 'rollback' || op === 'self-service') {
     return { kind: op, businessId, businessVersion, profileName };
   }
   if (op === 'api-keys') {
@@ -95,7 +136,7 @@ export async function handleProfilesRoute(
     return;
   }
   const method = (req.method ?? 'GET').toUpperCase();
-  if (method !== 'GET' && method !== 'POST') {
+  if (method !== 'GET' && method !== 'POST' && method !== 'PATCH') {
     writeProblem(res, 405, 'METHOD_NOT_ALLOWED', `method ${method} is not allowed here`, correlationId);
     return;
   }
@@ -103,6 +144,128 @@ export async function handleProfilesRoute(
   const ctx = await resolveBffContext(config, request);
   if (!ctx) {
     writeProblem(res, 401, 'UNAUTHENTICATED', 'sign in to use the Admin API', correlationId);
+    return;
+  }
+
+  if (route.kind === 'assigned') {
+    if (method !== 'GET') {
+      writeProblem(res, 405, 'METHOD_NOT_ALLOWED', 'assigned Profile discovery is GET', correlationId);
+      return;
+    }
+    const actor = localProfileActor(ctx);
+    if (!actor) {
+      writeProblem(res, 403, 'PROFILE_ASSIGNMENT_REQUIRED', 'only the assigned local USER can discover assigned Profile endpoints', correlationId);
+      return;
+    }
+    const service = profileSelfService(runtime);
+    if (!service) {
+      writeProblem(res, 503, 'UPSTREAM_UNAVAILABLE', 'assigned Profile service is unavailable', correlationId);
+      return;
+    }
+    const allowed = new Set(['query', 'cursor', 'limit']);
+    if ([...query.keys()].some((key) => !allowed.has(key))
+        || ['query', 'cursor', 'limit'].some((key) => query.getAll(key).length > 1)) {
+      writeProblem(res, 422, 'INVALID_SCHEMA', 'assigned Profile query accepts one query, cursor, and limit value', correlationId);
+      return;
+    }
+    const page = await service.listAssignedProfileEndpoints({
+      ...(query.has('query') ? { query: query.get('query') } : {}),
+      ...(query.has('cursor') ? { cursor: query.get('cursor') } : {}),
+      ...(query.has('limit') ? { limit: query.get('limit') } : {}),
+    }, actor);
+    writeJson(res, 200, page, correlationId);
+    return;
+  }
+
+  if (route.kind === 'assigned-api-keys') {
+    if (method !== 'GET') {
+      writeProblem(res, 405, 'METHOD_NOT_ALLOWED', 'assigned Profile API key discovery is GET', correlationId);
+      return;
+    }
+    const actor = localProfileActor(ctx);
+    if (!actor) {
+      writeProblem(res, 403, 'PROFILE_ASSIGNMENT_REQUIRED', 'only the assigned local USER can select an API key for this Profile endpoint', correlationId);
+      return;
+    }
+    const service = profileSelfService(runtime);
+    if (!service) {
+      writeProblem(res, 503, 'UPSTREAM_UNAVAILABLE', 'assigned Profile service is unavailable', correlationId);
+      return;
+    }
+    const allowed = new Set(['query', 'cursor', 'limit']);
+    if ([...query.keys()].some((key) => !allowed.has(key))
+        || ['query', 'cursor', 'limit'].some((key) => query.getAll(key).length > 1)) {
+      writeProblem(res, 422, 'INVALID_SCHEMA', 'assigned API key query accepts one query, cursor, and limit value', correlationId);
+      return;
+    }
+    const page = await service.listAssignedProfileApiKeys(route.profileId, {
+      ...(query.has('query') ? { query: query.get('query') } : {}),
+      ...(query.has('cursor') ? { cursor: query.get('cursor') } : {}),
+      ...(query.has('limit') ? { limit: query.get('limit') } : {}),
+    }, actor);
+    writeJson(res, 200, page, correlationId);
+    return;
+  }
+
+  if (route.kind === 'self-service') {
+    if (method !== 'PATCH') {
+      writeProblem(res, 405, 'METHOD_NOT_ALLOWED', 'assigned Profile edits require PATCH', correlationId);
+      return;
+    }
+    const actor = localProfileActor(ctx);
+    if (!actor) {
+      writeProblem(res, 403, 'PROFILE_ASSIGNMENT_REQUIRED', 'only the assigned local USER can edit this Profile endpoint', correlationId);
+      return;
+    }
+    const provided = firstHeaderValue(req.headers['x-csrf-token']);
+    if (!ctx.verifyCsrf(provided)) {
+      writeProblem(res, 403, 'CSRF_REJECTED', 'missing or invalid CSRF proof', correlationId);
+      return;
+    }
+    const service = profileSelfService(runtime);
+    if (!service) {
+      writeProblem(res, 503, 'UPSTREAM_UNAVAILABLE', 'assigned Profile service is unavailable', correlationId);
+      return;
+    }
+    const raw = await readBoundedBody(req);
+    if (raw === null) {
+      writeProblem(res, 413, 'PAYLOAD_TOO_LARGE', 'request body exceeds the Admin BFF limit', correlationId);
+      return;
+    }
+    let body: unknown;
+    try { body = raw.length === 0 ? null : JSON.parse(raw); }
+    catch {
+      writeProblem(res, 422, 'INVALID_SCHEMA', 'request body must be JSON', correlationId);
+      return;
+    }
+    if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+      writeProblem(res, 422, 'INVALID_SCHEMA', 'request body must be a JSON object', correlationId);
+      return;
+    }
+    const patch = body as Record<string, unknown>;
+    const allowed = new Set(['profileId', 'expectedRevision', 'parameterValues', 'connectionsOverride']);
+    if (Object.keys(patch).some((key) => !allowed.has(key))
+        || typeof patch.profileId !== 'string' || !/^[0-9a-f-]{36}$/i.test(patch.profileId)
+        || !isRevision(patch.expectedRevision)) {
+      writeProblem(res, 422, 'INVALID_SCHEMA', 'profileId and expectedRevision are required with allowed parameter or connection edits', correlationId);
+      return;
+    }
+    const idempotencyKey = firstHeaderValue(req.headers['idempotency-key']);
+    if (!idempotencyKey || !/^[!-~]{8,200}$/.test(idempotencyKey)) {
+      writeProblem(res, 422, 'INVALID_SCHEMA', 'Idempotency-Key is required for assigned Profile edits', correlationId);
+      return;
+    }
+    const result = await service.editAssignedProfile({
+      tenantId: actor.tenantId,
+      profileId: patch.profileId,
+      businessId: route.businessId,
+      businessVersion: route.businessVersion,
+      profileName: route.profileName,
+      expectedRevision: patch.expectedRevision,
+      ...(patch.parameterValues !== undefined ? { parameterValues: patch.parameterValues } : {}),
+      ...(patch.connectionsOverride !== undefined ? { connectionsOverride: patch.connectionsOverride } : {}),
+    }, actor, idempotencyKey, correlationId);
+    writeJson(res, 200, result, correlationId);
     return;
   }
 
@@ -294,6 +457,8 @@ export async function handleProfilesRoute(
       return;
     }
     params.policy = policy;
+    if(body.endpointSlug !== undefined) params.endpointSlug=body.endpointSlug;
+    if(body.connectorBindings !== undefined) params.connectorBindings=body.connectorBindings;
     action = 'profile.upsert';
   } else if (route.kind === 'publish') {
     // Publish is a CAS move: the caller must state the revision it saw.

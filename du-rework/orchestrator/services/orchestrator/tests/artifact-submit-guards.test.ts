@@ -67,6 +67,12 @@ function context(submission: unknown): SubmitContext {
 }
 
 describe('DATA-02 public artifact submit guards', () => {
+  it('rejects a caller-forged legacy count allowance before database side effects', async () => {
+    const { service, queries } = makeSubmitService([]);
+    await expect(service.submit({ ...context({ input: { mode: 'parse', legacyArtifactCount: 21 } }), businessId: 'document-core' })).rejects.toMatchObject({ status: 422, code: 'INVALID_SCHEMA' });
+    expect(queries).toHaveLength(0);
+  });
+
   it('rejects an artifact that has not been finalized from STAGING', async () => {
     const { service, queries } = makeSubmitService([
       { id: ARTIFACT_ID, state: 'STAGING', expired: false, tenant_id: TENANT_ID },
@@ -81,7 +87,7 @@ describe('DATA-02 public artifact submit guards', () => {
     });
     expect(queries).toHaveLength(1);
     expect(queries[0]?.sql).toMatch(/tenant_id\s*=\s*\$2[\s\S]*FOR SHARE/i);
-    expect(queries[0]?.params).toEqual([[ARTIFACT_ID], TENANT_ID]);
+    expect(queries[0]?.params).toEqual([[ARTIFACT_ID], TENANT_ID, '74000000-0000-4000-8000-000000000001']);
   });
 
   it('fails closed when a referenced artifact belongs to another tenant', async () => {
@@ -102,7 +108,7 @@ describe('DATA-02 public artifact submit guards', () => {
 
     expect(thrown).toBeInstanceOf(HttpError);
     expect(thrown).toMatchObject({ status: 404, code: 'NOT_FOUND' });
-    expect(queries[0]?.params).toEqual([[ARTIFACT_ID], TENANT_ID]);
+    expect(queries[0]?.params).toEqual([[ARTIFACT_ID], TENANT_ID, '74000000-0000-4000-8000-000000000001']);
     expect(thrown).toHaveProperty('message', 'artifact not found or expired');
   });
 

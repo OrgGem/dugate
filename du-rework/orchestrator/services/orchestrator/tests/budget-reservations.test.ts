@@ -1,6 +1,7 @@
 import type { PoolClient } from 'pg';
 import type { BudgetConfigInput, UsageEvent } from '@du/contracts';
 import type { Db } from '../src/db/db';
+import type { BackupSnapshotWriteGate } from '../src/modules/maintenance/backup-effect-fence';
 import { createBudgetReservationService } from '../src/modules/usage/budget-reservations';
 
 const TENANT = 'tenant-a';
@@ -10,6 +11,11 @@ const BUSINESS = 'document-core';
 const OPERATION = '3f2a8c9e-1b4d-4a6c-8e2f-9d0c1b2a3f45';
 const TASK = 'a1a2a3a4-a5a6-47a8-89aa-a1a2a3a4a5a6';
 const NOW = new Date('2026-09-28T12:00:00.000Z');
+const openTestGate: BackupSnapshotWriteGate = { assertWriteAllowed: async () => undefined };
+
+function createService(db: Db, clock: () => Date = () => NOW) {
+  return createBudgetReservationService(db, { clock, backupSnapshotWriteGate: openTestGate });
+}
 
 interface MemoryReservation extends Record<string, unknown> {
   reservation_id: string;
@@ -109,6 +115,7 @@ class MemoryDb {
         business_id: BUSINESS,
       }]);
     }
+    if (query.includes('FROM usage_financial_adjustments')) return result([]);
     if (query.includes('FROM usage_events ue')) {
       const [tenantId, apiKeyId, profileId, businessId, fromValue, toValue] = params;
       const from = new Date(String(fromValue));
@@ -262,7 +269,7 @@ function expectHttpError(promise: Promise<unknown>, code: string): Promise<void>
 describe('COST-04 durable quota reservations', () => {
   test('serializes concurrent same-scope admissions and persists a blocked idempotent result', async () => {
     const memory = new MemoryDb();
-    const service = createBudgetReservationService(memory.db, () => NOW);
+    const service = createService(memory.db);
     const [first, second] = await Promise.all([
       service.reserve(reserveRequest('reserve-1', 60)),
       service.reserve(reserveRequest('reserve-2', 60)),
@@ -277,7 +284,7 @@ describe('COST-04 durable quota reservations', () => {
 
   test.each(['RUNNING', 'UNKNOWN'] as const)('%s reservations remain held against concurrent calls', async (state) => {
     const memory = new MemoryDb();
-    const service = createBudgetReservationService(memory.db, () => NOW);
+    const service = createService(memory.db);
     const first = await service.reserve(reserveRequest('reserve-held', 60));
     const transition = { reservationId: first.reservation.reservationId, quotaScope: first.reservation.quotaScope };
     if (state === 'RUNNING') {
@@ -293,7 +300,7 @@ describe('COST-04 durable quota reservations', () => {
 
   test('reconciliation is atomic, idempotent, and replaces the hold in the original quota window', async () => {
     const memory = new MemoryDb();
-    const service = createBudgetReservationService(memory.db, () => NOW);
+    const service = createService(memory.db);
     const admission = await service.reserve(reserveRequest('reserve-reconcile', 90));
     await service.markRunning({ reservationId: admission.reservation.reservationId, quotaScope: admission.reservation.quotaScope });
     const input = {
@@ -319,7 +326,7 @@ describe('COST-04 durable quota reservations', () => {
   test('late reconcile stays attached to the reservation window after a UTC day boundary', async () => {
     const memory = new MemoryDb();
     let now = new Date('2026-09-28T23:59:00.000Z');
-    const service = createBudgetReservationService(memory.db, () => now);
+    const service = createService(memory.db, () => now);
     const admission = await service.reserve(reserveRequest('reserve-midnight', 90));
     expect(admission.reservation.window).toStrictEqual({
       period: 'daily', from: '2026-09-28T00:00:00.000Z', to: '2026-09-29T00:00:00.000Z',
@@ -340,7 +347,7 @@ describe('COST-04 durable quota reservations', () => {
 
   test('same-scope checks fence reservation and reconciliation from another budget', async () => {
     const memory = new MemoryDb();
-    const service = createBudgetReservationService(memory.db, () => NOW);
+    const service = createService(memory.db);
     await expectHttpError(service.reserve(reserveRequest('bad-scope', 1, {
       quotaScope: { tenantId: TENANT, apiKeyId: 'foreign-key', profileId: PROFILE, businessId: BUSINESS },
     })), 'INVALID_SCHEMA');
@@ -355,7 +362,7 @@ describe('COST-04 durable quota reservations', () => {
 
   test('hard cap fails closed unless estimates and current usage are trustworthy; alert-only may proceed softly', async () => {
     const memory = new MemoryDb();
-    const service = createBudgetReservationService(memory.db, () => NOW);
+    const service = createService(memory.db);
     await expectHttpError(service.reserve(reserveRequest('unbounded', 1, { confidence: 'best-effort' })), 'BUDGET_RESERVATION_UNAVAILABLE');
     const soft = await service.reserve(reserveRequest('soft', 1, {
       budget: { ...BUDGET, policy: 'alert-only' },
@@ -366,7 +373,7 @@ describe('COST-04 durable quota reservations', () => {
 
   test('a prior best-effort in-flight hold prevents a hard-cap decision in the same scope', async () => {
     const memory = new MemoryDb();
-    const service = createBudgetReservationService(memory.db, () => NOW);
+    const service = createService(memory.db);
     await service.reserve(reserveRequest('soft-running', 10, {
       budget: { ...BUDGET, policy: 'alert-only' },
       confidence: 'best-effort',
@@ -376,7 +383,7 @@ describe('COST-04 durable quota reservations', () => {
 
   test('only an unstarted hold with an explicit no-call proof can be released', async () => {
     const memory = new MemoryDb();
-    const service = createBudgetReservationService(memory.db, () => NOW);
+    const service = createService(memory.db);
     const released = await service.reserve(reserveRequest('release-me', 80));
     await expectHttpError(service.releaseBeforeCall({
       reservationId: released.reservation.reservationId,
@@ -405,7 +412,7 @@ describe('COST-04 durable quota reservations', () => {
       tx: async (): Promise<never> => { throw new Error('database offline'); },
       close: async (): Promise<void> => undefined,
     } as unknown as Db;
-    const service = createBudgetReservationService(broken, () => NOW);
+    const service = createService(broken);
     await expectHttpError(service.reserve(reserveRequest('db-down', 10)), 'BUDGET_RESERVATION_UNAVAILABLE');
   });
 });

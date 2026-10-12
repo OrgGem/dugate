@@ -1,0 +1,117 @@
+{
+  "schema": "orv14-host-connector-restore-slice/v1",
+  "disposition": "FAILED_PARTIAL_HOST_CONNECTOR_SLICE_ONLY",
+  "command": "/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node tests/workflow-api/orv14-vfy-host/verify-connector-restore.mjs",
+  "cwd": "/workspace/dugate/du-rework",
+  "node": "v24.21.0",
+  "verifierUid": 1000,
+  "startedAt": "2026-10-11T23:41:56.071Z",
+  "completedAt": "2026-10-11T23:42:09.538Z",
+  "composeProject": "orv14-vfy-host-mv4gw8zm-55b5d74166",
+  "composeFileSha256": "7e18e4f71e1211331bca91af270ef50bdd24f1609876201b593a0afdd9a2f1d0",
+  "imageIds": {
+    "postgres": "sha256:81bd698b4594e751a3269e4dcd3e03a4a0ec0daf7b72e7aa1abd43cce9887542",
+    "redis": "sha256:f84b0c4678011602b9b98c227a4dcd5468bf8b088b02fdd4165cb7758bad8058",
+    "vault": "sha256:20bce4b1fc21ee5ccc659e3a13fd479894cfffcf650d8ca3c0c4ae7eaecc2c81",
+    "minio": "sha256:ff768636ea5c1b7bd295ddae1505506ae91a3beff613b14be377d23734cd2915"
+  },
+  "sourceHashesAtBuild": {
+    "src/entrypoint.ts": "43cd417bce85aabac6bbd97f2b1b2f9adb371dc282cc91e11a6b16e4be579401",
+    "src/isolated-mode.ts": "42a7558056ab9777d71516af17e6536942d771221eb1b3943ab646d86315a857",
+    "src/composition.ts": "d427146fe58ab33c48c01d4c82a8f4605448f304aed10c28809165e106614ce8",
+    "src/lifecycle.ts": "594e13cccf7586ee66d56db7ae7714957d88201d7a4da605e231ecb9b1b7a967",
+    "src/http/server.ts": "60cde2935710c4f12e8c052201a2ed1bc8e5988c5472de3b28fb3a15be9e3341",
+    "src/db/replica-runtime-controls.ts": "274b983a6ca08b612e9ff267c87ef1603b130a60b6dd21768c471c9a246e0f83",
+    "src/db/pg-client.ts": "403d8f1d0609b56b99abd0c884d3c837be60c53d40987e37d6fe41219f854408",
+    "src/db/repository.ts": "ce43a758f7998fe4b15dca1eb74f41f5730edbb88230d98dcebf84d47f9770a7",
+    "src/db/invocation-crypto.ts": "79af50213d9ba5827542320f8c3a9a487933a04d4f9b2ee98ca8782210aafec0",
+    "src/vault/runtime.ts": "e9a713822de1b781d6ed3b8b0e43c01bdbcafa5148502000dd2e8d8492b11faa",
+    "packages/contracts/src/connector-runtime-control.ts": "b6ce4df07983dc6a04ccdeed7e25d004295774bc2340e5d0d32d2473136a4d75"
+  },
+  "scratchBuild": {
+    "command": "/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node /workspace/dugate/du-rework/orchestrator/node_modules/.pnpm/typescript@5.9.3/node_modules/typescript/bin/tsc -p /workspace/dugate/du-rework/orchestrator/services/connector/tsconfig.json --outDir /tmp/orv14-vfy-host-mv4gw8zm-55b5d74166-D9dzgY/work/connector-build --declaration false --declarationMap false --sourceMap false",
+    "exitCode": 0,
+    "output": "",
+    "outputUnderUniqueFixtureTemp": true
+  },
+  "tests": {
+    "passed": 5,
+    "failed": 1,
+    "skipped": 0,
+    "cases": [
+      {
+        "name": "pre-migrated target prepared with exact DRAINING identity",
+        "status": "passed",
+        "migrationVersions": 14,
+        "controlRevision": 7
+      },
+      {
+        "name": "production Connector entrypoint runs as designated nonroot UID 1000",
+        "status": "passed",
+        "uid": 1000,
+        "pid": 534042
+      },
+      {
+        "name": "restore startup acquires one Vault AppRole lease and performs no renewal",
+        "status": "passed",
+        "appRoleLogins": 1,
+        "renewals": 0,
+        "kvReads": 0
+      },
+      {
+        "name": "restore process did not auto-register OPEN or pre-acknowledge its control row",
+        "status": "passed"
+      },
+      {
+        "name": "real Postgres and Redis health probes are available",
+        "status": "passed",
+        "liveStatus": 200,
+        "readyStatus": 200
+      },
+      {
+        "name": "isolated process decrypts and returns synthetic historical UNKNOWN invocation",
+        "status": "failed",
+        "statusCode": 401,
+        "errorCode": "GRANT_INVALID",
+        "returnedState": null,
+        "errorMessage": "Service identity is invalid."
+      }
+    ]
+  },
+  "error": "failed: encrypted UNKNOWN history read returned HTTP 401, code GRANT_INVALID",
+  "cleanup": {
+    "projectId": "orv14-vfy-host-mv4gw8zm-55b5d74166",
+    "removed": {
+      "containers": [
+        "735fc28c0161",
+        "29f323a9b152",
+        "cb13b541261f",
+        "1c5ccb21da57",
+        "a0cb7d64644b",
+        "a90dc65b5a17",
+        "1a47bc20b54f",
+        "37dc928a37da",
+        "5417ea05e3e4",
+        "d1f42e965061"
+      ],
+      "volumes": [
+        "orv14-vfy-host-mv4gw8zm-55b5d74166_connector-restore-data",
+        "orv14-vfy-host-mv4gw8zm-55b5d74166_connector-source-data",
+        "orv14-vfy-host-mv4gw8zm-55b5d74166_minio-data",
+        "orv14-vfy-host-mv4gw8zm-55b5d74166_minio-restore-data",
+        "orv14-vfy-host-mv4gw8zm-55b5d74166_orchestrator-restore-data",
+        "orv14-vfy-host-mv4gw8zm-55b5d74166_orchestrator-source-data"
+      ],
+      "networks": [
+        "98b5ab22150e"
+      ]
+    },
+    "remaining": {
+      "containers": [],
+      "volumes": [],
+      "networks": []
+    },
+    "temporaryFixtureRemoved": true
+  },
+  "acceptance": "not claimed; source checkpoint and cross-family restore verification remain outstanding"
+}

@@ -1,0 +1,61 @@
+{
+  "test": "VFY-UI13 incremental mounted platform tenant roster: retryable load error, actual BFF cursor pagination, persisted page-two selection and usage tenant fence",
+  "injectedFailure": {
+    "url": "http://127.0.0.1:36227/admin/api/tenants?limit=100",
+    "status": 503,
+    "title": "Synthetic roster endpoint outage for retry verification",
+    "emptyFallbackRendered": false,
+    "retryControlVisible": true
+  },
+  "actualRosterPages": [
+    {
+      "limit": "100",
+      "cursorPresent": false,
+      "status": 200,
+      "rows": 100,
+      "total": 127
+    },
+    {
+      "limit": "100",
+      "cursorPresent": true,
+      "status": 200,
+      "rows": 27,
+      "total": 127
+    }
+  ],
+  "actualRosterTotal": 127,
+  "fixtureTenantRows": 125,
+  "selectedTenant": {
+    "id": "127735ee-3482-4bad-91c9-af8d08e76835",
+    "name": "zzzz ORV13 VFY roster 124",
+    "indexAcrossReturnedPages": 126,
+    "beyondFirstPage": true,
+    "localStoragePersisted": true
+  },
+  "usageEventId": "orv13-vfy-event-5ef77c39-79cf-440d-bd63-0d22f1258163",
+  "otherTenantScopeResponse": [
+    {
+      "tenantId": "d479acbb-5c15-4251-a807-945bad5d9aa6",
+      "status": 200,
+      "returnedEventIds": []
+    }
+  ],
+  "usageScopeRequest": [
+    {
+      "url": "http://127.0.0.1:36227/admin/api/usage/events?tenantId=127735ee-3482-4bad-91c9-af8d08e76835&from=2026-10-10T18%3A52%3A00.000Z&to=2026-10-11T18%3A52%3A00.000Z&timeField=receivedAt&limit=50",
+      "status": 200,
+      "tenantId": "127735ee-3482-4bad-91c9-af8d08e76835",
+      "returnedEventIds": [
+        "orv13-vfy-event-5ef77c39-79cf-440d-bd63-0d22f1258163"
+      ]
+    }
+  ],
+  "loadedScript": {
+    "url": "http://127.0.0.1:36227/admin/assets/index-BO7-bJEd.js",
+    "status": 200,
+    "sha256": "8e55dd6148ae91b2c18e38c4a4176742e574894bbadb36a407ce0f9ddc7c3e6a"
+  },
+  "shellUrl": "http://127.0.0.1:36227",
+  "publicUrl": "http://127.0.0.1:38333",
+  "internalUrl": "http://127.0.0.1:38307"
+}

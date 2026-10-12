@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "DUGate rework API (code-derived, W40-CX)",
-    "version": "1.5.0",
-    "description": "Since 1.5.0: legacy workflow multipart admission facades at /api/v1/docs/workflows and /api/v1/docs/workflows/schema are documented; runtime compatibility acceptance is tracked separately in the WFA plan. From orchestrator server.ts + connector http/server.ts. Absent surfaces in x-absent. Since 1.3.0: server origins are family-scoped to the PM-M02 ingress - public JSON Orchestrator 3000, admin/management and runtime internal JSON Orchestrator 3002, Connector service 8080 - with tags/x-api-family on every operation and generation-time overrides DU_OPENAPI_PUBLIC_ORIGIN / DU_OPENAPI_INTERNAL_ORIGIN / DU_OPENAPI_CONNECTOR_ORIGIN. Try-it-out stays disabled by default in any Portal rendering; this document grants no interactive access. Since 1.2.0: GET /api/v1/usage/events (COST-03) is published with its query, cursor, ledger-record and page schemas. Since 1.1.0: the RESULT-WIRE-01 delivery surfaces are published - components.schemas carries ResultEnvelope v1, EncryptedResultEnvelope v1, RecipientDeliveryEnvelope and EncryptedArtifactDownload, and GET /api/v1/artifacts/{id}/download is a documented path instead of an x-absent entry."
+    "version": "1.6.0",
+    "description": "Since 1.6.0: BASIC_ADMIN_USAGE_V1 and bounded Compose Admin/host-runner routes are documented as separate schemas and auth planes; since 1.5.0: legacy workflow multipart admission facades at /api/v1/docs/workflows and /api/v1/docs/workflows/schema are documented; runtime compatibility acceptance is tracked separately in the WFA plan. From orchestrator server.ts + connector http/server.ts. Absent surfaces in x-absent. Since 1.3.0: server origins are family-scoped to the PM-M02 ingress - public JSON Orchestrator 3000, admin/management and runtime internal JSON Orchestrator 3002, Connector service 8080 - with tags/x-api-family on every operation and generation-time overrides DU_OPENAPI_PUBLIC_ORIGIN / DU_OPENAPI_INTERNAL_ORIGIN / DU_OPENAPI_CONNECTOR_ORIGIN. Try-it-out stays disabled by default in any Portal rendering; this document grants no interactive access. Since 1.2.0: GET /api/v1/usage/events (COST-03) is published with its query, cursor, ledger-record and page schemas. Since 1.1.0: the RESULT-WIRE-01 delivery surfaces are published - components.schemas carries ResultEnvelope v1, EncryptedResultEnvelope v1, RecipientDeliveryEnvelope and EncryptedArtifactDownload, and GET /api/v1/artifacts/{id}/download is a documented path instead of an x-absent entry."
   },
   "servers": [
     {
@@ -59,6 +59,11 @@
         "in": "cookie",
         "name": "du_session",
         "description": "Server-side Portal session; mutations additionally require x-csrf-token and platform admin."
+      },
+      "ComposeRunnerBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Dedicated host-scoped Compose runner token; never an Admin/platform credential and not accepted by the Admin BFF."
       }
     },
     "schemas": {
@@ -73,6 +78,245 @@
           }
         ],
         "description": "ArtifactDownloadResponseSchema (operations.ts) = plain bytes | EncryptedArtifactDownload. The plain branch is a byte string or an async byte stream, which JSON Schema cannot express, so it is published as format: binary and the response content map names its media type."
+      },
+      "AdminUsageEventRecord": {
+        "type": "object",
+        "required": [
+          "eventId",
+          "operationId",
+          "taskId",
+          "invocationId",
+          "provider",
+          "model",
+          "units",
+          "costMicrousd",
+          "costStatus",
+          "measurement",
+          "occurredAt",
+          "receivedAt"
+        ],
+        "properties": {
+          "eventId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "operationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "taskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "invocationId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "provider": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@\\/-]{0,127}$",
+            "nullable": true,
+            "description": "Null when the persisted event has no provider attribution."
+          },
+          "model": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@\\/-]{0,127}$",
+            "nullable": true,
+            "description": "Null when the persisted event has no model attribution."
+          },
+          "units": {
+            "type": "object",
+            "required": [
+              "inputTokens",
+              "outputTokens"
+            ],
+            "properties": {
+              "inputTokens": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "outputTokens": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "pages": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "additionalProperties": false
+          },
+          "costMicrousd": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "nullable": true,
+            "description": "Null when the persisted runtime event had no cost field."
+          },
+          "costStatus": {
+            "type": "string",
+            "enum": [
+              "measured",
+              "estimated",
+              "unpriced"
+            ],
+            "nullable": true,
+            "description": "Null when explicit cost provenance was absent from the persisted event."
+          },
+          "measurement": {
+            "type": "string",
+            "enum": [
+              "measured",
+              "estimated"
+            ]
+          },
+          "occurredAt": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false,
+        "description": "AdminUsageEventRecordSchema (BASIC_ADMIN_USAGE_V1). Persisted runtime facts only; richer cost attribution is not inferred."
+      },
+      "AdminUsageEventPage": {
+        "type": "object",
+        "required": [
+          "tenantId",
+          "events",
+          "limit",
+          "hasMore",
+          "nextCursor",
+          "skippedInvalidEvents",
+          "timeSemantics"
+        ],
+        "properties": {
+          "tenantId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@\\/-]{0,127}$"
+          },
+          "events": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/AdminUsageEventRecord"
+            }
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "nextCursor": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          },
+          "skippedInvalidEvents": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "timeSemantics": {
+            "type": "object",
+            "required": [
+              "field",
+              "order",
+              "timezone"
+            ],
+            "properties": {
+              "field": {
+                "type": "string",
+                "enum": [
+                  "receivedAt"
+                ]
+              },
+              "order": {
+                "type": "string",
+                "enum": [
+                  "asc"
+                ]
+              },
+              "timezone": {
+                "type": "string",
+                "enum": [
+                  "UTC"
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false,
+        "description": "AdminUsageEventPageSchema (BASIC_ADMIN_USAGE_V1). Tenant-scoped keyset page; invalid rows are counted and omitted."
+      },
+      "AdminUsageEventQuery": {
+        "type": "object",
+        "required": [
+          "from",
+          "to"
+        ],
+        "properties": {
+          "tenantId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@\\/-]{0,127}$",
+            "description": "Optional scope check; tenant role is server-bound. Platform Admin must provide tenantId."
+          },
+          "from": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "to": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "timeField": {
+            "type": "string",
+            "enum": [
+              "receivedAt"
+            ],
+            "default": "receivedAt"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 50
+          },
+          "cursor": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          },
+          "operationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "provider": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@\\/-]{0,127}$"
+          },
+          "model": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@\\/-]{0,127}$"
+          }
+        },
+        "additionalProperties": false,
+        "description": "AdminUsageEventQuerySchema. The [from,to) window is required and bounded to 366 days; provider and model filters are paired; cursor is bound to tenant and full query."
       },
       "AdminTenant": {
         "type": "object",
@@ -788,6 +1032,1270 @@
         },
         "additionalProperties": false,
         "description": "Which ledger clock answered the window, published rather than assumed. The route always sends order asc and timezone UTC (usage-reconciliation.ts UsageEventExportPageSchema)."
+      },
+      "ComposeActiveJob": {
+        "type": "object",
+        "required": [
+          "jobId",
+          "state"
+        ],
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "QUEUED",
+              "CLAIMED",
+              "RUNNING",
+              "UNKNOWN"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "ComposeCatalog": {
+        "type": "object",
+        "required": [
+          "configured",
+          "hostId",
+          "manifestDigest",
+          "availability",
+          "receivedAt",
+          "lastErrorCode",
+          "projects"
+        ],
+        "properties": {
+          "configured": {
+            "type": "boolean"
+          },
+          "hostId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$",
+            "nullable": true
+          },
+          "manifestDigest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "nullable": true
+          },
+          "availability": {
+            "type": "string",
+            "enum": [
+              "FRESH",
+              "STALE",
+              "UNAVAILABLE"
+            ]
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastErrorCode": {
+            "type": "string",
+            "enum": [
+              "RUNNER_NOT_CONFIGURED",
+              "SNAPSHOT_NOT_RECEIVED",
+              "SNAPSHOT_INVALID",
+              "MANIFEST_DIGEST_MISMATCH",
+              "DOCKER_UNAVAILABLE",
+              "INVENTORY_UNAVAILABLE",
+              "HEALTHCHECK_FAILED",
+              "COMMAND_FAILED",
+              "COMMAND_TIMEOUT",
+              "OUTPUT_LIMIT",
+              "TARGET_BUSY",
+              "STALE_SAMPLE",
+              "STALE_PREVIEW",
+              "TARGET_REVISION_CONFLICT",
+              "IDEMPOTENCY_CONFLICT",
+              "EXECUTION_UNCERTAIN",
+              "RUNNER_REPORT_REJECTED"
+            ],
+            "nullable": true
+          },
+          "projects": {
+            "type": "array",
+            "maxItems": 64,
+            "items": {
+              "$ref": "#/components/schemas/ComposeCatalogProject"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "ComposeCatalogProject": {
+        "type": "object",
+        "required": [
+          "projectId",
+          "displayName",
+          "catalogRevision",
+          "manifestDigest",
+          "availability",
+          "sampledAt",
+          "receivedAt",
+          "lastErrorCode",
+          "observedDigest",
+          "targetRevision",
+          "desiredReleaseId",
+          "activeJob",
+          "services",
+          "releases",
+          "observedServices"
+        ],
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+          },
+          "displayName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "catalogRevision": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "nullable": true
+          },
+          "manifestDigest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "nullable": true
+          },
+          "availability": {
+            "type": "string",
+            "enum": [
+              "FRESH",
+              "STALE",
+              "UNAVAILABLE"
+            ]
+          },
+          "sampledAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastErrorCode": {
+            "type": "string",
+            "enum": [
+              "RUNNER_NOT_CONFIGURED",
+              "SNAPSHOT_NOT_RECEIVED",
+              "SNAPSHOT_INVALID",
+              "MANIFEST_DIGEST_MISMATCH",
+              "DOCKER_UNAVAILABLE",
+              "INVENTORY_UNAVAILABLE",
+              "HEALTHCHECK_FAILED",
+              "COMMAND_FAILED",
+              "COMMAND_TIMEOUT",
+              "OUTPUT_LIMIT",
+              "TARGET_BUSY",
+              "STALE_SAMPLE",
+              "STALE_PREVIEW",
+              "TARGET_REVISION_CONFLICT",
+              "IDEMPOTENCY_CONFLICT",
+              "EXECUTION_UNCERTAIN",
+              "RUNNER_REPORT_REJECTED"
+            ],
+            "nullable": true
+          },
+          "observedDigest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "nullable": true
+          },
+          "targetRevision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "desiredReleaseId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$",
+            "nullable": true
+          },
+          "activeJob": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ComposeActiveJob"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "services": {
+            "type": "array",
+            "maxItems": 64,
+            "items": {
+              "$ref": "#/components/schemas/ComposeCatalogService"
+            }
+          },
+          "releases": {
+            "type": "array",
+            "maxItems": 128,
+            "items": {
+              "$ref": "#/components/schemas/ComposeCatalogRelease"
+            }
+          },
+          "observedServices": {
+            "type": "array",
+            "maxItems": 64,
+            "items": {
+              "$ref": "#/components/schemas/ComposeObservedService"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "ComposeCatalogRelease": {
+        "type": "object",
+        "required": [
+          "releaseId",
+          "displayName",
+          "releaseDigest",
+          "targetServices",
+          "images",
+          "migrationCompatibility",
+          "rollbackAllowedFrom"
+        ],
+        "properties": {
+          "releaseId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+          },
+          "displayName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "releaseDigest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "targetServices": {
+            "type": "array",
+            "maxItems": 32,
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+            }
+          },
+          "images": {
+            "type": "array",
+            "maxItems": 32,
+            "items": {
+              "type": "object",
+              "required": [
+                "serviceId",
+                "imageDigest"
+              ],
+              "properties": {
+                "serviceId": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+                },
+                "imageDigest": {
+                  "type": "string",
+                  "maxLength": 256
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "migrationCompatibility": {
+            "type": "string",
+            "enum": [
+              "acknowledged",
+              "not_acknowledged"
+            ]
+          },
+          "rollbackAllowedFrom": {
+            "type": "array",
+            "maxItems": 64,
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "ComposeCatalogService": {
+        "type": "object",
+        "required": [
+          "serviceId",
+          "displayName",
+          "restartAllowed"
+        ],
+        "properties": {
+          "serviceId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+          },
+          "displayName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "restartAllowed": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ComposeJobAck": {
+        "type": "object",
+        "required": [
+          "job"
+        ],
+        "properties": {
+          "job": {
+            "$ref": "#/components/schemas/ComposeJob"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ComposeJob": {
+        "type": "object",
+        "required": [
+          "jobId",
+          "previewId",
+          "hostId",
+          "projectId",
+          "action",
+          "releaseId",
+          "serviceId",
+          "targetReleaseDigest",
+          "targetServices",
+          "reason",
+          "actorLabel",
+          "state",
+          "stateVersion",
+          "expectedTargetRevision",
+          "targetRevision",
+          "createdAt",
+          "startedAt",
+          "completedAt",
+          "claimExpiresAt",
+          "observedBeforeDigest",
+          "startExpectedObservedDigest",
+          "observedBefore",
+          "observedAfter",
+          "observedAfterDigest",
+          "perServiceOutcomes",
+          "uncertainReason"
+        ],
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "previewId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "hostId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+          },
+          "projectId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "apply_release",
+              "rollback_release",
+              "restart_service"
+            ]
+          },
+          "releaseId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$",
+            "nullable": true
+          },
+          "serviceId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$",
+            "nullable": true
+          },
+          "targetReleaseDigest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "nullable": true
+          },
+          "targetServices": {
+            "type": "array",
+            "maxItems": 64,
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+            }
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 500
+          },
+          "actorLabel": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "QUEUED",
+              "CLAIMED",
+              "RUNNING",
+              "SUCCEEDED",
+              "FAILED",
+              "PARTIAL",
+              "UNKNOWN",
+              "RECONCILED"
+            ]
+          },
+          "stateVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "expectedTargetRevision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "targetRevision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "completedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "claimExpiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "observedBeforeDigest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "startExpectedObservedDigest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "observedBefore": {
+            "type": "array",
+            "maxItems": 64,
+            "items": {
+              "$ref": "#/components/schemas/ComposeObservedService"
+            }
+          },
+          "observedAfter": {
+            "type": "array",
+            "maxItems": 64,
+            "items": {
+              "$ref": "#/components/schemas/ComposeObservedService"
+            },
+            "nullable": true
+          },
+          "observedAfterDigest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "nullable": true
+          },
+          "perServiceOutcomes": {
+            "type": "array",
+            "maxItems": 64,
+            "items": {
+              "$ref": "#/components/schemas/ComposePerServiceOutcome"
+            }
+          },
+          "uncertainReason": {
+            "type": "string",
+            "enum": [
+              "CLAIM_EXPIRED",
+              "START_ACK_LOST",
+              "RUNNER_LOST",
+              "REPORT_LOST",
+              "EXECUTOR_TIMEOUT",
+              "EXECUTION_UNCERTAIN"
+            ],
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ComposeJobPage": {
+        "type": "object",
+        "required": [
+          "items",
+          "limit",
+          "hasMore"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/ComposeJob"
+            }
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "nextCursor": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ComposeJobSubmission": {
+        "type": "object",
+        "required": [
+          "job",
+          "replayed"
+        ],
+        "properties": {
+          "job": {
+            "$ref": "#/components/schemas/ComposeJob"
+          },
+          "replayed": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ComposeObservedService": {
+        "type": "object",
+        "required": [
+          "serviceId",
+          "containerId",
+          "imageId",
+          "imageDigest",
+          "state",
+          "health",
+          "startedAt",
+          "finishedAt",
+          "observedReleaseId"
+        ],
+        "properties": {
+          "serviceId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+          },
+          "containerId": {
+            "type": "string",
+            "maxLength": 128,
+            "nullable": true
+          },
+          "imageId": {
+            "type": "string",
+            "maxLength": 256,
+            "nullable": true
+          },
+          "imageDigest": {
+            "type": "string",
+            "maxLength": 256,
+            "nullable": true
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "CREATED",
+              "RUNNING",
+              "PAUSED",
+              "RESTARTING",
+              "EXITED",
+              "DEAD",
+              "REMOVING",
+              "UNKNOWN"
+            ]
+          },
+          "health": {
+            "type": "string",
+            "enum": [
+              "HEALTHY",
+              "UNHEALTHY",
+              "STARTING",
+              "NONE",
+              "UNKNOWN"
+            ],
+            "nullable": true
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "finishedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "observedReleaseId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ComposePerServiceOutcome": {
+        "type": "object",
+        "required": [
+          "serviceId",
+          "status",
+          "errorCode"
+        ],
+        "properties": {
+          "serviceId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "SUCCEEDED",
+              "FAILED",
+              "SKIPPED",
+              "UNKNOWN"
+            ]
+          },
+          "errorCode": {
+            "type": "string",
+            "enum": [
+              "RUNNER_NOT_CONFIGURED",
+              "SNAPSHOT_NOT_RECEIVED",
+              "SNAPSHOT_INVALID",
+              "MANIFEST_DIGEST_MISMATCH",
+              "DOCKER_UNAVAILABLE",
+              "INVENTORY_UNAVAILABLE",
+              "HEALTHCHECK_FAILED",
+              "COMMAND_FAILED",
+              "COMMAND_TIMEOUT",
+              "OUTPUT_LIMIT",
+              "TARGET_BUSY",
+              "STALE_SAMPLE",
+              "STALE_PREVIEW",
+              "TARGET_REVISION_CONFLICT",
+              "IDEMPOTENCY_CONFLICT",
+              "EXECUTION_UNCERTAIN",
+              "RUNNER_REPORT_REJECTED"
+            ],
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ComposePreview": {
+        "type": "object",
+        "required": [
+          "previewId",
+          "hostId",
+          "projectId",
+          "action",
+          "releaseId",
+          "serviceId",
+          "reason",
+          "createdAt",
+          "expiresAt",
+          "manifestDigest",
+          "observedDigest",
+          "expectedTargetRevision",
+          "targetServices",
+          "targetReleaseDigest",
+          "impact",
+          "warnings"
+        ],
+        "properties": {
+          "previewId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "hostId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+          },
+          "projectId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "apply_release",
+              "rollback_release",
+              "restart_service"
+            ]
+          },
+          "releaseId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$",
+            "nullable": true
+          },
+          "serviceId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$",
+            "nullable": true
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 500
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "manifestDigest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "observedDigest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "expectedTargetRevision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "targetServices": {
+            "type": "array",
+            "maxItems": 64,
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+            }
+          },
+          "targetReleaseDigest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "nullable": true
+          },
+          "impact": {
+            "type": "object",
+            "required": [
+              "affectedServices",
+              "downtime",
+              "statefulServicesExcluded"
+            ],
+            "properties": {
+              "affectedServices": {
+                "type": "array",
+                "maxItems": 64,
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+                }
+              },
+              "downtime": {
+                "type": "string",
+                "enum": [
+                  "possible",
+                  "likely"
+                ]
+              },
+              "statefulServicesExcluded": {
+                "type": "boolean",
+                "enum": [
+                  true
+                ]
+              }
+            },
+            "additionalProperties": false
+          },
+          "warnings": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "string",
+              "enum": [
+                "POSSIBLE_SERVICE_INTERRUPTION",
+                "MIGRATION_COMPATIBILITY_ACKNOWLEDGED"
+              ]
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "ComposePreviewRequest": {
+        "type": "object",
+        "required": [
+          "hostId",
+          "projectId",
+          "action",
+          "reason"
+        ],
+        "properties": {
+          "hostId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+          },
+          "projectId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "apply_release",
+              "rollback_release",
+              "restart_service"
+            ]
+          },
+          "releaseId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+          },
+          "serviceId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 500
+          }
+        },
+        "additionalProperties": false
+      },
+      "ComposeRunnerClaim": {
+        "type": "object",
+        "required": [
+          "job",
+          "executionToken"
+        ],
+        "properties": {
+          "job": {
+            "$ref": "#/components/schemas/ComposeJob"
+          },
+          "executionToken": {
+            "type": "string",
+            "minLength": 32,
+            "maxLength": 256
+          }
+        },
+        "additionalProperties": false
+      },
+      "ComposeRunnerClaimResponse": {
+        "type": "object",
+        "required": [
+          "claim"
+        ],
+        "properties": {
+          "claim": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ComposeRunnerClaim"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "ComposeRunnerCompleteRequest": {
+        "type": "object",
+        "required": [
+          "jobId",
+          "executionToken",
+          "expectedStateVersion",
+          "manifestDigest",
+          "sampledAt",
+          "outcome",
+          "errorCode",
+          "uncertainReason",
+          "observedServices",
+          "perServiceOutcomes"
+        ],
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "executionToken": {
+            "type": "string",
+            "minLength": 32,
+            "maxLength": 256
+          },
+          "expectedStateVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "manifestDigest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "sampledAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "SUCCEEDED",
+              "FAILED",
+              "PARTIAL",
+              "UNKNOWN"
+            ]
+          },
+          "errorCode": {
+            "type": "string",
+            "enum": [
+              "RUNNER_NOT_CONFIGURED",
+              "SNAPSHOT_NOT_RECEIVED",
+              "SNAPSHOT_INVALID",
+              "MANIFEST_DIGEST_MISMATCH",
+              "DOCKER_UNAVAILABLE",
+              "INVENTORY_UNAVAILABLE",
+              "HEALTHCHECK_FAILED",
+              "COMMAND_FAILED",
+              "COMMAND_TIMEOUT",
+              "OUTPUT_LIMIT",
+              "TARGET_BUSY",
+              "STALE_SAMPLE",
+              "STALE_PREVIEW",
+              "TARGET_REVISION_CONFLICT",
+              "IDEMPOTENCY_CONFLICT",
+              "EXECUTION_UNCERTAIN",
+              "RUNNER_REPORT_REJECTED"
+            ],
+            "nullable": true
+          },
+          "uncertainReason": {
+            "type": "string",
+            "enum": [
+              "CLAIM_EXPIRED",
+              "START_ACK_LOST",
+              "RUNNER_LOST",
+              "REPORT_LOST",
+              "EXECUTOR_TIMEOUT",
+              "EXECUTION_UNCERTAIN"
+            ],
+            "nullable": true
+          },
+          "observedServices": {
+            "type": "array",
+            "maxItems": 64,
+            "items": {
+              "$ref": "#/components/schemas/ComposeObservedService"
+            },
+            "nullable": true
+          },
+          "perServiceOutcomes": {
+            "type": "array",
+            "maxItems": 64,
+            "items": {
+              "$ref": "#/components/schemas/ComposePerServiceOutcome"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "ComposeRunnerProjectSnapshot": {
+        "type": "object",
+        "required": [
+          "projectId",
+          "displayName",
+          "services",
+          "releases",
+          "observedServices"
+        ],
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+          },
+          "displayName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "services": {
+            "type": "array",
+            "maxItems": 64,
+            "items": {
+              "$ref": "#/components/schemas/ComposeCatalogService"
+            }
+          },
+          "releases": {
+            "type": "array",
+            "maxItems": 128,
+            "items": {
+              "$ref": "#/components/schemas/ComposeCatalogRelease"
+            }
+          },
+          "observedServices": {
+            "type": "array",
+            "maxItems": 64,
+            "items": {
+              "$ref": "#/components/schemas/ComposeObservedService"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "ComposeRunnerReconcileRequest": {
+        "type": "object",
+        "required": [
+          "jobId",
+          "expectedStateVersion",
+          "manifestDigest",
+          "sampledAt",
+          "executorQuiescent",
+          "evidenceCode",
+          "observedServices",
+          "perServiceOutcomes"
+        ],
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expectedStateVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "manifestDigest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "sampledAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "executorQuiescent": {
+            "type": "boolean"
+          },
+          "evidenceCode": {
+            "type": "string",
+            "enum": [
+              "NO_ACTIVE_EXECUTOR",
+              "EXECUTOR_TERMINATED",
+              "MANUAL_OPERATOR_CONFIRMED",
+              "UNCERTAIN"
+            ]
+          },
+          "observedServices": {
+            "type": "array",
+            "maxItems": 64,
+            "items": {
+              "$ref": "#/components/schemas/ComposeObservedService"
+            },
+            "nullable": true
+          },
+          "perServiceOutcomes": {
+            "type": "array",
+            "maxItems": 64,
+            "items": {
+              "$ref": "#/components/schemas/ComposePerServiceOutcome"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "ComposeRunnerSnapshotAck": {
+        "type": "object",
+        "required": [
+          "hostId",
+          "manifestDigest",
+          "receivedAt",
+          "projects"
+        ],
+        "properties": {
+          "hostId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+          },
+          "manifestDigest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "projects": {
+            "type": "array",
+            "maxItems": 64,
+            "items": {
+              "type": "object",
+              "required": [
+                "projectId",
+                "catalogRevision",
+                "observedDigest",
+                "targetRevision"
+              ],
+              "properties": {
+                "projectId": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+                },
+                "catalogRevision": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "observedDigest": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "targetRevision": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "ComposeRunnerSnapshotRequest": {
+        "type": "object",
+        "required": [
+          "hostId",
+          "manifestDigest",
+          "sampledAt",
+          "projects"
+        ],
+        "properties": {
+          "hostId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+          },
+          "manifestDigest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "sampledAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "projects": {
+            "type": "array",
+            "maxItems": 64,
+            "items": {
+              "$ref": "#/components/schemas/ComposeRunnerProjectSnapshot"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "ComposeRunnerStartAck": {
+        "type": "object",
+        "required": [
+          "jobId",
+          "state",
+          "stateVersion",
+          "startedAt"
+        ],
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "RUNNING"
+            ]
+          },
+          "stateVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ComposeRunnerStartRequest": {
+        "type": "object",
+        "required": [
+          "jobId",
+          "executionToken",
+          "expectedStateVersion",
+          "manifestDigest",
+          "observedDigest"
+        ],
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "executionToken": {
+            "type": "string",
+            "minLength": 32,
+            "maxLength": 256
+          },
+          "expectedStateVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "manifestDigest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "observedDigest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ComposeSubmitJobRequest": {
+        "type": "object",
+        "required": [
+          "previewId",
+          "expectedTargetRevision"
+        ],
+        "properties": {
+          "previewId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expectedTargetRevision": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false
       },
       "SecretPurpose": {
         "type": "string",
@@ -4144,12 +5652,15 @@
         "x-api-family": "public"
       }
     },
-    "/api/v1/operations": {
+    "/api/internal/operations": {
       "get": {
-        "summary": "List operations. server.ts parseOperationsListQuery + listOperationsPage; contracts public-api.ts OPERATIONS_LIST_QUERY_PARAMS (6 names) and OPERATIONS_LIST_SORT_*. Admin bearer is an alternate auth path on the same contract (ADM-UX-02).",
+        "summary": "List operations. server.ts parseOperationsListQuery + listOperationsPage; contracts public-api.ts OPERATIONS_LIST_QUERY_PARAMS (8 names) and OPERATIONS_LIST_SORT_*. Admin bearer/session only, tenant fenced.",
         "security": [
           {
-            "ApiKey": []
+            "AdminBearer": []
+          },
+          {
+            "PortalSession": []
           }
         ],
         "parameters": [
@@ -4183,6 +5694,7 @@
                 "RUNNING",
                 "COMPLETED",
                 "FAILED",
+                "CANCELLED",
                 "TIMED_OUT"
               ]
             }
@@ -4220,6 +5732,24 @@
                 "deadline_at:asc",
                 "deadline_at:desc"
               ]
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "description": "Inclusive created-at ISO timestamp",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "Exclusive created-at ISO timestamp",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
             }
           }
         ],
@@ -4282,33 +5812,33 @@
         },
         "servers": [
           {
-            "url": "http://localhost:3000",
-            "description": "PM-M02 Public JSON ingress (Orchestrator 3000). Admin and runtime routes are rejected on this listener."
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Admin/management family; authorization is unchanged by the listener."
           }
         ],
         "tags": [
-          "public"
+          "admin"
         ],
-        "x-api-family": "public"
+        "x-api-family": "admin"
       }
     },
     "/api/v1/operations/{id}": {
       "get": {
-        "summary": "Poll; ?wait seconds clamped [0,30]. server.ts:602 facade.ts:16.",
+        "summary": "Legacy result by ID, scoped to submitting API key.",
         "security": [
           {
             "ApiKey": []
           }
         ],
-        "parameters": [
-          {
-            "name": "wait",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            },
-            "description": "Parsed as integer seconds and clamped to [0,30] by the poll handler."
+        "responses": {
+          "200": {
+            "description": "Legacy operation envelope (name, done, metadata, response/error)."
           },
+          "404": {
+            "description": "Unknown or foreign operation"
+          }
+        },
+        "parameters": [
           {
             "name": "id",
             "in": "path",
@@ -4318,11 +5848,6 @@
             }
           }
         ],
-        "responses": {
-          "200": {
-            "description": "OperationView with nullable startedAt/completedAt (historical unknown times stay null), retryOf and errorCode; updatedAt is not a completion time."
-          }
-        },
         "servers": [
           {
             "url": "http://localhost:3000",
@@ -4335,12 +5860,347 @@
         "x-api-family": "public"
       }
     },
-    "/api/v1/operations/{id}/result": {
+    "/api/v1/operations/{id}/download": {
       "get": {
-        "summary": "ResultEnvelope or its encrypted delivery wrapper. Handler server.ts:1724.",
+        "summary": "Legacy result output download; API-key ownership and delivery policy apply.",
         "security": [
           {
             "ApiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Output bytes or encrypted delivery envelope"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:3000",
+            "description": "PM-M02 Public JSON ingress (Orchestrator 3000). Admin and runtime routes are rejected on this listener."
+          }
+        ],
+        "tags": [
+          "public"
+        ],
+        "x-api-family": "public"
+      }
+    },
+    "/api/internal/operations/{id}": {
+      "get": {
+        "summary": "Admin operation detail: operation, tasks, humanWaits, result, artifacts, serverNow.",
+        "security": [
+          {
+            "AdminBearer": []
+          },
+          {
+            "PortalSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Admin detail"
+          },
+          "404": {
+            "description": "Unknown or foreign operation"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Admin/management family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "admin"
+        ],
+        "x-api-family": "admin"
+      },
+      "delete": {
+        "summary": "Soft-delete terminal operation; admin/operator tenant scope and session CSRF required.",
+        "security": [
+          {
+            "AdminBearer": []
+          },
+          {
+            "PortalSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted"
+          },
+          "409": {
+            "description": "Operation still active"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Admin/management family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "admin"
+        ],
+        "x-api-family": "admin"
+      }
+    },
+    "/api/internal/operations/metrics": {
+      "get": {
+        "summary": "Tenant-scoped admin metrics.",
+        "security": [
+          {
+            "AdminBearer": []
+          },
+          {
+            "PortalSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenant",
+            "in": "query",
+            "description": "Tenant filter",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "description": "Start ISO timestamp",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "End ISO timestamp",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation metrics"
+          }
+        },
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Admin/management family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "admin"
+        ],
+        "x-api-family": "admin"
+      }
+    },
+    "/api/internal/operations/uploads": {
+      "post": {
+        "summary": "Upload one file for a selected active API key. Internal admin/operator only; session CSRF required. Encrypted storage mandatory, maximum16MiB; S3 streams and PostgreSQL bounded encrypted fallback. Result artifact is key-owned before workflow submission.",
+        "security": [
+          {
+            "AdminBearer": []
+          },
+          {
+            "PortalSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "apiKeyId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fileName",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "{artifactId,state:READY,fileName,mimeType,sizeBytes}"
+          },
+          "403": {
+            "description": "Role, tenant or CSRF denied"
+          },
+          "413": {
+            "description": "File exceeds configured limit"
+          },
+          "503": {
+            "description": "Encrypted storage unavailable"
+          }
+        },
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Admin/management family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "admin"
+        ],
+        "x-api-family": "admin"
+      }
+    },
+    "/api/internal/operations/{id}/download": {
+      "get": {
+        "summary": "Admin operation output download; tenant fence and delivery policy apply.",
+        "security": [
+          {
+            "AdminBearer": []
+          },
+          {
+            "PortalSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Output bytes or encrypted delivery envelope"
+          },
+          "404": {
+            "description": "Unknown/foreign operation or absent output"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Admin/management family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "admin"
+        ],
+        "x-api-family": "admin"
+      }
+    },
+    "/api/internal/operations/{id}/retry": {
+      "post": {
+        "summary": "Retry original pinned request; platform admin only, session CSRF required.",
+        "security": [
+          {
+            "AdminBearer": []
+          },
+          {
+            "PortalSession": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Fresh operation or replay"
+          },
+          "409": {
+            "description": "Unavailable input or non-retryable state"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Admin/management family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "admin"
+        ],
+        "x-api-family": "admin"
+      }
+    },
+    "/api/internal/operations/{id}/result": {
+      "get": {
+        "summary": "Admin result projection or encrypted delivery wrapper; tenant fenced.",
+        "security": [
+          {
+            "AdminBearer": []
+          },
+          {
+            "PortalSession": []
           }
         ],
         "responses": {
@@ -4379,14 +6239,14 @@
         ],
         "servers": [
           {
-            "url": "http://localhost:3000",
-            "description": "PM-M02 Public JSON ingress (Orchestrator 3000). Admin and runtime routes are rejected on this listener."
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Admin/management family; authorization is unchanged by the listener."
           }
         ],
         "tags": [
-          "public"
+          "admin"
         ],
-        "x-api-family": "public"
+        "x-api-family": "admin"
       }
     },
     "/api/v1/artifacts/{id}/download": {
@@ -4449,29 +6309,27 @@
         "x-api-family": "public"
       }
     },
-    "/api/v1/operations/{id}/cancel": {
+    "/api/internal/operations/{id}/cancel": {
       "post": {
-        "summary": "Idempotent cancel. server.ts:646.",
+        "summary": "Admin cancel; session CSRF required.",
         "security": [
           {
-            "ApiKey": []
+            "AdminBearer": []
+          },
+          {
+            "PortalSession": []
           }
         ],
         "requestBody": {
           "content": {
             "application/json": {
-              "example": {
-                "reason": "no longer needed"
-              }
+              "example": {}
             }
           }
         },
         "responses": {
-          "202": {
-            "description": "cancelling"
-          },
           "200": {
-            "description": "replayed"
+            "description": "CANCEL_REQUESTED for a live worker until provider abort acknowledgement; otherwise CANCELLED, or terminal replay"
           }
         },
         "parameters": [
@@ -4486,22 +6344,25 @@
         ],
         "servers": [
           {
-            "url": "http://localhost:3000",
-            "description": "PM-M02 Public JSON ingress (Orchestrator 3000). Admin and runtime routes are rejected on this listener."
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Admin/management family; authorization is unchanged by the listener."
           }
         ],
         "tags": [
-          "public"
+          "admin"
         ],
-        "x-api-family": "public"
+        "x-api-family": "admin"
       }
     },
-    "/api/v1/operations/{id}/resume": {
+    "/api/internal/operations/{id}/resume": {
       "post": {
-        "summary": "Resume with CAS. server.ts:656.",
+        "summary": "Admin resume with CAS; session CSRF required.",
         "security": [
           {
-            "ApiKey": []
+            "AdminBearer": []
+          },
+          {
+            "PortalSession": []
           }
         ],
         "requestBody": {
@@ -4516,11 +6377,8 @@
           }
         },
         "responses": {
-          "202": {
-            "description": "resumed"
-          },
           "200": {
-            "description": "replayed"
+            "description": "resumed or replayed"
           }
         },
         "parameters": [
@@ -4535,14 +6393,14 @@
         ],
         "servers": [
           {
-            "url": "http://localhost:3000",
-            "description": "PM-M02 Public JSON ingress (Orchestrator 3000). Admin and runtime routes are rejected on this listener."
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Admin/management family; authorization is unchanged by the listener."
           }
         ],
         "tags": [
-          "public"
+          "admin"
         ],
-        "x-api-family": "public"
+        "x-api-family": "admin"
       }
     },
     "/api/v1/usage/summary": {
@@ -4758,6 +6616,750 @@
           "public"
         ],
         "x-api-family": "public"
+      }
+    },
+    "/api/internal/usage/events": {
+      "get": {
+        "summary": "BASIC_ADMIN_USAGE_V1: bounded tenant-fenced page over persisted runtime UsageEvent rows. This read exposes basic event facts with nullable missing cost/provenance; it is not the rich COST ledger exporter.",
+        "security": [
+          {
+            "AdminBearer": []
+          },
+          {
+            "PortalSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "query",
+            "description": "Optional consistency/scope input. Tenant sessions are bound by the server; a platform Admin must name the tenant.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@\\/-]{0,127}$"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "description": "Required inclusive receivedAt window start.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "required": true
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "Required exclusive receivedAt window end; after from and no more than 366 days.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "required": true
+          },
+          {
+            "name": "timeField",
+            "in": "query",
+            "description": "Fixed to receivedAt for this basic projection.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "receivedAt"
+              ],
+              "default": "receivedAt"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Bounded page size, 1..100, default 50.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "Opaque keyset cursor bound to tenant and full query.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2048,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            }
+          },
+          {
+            "name": "operationId",
+            "in": "query",
+            "description": "Optional operation UUID filter.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "provider",
+            "in": "query",
+            "description": "Optional provider/model filter; both values are required together.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@\\/-]{0,127}$"
+            }
+          },
+          {
+            "name": "model",
+            "in": "query",
+            "description": "Optional provider/model filter; both values are required together.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@\\/-]{0,127}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tenant-scoped basic usage event page; skipped invalid rows are counted, never silently treated as absent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUsageEventPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "missing or invalid admin credential/session"
+          },
+          "403": {
+            "description": "tenant scope denied"
+          },
+          "422": {
+            "description": "INVALID_SCHEMA for unsupported/repeated filters, invalid window, paired provider/model mismatch, or cursor/query mismatch"
+          }
+        },
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Admin/management family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "admin"
+        ],
+        "x-api-family": "admin"
+      }
+    },
+    "/api/internal/compose/catalog": {
+      "get": {
+        "summary": "Read the sanitized configured host catalog and latest observed project state. Missing host configuration is returned as capability-disabled, not synthetic telemetry.",
+        "security": [
+          {
+            "AdminBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ComposeCatalog",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComposeCatalog"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "missing platform Admin bearer"
+          },
+          "403": {
+            "description": "platform Admin required"
+          },
+          "503": {
+            "description": "host runner unavailable"
+          }
+        },
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Admin/management family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "admin"
+        ],
+        "x-api-family": "admin"
+      }
+    },
+    "/api/internal/compose/previews": {
+      "post": {
+        "summary": "Create an expiring, manifest/revision-bound Compose impact preview. State and target are checked server-side.",
+        "security": [
+          {
+            "AdminBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required when the Admin BFF forwards a browser session proof; direct trusted bearer calls use the existing bearer policy."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComposePreviewRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "ComposePreview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComposePreview"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "missing platform Admin bearer"
+          },
+          "403": {
+            "description": "platform Admin or session CSRF denied"
+          },
+          "409": {
+            "description": "stale observation, unavailable host, or target conflict"
+          },
+          "422": {
+            "description": "invalid preview request"
+          },
+          "503": {
+            "description": "runner not configured"
+          }
+        },
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Admin/management family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "admin"
+        ],
+        "x-api-family": "admin"
+      }
+    },
+    "/api/internal/compose/jobs": {
+      "get": {
+        "summary": "List bounded Compose job history by optional host/project/state filter.",
+        "security": [
+          {
+            "AdminBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "hostId",
+            "in": "query",
+            "description": "Optional host selector; a runner-configured Admin may only access its configured host.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+            }
+          },
+          {
+            "name": "projectId",
+            "in": "query",
+            "description": "Optional manifest project filter.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "description": "Optional Compose job state.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "QUEUED",
+                "CLAIMED",
+                "RUNNING",
+                "SUCCEEDED",
+                "FAILED",
+                "PARTIAL",
+                "UNKNOWN",
+                "RECONCILED"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Bounded keyset page size, 1..100, default 50.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "Opaque query-bound cursor.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2048,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ComposeJobPage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComposeJobPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "missing platform Admin bearer"
+          },
+          "403": {
+            "description": "platform Admin required"
+          }
+        },
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Admin/management family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "admin"
+        ],
+        "x-api-family": "admin"
+      },
+      "post": {
+        "summary": "Submit a previously issued Compose preview with revision compare-and-swap and idempotency.",
+        "security": [
+          {
+            "AdminBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "idempotency-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 200
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComposeSubmitJobRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "ComposeJobSubmission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComposeJobSubmission"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "missing platform Admin bearer"
+          },
+          "403": {
+            "description": "platform Admin or session CSRF denied"
+          },
+          "409": {
+            "description": "idempotency mismatch, stale preview/revision, or active target fence"
+          },
+          "422": {
+            "description": "invalid request or missing Idempotency-Key"
+          },
+          "503": {
+            "description": "runner not configured"
+          }
+        },
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Admin/management family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "admin"
+        ],
+        "x-api-family": "admin"
+      }
+    },
+    "/api/internal/compose/jobs/{jobId}": {
+      "get": {
+        "summary": "Read one Compose job by id, host fenced.",
+        "security": [
+          {
+            "AdminBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ComposeJob",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComposeJob"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "missing platform Admin bearer"
+          },
+          "404": {
+            "description": "unknown or foreign-host job"
+          }
+        },
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Admin/management family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "admin"
+        ],
+        "x-api-family": "admin"
+      }
+    },
+    "/api/internal/compose/runner/snapshot": {
+      "post": {
+        "summary": "Publish a fresh, host-scoped allowlisted manifest and Docker observation snapshot.",
+        "security": [
+          {
+            "ComposeRunnerBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComposeRunnerSnapshotRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "snapshot acknowledgement with computed catalog and observation digests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComposeRunnerSnapshotAck"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "dedicated Compose runner bearer required"
+          },
+          "422": {
+            "description": "invalid or stale host snapshot"
+          },
+          "503": {
+            "description": "runner unavailable"
+          }
+        },
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Admin/management family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "admin"
+        ],
+        "x-api-family": "admin"
+      }
+    },
+    "/api/internal/compose/runner/claim": {
+      "post": {
+        "summary": "Atomically claim one queued job for the configured host; returns null when no job is ready.",
+        "security": [
+          {
+            "ComposeRunnerBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "bounded claim and execution token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComposeRunnerClaimResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "dedicated Compose runner bearer required"
+          }
+        },
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Admin/management family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "admin"
+        ],
+        "x-api-family": "admin"
+      }
+    },
+    "/api/internal/compose/runner/start": {
+      "post": {
+        "summary": "Persist the durable start acknowledgement only when the fresh stored observation digest matches the immutable job expectation.",
+        "security": [
+          {
+            "ComposeRunnerBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComposeRunnerStartRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "durable RUNNING acknowledgement",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComposeRunnerStartAck"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "dedicated Compose runner bearer required"
+          },
+          "409": {
+            "description": "stale sample, digest mismatch or claim conflict; no host command is authorized"
+          }
+        },
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Admin/management family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "admin"
+        ],
+        "x-api-family": "admin"
+      }
+    },
+    "/api/internal/compose/runner/complete": {
+      "post": {
+        "summary": "Report a completed host action; exact report replays return the stored acknowledgement, divergent retries conflict.",
+        "security": [
+          {
+            "ComposeRunnerBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComposeRunnerCompleteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "accepted completion",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComposeJobAck"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "dedicated Compose runner bearer required"
+          },
+          "409": {
+            "description": "state/version/token conflict"
+          }
+        },
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Admin/management family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "admin"
+        ],
+        "x-api-family": "admin"
+      }
+    },
+    "/api/internal/compose/runner/reconcile": {
+      "post": {
+        "summary": "Reconcile an UNKNOWN host job only with quiescence evidence and a fresh observation; exact report retries replay the stored acknowledgement.",
+        "security": [
+          {
+            "ComposeRunnerBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComposeRunnerReconcileRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "accepted reconciliation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComposeJobAck"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "dedicated Compose runner bearer required"
+          },
+          "409": {
+            "description": "job is not UNKNOWN or state version changed"
+          }
+        },
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Admin/management family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "admin"
+        ],
+        "x-api-family": "admin"
+      }
+    },
+    "/api/internal/compose/runner/jobs/{jobId}": {
+      "get": {
+        "summary": "Read current runner-visible job state after expiry sweeping, scoped to the configured host. No Admin/BFF proxy exists.",
+        "security": [
+          {
+            "ComposeRunnerBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "host-scoped ComposeJob",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComposeJob"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "dedicated Compose runner bearer required"
+          },
+          "404": {
+            "description": "job not found or belongs to another host"
+          }
+        },
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Admin/management family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "admin"
+        ],
+        "x-api-family": "admin"
       }
     },
     "/api/v1/connectors/{id}/test": {
@@ -6754,7 +9356,184 @@
             "description": "Required management/workflow composition unavailable"
           }
         },
-        "x-source": "du-rework/orchestrator/services/orchestrator/src/http/routes/admin.ts:329",
+        "x-source": "du-rework/orchestrator/services/orchestrator/src/http/routes/admin.ts:422",
+        "x-action-contracts": {
+          "settings.revision.create": {
+            "params": "tenantId, apiKeyId, endpointSlug, expectedActiveRevision:number|null, expectedProfileRevision?:positive integer, changes:{prompts?:[{connectionId:UUID,stepId:_default,promptOverride:string|null}],connectorBindings?:full slot->{connectorId,revision} map}",
+            "result": "revision detail root; immutable encrypted draft; baseline0 retained; admin only"
+          },
+          "settings.revision.validate": {
+            "params": "scope + revision",
+            "result": "{revision,valid,issues:[{code,message}],checks}; configuration checks only, no paid provider execution"
+          },
+          "settings.revision.apply": {
+            "params": "scope + revision + expectedActiveRevision",
+            "result": "{revision,activeRevision,profileRevision,appliesTo:new submissions only}; encrypted actual prompts and cloned profile pins; dependency and head CAS"
+          },
+          "settings.revision.rollback": {
+            "params": "scope + historical revision + expectedActiveRevision",
+            "result": "new applied revision restoring target; no old operation pin mutation"
+          },
+          "settings.prompt.update": {
+            "params": "legacy prompt target/value + expectedUpdatedAt",
+            "result": "timestamp CAS shorthand over create/validate/apply"
+          },
+          "profile.upsert": {
+            "params": "existing command + endpointSlug?:core action:variant + connectorBindings?:full initial map",
+            "result": "native exact-endpoint profile creation; endpoint selector immutable; omitted pins preserve active map"
+          },
+          "operations.callback.retry": {
+            "params": "operationId, deliveryId, expectedAttempts",
+            "result": "same failed delivery requeued, immutable payload/policy/id and consumed attempts retained; bounded10 attempts; RBAC,tenant,CSRF,idempotency,audit; never reexecute provider"
+          }
+        },
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Admin/management family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "admin"
+        ],
+        "x-api-family": "admin"
+      }
+    },
+    "/api/v1/admin/settings": {
+      "get": {
+        "summary": "Effective deployment storage metadata and selected core profile/prompt configuration. Scope fields are required together. Latest20 revision history; optional revision selects decrypted authorized diff. activeRevisionMatchesEffective reports external dependency drift. No credential values.",
+        "security": [
+          {
+            "AdminBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "apiKeyId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "endpointSlug",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "revision",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "EffectiveSettings with configuration {activeRevision,activeRevisionMatchesEffective,historyLimit:20,profile,revisions,selectedRevision?}"
+          },
+          "403": {
+            "description": "Tenant denied"
+          },
+          "422": {
+            "description": "Invalid scope"
+          }
+        },
+        "x-source": "du-rework/orchestrator/services/orchestrator/src/http/routes/admin.ts:123",
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Admin/management family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "admin"
+        ],
+        "x-api-family": "admin"
+      }
+    },
+    "/api/v1/admin/legacy-migration/readiness": {
+      "get": {
+        "summary": "Tenant-scoped archived migration inventory/readiness. No archive/configuration payload is exposed; cutoverReady remains false until external verification gates are met.",
+        "security": [
+          {
+            "AdminBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{tenantId,runs:[source digests,counts,latestInventory,status,cutoverReady:false]}"
+          },
+          "403": {
+            "description": "Tenant denied"
+          }
+        },
+        "x-source": "du-rework/orchestrator/services/orchestrator/src/http/routes/admin.ts:115",
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Admin/management family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "admin"
+        ],
+        "x-api-family": "admin"
+      }
+    },
+    "/api/internal/operations/{id}/deliveries": {
+      "get": {
+        "summary": "Tenant-scoped callback delivery status and retry capability. Excludes destination credentials/payload and sanitizes errors. Admin/session only.",
+        "security": [
+          {
+            "AdminBearer": []
+          },
+          {
+            "PortalSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{items:[{deliveryId,status,attempts,maxAttempts,lastError,nextAttemptAt,canRetry,disabledReason}]}"
+          },
+          "404": {
+            "description": "Unknown/deleted/foreign operation"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "servers": [
           {
             "url": "http://localhost:3002",
@@ -6792,7 +9571,7 @@
             "description": "Management store not composed or upstream unavailable"
           }
         },
-        "x-source": "du-rework/orchestrator/services/orchestrator/src/http/routes/admin.ts:585",
+        "x-source": "du-rework/orchestrator/services/orchestrator/src/http/routes/admin.ts:967",
         "servers": [
           {
             "url": "http://localhost:3002",
@@ -6847,7 +9626,7 @@
             "description": "Admin scope denied"
           }
         },
-        "x-source": "du-rework/orchestrator/services/orchestrator/src/http/routes/admin.ts:573",
+        "x-source": "du-rework/orchestrator/services/orchestrator/src/http/routes/admin.ts:955",
         "servers": [
           {
             "url": "http://localhost:3002",
@@ -6905,7 +9684,7 @@
             "description": "Invalid upstream response"
           }
         },
-        "x-source": "du-rework/orchestrator/services/orchestrator/src/http/routes/admin.ts:612",
+        "x-source": "du-rework/orchestrator/services/orchestrator/src/http/routes/admin.ts:994",
         "servers": [
           {
             "url": "http://localhost:3002",
@@ -6962,7 +9741,7 @@
             "description": "tenant outside the credential scope; the credential is the only scope input this route accepts"
           }
         },
-        "x-source": "du-rework/orchestrator/services/orchestrator/src/http/routes/admin.ts:413",
+        "x-source": "du-rework/orchestrator/services/orchestrator/src/http/routes/admin.ts:574",
         "servers": [
           {
             "url": "http://localhost:3002",
@@ -7632,6 +10411,500 @@
         ],
         "x-api-family": "admin"
       }
+    },
+    "/admin/api/usage/events": {
+      "get": {
+        "summary": "BASIC_ADMIN_USAGE_V1 BFF page. Resolves the active Admin session and tenant scope before forwarding to Internal JSON.",
+        "security": [
+          {
+            "PortalSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "query",
+            "description": "Optional consistency/scope input. Tenant sessions are bound by the server; a platform Admin must name the tenant.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@\\/-]{0,127}$"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "description": "Required inclusive receivedAt window start.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "required": true
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "Required exclusive receivedAt window end; after from and no more than 366 days.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "required": true
+          },
+          {
+            "name": "timeField",
+            "in": "query",
+            "description": "Fixed to receivedAt for this basic projection.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "receivedAt"
+              ],
+              "default": "receivedAt"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Bounded page size, 1..100, default 50.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "Opaque keyset cursor bound to tenant and full query.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2048,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            }
+          },
+          {
+            "name": "operationId",
+            "in": "query",
+            "description": "Optional operation UUID filter.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "provider",
+            "in": "query",
+            "description": "Optional provider/model filter; both values are required together.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@\\/-]{0,127}$"
+            }
+          },
+          {
+            "name": "model",
+            "in": "query",
+            "description": "Optional provider/model filter; both values are required together.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@\\/-]{0,127}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "AdminUsageEventPage; basic persisted runtime facts with nullable absent cost/provenance.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUsageEventPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "missing/expired Portal session"
+          },
+          "403": {
+            "description": "tenant scope denied"
+          },
+          "422": {
+            "description": "invalid bounded query"
+          },
+          "503": {
+            "description": "Admin JSON upstream unavailable"
+          }
+        },
+        "servers": [
+          {
+            "url": "http://localhost:3001",
+            "description": "Portal shell/BFF 3001; cookie session and mutation CSRF. Not internal JSON 3002."
+          }
+        ],
+        "tags": [
+          "admin"
+        ],
+        "x-api-family": "admin"
+      }
+    },
+    "/admin/api/compose/catalog": {
+      "get": {
+        "summary": "Read the sanitized Compose catalog.",
+        "security": [
+          {
+            "PortalSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Read the sanitized Compose catalog.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComposeCatalog"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "missing/expired Portal session"
+          },
+          "403": {
+            "description": "platform Admin or CSRF denied"
+          },
+          "422": {
+            "description": "unsupported/repeated query parameter or invalid DTO"
+          },
+          "503": {
+            "description": "Admin JSON upstream unavailable"
+          }
+        },
+        "operationId": "portalComposeGetAdminApiComposeCatalog",
+        "x-source": "du-rework/orchestrator/services/orchestrator/src/app/admin/bff/compose.ts",
+        "servers": [
+          {
+            "url": "http://localhost:3001",
+            "description": "Portal shell/BFF 3001; cookie session and mutation CSRF. Not internal JSON 3002."
+          }
+        ],
+        "tags": [
+          "admin"
+        ],
+        "x-api-family": "admin"
+      }
+    },
+    "/admin/api/compose/previews": {
+      "post": {
+        "summary": "Create an expiring Compose preview.",
+        "security": [
+          {
+            "PortalSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComposePreviewRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Create an expiring Compose preview.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComposePreview"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "missing/expired Portal session"
+          },
+          "403": {
+            "description": "platform Admin or CSRF denied"
+          },
+          "422": {
+            "description": "unsupported/repeated query parameter or invalid DTO"
+          },
+          "503": {
+            "description": "Admin JSON upstream unavailable"
+          },
+          "409": {
+            "description": "stale preview/revision, active target fence or idempotency conflict"
+          }
+        },
+        "operationId": "portalComposePostAdminApiComposePreviews",
+        "x-source": "du-rework/orchestrator/services/orchestrator/src/app/admin/bff/compose.ts",
+        "servers": [
+          {
+            "url": "http://localhost:3001",
+            "description": "Portal shell/BFF 3001; cookie session and mutation CSRF. Not internal JSON 3002."
+          }
+        ],
+        "tags": [
+          "admin"
+        ],
+        "x-api-family": "admin"
+      }
+    },
+    "/admin/api/compose/jobs": {
+      "get": {
+        "summary": "List bounded Compose job history.",
+        "security": [
+          {
+            "PortalSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "hostId",
+            "in": "query",
+            "description": "Optional host filter.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+            }
+          },
+          {
+            "name": "projectId",
+            "in": "query",
+            "description": "Optional project filter.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "description": "Optional job-state filter.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "QUEUED",
+                "CLAIMED",
+                "RUNNING",
+                "SUCCEEDED",
+                "FAILED",
+                "PARTIAL",
+                "UNKNOWN",
+                "RECONCILED"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Bounded keyset page size, 1..100, default 50.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "Opaque query-bound cursor.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2048,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List bounded Compose job history.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComposeJobPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "missing/expired Portal session"
+          },
+          "403": {
+            "description": "platform Admin or CSRF denied"
+          },
+          "422": {
+            "description": "unsupported/repeated query parameter or invalid DTO"
+          },
+          "503": {
+            "description": "Admin JSON upstream unavailable"
+          }
+        },
+        "operationId": "portalComposeGetAdminApiComposeJobs",
+        "x-source": "du-rework/orchestrator/services/orchestrator/src/app/admin/bff/compose.ts",
+        "servers": [
+          {
+            "url": "http://localhost:3001",
+            "description": "Portal shell/BFF 3001; cookie session and mutation CSRF. Not internal JSON 3002."
+          }
+        ],
+        "tags": [
+          "admin"
+        ],
+        "x-api-family": "admin"
+      },
+      "post": {
+        "summary": "Submit a preview with revision compare-and-swap and idempotency.",
+        "security": [
+          {
+            "PortalSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "idempotency-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 200
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComposeSubmitJobRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Submit a preview with revision compare-and-swap and idempotency.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComposeJobSubmission"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "missing/expired Portal session"
+          },
+          "403": {
+            "description": "platform Admin or CSRF denied"
+          },
+          "422": {
+            "description": "unsupported/repeated query parameter or invalid DTO"
+          },
+          "503": {
+            "description": "Admin JSON upstream unavailable"
+          },
+          "409": {
+            "description": "stale preview/revision, active target fence or idempotency conflict"
+          }
+        },
+        "operationId": "portalComposePostAdminApiComposeJobs",
+        "x-source": "du-rework/orchestrator/services/orchestrator/src/app/admin/bff/compose.ts",
+        "servers": [
+          {
+            "url": "http://localhost:3001",
+            "description": "Portal shell/BFF 3001; cookie session and mutation CSRF. Not internal JSON 3002."
+          }
+        ],
+        "tags": [
+          "admin"
+        ],
+        "x-api-family": "admin"
+      }
+    },
+    "/admin/api/compose/jobs/{jobId}": {
+      "get": {
+        "summary": "Read one Compose job.",
+        "security": [
+          {
+            "PortalSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Read one Compose job.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComposeJob"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "missing/expired Portal session"
+          },
+          "403": {
+            "description": "platform Admin or CSRF denied"
+          },
+          "422": {
+            "description": "unsupported/repeated query parameter or invalid DTO"
+          },
+          "503": {
+            "description": "Admin JSON upstream unavailable"
+          },
+          "404": {
+            "description": "job not found"
+          }
+        },
+        "operationId": "portalComposeGetAdminApiComposeJobsById",
+        "x-source": "du-rework/orchestrator/services/orchestrator/src/app/admin/bff/compose.ts",
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:3001",
+            "description": "Portal shell/BFF 3001; cookie session and mutation CSRF. Not internal JSON 3002."
+          }
+        ],
+        "tags": [
+          "admin"
+        ],
+        "x-api-family": "admin"
+      }
     }
   },
   "x-absent": [
@@ -7640,13 +10913,16 @@
     "POST /docs/{action}",
     "POST /api/v1/artifacts",
     "GET /api/v1/artifacts/{id} metadata",
-    "admin /api/internal/v1 base + profiles/api-keys/connectors-CRUD/usage/replay",
+    "admin /api/internal/v1 base + profiles/api-keys/connectors-CRUD/replay",
     "GET /api/runtime/v1/tasks/{id}/context",
     "Secret catalog upstream /api/v1/admin/secrets* and any plaintext resolve endpoint",
+    "Rich COST provenance and budget-editing features beyond BASIC_ADMIN_USAGE_V1",
     "Profile/admission policy.callbackPolicy plumbing (contract models exist)"
   ],
   "x-contract-models": {
     "secretCatalog": "Canonical models + existing BFF routes; /api/v1/admin/secrets upstream absent.",
+    "adminBasicUsage": "BASIC_ADMIN_USAGE_V1 persisted runtime-event projection; distinct from the rich public COST exporter and does not invent absent provenance.",
+    "composeOperations": "Platform Admin/BFF catalog-preview-job routes plus distinct host-scoped runner protocol; unavailable host adapter remains an explicit capability state.",
     "callbackPolicy": "Frozen contract models and offline dispatcher implementation; profile/admission policy.callbackPolicy and production resolver wiring absent. Not a new endpoint."
   }
 }

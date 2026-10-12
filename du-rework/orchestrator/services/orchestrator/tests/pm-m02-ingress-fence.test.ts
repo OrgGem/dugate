@@ -58,7 +58,7 @@ describe('PM-M02-ROUTE guard (pure)', () => {
     // lets it through; the router's own matcher is the second line of defence
     // and sees the SAME pathname, so there is no bypass.
     expect(isPublicIngressAllowed(new URL('/api/v1//admin/', 'http://x').pathname)).toBe(true);
-    expect(isPublicIngressAllowed(new URL('/api/v1/./operations', 'http://x').pathname)).toBe(true);
+    expect(isPublicIngressAllowed(new URL('/api/v1/./operations', 'http://x').pathname)).toBe(false);
     expect(isPublicIngressAllowed(new URL('/api/v1/foo/../runtime', 'http://x').pathname)).toBe(true);
     // a dot segment that RESOLVES OUT of /admin lands on the public family,
     // which is correct: the guard sees the same pathname the router will use
@@ -119,7 +119,7 @@ liveDescribe('PM-M02-ROUTE listener fencing (DU_LIVE_INFRA=1)', () => {
   it('public listener keeps health and the public family working', async () => {
     const health = await fetch(`${publicBase}/api/v1/health`);
     expect([200, 503]).toContain(health.status);
-    const unauthorized = await fetch(`${publicBase}/api/v1/operations`);
+    const unauthorized = await fetch(`${publicBase}/api/v1/operations/example-id`);
     expect(unauthorized.status).not.toBe(404); // reached dispatch, not the fence
   }, 30_000);
 

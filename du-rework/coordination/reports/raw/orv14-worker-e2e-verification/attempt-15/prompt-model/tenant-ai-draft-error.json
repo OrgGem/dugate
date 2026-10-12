@@ -1,0 +1,17 @@
+{
+  "stage": "tenant-ai-draft",
+  "expectedConstraint": "TenantAiDraftRequestSchema requires expectedActiveRevision, settings(provider/model/connectorId/connectorRevision), idempotencyKey, and reason; connectorId and connectorRevision must be present together",
+  "status": 422,
+  "code": "INVALID_SCHEMA",
+  "correlationId": "4545bba1-2862-4a8d-9aaa-7b420a050ed2",
+  "fieldErrors": [
+    {
+      "pointer": "/settings/connectorRevision",
+      "message": "Required"
+    },
+    {
+      "pointer": "/settings",
+      "message": "Unrecognized key(s) in object: 'revision'"
+    }
+  ]
+}

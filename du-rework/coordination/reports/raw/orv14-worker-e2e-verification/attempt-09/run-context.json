@@ -1,0 +1,38 @@
+{
+  "attempt": "09",
+  "cwd": "/workspace/dugate/du-rework",
+  "startedAtUtc": "2026-10-12T01:39:09.374806+00:00",
+  "command": [
+    "/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node",
+    "/workspace/dugate/du-rework/businesses/document-core/node_modules/jest/bin/jest.js",
+    "--config",
+    "tests/workflow-api/jest.config.cjs",
+    "--runInBand",
+    "--runTestsByPath",
+    "tests/workflow-api/orv14-vfy-core31.test.ts",
+    "--testNamePattern",
+    "published tenant prompt revisions reach real PNG/PDF/DOCX, compare, and generate provider calls with old/new operation pins|Gemini and OpenAI-compatible AI model defaults reach native provider tests and real Worker calls, with immutable old/new pins and Profile precedence"
+  ],
+  "node": "/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node",
+  "nodeVersion": "v24.21.0",
+  "jest": "/workspace/dugate/du-rework/businesses/document-core/node_modules/jest/bin/jest.js",
+  "testNamePattern": "published tenant prompt revisions reach real PNG/PDF/DOCX, compare, and generate provider calls with old/new operation pins|Gemini and OpenAI-compatible AI model defaults reach native provider tests and real Worker calls, with immutable old/new pins and Profile precedence",
+  "environment": {
+    "WFA_DATABASE_URL": "postgresql://orv14_vfy:<synthetic Compose password omitted>@127.0.0.1:25414/orv14_vfy",
+    "WFA_REDIS_URL": "redis://127.0.0.1:26414/2",
+    "NODE_PATH": "/workspace/dugate/du-rework/businesses/document-core/node_modules",
+    "NODE_EXTRA_CA_CERTS": "/workspace/dugate/du-rework/tests/workflow-api/orv14-vfy-worker/https-fixture/runner-trust-bundle.pem",
+    "ORV14_WORKER_E2E_RAW_DIR": "/workspace/dugate/du-rework/coordination/reports/raw/orv14-worker-e2e-verification/attempt-09",
+    "HTTP(S)_PROXY": "inherited unchanged"
+  },
+  "composeProject": "orv14-vfy-20261011-a1",
+  "sourceScope": "two dedicated native tenant prompt/model end-to-end cases only; no core31 or private HTTPS cases repeated",
+  "createAppSourceSha256Before": "d4096d0b607610d8e6d6571e5a20c7d906aa3989a4225151a3c320b493e6820b",
+  "contractsSourceManifestSha256": "fd6f92da8c6948f42b28b5126b6de4d8feb801140a8c5f73d448444a16f81934",
+  "contractsDistManifestSha256": "4880c7cc7e0da0e01e3a0895078096c7a4009f7fa47be45f32727d4f1eb85b44",
+  "dependencyInputs": {
+    "sha256": "a405db31349e264fc2fd3c4cfc046b2692e73877420fca05d97acd1227fc7810",
+    "files": 943,
+    "missing": []
+  }
+}

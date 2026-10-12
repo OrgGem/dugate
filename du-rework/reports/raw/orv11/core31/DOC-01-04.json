@@ -1,0 +1,44 @@
+{
+  "name": "operations/46599781-907e-430d-94c4-3c747b38bc22",
+  "done": true,
+  "metadata": {
+    "state": "SUCCEEDED",
+    "pipeline": [],
+    "current_step": 0,
+    "progress_percent": 0,
+    "progress_message": "Queued",
+    "create_time": "2026-10-11T16:35:03.450Z",
+    "update_time": "2026-10-11T16:35:03.639Z",
+    "pipeline_steps": []
+  },
+  "result": {
+    "output_format": "json",
+    "content": "{\"splitArtifacts\":[{\"artifactId\":\"b404a70b-e4a2-4ad5-9ee2-e2ce0527bb5a\",\"fileName\":\"split_1.pdf\",\"pageCount\":1,\"pageRange\":\"1\"}],\"metadata\":{\"pageCount\":1,\"detectedFormat\":\"pdf\",\"parser\":\"document-kit:pdf-splitter\",\"provenance\":\"native_parse\"}}",
+    "extracted_data": {
+      "splitArtifacts": [
+        {
+          "artifactId": "b404a70b-e4a2-4ad5-9ee2-e2ce0527bb5a",
+          "fileName": "split_1.pdf",
+          "pageCount": 1,
+          "pageRange": "1"
+        }
+      ],
+      "metadata": {
+        "pageCount": 1,
+        "detectedFormat": "pdf",
+        "parser": "document-kit:pdf-splitter",
+        "provenance": "native_parse"
+      }
+    },
+    "pipeline_steps": [],
+    "usage": {
+      "input_tokens": null,
+      "output_tokens": null,
+      "pages_processed": null,
+      "model_used": null,
+      "cost_usd": null,
+      "breakdown": []
+    },
+    "download_url": "/api/v1/operations/46599781-907e-430d-94c4-3c747b38bc22/download"
+  }
+}

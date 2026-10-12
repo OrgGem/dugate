@@ -1,0 +1,14 @@
+{
+  "postgresSchemaAbsent": true,
+  "connectorPostgresSchemaAbsent": true,
+  "artifactDirectoryAbsent": true,
+  "connectorArtifactDirectoryAbsent": true,
+  "ownedMinioCleanup": {
+    "bucketVersionCountBeforeDelete": 0,
+    "deleteMarkersBeforeDelete": 0,
+    "bucketAbsent": true,
+    "containerAbsent": true,
+    "runLabelAbsent": true
+  },
+  "cleanupFailures": []
+}

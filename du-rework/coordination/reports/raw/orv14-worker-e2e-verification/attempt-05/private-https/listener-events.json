@@ -1,0 +1,85 @@
+[
+  {
+    "kind": "tls",
+    "listener": "san-match",
+    "sni": "172-26-91-253.sslip.io"
+  },
+  {
+    "kind": "request",
+    "listener": "san-match",
+    "method": "GET",
+    "path": "/file.txt",
+    "host": "172-26-91-253.sslip.io:34239",
+    "sni": "172-26-91-253.sslip.io"
+  },
+  {
+    "kind": "request",
+    "listener": "san-match",
+    "method": "GET",
+    "path": "/file.txt",
+    "host": "172-26-91-253.sslip.io:34239",
+    "sni": "172-26-91-253.sslip.io"
+  },
+  {
+    "kind": "tls",
+    "listener": "san-match",
+    "sni": "172-26-91-253.sslip.io"
+  },
+  {
+    "kind": "request",
+    "listener": "san-match",
+    "method": "POST",
+    "path": "/callback",
+    "host": "172-26-91-253.sslip.io:34239",
+    "sni": "172-26-91-253.sslip.io",
+    "bodyBytes": 81,
+    "bodySha256": "fb6482a2478bc897bd7c8b9bb842e33a7c07a8f9206ad8a75582ecc5e99f0b7c"
+  },
+  {
+    "kind": "tls",
+    "listener": "san-match",
+    "sni": "172-26-91-253.sslip.io"
+  },
+  {
+    "kind": "request",
+    "listener": "san-match",
+    "method": "GET",
+    "path": "/flaky",
+    "host": "172-26-91-253.sslip.io:34239",
+    "sni": "172-26-91-253.sslip.io"
+  },
+  {
+    "kind": "tls",
+    "listener": "san-match",
+    "sni": "172-26-91-253.sslip.io"
+  },
+  {
+    "kind": "request",
+    "listener": "san-match",
+    "method": "GET",
+    "path": "/file.txt",
+    "host": "172-26-91-253.sslip.io:34239",
+    "sni": "172-26-91-253.sslip.io"
+  },
+  {
+    "kind": "tls",
+    "listener": "san-match",
+    "sni": "172-26-91-253.sslip.io"
+  },
+  {
+    "kind": "request",
+    "listener": "san-match",
+    "method": "GET",
+    "path": "/flaky",
+    "host": "172-26-91-253.sslip.io:34239",
+    "sni": "172-26-91-253.sslip.io"
+  },
+  {
+    "kind": "request",
+    "listener": "san-match",
+    "method": "GET",
+    "path": "/slow",
+    "host": "172-26-91-253.sslip.io:34239",
+    "sni": "172-26-91-253.sslip.io"
+  }
+]

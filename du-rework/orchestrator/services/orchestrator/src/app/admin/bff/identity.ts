@@ -26,7 +26,10 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import {
   IDENTITY_ROLE_VALUES,
+  IdentityAssignmentReplaceSchema,
+  IdentityPasswordResetSchema,
 } from '@du/contracts';
+import { SESSION_COOKIE_NAME } from '../../../modules/auth/session-store';
 import type { AdminShellRequest } from '../shell-types';
 import type { ShellRuntimeConfig } from '../shell-router';
 import { resolveBffContext } from './context';
@@ -45,11 +48,23 @@ export type IdentityRoute =
   | { kind: 'snapshot' }
   | { kind: 'users' }
   | { kind: 'user'; userId: string }
+  | { kind: 'password'; userId: string }
+  | { kind: 'assignments'; userId: string }
+  | { kind: 'assignable-users' }
+  | { kind: 'platform-assignable-users' }
   | { kind: 'invalid' };
 
 export function matchIdentityRoute(relative: string): IdentityRoute | null {
   if (relative === '/identity') return { kind: 'snapshot' };
   if (relative === '/identity/users') return { kind: 'users' };
+  if (relative === '/identity/assignable-users') return { kind: 'assignable-users' };
+  if (relative === '/identity/platform-assignable-users') return { kind: 'platform-assignable-users' };
+  const child = /^\/identity\/users\/([^/]+)\/(password|assignments)$/.exec(relative);
+  if (child) {
+    const userId = decodePathSegment(child[1] ?? '');
+    if (userId === null || !/^[0-9a-f-]{36}$/i.test(userId)) return { kind: 'invalid' };
+    return child[2] === 'password' ? { kind: 'password', userId } : { kind: 'assignments', userId };
+  }
   const m = /^\/identity\/users\/([^/]+)$/.exec(relative);
   if (!m) return null;
   const userId = decodePathSegment(m[1] ?? '');
@@ -67,7 +82,7 @@ export async function handleIdentityRoute(
   res: ServerResponse,
   request: AdminShellRequest,
   route: IdentityRoute,
-  _query: URLSearchParams,
+  query: URLSearchParams,
   config: ShellRuntimeConfig,
   runtime: BffRuntimeConfig,
   correlationId: string,
@@ -80,8 +95,10 @@ export async function handleIdentityRoute(
 
   // Method is bound per route so a wrong verb is a clean 405, not a silent
   // fallthrough into another route's handler.
-  const allowed =
-    route.kind === 'snapshot' ? ['GET'] : route.kind === 'users' ? ['GET', 'POST'] : ['GET', 'PATCH'];
+  const allowed = route.kind === 'snapshot' || route.kind === 'assignable-users' || route.kind === 'platform-assignable-users' ? ['GET']
+    : route.kind === 'users' ? ['GET', 'POST']
+      : route.kind === 'password' ? ['POST']
+        : route.kind === 'assignments' ? ['GET', 'PUT'] : ['GET', 'PATCH'];
   if (!allowed.includes(method)) {
     writeProblem(res, 405, 'METHOD_NOT_ALLOWED', `method ${method} is not allowed here`, correlationId);
     return;
@@ -98,8 +115,36 @@ export async function handleIdentityRoute(
     return;
   }
 
+  if (route.kind === 'platform-assignable-users' && (principal.kind !== 'platform' || ctx.role !== 'admin')) {
+    writeProblem(res, 403, 'PERMISSION_DENIED', 'platform owner lookup requires platform Admin access', correlationId);
+    return;
+  }
+
+  for (const key of query.keys()) {
+    if (!['tenantId', 'query', 'cursor', 'limit'].includes(key)) {
+      writeProblem(res, 422, 'INVALID_SCHEMA', 'Identity query contains an unsupported parameter', correlationId);
+      return;
+    }
+  }
+  const platformOwnerLookup = route.kind === 'platform-assignable-users';
+  if (platformOwnerLookup && query.has('tenantId')) {
+    writeProblem(res, 422, 'INVALID_SCHEMA', 'platform owner lookup does not accept a tenant override', correlationId);
+    return;
+  }
+  const requestedTenantId = query.get('tenantId');
+  const tenantId = principal.kind === 'tenant_operator'
+    ? (requestedTenantId && requestedTenantId !== principal.tenantId ? null : principal.tenantId)
+    : requestedTenantId;
+  if (!platformOwnerLookup && (!tenantId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(tenantId))) {
+    const foreignTenant = requestedTenantId !== null && principal.kind === 'tenant_operator';
+    writeProblem(res, foreignTenant ? 404 : 422, foreignTenant ? 'NOT_FOUND' : 'INVALID_SCHEMA',
+      foreignTenant ? 'not found' : 'tenantId is required and must be a UUID', correlationId);
+    return;
+  }
+
   const credential = credentialFor(principal, runtime);
-  if (credential === null) {
+  const sessionProof = activeSessionProof(request, ctx);
+  if (credential === null && !sessionProof) {
     writeProblem(res, 403, 'TENANT_SCOPE_UNAVAILABLE', 'no admin credential is configured for this tenant', correlationId);
     return;
   }
@@ -110,14 +155,25 @@ export async function handleIdentityRoute(
 
   // ---- read ---------------------------------------------------------------
   if (method === 'GET') {
-    const url =
-      route.kind === 'snapshot'
-        ? new URL('/api/v1/admin/identity', runtime.jsonBaseUrl)
-        : route.kind === 'user'
-          ? new URL(`/api/v1/admin/identity/users/${encodeURIComponent(route.userId)}`, runtime.jsonBaseUrl)
-          : new URL('/api/v1/admin/identity/users', runtime.jsonBaseUrl);
-    const response = await callUpstream(runtime, url, { method: 'GET', credential, correlationId });
+    const path = route.kind === 'platform-assignable-users' ? '/api/internal/parity/identity/platform-assignable-users'
+      : route.kind === 'snapshot' ? '/api/internal/parity/identity'
+      : route.kind === 'user' ? `/api/internal/parity/identity/users/${encodeURIComponent(route.userId)}`
+        : route.kind === 'assignments' ? `/api/internal/parity/identity/users/${encodeURIComponent(route.userId)}/assignments`
+          : route.kind === 'assignable-users' ? '/api/internal/parity/identity/assignable-users'
+            : '/api/internal/parity/identity/users';
+    const url = new URL(path, runtime.jsonBaseUrl);
+    if (tenantId) url.searchParams.set('tenantId', tenantId);
+    for (const key of ['query', 'cursor', 'limit']) {
+      const value = query.get(key);
+      if (value !== null) url.searchParams.set(key, value);
+    }
+    const response = await callUpstream(runtime, url, { method: 'GET', credential: credential ?? '', correlationId, ...(sessionProof ? { sessionProof } : {}) });
     await relayUpstream(res, response, correlationId);
+    return;
+  }
+
+  if (!tenantId) {
+    writeProblem(res, 422, 'INVALID_SCHEMA', 'tenantId is required for Identity mutation', correlationId);
     return;
   }
 
@@ -158,6 +214,34 @@ export async function handleIdentityRoute(
   const body = parsed as Record<string, unknown>;
   const idempotencyKey = clampKey(firstHeaderValue(req.headers['idempotency-key']));
 
+  if (route.kind === 'password') {
+    if (ctx.role !== 'admin' || principal.kind !== 'platform') {
+      writeProblem(res, 403, 'ADMIN_CREDENTIAL_REQUIRED', 'password reset requires platform Admin access', correlationId);
+      return;
+    }
+    const reset = IdentityPasswordResetSchema.safeParse(body);
+    if (!reset.success) { writeProblem(res, 422, 'INVALID_SCHEMA', 'password reset request is invalid', correlationId); return; }
+    const url = new URL(`/api/internal/parity/identity/users/${encodeURIComponent(route.userId)}/password?tenantId=${encodeURIComponent(tenantId)}`, runtime.jsonBaseUrl);
+    const response = await callUpstream(runtime, url, { method: 'POST', credential: credential ?? '', correlationId,
+      jsonBody: JSON.stringify(reset.data), idempotencyKey, ...(sessionProof ? { sessionProof } : {}) });
+    await relayUpstream(res, response, correlationId);
+    return;
+  }
+
+  if (route.kind === 'assignments' && method === 'PUT') {
+    if (ctx.role !== 'admin' || principal.kind !== 'platform') {
+      writeProblem(res, 403, 'ADMIN_CREDENTIAL_REQUIRED', 'Identity assignment changes require platform Admin access', correlationId);
+      return;
+    }
+    const replacement = IdentityAssignmentReplaceSchema.safeParse(body);
+    if (!replacement.success) { writeProblem(res, 422, 'INVALID_SCHEMA', 'Identity assignment request is invalid', correlationId); return; }
+    const url = new URL(`/api/internal/parity/identity/users/${encodeURIComponent(route.userId)}/assignments?tenantId=${encodeURIComponent(tenantId)}`, runtime.jsonBaseUrl);
+    const response = await callUpstream(runtime, url, { method: 'PUT', credential: credential ?? '', correlationId,
+      jsonBody: JSON.stringify(replacement.data), idempotencyKey, ...(sessionProof ? { sessionProof } : {}) });
+    await relayUpstream(res, response, correlationId);
+    return;
+  }
+
   if (method === 'POST') {
     const username = typeof body.username === 'string' ? body.username : '';
     const password = typeof body.password === 'string' ? body.password : '';
@@ -180,13 +264,14 @@ export async function handleIdentityRoute(
       );
       return;
     }
-    const url = new URL('/api/v1/admin/identity/users', runtime.jsonBaseUrl);
+    const url = new URL(`/api/internal/parity/identity/users?tenantId=${encodeURIComponent(tenantId)}`, runtime.jsonBaseUrl);
     const response = await callUpstream(runtime, url, {
       method: 'POST',
-      credential,
+      credential: credential ?? '',
       correlationId,
       jsonBody: JSON.stringify({ username, password, role }),
       idempotencyKey,
+      ...(sessionProof ? { sessionProof } : {}),
     });
     await relayUpstream(res, response, correlationId);
     return;
@@ -220,17 +305,33 @@ export async function handleIdentityRoute(
     writeProblem(res, 404, 'NOT_FOUND', 'no Identity route matches this request', correlationId);
     return;
   }
-  const url = new URL(`/api/v1/admin/identity/users/${encodeURIComponent(route.userId)}`, runtime.jsonBaseUrl);
+  const url = new URL(`/api/internal/parity/identity/users/${encodeURIComponent(route.userId)}?tenantId=${encodeURIComponent(tenantId)}`, runtime.jsonBaseUrl);
   const response = await callUpstream(runtime, url, {
     method: 'PUT',
-    credential,
+    credential: credential ?? '',
     correlationId,
     jsonBody: JSON.stringify({ role, enabled, expectedVersion }),
     idempotencyKey,
+    ...(sessionProof ? { sessionProof } : {}),
   });
   await relayUpstream(res, response, correlationId);
 }
 
 function clampKey(value: string | undefined): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value.slice(0, MAX_IDEMPOTENCY_KEY_LENGTH) : undefined;
+}
+
+function activeSessionProof(
+  request: AdminShellRequest,
+  ctx: NonNullable<Awaited<ReturnType<typeof resolveBffContext>>>,
+): { cookie: string; csrfToken: string } | undefined {
+  const sessionId = request.cookies[SESSION_COOKIE_NAME];
+  if (typeof sessionId === 'string' && /^[A-Za-z0-9_-]{43}$/.test(sessionId)) {
+    return { cookie: `${SESSION_COOKIE_NAME}=${encodeURIComponent(sessionId)}`, csrfToken: ctx.csrfToken };
+  }
+  const legacy = request.cookies['du_admin'];
+  if (typeof legacy === 'string' && legacy.length > 0 && legacy.length <= 4096) {
+    return { cookie: `du_admin=${encodeURIComponent(legacy)}`, csrfToken: ctx.csrfToken };
+  }
+  return undefined;
 }

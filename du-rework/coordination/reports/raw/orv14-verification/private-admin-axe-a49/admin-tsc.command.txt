@@ -1,0 +1,1 @@
+Admin TypeScript no-emit: node orchestrator/apps/admin-web/node_modules/typescript/bin/tsc --noEmit -p orchestrator/apps/admin-web/tsconfig.json

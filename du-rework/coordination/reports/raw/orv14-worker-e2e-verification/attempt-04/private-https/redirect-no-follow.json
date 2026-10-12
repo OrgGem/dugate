@@ -1,0 +1,15 @@
+{
+  "operationId": "8331b983-2692-4919-af5e-d17ba475aa00",
+  "state": "FAILED",
+  "errorCode": "LEGACY_WORKFLOW_URL_DOWNLOAD_FAILED",
+  "listenerEvents": [
+    {
+      "kind": "request",
+      "listener": "san-match",
+      "method": "GET",
+      "path": "/redirect",
+      "host": "172-26-91-253.sslip.io:36461",
+      "sni": "172-26-91-253.sslip.io"
+    }
+  ]
+}

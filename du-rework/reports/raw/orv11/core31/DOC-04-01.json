@@ -1,0 +1,35 @@
+{
+  "name": "operations/12c31287-e09e-4f53-827b-519507a49c87",
+  "done": true,
+  "metadata": {
+    "state": "SUCCEEDED",
+    "pipeline": [],
+    "current_step": 0,
+    "progress_percent": 0,
+    "progress_message": "Queued",
+    "create_time": "2026-10-11T16:35:05.822Z",
+    "update_time": "2026-10-11T16:35:05.860Z",
+    "pipeline_steps": []
+  },
+  "result": {
+    "output_format": "text",
+    "content": "Title\r\n\r\nParagraph text.",
+    "extracted_data": {
+      "transformedText": "Title\r\n\r\nParagraph text.",
+      "outputFormat": "text",
+      "metadata": {
+        "method": "native_conversion"
+      }
+    },
+    "pipeline_steps": [],
+    "usage": {
+      "input_tokens": null,
+      "output_tokens": null,
+      "pages_processed": null,
+      "model_used": null,
+      "cost_usd": null,
+      "breakdown": []
+    },
+    "download_url": "/api/v1/operations/12c31287-e09e-4f53-827b-519507a49c87/download"
+  }
+}

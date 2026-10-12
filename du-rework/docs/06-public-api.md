@@ -1,5 +1,7 @@
 # Public API spec v1
 
+> **ORV11 scope update — 2026-10-11, user-authorized:** public operations phục vụ lấy kết quả theo ID (`GET /api/v1/operations/{id}` và download theo ID). List/detail quản trị, canonical result, delete/cancel/resume/retry thuộc `/api/internal/operations/**`, dùng admin/session authorization và tenant/RBAC; public API key không cấp quyền quản lý. Các route operations bên dưới phản ánh ORV11; acceptance tổng thể vẫn theo xem [execution ledger](../coordination/ORV11-EXECUTION-2026-10-11.md). Public document/workflow submission và legacy result envelope vẫn thuộc compatibility contract.
+
 Base `/api/v1`. JSON UTF-8; authentication `x-api-key`; operation/artifact luôn kiểm tra tenant+key/profile policy. Không tin `x-api-key-id`, `x-user-id`, `tenantId` do client truyền như identity. Generic API là canonical; sáu document routes là compatibility facade.
 
 ## Endpoint catalog
@@ -16,23 +18,40 @@ Trạng thái theo **code hiện tại** (`orchestrator/services/orchestrator/sr
 | POST /artifacts (upload standalone) | **Chưa implement** (`x-absent`) | multipart file | 201 ArtifactRef | 413,415,422 |
 | GET /artifacts/{id} | **Chưa implement** (`x-absent`) | none | 200 metadata | 404 không có quyền |
 | GET /artifacts/{id}/download | Implement | none | 200 raw bytes + artifact MIME (plain) hoặc 200 JSON {schemaVersion, encrypted, delivery, artifactId, mimeType} (encrypted) | 404,410 |
-| GET /operations | Implement | cursor, limit, state, tenant, id, sort | 200 `{items,nextCursor,prevCursor,total,limit}` | 401,403,422 |
-| GET /operations/{id} | Implement | none (`?wait=` long-poll) | 200 Operation | 404 |
-| GET /operations/{id}/result | Implement | none | 200 ResultEnvelope strict v1 (plain) hoặc 200 JSON {schemaVersion, encrypted, delivery} (encrypted) | 409 chưa succeeded; 410 expired |
-| POST /operations/{id}/cancel | Implement | optional reason | 202 hoặc 200 replay | 409 terminal không cancellable |
-| POST /operations/{id}/resume | Implement | waitId, input, expectedStateVersion | 202 hoặc 200 replay | 409 stale/terminal,422 invalid input |
+| GET /operations/{id} | Implement (legacy result; đúng tenant + API key; admin bearer không thay public key) | none | 200 legacy Operation `{name,done,metadata,result/error}` | 404 không thuộc key hoặc đã xóa |
+| GET /operations/{id}/download | Implement (legacy download; cùng quyền với polling) | none | 200 output bytes theo delivery policy | 404 output không có/quyền không hợp lệ |
 | GET /usage/summary, GET /usage/events, GET /usage | Implement (admin-bearer và public-key path trong `route(ctx)`) | filter allow-list | 200 | 401,403,422 |
 | GET /connectors/{id}/test | Implement | none | 200 test result | 401,403,404 |
 | POST /uploads, POST /uploads/{id}/{part,complete,abort} | Implement (multipart upload gateway) | multipart | 200/201 | 413,415,422 |
 | GET/POST /api/v1/admin/audit, /api/v1/admin/crypto-config, /api/v1/admin/businesses*, /api/v1/admin/profiles*, /api/v1/admin/connectors*, /api/v1/admin/api-keys* | Implement (surface admin — không phải public client API) | admin bearer | 200 | 401,403,404,422 |
 | Surface runtime `/api/runtime/v1/**` (tasks claim/heartbeat/steps/complete, artifacts finalize/access/multipart, invocation-grants, workspace-reference) | Implement (internal worker; worker credentials bị chặn khỏi surface public tại `route(ctx)`) | runtime auth | 200 | 401,403,404 |
-| GET /api/v1/services | Implement (facade) — **hiện trả 500 `Internal Error`** vì `serviceCatalogue` chưa được wire trong host adapter (known gap; pin bởi test `rv01-loopback-http-offline.test.ts` "answers 500 while unwired, never an empty catalogue") | legacy query | 200 khi catalogue được wire | 401*,500 |
-| GET /api/v1/billing/balance, GET /api/v1/billing/usage | Implement (facade, projection per API key) — handler tại `legacy-http-mount.ts:806-884`; `billingFor` wired tại `legacy-host-adapter.ts:428` (`loadLegacyBilling` đọc `api_keys.spending_limit/total_used` từ migration `0024_legacy_parity_columns.sql` + aggregate `operations`); **không** lấy từ tenant usage. OPEN: chưa có cơ chế cập nhật `total_used` trong cây | legacy query | 200 | 400,401*,404,500 |
+| GET /api/v1/services | ORV11 đã nối host catalogue từ profile cấp cho API key; evidence cuối tại execution ledger | legacy query | 200 services | 401,500 |
+| GET /api/v1/billing/balance, GET /api/v1/billing/usage | Implement per API key: ORV12 balance = imported `api_keys.total_used` baseline + deduplicated priced ledger spend of new successful operations; usage uses validated date window and ledger-or-historical rows without doubling. Positive reached limit rejects new submit/retry402 after replay checks; zero limit unlimited. Unknown cost remains explicitly unpriced in usage, excluded from known spend; frozen billing numeric shape has no completeness flag. [Receipt](../coordination/reports/orv12-verification.md) | legacy query | 200 | 400,401,404,500 |
 | POST /api/v1/docs/workflows, POST /api/v1/docs/workflows/schema | Facade admission đã implement; admission/error/auth + schema pin có evidence độc lập; runtime còn lại OPEN theo WFA plan (chia theo nhóm acceptance ở mục Workflow compatibility facade) | multipart + process/schemaSlug | 202 + Operation-Location | 400,401,403,404,409,413,415,422,429,503 |
+
+### Operations dành cho vận hành
+
+Base `/api/internal/operations`, chỉ ingress internal và admin bearer hoặc phiên quản trị hợp lệ. API key public không được dùng cho bề mặt này. Admin BFF `/admin/api/*` chuyển tiếp tới internal backend.
+
+| Method/path (sau base) | Hành vi |
+|---|---|
+| GET `/`, GET `/metrics` | Danh sách/phân trang/lọc và số liệu theo tenant được cấp |
+| GET `/{id}` | Chi tiết quản trị, state version và human waits |
+| GET `/{id}/result`, GET `/{id}/download` | Canonical result hoặc tải output sau kiểm tra quyền quản trị |
+| POST `/uploads` | Raw file ≤16 MiB (hoặc limit deployment thấp hơn), query `tenantId`, `apiKeyId`, `fileName`, Content-Type MIME; trả201 artifact ref. Chỉ admin/operator có tenant scope, cookie CSRF, active key; artifact bắt buộc mã hóa và gắn key sở hữu |
+| POST `/{id}/cancel`, POST `/{id}/resume` | Điều khiển theo tenant/RBAC; phiên cookie phải có CSRF; resume kiểm tra wait và state version |
+| POST `/{id}/retry` | Platform admin; không nhận request override |
+| DELETE `/{id}` | Soft delete operation terminal, kiểm tra tenant và ghi audit trong cùng transaction |
+
+Cancel có thể trả200 với state `CANCEL_REQUESTED` khi worker còn lease; UI tiếp tục polling tới `CANCELLED` sau khi worker dừng provider. Job paused/unleased có thể chuyển `CANCELLED` ngay. Recovery timer hiện có xử lý cancellation còn treo sau contention hoặc worker chết; không coi HTTP200 là bằng chứng provider đã dừng.
+
+Workflow UI gọi upload qua `/admin/api/operations/uploads`, sau đó gửi artifact refs tới `workflow.test`; không cần nhập raw API key hoặc artifact ID thủ công. File chưa gắn operation vẫn có owner key trong `artifacts.upload_api_key_id` (SQL0045). Lấy output artifact public kiểm tra operation thành công, chưa xóa và đúng key.
+
+Các đường quản lý cũ dưới `/api/v1/operations` trả 404, kể cả khi dùng admin bearer. Public `GET /operations/{id}` giữ legacy envelope; internal detail là contract riêng. Kiểm thử độc lập HTTP + PostgreSQL cho ranh giới route, tenant/key, role, CSRF và audit được ghi tại [ORV11 ledger](../coordination/ORV11-EXECUTION-2026-10-11.md).
 
 **Known gap của generator OpenAPI:** `tools/openapi/gen_openapi.py` sinh `docs/21` từ router + contracts nhưng chưa cover đủ các route admin/uploads/runtime liệt kê trên; khi chạy generator, path mới hơn `x-absent` cũ có thể chưa vào spec. Không sửa tay `docs/21` (serialize-point) — mở task cho docs/COMP-11 owner mở rộng generator thay vì patch JSON.
 
-**Known gap auth của facade (RV01-F4, còn RED):** các nhánh legacy read dùng `safePrincipal` (operations, billing, services) khi thiếu hoặc sai key hiện trả **500 `Internal Error`** thay vì 401 — pin bằng `it.failing` trong `orchestrator/services/orchestrator/tests/rv01-loopback-http-offline.test.ts:1499-1510`; các ô `401*` ở bảng trên là mục tiêu contract, chưa phải hành vi hiện tại. `RV01-F5` (unknown `/api/v1/docs/<slug>` rơi về 404 canonical thay vì namespace legacy) cũng còn RED — owner: compat/API lane.
+**ORV11 auth update:** legacy read routes đã đổi missing/invalid API key sang 401 với legacy error envelope; các ô `401*` lịch sử ở trên nay là contract đã được nối trong code. Các test/review ORV11 xác nhận phạm vi hiện tại, không sử dụng `it.failing` lịch sử làm evidence mới. Unknown document slug vẫn cần phân biệt error namespace trong contract regression.
 
 V1 không expose arbitrary public route registration. `/api/v1/docs/workflows` giữ route/tham số legacy và ánh xạ nội bộ tới registered business/action qua cùng admission/submission service, không redirect hoặc gọi HTTP vòng lại route business.
 
@@ -80,9 +99,9 @@ Chỉ các nhóm dưới đây có evidence độc lập tại [wfa-verification
 
 Suite điều khiển đầy đủ HTTP → PostgreSQL → outbox → Redis → production worker **8/8** (10/7 19:35) là mốc lịch sử cho pin/HITL/cancel ở trên; trong cùng ngày nó đã được supersede bởi các full-file run **10/10 → 11/11 ×2 → 13/13 ×3** (mới nhất, đã gồm named T01–T03 và leaf-node/fence — bảng run: [wfa-qwen-handover-2026-10-07.md](../coordination/reports/wfa-qwen-handover-2026-10-07.md) §2–§3). Raw log nằm ở `tests/workflow-api/logs/` dạng file cục bộ (thư mục untracked, `*.log` bị gitignore) nên chỉ receipt `.md` là con trỏ citable; sau đợt T26/T27 fail-first, full file hiện RED ở đúng 2 test đó. Provider vẫn là loopback mock, **chưa** phải provider bên thứ ba.
 
-## GET /operations — filter, keyset cursor, envelope
+## GET /api/internal/operations — filter, keyset cursor, envelope
 
-`GET /operations` trả **một envelope duy nhất**, dùng chung cho cả hai auth path (x-api-key và admin bearer):
+`GET /api/internal/operations` trả envelope quản trị dưới đây. Chỉ admin bearer hoặc session quản trị; API key public không có quyền vào route này:
 
 ```json
 {
@@ -94,7 +113,7 @@ Suite điều khiển đầy đủ HTTP → PostgreSQL → outbox → Redis → 
 }
 ```
 
-`items` dùng cùng projection `OperationView` với `GET /operations/{id}` (`toOperationView`), nên shape từng phần tử giống hệt object Operation ở mục kế tiếp. `total` là `COUNT(*)` của **tập đã lọc**, không phải `items.length`, và không phụ thuộc cursor. `limit` là giá trị đã clamp thực sự dùng cho truy vấn.
+`items` dùng projection quản trị `toOperationDetailWire`; `GET /api/internal/operations/{id}` bổ sung chi tiết task và human waits. Public `GET /api/v1/operations/{id}` dùng legacy envelope riêng. `total` là `COUNT(*)` của **tập đã lọc**, không phải `items.length`, và không phụ thuộc cursor. `limit` là giá trị đã clamp thực sự dùng cho truy vấn.
 
 ### Query parameters
 
@@ -190,7 +209,7 @@ Mục này mô tả **hành vi đang triển khai** và được đồng bộ th
 
 `X-Correlation-Id` được validate length/charset hoặc thay bằng server-generated ID. Response trả correlation ID. JSON request size, multipart file/total size, schema complexity và max artifacts là giới hạn cấu hình có test.
 
-## Operation và ResultEnvelope
+## Operation quản trị và ResultEnvelope internal
 
 ```json
 {
@@ -202,21 +221,21 @@ Mục này mô tả **hành vi đang triển khai** và được đồng bộ th
   "stateVersion": 1,
   "createdAt": "2026-09-20T00:00:00Z",
   "progress": { "percent": 0, "message": "Accepted" },
-  "links": { "self": "/api/v1/operations/operation-uuid", "result": "/api/v1/operations/operation-uuid/result" }
+  "links": { "self": "/api/internal/operations/operation-uuid", "result": "/api/internal/operations/operation-uuid/result" }
 }
 ```
 
 ResultEnvelope = `{schemaVersion, data, artifacts, usage, warnings}`. `data` theo outputSchema business; output lớn lưu artifact, trả ref thay vì nhét vào polling. Usage gồm measured/estimated và trạng thái pending/final/corrected; operation có thể succeeded trước khi usage reconciliation hoàn thành.
 
-WAITING_INPUT bổ sung `{waitId, inputSchema, uiSchema, expiresAt}` với quyền xem. V1 chỉ một human wait đang mở cho root; không hỗ trợ UI gộp nhiều human waits song song.
+Internal detail bổ sung `humanWaits` và `operation.stateVersion`; UI chọn wait đang mở để resume theo schema và CAS, dưới quyền tenant/operator tương ứng.
 
 ## Sync compatibility
 
-Canonical mặc định async. Facade hỗ trợ `?sync=true` với wait window có giới hạn: xong thì 200, chưa xong thì 202 cùng operation ID; timeout HTTP không cancel job. Không thực thi business trong API process.
+Canonical mặc định async. Sáu core facade hỗ trợ `?sync=true` với wait window có giới hạn: luôn trả 200 với legacy envelope, kể cả `done:false` khi hết thời gian chờ; timeout HTTP không cancel job. Worker thực thi business. Hai workflow facade tiếp tục bỏ qua `sync` như legacy.
 
 ## Multipart compatibility
 
-Facade chuẩn hóa `file`, `files[]`, `source_file`, `target_file`; JSON-string form fields được parse nghiêm ngặt. Upload tạo artifact trước submit; lỗi submit để staging artifact hết TTL. Remote `file_urls` chuyển thành source descriptor để worker download với policy; không fetch tùy ý trong HTTP request handler. Auth dùng secret reference do profile cấp, không ghi raw auth vào queue.
+Facade chuẩn hóa `file`, `files[]`, `source_file`, `target_file`; JSON-string form fields được parse nghiêm ngặt. Core adapter kiểm tra profile/schema trước ghi artifact; replay dựa trên nội dung, metadata và thứ tự file. Remote `file_urls` được core adapter tải qua HTTP(S)/DNS-pinned fetch, giới hạn số file, tổng bytes và thời gian, kiểm tra extension và origin trước chuyển credential; credential chỉ đi trên HTTPS, không theo redirect hạ cấp hoặc khác origin. Artifact public yêu cầu mã hóa; lỗi submit dọn artifact chưa liên kết. Canonical `sourceUrl` vẫn dùng đường ingestion riêng với yêu cầu S3 đã nêu ở trên.
 
 ## Errors
 
@@ -226,7 +245,7 @@ Facade chuẩn hóa `file`, `files[]`, `source_file`, `target_file`; JSON-string
 
 ## Webhook
 
-At-least-once delivery; `{deliveryId,eventType,operationId,state,stateVersion,occurredAt}`; signed HMAC header + timestamp, secret do Admin cấp; client dedup deliveryId. Payload không chứa file/raw prompt. SSRF policy ở registration và lúc gửi, timeout/backoff/max attempts, manual redelivery có audit. Webhook failure không đổi operation success thành failure.
+Core facade giữ callback legacy `{operation_id,state,done}` qua marker được pin khi submit. Canonical callback dùng at-least-once delivery; `{deliveryId,eventType,operationId,state,stateVersion,occurredAt}`; signed HMAC header + timestamp, secret do Admin cấp; client dedup deliveryId. Payload không chứa file/raw prompt. SSRF policy ở registration và lúc gửi, timeout/backoff/max attempts, manual redelivery có audit. Webhook failure không đổi operation success thành failure.
 
 **Delivery encryption cho webhook (W-ENC-08-WEBHOOK, receipt qwen-admin Mục 29):** payload webhook khi tenant bật recipient encryption được mã hóa trước khi gửi — **Δ120:** HMAC signature giờ phủ trên **ciphertext**, nên receiver phải verify chữ ký trên encrypted body rồi mới decrypt (đây là thay đổi hợp đồng nhận, lane sở hữu receiver và tài liệu tích hợp phải được thông báo); **Δ121:** cột `webhook_deliveries.payload` trong DB vẫn lưu plaintext (thuộc ENC-META-01, chưa đóng). `G-ENC`/`G6` vẫn NO-GO.
 
@@ -251,7 +270,7 @@ Khi tenant bật `deliveryEncryptionEnabled` (Admin per-tenant toggle, mặc đ�
 
 > **Trang thai:** contract **da freeze va verify offline** tai `coordination/reports/tester.md` muc `RESULT-WIRE-01` (04:07:35 +07). Cac route duoi day **khong con** la 302 / short-lived signed URL.
 
-- `GET /api/v1/operations/{id}/result`: **HTTP 200 JSON** ca hai mode. Plain mode tra **strict version-1 `ResultEnvelope` (`schemaVersion, data, artifacts, usage, warnings`). Encrypted mode tra **strict version-1** `{schemaVersion, encrypted: true, delivery}` ; giai ma `delivery` cho ra **dung** ResultEnvelope do.
+- `GET /api/internal/operations/{id}/result` (ORV11 chuyển vào internal): **HTTP 200 JSON** ca hai mode. Plain mode tra **strict version-1 `ResultEnvelope` (`schemaVersion, data, artifacts, usage, warnings`). Encrypted mode tra **strict version-1** `{schemaVersion, encrypted: true, delivery}` ; giai ma `delivery` cho ra **dung** ResultEnvelope do.
 - `GET /api/v1/artifacts/{id}/download`: **HTTP 200 raw bytes** kem artifact MIME o plain mode; o encrypted mode la **HTTP 200 JSON** `{schemaVersion, encrypted: true, delivery, artifactId, mimeType}`. `RecipientDeliveryEnvelopeSchema` dung chung va **strict** cho ca hai bien the encrypted.
 - **Khong con 302.** Catalog o tren da doi tu 302 sang 200. Day chinh la **scope note** ma chinh receipt ghi (`docs/06-public-api.md still documents a 302 download`) — muc tai lieu nay la follow-up do chinh dispatch do dat ra.
 - Bang chung offline: `@du/contracts` build 0, test **19 suites / 427 tests** 0; `@du/orchestrator` `tests/delivery-encryption.test.ts` **22/22** 0; `tsc --noEmit` sach 0 cho ca hai package. Fixture route validate schema, noi artifact reference cua result da giai ma, roi **giai ma ben ngoai va so byte** payload that.

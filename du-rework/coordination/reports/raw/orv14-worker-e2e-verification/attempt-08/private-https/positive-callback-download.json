@@ -1,0 +1,50 @@
+{
+  "operationId": "6672298e-c16e-4f10-9369-5bc60f457a5d",
+  "state": "SUCCEEDED",
+  "publicGetStatus": 200,
+  "publicDownloadStatus": 200,
+  "publicDownloadBytes": 13,
+  "listenerEvents": [
+    {
+      "kind": "tls",
+      "listener": "san-match",
+      "sni": "172-26-91-253.sslip.io"
+    },
+    {
+      "kind": "request",
+      "listener": "san-match",
+      "method": "GET",
+      "path": "/file.txt",
+      "host": "172-26-91-253.sslip.io:38609",
+      "sni": "172-26-91-253.sslip.io"
+    },
+    {
+      "kind": "tls",
+      "listener": "san-match",
+      "sni": "172-26-91-253.sslip.io"
+    },
+    {
+      "kind": "request",
+      "listener": "san-match",
+      "method": "POST",
+      "path": "/callback",
+      "host": "172-26-91-253.sslip.io:38609",
+      "sni": "172-26-91-253.sslip.io",
+      "bodyBytes": 54,
+      "bodySha256": "cd800c744bb1fb3294ee9db655508b40c9e9375fd9fc84f85e0b0fd1868b3df7",
+      "bodyRawBytes": 54,
+      "bodySha256Recomputed": "cd800c744bb1fb3294ee9db655508b40c9e9375fd9fc84f85e0b0fd1868b3df7",
+      "bodyRawText": "{\"effect\":\"none\",\"syntheticRun\":\"orv14-private-https\"}",
+      "bodyJson": {
+        "effect": "none",
+        "syntheticRun": "orv14-private-https"
+      }
+    }
+  ],
+  "workerPolicyLog": {
+    "workerInstanceId": "wfa-private-https-fedbcdfd-cbf6-4ddb-ab41-281994d5f618",
+    "digest": "sha256:daf3dc614e205e53748fa2e6be2962da738f1cbd4285928890b60924c5778bf3",
+    "originFieldPresent": false,
+    "mentionsFixtureHostname": false
+  }
+}

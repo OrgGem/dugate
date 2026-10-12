@@ -1,0 +1,92 @@
+{
+  "schema": "orv14-host-connector-restore-slice/v1",
+  "disposition": "FAILED_PARTIAL_HOST_CONNECTOR_SLICE_ONLY",
+  "command": "/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node tests/workflow-api/orv14-vfy-host/verify-connector-restore.mjs",
+  "cwd": "/workspace/dugate/du-rework",
+  "node": "v24.21.0",
+  "verifierUid": 1000,
+  "startedAt": "2026-10-11T23:47:03.871Z",
+  "completedAt": "2026-10-11T23:47:16.432Z",
+  "composeProject": "orv14-vfy-host-mv4h2w7j-8fa9180399",
+  "composeFileSha256": "7e18e4f71e1211331bca91af270ef50bdd24f1609876201b593a0afdd9a2f1d0",
+  "imageIds": {
+    "postgres": "sha256:81bd698b4594e751a3269e4dcd3e03a4a0ec0daf7b72e7aa1abd43cce9887542",
+    "redis": "sha256:f84b0c4678011602b9b98c227a4dcd5468bf8b088b02fdd4165cb7758bad8058",
+    "vault": "sha256:20bce4b1fc21ee5ccc659e3a13fd479894cfffcf650d8ca3c0c4ae7eaecc2c81",
+    "minio": "sha256:ff768636ea5c1b7bd295ddae1505506ae91a3beff613b14be377d23734cd2915"
+  },
+  "sourceHashesAtBuild": {
+    "src/entrypoint.ts": "43cd417bce85aabac6bbd97f2b1b2f9adb371dc282cc91e11a6b16e4be579401",
+    "src/isolated-mode.ts": "42a7558056ab9777d71516af17e6536942d771221eb1b3943ab646d86315a857",
+    "src/composition.ts": "d427146fe58ab33c48c01d4c82a8f4605448f304aed10c28809165e106614ce8",
+    "src/lifecycle.ts": "594e13cccf7586ee66d56db7ae7714957d88201d7a4da605e231ecb9b1b7a967",
+    "src/http/server.ts": "60cde2935710c4f12e8c052201a2ed1bc8e5988c5472de3b28fb3a15be9e3341",
+    "src/db/replica-runtime-controls.ts": "274b983a6ca08b612e9ff267c87ef1603b130a60b6dd21768c471c9a246e0f83",
+    "src/db/pg-client.ts": "403d8f1d0609b56b99abd0c884d3c837be60c53d40987e37d6fe41219f854408",
+    "src/db/repository.ts": "ce43a758f7998fe4b15dca1eb74f41f5730edbb88230d98dcebf84d47f9770a7",
+    "src/db/invocation-crypto.ts": "79af50213d9ba5827542320f8c3a9a487933a04d4f9b2ee98ca8782210aafec0",
+    "src/vault/runtime.ts": "e9a713822de1b781d6ed3b8b0e43c01bdbcafa5148502000dd2e8d8492b11faa",
+    "packages/contracts/src/connector-runtime-control.ts": "b6ce4df07983dc6a04ccdeed7e25d004295774bc2340e5d0d32d2473136a4d75"
+  },
+  "sentinelProbe": null,
+  "scratchBundle": null,
+  "importedContract": {
+    "runtimePath": "orchestrator/packages/contracts/dist/index.js",
+    "runtimeSha256": "3643c5f30724105308b75ca92060e54fababa8b9c4bfde9d9c2483fcf6c160aa",
+    "declarationPath": "orchestrator/packages/contracts/dist/index.d.ts",
+    "declarationSha256": "fb1570ea2be9dbc78ddb2f8233ac69312ccc2c6a38c7ed80ee134b0a8a1c6181"
+  },
+  "harnessHashes": {
+    "verifier": "e7bbe5836069b2cb6d1b9cbc52eaad2c45c6f9bab8ec6f3e4331be26f3295d3e",
+    "infrastructure": "b1541e6d71fa68c5679afb3fa44a89c96a34808c9dd4b7abbdb81de4522ccf44",
+    "compose": "7e18e4f71e1211331bca91af270ef50bdd24f1609876201b593a0afdd9a2f1d0"
+  },
+  "scratchBuild": {
+    "command": "/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node /workspace/dugate/du-rework/orchestrator/node_modules/.pnpm/typescript@5.9.3/node_modules/typescript/bin/tsc -p /workspace/dugate/du-rework/orchestrator/services/connector/tsconfig.json --outDir /tmp/orv14-vfy-host-mv4h2w7j-8fa9180399-JWjEjn/work/connector-build --declaration false --declarationMap false --sourceMap false",
+    "exitCode": 2,
+    "output": "src/vault/writer.ts(158,20): error TS2454: Variable 'timer' is used before being assigned.\n",
+    "outputUnderUniqueFixtureTemp": true
+  },
+  "tests": {
+    "passed": 0,
+    "failed": 0,
+    "skipped": 0,
+    "cases": []
+  },
+  "error": "isolated scratch Connector build failed (2): src/vault/writer.ts(158,20): error TS2454: Variable 'timer' is used before being assigned. ",
+  "cleanup": {
+    "projectId": "orv14-vfy-host-mv4h2w7j-8fa9180399",
+    "removed": {
+      "containers": [
+        "ec17bee2d24f",
+        "4e8ebd20f3ab",
+        "737af8aaf41c",
+        "60475c34b0b4",
+        "0c7f1e5bc62c",
+        "02b23fcef03c",
+        "02e464fd4fa0",
+        "bd106b2a1006",
+        "21826047e29d",
+        "04338b7b34b1"
+      ],
+      "volumes": [
+        "orv14-vfy-host-mv4h2w7j-8fa9180399_connector-restore-data",
+        "orv14-vfy-host-mv4h2w7j-8fa9180399_connector-source-data",
+        "orv14-vfy-host-mv4h2w7j-8fa9180399_minio-data",
+        "orv14-vfy-host-mv4h2w7j-8fa9180399_minio-restore-data",
+        "orv14-vfy-host-mv4h2w7j-8fa9180399_orchestrator-restore-data",
+        "orv14-vfy-host-mv4h2w7j-8fa9180399_orchestrator-source-data"
+      ],
+      "networks": [
+        "37a56fb019e8"
+      ]
+    },
+    "remaining": {
+      "containers": [],
+      "volumes": [],
+      "networks": []
+    },
+    "temporaryFixtureRemoved": true
+  },
+  "acceptance": "not claimed; source checkpoint and cross-family restore verification remain outstanding"
+}

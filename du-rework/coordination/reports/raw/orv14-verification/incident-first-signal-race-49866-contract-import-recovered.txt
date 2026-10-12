@@ -1,0 +1,39 @@
+Recovered console transcription — not a raw log
+
+The original captured Jest log for the first hash-49866 filtered attempt was written to `incident-first-signal-race-49866-rerun.log`, then that filename was reused for the following behavioral attempt. The original standalone file was overwritten. The text below is transcribed from the first exec response retained in the run transcript; it must not be treated as a separately preserved raw log.
+
+Attempt: `--config tests/workflow-api/jest.config.cjs --runInBand --detectOpenHandles --runTestsByPath tests/workflow-api/orv14-vfy-ops.test.ts --testNamePattern 'preserves the newest payload'`
+Incident source: `49866b884652564a859b627d23814495492e30c0aa34573324f3feed44388c3b`
+Verifier test at attempt: `364c8120cdc1e90618cb50343691fa94f0dc774338f099646eb0e13e77aab997`
+Cost contract at the failed import attempt (subsequently corrected by its owner): `755747d4e7a725117b87485e43165fc32ba055910f69990ca112c743ba4045a9`
+
+Captured console text:
+
+FAIL tests/workflow-api/orv14-vfy-ops.test.ts
+  ● Test suite failed to run
+
+    TypeError: Cannot read properties of undefined (reading 'kind')
+
+      76 |   }
+      77 | };
+    > 78 | export const CostPolicyScopeCatalogSchema = z.discriminatedUnion('kind', [
+         |                                               ^
+      79 |   z.object({ ...ScopeCatalogPageBase, kind: z.literal('api-keys'), items: z.array(CostPolicyScopeApiKeySchema).max(100) }).strict().superRefine(ScopeCatalogPageRefinement),
+      80 |   z.object({ ...ScopeCatalogPageBase, kind: z.literal('profiles'), items: z.array(CostPolicyScopeProfileSchema).max(100) }).strict().superRefine(ScopeCatalogPageRefinement),
+      81 |   z.object({ ...ScopeCatalogPageBase, kind: z.literal('businesses'), items: z.array(CostPolicyScopeBusinessSchema).max(100) }).strict().superRefine(ScopeCatalogPageRefinement),
+
+      at Object.create (orchestrator/node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/types.cjs:2498:68)
+      at Object.<anonymous> (orchestrator/packages/contracts/src/cost-alerts.ts:78:47)
+      at Object.<anonymous> (orchestrator/packages/contracts/src/index.ts:55:1)
+      at Object.<anonymous> (orchestrator/services/orchestrator/src/http/errors.ts:1:1)
+      at Object.<anonymous> (orchestrator/services/orchestrator/src/modules/runtime/worker-identity.ts:2:1)
+      at Object.<anonymous> (orchestrator/services/orchestrator/src/server.ts:1:1)
+      at Object.<anonymous> (tests/workflow-api/orv14-vfy-ops.test.ts:5:1)
+
+Test Suites: 1 failed, 1 total
+Tests:       0 total
+Snapshots:   0 total
+Time:        0.779 s, estimated 3 s
+Ran all test suites within paths "tests/workflow-api/orv14-vfy-ops.test.ts".
+
+Classification: shared contract import/setup blocker; zero tests executed. The contract owner changed the schema branches to a `z.union` preserving their `superRefine` constraints; corrected contract hash at subsequent passing runs was `04e55557e4f9f2ab86a04cd3372009a14be72a5263f40bc9dc25ac02a4cd7409`.

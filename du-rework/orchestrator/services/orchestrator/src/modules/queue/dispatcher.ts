@@ -1,6 +1,8 @@
 import { Queue } from 'bullmq';
 import { jobIdForDelivery } from '@du/contracts';
 import { Db } from '../../db/db';
+import { lockRuntimeControlsForTask } from '../runtime/control';
+import type { BackupSnapshotWriteGate } from '../maintenance/backup-effect-fence';
 
 /**
  * Outbox dispatcher (docs 04, OPS-01): polls the outbox table for pending
@@ -13,6 +15,18 @@ import { Db } from '../../db/db';
 export interface DispatcherOptions {
   db: Db;
   getQueue: (queueName: string) => Queue;
+  /** Per-Orchestrator durable replica admission. The permit is held across
+   * the external queue publish and outbox commit boundary. */
+  dispatchAdmission?: {
+    serviceRuntimeId: string;
+    readControl(): Promise<{ controlRevision: number; state: 'OPEN' | 'PAUSED' | 'DRAINING' }>;
+    acquireDispatchPermit(input: { serviceRuntimeId: string; expectedControlRevision: number }): Promise<{ permitId: string; controlRevision: number } | null>;
+    releaseDispatchPermit(permitId: string): Promise<void>;
+  };
+  /** Backup-only barrier, distinct from replica DRAINING. Its row lock is
+   * held for the publish transaction so the fence waits for in-flight queue
+   * sends and rejects new ones after activation. */
+  backupSnapshotWriteGate?: BackupSnapshotWriteGate;
   pollIntervalMs?: number;
   batchSize?: number;
 }
@@ -26,6 +40,13 @@ export function createDispatcher(opts: DispatcherOptions) {
     // only fences when held by a tx, and concurrent sweepers must not
     // double-dispatch the same row (docs 04 OPS-01).
     return opts.db.tx(async (client) => {
+      if (opts.backupSnapshotWriteGate) {
+        await opts.backupSnapshotWriteGate.assertWriteAllowed(client, {
+          tenantId: null,
+          domain: 'orchestrator-dispatch',
+          requestKey: `outbox-dispatch:${Date.now()}`,
+        });
+      }
       // W-DATA03-CONSUMER-JOIN-1: gate 'ingestion' dispatches are durable
       // work for the ingestion consumer (modules/operations/
       // ingestion-consumer.ts), NOT business jobs. Publishing them here was
@@ -48,8 +69,45 @@ export function createDispatcher(opts: DispatcherOptions) {
 
       let dispatched = 0;
       for (const row of res.rows as { id: string; aggregate_id: string; type: string; delivery_id: string; payload: Record<string, unknown> }[]) {
-        const queueName = await resolveQueueForTask(client, row.aggregate_id);
-        if (!queueName) continue;
+        const target = await resolveQueueForTask(client, row.aggregate_id);
+        if (!target) continue;
+        const control = await lockRuntimeControlsForTask(client, target);
+        if (control.state !== 'OPEN') {
+          // Keep accepted work durable and available for dispatch after a
+          // resume. A short claim lease avoids one paused scope occupying the
+          // same poll batch continuously.
+          await client.query(
+            `UPDATE outbox SET claim_until=now() + interval '5 seconds' WHERE id=$1`,
+            [row.id],
+          );
+          continue;
+        }
+        let permitId: string | undefined;
+        if (opts.dispatchAdmission) {
+          const serviceControl = await opts.dispatchAdmission.readControl();
+          if (serviceControl.state !== 'OPEN') {
+            await client.query(
+              `UPDATE outbox SET claim_until=now() + interval '5 seconds' WHERE id=$1`,
+              [row.id],
+            );
+            continue;
+          }
+          const permit = await opts.dispatchAdmission.acquireDispatchPermit({
+            serviceRuntimeId: opts.dispatchAdmission.serviceRuntimeId,
+            expectedControlRevision: serviceControl.controlRevision,
+          });
+          if (!permit || permit.controlRevision !== serviceControl.controlRevision) {
+            if (permit) await opts.dispatchAdmission.releaseDispatchPermit(permit.permitId);
+            await client.query(
+              `UPDATE outbox SET claim_until=now() + interval '5 seconds' WHERE id=$1`,
+              [row.id],
+            );
+            continue;
+          }
+          permitId = permit.permitId;
+        }
+        try {
+        const queueName = target.queueName;
         const queue = opts.getQueue(queueName);
         const jobId = jobIdForDelivery(row.delivery_id);
         // T-SUB-03: the profile's BullMQ priority was pinned into the outbox
@@ -83,6 +141,9 @@ export function createDispatcher(opts: DispatcherOptions) {
               [row.id]
             );
           }
+        }
+        } finally {
+          if (permitId) await opts.dispatchAdmission!.releaseDispatchPermit(permitId);
         }
       }
       return dispatched;
@@ -119,9 +180,9 @@ function isDuplicateJobIdError(err: unknown): boolean {
 async function resolveQueueForTask(
   db: { query: (text: string, params?: unknown[]) => Promise<{ rows: Record<string, unknown>[]; rowCount: number | null }> },
   taskId: string
-): Promise<string | null> {
+): Promise<{ queueName: string; tenantId: string; businessId: string } | null> {
   const res = await db.query(
-    `SELECT o.business_id, o.business_version, bv.queue
+    `SELECT o.tenant_id, o.business_id, o.business_version, bv.queue
      FROM tasks t
      JOIN operations o ON o.id = t.operation_id
      LEFT JOIN business_versions bv ON bv.business_id = o.business_id AND bv.version = o.business_version
@@ -129,6 +190,10 @@ async function resolveQueueForTask(
     [taskId]
   );
   if (!res.rowCount) return null;
-  const row = res.rows[0] as { business_id: string; business_version: string; queue: string | null };
-  return row.queue ?? `du-business-${row.business_id}-${row.business_version}`;
+  const row = res.rows[0] as { tenant_id: string; business_id: string; business_version: string; queue: string | null };
+  return {
+    tenantId: row.tenant_id,
+    businessId: row.business_id,
+    queueName: row.queue ?? `du-business-${row.business_id}-${row.business_version}`,
+  };
 }

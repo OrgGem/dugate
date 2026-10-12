@@ -1,0 +1,31 @@
+{
+  "name": "operations/6b4700ea-b93b-46d0-b82f-7dd36335ceac",
+  "done": true,
+  "metadata": {
+    "state": "SUCCEEDED",
+    "pipeline": [],
+    "current_step": 0,
+    "progress_percent": 0,
+    "progress_message": "Queued",
+    "create_time": "2026-10-12T00:37:45.526Z",
+    "update_time": "2026-10-12T00:37:45.602Z",
+    "pipeline_steps": []
+  },
+  "result": {
+    "output_format": "json",
+    "content": "{\"content\":\"Meeting Minutes:\\n- Alice: Merge PR\\n- Bob: Deploy staging\"}",
+    "extracted_data": {
+      "content": "Meeting Minutes:\n- Alice: Merge PR\n- Bob: Deploy staging"
+    },
+    "pipeline_steps": [],
+    "usage": {
+      "input_tokens": null,
+      "output_tokens": null,
+      "pages_processed": null,
+      "model_used": null,
+      "cost_usd": null,
+      "breakdown": []
+    },
+    "download_url": "/api/v1/operations/6b4700ea-b93b-46d0-b82f-7dd36335ceac/download"
+  }
+}

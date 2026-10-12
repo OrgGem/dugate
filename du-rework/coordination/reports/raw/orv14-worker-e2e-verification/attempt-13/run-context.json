@@ -1,0 +1,60 @@
+{
+  "attempt": "13",
+  "cwd": "/workspace/dugate/du-rework",
+  "startedAtUtc": "2026-10-12T02:15:01.154451+00:00",
+  "command": [
+    "/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node",
+    "/workspace/dugate/du-rework/businesses/document-core/node_modules/jest/bin/jest.js",
+    "--config",
+    "tests/workflow-api/jest.config.cjs",
+    "--runInBand",
+    "--runTestsByPath",
+    "tests/workflow-api/orv14-vfy-core31.test.ts",
+    "--testNamePattern",
+    "Gemini and OpenAI-compatible AI model defaults reach native provider tests and real Worker calls, with immutable old/new pins and Profile precedence"
+  ],
+  "node": "/workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node",
+  "nodeVersion": "v24.21.0",
+  "jest": "/workspace/dugate/du-rework/businesses/document-core/node_modules/jest/bin/jest.js",
+  "testNamePattern": "Gemini and OpenAI-compatible AI model defaults reach native provider tests and real Worker calls, with immutable old/new pins and Profile precedence",
+  "environment": {
+    "WFA_DATABASE_URL": "postgresql://orv14_vfy:<synthetic Compose password omitted>@127.0.0.1:25414/orv14_vfy",
+    "WFA_REDIS_URL": "redis://127.0.0.1:26414/2 (per-run DB index and namespace prefix allocated by test isolation)",
+    "NODE_PATH": "/workspace/dugate/du-rework/businesses/document-core/node_modules",
+    "NODE_EXTRA_CA_CERTS": "/workspace/dugate/du-rework/tests/workflow-api/orv14-vfy-worker/https-fixture/runner-trust-bundle.pem",
+    "ORV14_WORKER_E2E_RAW_DIR": "/workspace/dugate/du-rework/coordination/reports/raw/orv14-worker-e2e-verification/attempt-13",
+    "HTTP(S)_PROXY": "inherited unchanged"
+  },
+  "composeProject": "orv14-vfy-20261011-a1",
+  "sourceScope": "one previously-red AI defaults case only: native Connector claim/draft/activate, tenant settings test/publish/reload, old/new model pin observations, real worker/provider calls, Profile precedence, Gemini and OpenAI-compatible adapters",
+  "sourcePinsBefore": {
+    "createApp": "2913288498cfd4ffcb3ddb6b03b2f1d8fa7fde336e3a7d27c70a42a5a3b81626",
+    "ingestionStorageS3": "103858a6ce51710aa2612afcc969a8f6e18b37b1e8f08f700948f177dbf2e800",
+    "ingestionConsumer": "b3486252654873ee709cc24eef8b97b66d103adf88b85ff707b5594082a1d7ed",
+    "connectorComposition": "cbb3ebe767f91c9d693ff3b6b7dc4900bbf9cc38f76c83c24df651607750d353",
+    "connectorRuntimeControls": "daa0d34e24a85cc907e6469d7f425e997e2326a69922e0dd02428727bd2ab5fe",
+    "connectorHttpServer": "ee82d33d49ba37d47c00876323110500b6ed720dfcbe074f696b1b3df7c70899",
+    "runtimeControlContract": "8d8a413c2fa8973be28cffc8deb72531fd0c6874b71a2aa281d626a19ced501c"
+  },
+  "contractsSourceManifest": {
+    "path": "coordination/reports/raw/orv14-worker-e2e-verification/attempt-13/contracts-source-2026-10-12T015454Z.sha256",
+    "aggregateSha256": "f251c25ce1a8edc555c9d2fb9242f8785c7a0915a9a6396844fef93cc71243e1",
+    "entries": 46,
+    "mismatches": []
+  },
+  "contractsDistManifest": {
+    "path": "coordination/reports/raw/orv14-worker-e2e-verification/attempt-13/contracts-dist-2026-10-12T015454Z.sha256",
+    "aggregateSha256": "70464110d8397c141235e132d5d0c951ce72bb07f83d65c765fbd0f2276ec255",
+    "entries": 184,
+    "mismatches": []
+  },
+  "dependencyInputs": {
+    "sha256": "09463375242c0eacf51c5f1f3cac90514077faec659f67a58dd5678118134004",
+    "files": 943,
+    "missing": []
+  },
+  "composeImages": {
+    "postgres": "sha256:81bd698b4594e751a3269e4dcd3e03a4a0ec0daf7b72e7aa1abd43cce9887542",
+    "redis": "sha256:f84b0c4678011602b9b98c227a4dcd5468bf8b088b02fdd4165cb7758bad8058"
+  }
+}

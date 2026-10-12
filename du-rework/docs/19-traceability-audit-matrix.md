@@ -1,5 +1,24 @@
 # DU Platform Traceability Audit Matrix
 
+ORV13 delivered API/browser/allowlisted Compose scope is independently VERIFIED and scoped ACCEPTED: [main14 + roster1 focused](../coordination/reports/orv13-verification.md), [Compose2 + separate mobile follow-up](../coordination/reports/orv13-compose-verification.md), [APPROVED/UI_APPROVED](../coordination/reports/orv13-ui-review.md), [execution/leases](../coordination/ORV13-ADMIN-UI-EXECUTION-2026-10-11.md). Trace: tenant/session selection → fenced Overview/Usage/Workflow/Settings reads; persisted basic usage event → bounded internal/BFF page → typed ledger/export; scoped operation/callback controls → existing CAS/audit/dispatch; platform Admin → Compose preview → atomic PG0048 job/audit/target fence → dedicated runner → genuine Docker observations/report/reconciliation → job UI. Final JS is index-BO7-bJEd.js; source/imported artifact and raw evidence are in receipts. Synthetic sleep replicas and controlled PG lease expiry do not establish production app health/HA or actual process-crash recovery. Full global17, rich budgets, incident lifecycle, destructive maintenance and customer cutover remain open; public legacy contracts and historical parent/release gates are not promoted.
+
+ORV12 requirement → consumer → evidence: settings draft/pin/prompt revision → encrypted effective admission → unchanged old operation snapshot; native profile endpoint/pins → safe settings scope; source9entity snapshot → atomic provenance/import → inventory/mapping API → historical blob/local identity readers; provider → atomic Connector usage outbox → ledger → per-key billing/spend admission; operator → scoped BFF/CSRF → cancel/resume/callback CAS → audit. [Independent verification](../coordination/reports/orv12-verification.md), [callback verification](../coordination/reports/orv12-callback-verification.md), [scoped reviewer](../coordination/reports/orv12-independent-review.md). Backend APPROVED delivered mechanisms; UI_APPROVED tested profile/settings/HITL on final bundle. Customer cutover and full UX/rich COST gates remain open; no historical BR/parent ticks promoted.
+
+ORV11 latest evidence: [independent44 + workflow15](../coordination/reports/orv11-verification.md), [scoped reviewer verdicts](../coordination/reports/orv11-independent-review.md). Request→submit→worker→legacy result, internal operation controls, migration snapshot/history and interactive UI journeys được trace trong receipt; không suy ra các gate dữ liệu khách hàng/production đã đóng.
+
+## ORV11 delta — 2026-10-11 (implemented and independently verified scope; cutover gates open)
+
+Canonical requirement: [ORV11 review/plan](../tasks/ORCHESTRATOR-COMPATIBILITY-REVIEW-2026-10-11.md); execution/leases/evidence: [ORV11 ledger](../coordination/ORV11-EXECUTION-2026-10-11.md).
+
+| Requirement delta | Producer → consumer | Acceptance evidence required |
+|---|---|---|
+| ORV11-API legacy parity | multipart decoder → profile/input materialization → worker/artifact result → legacy GET/download/callback | 31 variant boundary and HTTP tests; content-stable replay/sync; result bytes; tenant/key negatives |
+| ORV11-OPS public/internal boundary | public result routes / admin BFF → separate internal operations → lifecycle/audit | public list/mutations absent; internal role/tenant/CSRF checks; result-by-ID retained |
+| ORV11-DATA one-time migration | stable legacy snapshot → endpoint/profile membership/files/history/identity → runtime readers | dry-run/replay/integrity/timezone evidence; post-import API behavior; no silent data omission |
+| ORV11-UI operational journeys | admin UI → real configuration/workflow/lifecycle consumers | effective settings, real workflow execution/result/HITL, browser role/error journeys |
+
+These rows do not promote historical BR/P8/release statuses. Independent verification/reviewer verdicts are required on the changed build.
+
 > **Superseding review — 2026-09-23:** This audit is bounded to canonical BR-01..BR-12 and checked repository paths. Historical VERIFIED labels, BR-13..BR-30, and old suite totals are not accepted as current evidence. P8-01 remains PARTIAL and unchecked: Section 9 records one successful live extract trace-to-audit slice, while the full BR/test/endpoint matrix and remaining action coverage are open. See RV-03 in du-rework/coordination/PLAN-REVIEW-2026-09-23.md.
 
 - Specification: DU-AUD-19-TRACEABILITY-MATRIX
