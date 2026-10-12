@@ -1,0 +1,52 @@
+{
+  "task": "ORV15-ADMIN unit-first owner checks",
+  "base": "b276ede4d3032d197a2ba96ba79c18b0f6e3c139",
+  "branch": "codex/fix-workflow-builder",
+  "toolchain": {
+    "node": "v24.21.0",
+    "dependencyChanges": false,
+    "buildImage": false,
+    "liveServices": false,
+    "providerRequests": false,
+    "browserRun": false
+  },
+  "unitFirst": {
+    "regressionAddedBeforeImplementation": true,
+    "initialResult": "Failed to compile because immutable-attempt.ts did not yet export FileArtifactCache or TenantAttemptRegistry.",
+    "scope": [
+      "uncertain lost acknowledgement followed by 401, 403, or 409 preserves tenant, idempotency key, immutable body, and artifact IDs",
+      "tenant-partitioned state prevents a late tenant A update from replacing tenant B state; unresolved attempts block another workflow/revision; only matching terminal operation evidence clears ACCEPTED",
+      "same File object and exact tenant/API-key context reuses successful uploads after a partial upload failure; a new File object with identical metadata or changed auth context is a cache miss",
+      "guided static-field and header changes preserve profile locks, override siblings, other nodes, and the original source object"
+    ]
+  },
+  "focusedJest": {
+    "command": "jest --config jest.unit.config.cjs --runInBand tests/orv15-admin-retry-regression.test.ts tests/orv14-ui-admission-retry-owner.test.ts tests/orv14-finance-accounting-ui-export-owner.test.ts",
+    "exitCode": 0,
+    "suitesPassed": 3,
+    "testsPassed": 15,
+    "outputFile": "focused-jest.txt"
+  },
+  "adminWebNoEmit": {
+    "command": "tsc --noEmit -p tsconfig.json --pretty false",
+    "exitCode": 0,
+    "outputFile": "admin-web-noemit.txt"
+  },
+  "diffCheck": {
+    "command": "git diff --check (owned source and test leaves)",
+    "exitCode": 0
+  },
+  "limitations": [
+    "No React component renderer is installed; the checks exercise the production immutable-attempt/file-cache helper and public workflow editor functions without installing dependencies.",
+    "This owner receipt is not independent review or full Admin acceptance; no served bundle, browser journey, API server, or external provider was run."
+  ],
+  "sourceSha256": {
+    "orchestrator/apps/admin-web/src/features/submissions/immutable-attempt.ts": "e35cd6b9ed866dfbe7418f4294ac8ae94174827f4eb940cd1a9237317916efbc",
+    "orchestrator/apps/admin-web/src/features/docs/docs-screen.tsx": "7c2d774090a8de6ce27f5a380dc72b433b6ff4e77aac187276879c5c5aa99c19",
+    "orchestrator/apps/admin-web/src/features/workflows/workflows-screen.tsx": "1c2594e7378610f2ad8423cdeced01ba2c94e3746702312f289bfec1da3fb752",
+    "orchestrator/apps/admin-web/src/features/workflows/revision-editor.ts": "6e097d0f8b73ed64372989caf7afed4e33f4f83d4635bc96dd6c62bed9482176",
+    "orchestrator/apps/admin-web/src/features/connectors/parity-connector-editor.tsx": "149ec9eff91ebe67b07ed871ad97f035868d244185d6252fd8ac3deeb43f99d3",
+    "orchestrator/apps/admin-web/src/features/connectors/connectors-screen.tsx": "3a6918394c498f1e8bde80cf75050b561b1c58725b735287c888825362df3453",
+    "orchestrator/services/orchestrator/tests/orv15-admin-retry-regression.test.ts": "c7c862d0e6f600be84494bea686b6f48bfc06efee71744f8df084d87fa4a68f7"
+  }
+}

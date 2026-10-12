@@ -1,0 +1,126 @@
+FAIL tests/connector-session.test.ts
+  tenant AI model defaults
+    ✓ uses the pinned Profile model ahead of the tenant model when the callsite omits one (11 ms)
+    ✓ uses the tenant model when neither the callsite nor Profile pins a model (1 ms)
+    ✓ keeps an explicit callsite model above both immutable defaults (1 ms)
+    ✓ does not apply the tenant model to an explicit Profile Connector pin (1 ms)
+  classifyInvocation
+    ✓ maps SUCCEEDED to a result outcome carrying result/usage/sessionRef (1 ms)
+    ✓ maps SUCCEEDED without result envelope to an empty result, null session (1 ms)
+    ✓ normalizes a missing sessionRef on a result to null
+    ✓ rejects a malformed non-string sessionRef (42) (1 ms)
+    ✓ rejects a malformed non-string sessionRef (false) (1 ms)
+    ✓ rejects a malformed non-string sessionRef ({})
+    ✓ rejects a malformed non-string sessionRef ([])
+    ✓ maps NEW to pending-yield (1 ms)
+    ✓ maps IN_FLIGHT to pending-yield
+    ✓ maps PENDING to pending-yield
+    ✓ carries the async 202 sessionRef on pending-yield (CR06-04)
+    ✓ normalizes a missing pending sessionRef to null (pre-CR06-04 wire)
+    ✓ falls back to the top-level sessionRef when a SUCCEEDED result omits one (CR06-04)
+    ✓ rejects a malformed top-level sessionRef (42) (1 ms)
+    ✓ rejects a malformed top-level sessionRef (false)
+    ✓ rejects a malformed top-level sessionRef ({})
+    ✓ rejects a malformed top-level sessionRef ([])
+    ✓ maps FAILED with the error envelope passthrough
+    ✓ maps FAILED without error to a non-retryable default
+    ✓ maps UNKNOWN to reconcile and CANCELLED to cancelled
+  pendingRetryDelayMs
+    ✓ derives the delay from a future nextPollAt
+    ✓ clamps a far-future hint to MAX
+    ✓ returns MIN for a past hint (never a hot loop, never negative)
+    ✓ falls back to DEFAULT for null or unparsable hints
+    ✓ uses DEFAULT for a corrupt nextPollAt timestamp () (1 ms)
+    ✓ uses DEFAULT for a corrupt nextPollAt timestamp (2026-99-99T25:61:61Z)
+    ✓ uses DEFAULT for a corrupt nextPollAt timestamp (Infinity)
+    ✓ clamps non-positive derived retry delays to MIN (0 ms from now)
+    ✓ clamps non-positive derived retry delays to MIN (-1 ms from now)
+    ✓ clamps non-positive derived retry delays to MIN (-1200000 ms from now)
+  assertInvocationResult
+    ✓ returns the payload for result outcomes (1 ms)
+    ✓ throws PendingInvocationError for pending-yield (1 ms)
+    ✓ PendingInvocationError carries the async sessionRef without leaking it into the message (CR06-04)
+    ✓ throws the typed error for failed / reconcile / cancelled (26 ms)
+  yield-path classification (pending → RETRY_PENDING, not spin)
+    ✓ PendingInvocationError maps onto the retryable runtime fail path (1 ms)
+    ✓ ReconcileRequiredError is permanent (no blind retry of an unknown outcome)
+    ✓ bounds ReconcileRequiredError detail to 2048 characters (2048 input characters) (1 ms)
+    ✓ bounds ReconcileRequiredError detail to 2048 characters (2049 input characters)
+    ✓ ConnectorInvocationFailedError keeps the connector retryable flag
+  deriveStableDeadline
+    ✓ prefers the explicit override, then ctx deadline, then the sentinel
+    ✓ is deterministic across calls (no wall-clock component) (1 ms)
+  runConnectorStep — stable invocation + pending yield (acceptance)
+    ✓ redelivery of the same logical step reuses one inputHash, one invocationId, and yields on pending without a checkpoint (10 ms)
+    ✓ a drifted input for the same logical step surfaces 409 INPUT_HASH_MISMATCH — never a blind provider retry (3 ms)
+    ✓ an operation deadline is used verbatim in hash + wire payload (2 ms)
+    ✓ async 202 sessionRef survives the pending yield and is checkpointed on resume (CR06-04) (3 ms)
+    ✓ fails closed on a malformed top-level continuation token before checkpointing (CR06-04) (1 ms)
+  runConnectorStep — session refs
+    ✓ sends an explicit sessionRef on the wire, persists it on the checkpoint, and returns the provider continuation (3 ms)
+    ✓ falls back to the sessionRef stored on a prior FAILED checkpoint (multi-turn resume) (2 ms)
+    ✓ omits sessionRef from the wire body when none is known (pre-W39 shape preserved) (2 ms)
+    ✓ rejects a malformed provider sessionRef before writing a step checkpoint
+    ✓ fails closed on a malformed continuation token (42) (1 ms)
+    ✓ fails closed on a malformed continuation token (false) (1 ms)
+    ✓ fails closed on a malformed continuation token ({}) (1 ms)
+    ✓ fails closed on a malformed continuation token ([]) (1 ms)
+    ✓ propagates the operation deadline with the continuation and yields the exact provider expiry hint (1 ms)
+    ✓ handles concurrent replay/close callers after a session step has committed without reinvoking the connector (6 ms)
+    ✓ rejects malformed connector handshake response before checkpointing ({ invocationId: '', state: 'SUCCEEDED', result: { content: 'bad id' } }) (1 ms)
+    ✓ rejects malformed connector handshake response before checkpointing ({
+  invocationId: 'valid-id',
+  state: 'HANDSHAKE',
+  result: { content: 'unknown state' }
+}) (1 ms)
+    ✓ rejects malformed connector handshake response before checkpointing ({
+  invocationId: 'valid-id',
+  state: 'FAILED',
+  error: {
+    code: 'BROKEN',
+    message: 'bad retry',
+    retryable: true,
+    retryAfterMs: -1
+  }
+}) (1 ms)
+  runConnectorStep — failure classification + replay
+    ✓ FAILED retryable surfaces as ConnectorInvocationFailedError mapped by classifyFailure (1 ms)
+    ✓ UNKNOWN surfaces as non-retryable ReconcileRequiredError
+    ✓ a completed step replays from its checkpoint without re-invoking the connector (RUN-04 no re-inference) (4 ms)
+  startWorker — invokeConnector injection (P4-07 wiring seam)
+    ✕ routes ctx.connector.invoke through the injected invoker with the grant-issued invocationId (2 ms)
+
+  ● startWorker — invokeConnector injection (P4-07 wiring seam) › routes ctx.connector.invoke through the injected invoker with the grant-issued invocationId
+
+    ZodError: [
+      {
+        "code": "invalid_type",
+        "expected": "object",
+        "received": "undefined",
+        "path": [
+          "backupEffectFence"
+        ],
+        "message": "Required"
+      }
+    ]
+
+      165 |   async heartbeatWorker(instanceId: string, hb: WorkerHeartbeat): Promise<HeartbeatAck> {
+      166 |     return this.request('PUT', `/workers/${encodeURIComponent(instanceId)}/heartbeat`, hb, (raw) =>
+    > 167 |       HeartbeatAckSchema.parse(raw)
+          |                          ^
+      168 |     );
+      169 |   }
+      170 |
+
+      at Object.get error [as error] (../../node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/types.cjs:45:31)
+      at ZodObject.parse (../../node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/types.cjs:120:22)
+      at src/runtime-client.ts:167:26
+      at RuntimeClient.request (src/runtime-client.ts:160:12)
+      at startWorker (src/worker.ts:524:22)
+      at Object.<anonymous> (tests/connector-session.test.ts:1096:20)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 66 passed, 67 total
+Snapshots:   0 total
+Time:        2.987 s
+Ran all test suites within paths "tests/connector-session.test.ts".

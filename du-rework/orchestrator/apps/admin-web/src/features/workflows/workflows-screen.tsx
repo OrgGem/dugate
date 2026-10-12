@@ -31,7 +31,7 @@ import { loadActiveKeys } from '@/lib/api/active-keys';
 import { useTenant } from '@/lib/tenant-context';
 import { parseBusinessPage, parseBusinessVersions } from '@/features/businesses/state';
 import { checkWorkflowSchemaDraft, connectorNodeAtPath, connectorReferences, parseWorkflowOverrideRows, updateConnectorNodeOverride, updateConnectorReference, workflowSchemaDiff, type WorkflowExtraHeader, type WorkflowStaticFormField } from './revision-editor';
-import { acceptAttempt, createImmutableAttempt, markAttemptDispatched, retainAfterFailure, type ImmutableAttempt } from '@/features/submissions/immutable-attempt';
+import { acceptAttempt, createImmutableAttempt, FileArtifactCache, markAttemptDispatched, retainAfterFailure, TenantAttemptRegistry, type ImmutableAttempt } from '@/features/submissions/immutable-attempt';
 
 export interface PresetSample {
   slug: string;
@@ -309,8 +309,8 @@ export function WorkflowsScreen() {
   const [metadataConfigured, setMetadataConfigured] = useState<boolean | null>(null);
   const [testExecuting, setTestExecuting] = useState(false);
   const inFlightTestTenants = useRef(new Set<string>());
-  const testAttempts = useRef(new Map<string, WorkflowTestAttempt>());
-  const uploadedTestFiles = useRef(new WeakMap<File, { tenantId: string; apiKeyId: string; artifactId: string }>());
+  const testAttempts = useRef(new TenantAttemptRegistry<WorkflowTestAttempt>());
+  const uploadedTestFiles = useRef(new FileArtifactCache<File>());
   const [testAttempt, setTestAttempt] = useState<WorkflowTestAttempt | null>(null);
   const [testResult, setTestResult] = useState<Record<string, unknown> | null>(null);
   const [copiedDigest, setCopiedDigest] = useState<string | null>(null);
@@ -365,7 +365,8 @@ export function WorkflowsScreen() {
       setTestResult(previous => ({ ...previous, status: state, message: `Operation ${testOperationId}: ${state}`, result: raw, pollingError: undefined }));
       if (['SUCCEEDED', 'FAILED', 'CANCELLED', 'TIMED_OUT'].includes(state)) {
         if (testAttempt?.state === 'ACCEPTED' && testAttempt.operationId === testOperationId) {
-          storeWorkflowTestAttempt(testAttempt, null);
+          if (testAttempts.current.clearAcceptedOperation(testAttempt.tenantId, testOperationId)
+            && activeTenant.current === testAttempt.tenantId) setTestAttempt(null);
         }
       } else timer = setTimeout(() => void poll(), 2000);
     };
@@ -799,11 +800,7 @@ export function WorkflowsScreen() {
 
   function storeWorkflowTestAttempt(previous: WorkflowTestAttempt, next: WorkflowTestAttempt | null): void {
     const scope = previous.tenantId;
-    const current = testAttempts.current.get(scope);
-    if (next && current?.state === 'ACCEPTED' && next.state !== 'ACCEPTED') return;
-    if (next) testAttempts.current.set(scope, next);
-    else testAttempts.current.delete(scope);
-    if (activeTenant.current === previous.tenantId) setTestAttempt(next);
+    if (testAttempts.current.set(scope, next) && activeTenant.current === previous.tenantId) setTestAttempt(next);
   }
 
   const openTestModal = (wf: WorkflowCatalogItem) => {
@@ -956,15 +953,15 @@ export function WorkflowsScreen() {
       const uploaded: Array<{ artifactId: string; role: string }> = [];
       for (const [index, file] of files.entries()) {
         if (!isCurrentRequest()) return;
-        const cached = uploadedTestFiles.current.get(file);
+        const cached = uploadedTestFiles.current.get(file, tenantScope, apiKeyId);
         let artifactId: string;
-        if (cached?.tenantId === tenantScope && cached.apiKeyId === apiKeyId) {
-          artifactId = cached.artifactId;
+        if (cached) {
+          artifactId = cached;
         } else {
           const upload = await client.uploadWorkflowFile(tenantScope, apiKeyId, file);
           if (!upload.ok) throw new Error(upload.problem.title ?? `Upload failed for ${file.name}`);
           artifactId = upload.data.artifactId;
-          uploadedTestFiles.current.set(file, { tenantId: tenantScope, apiKeyId, artifactId });
+          uploadedTestFiles.current.set(file, tenantScope, apiKeyId, artifactId);
           if (!isCurrentRequest()) return;
         }
         uploaded.push({ artifactId, role: `files-${index + 1}` });

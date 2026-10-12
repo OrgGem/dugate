@@ -1,0 +1,10 @@
+PASS packages/worker-sdk/tests/orv15-workflow-connector-wire.test.ts
+  ORV15 workflow override grant-to-Connector wire
+    ✓ preserves the exact root checkpoint key and pinned override payload (18 ms)
+    ✓ preserves the exact parallel branch checkpoint key and pinned override payload (3 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       2 passed, 2 total
+Snapshots:   0 total
+Time:        1.526 s, estimated 2 s
+Ran all test suites within paths "packages/worker-sdk/tests/orv15-workflow-connector-wire.test.ts".

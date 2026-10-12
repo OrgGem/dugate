@@ -1,0 +1,47 @@
+FAIL tests/orv15-vfy-public-operation.test.ts
+  ORV15 public legacy operation read compatibility
+    ✓ GET by operation ID resolves an active key and returns its tenant-scoped legacy envelope (6 ms)
+    ✕ GET download streams the exact legacy bytes only after the same tenant/key-scoped operation read (1 ms)
+    ✓ POST /api/v1/operations/operation-public-read stays outside the public operation read surface (1 ms)
+    ✓ GET /api/v1/operations/operation-public-read/cancel stays outside the public operation read surface (1 ms)
+    ✓ GET /api/v1/operations/metrics stays outside the public operation read surface
+    ✕ an inactive or unknown key cannot load an otherwise existing operation (2 ms)
+
+  ● ORV15 public legacy operation read compatibility › GET download streams the exact legacy bytes only after the same tenant/key-scoped operation read
+
+    TypeError: The first argument must be of type string or an instance of Buffer, ArrayBuffer, or Array or an Array-like Object. Received type number (37)
+
+      87 |   const chunks: Buffer[] = [];
+      88 |   for await (const chunk of raw as AsyncIterable<Uint8Array>) {
+    > 89 |     chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+         |                                                         ^
+      90 |   }
+      91 |   return Buffer.concat(chunks);
+      92 | }
+
+      at collect (tests/orv15-vfy-public-operation.test.ts:89:57)
+      at Object.<anonymous> (tests/orv15-vfy-public-operation.test.ts:133:12)
+
+  ● ORV15 public legacy operation read compatibility › an inactive or unknown key cannot load an otherwise existing operation
+
+    expect(received).rejects.toMatchObject()
+
+    Received promise resolved instead of rejected
+    Resolved to value: {"body": {"detail": "A valid API key is required.", "status": 401, "title": "Unauthorized", "type": "https://dugate.vn/errors/unauthorized"}, "headers": {}, "status": 401}
+
+      152 |     } as Partial<RouteContext>);
+      153 |
+    > 154 |     await expect(handlePublicRoutes(h.context)).rejects.toMatchObject({ status: 401, code: 'UNAUTHENTICATED' });
+          |           ^
+      155 |     expect(h.queries).toHaveLength(1);
+      156 |     expect(h.queries[0]?.params).toEqual([
+      157 |       createHash('sha256').update('revoked-key').digest('hex'),
+
+      at expect (../../node_modules/.pnpm/expect@29.7.0/node_modules/expect/build/index.js:113:15)
+      at Object.<anonymous> (tests/orv15-vfy-public-operation.test.ts:154:11)
+
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 4 passed, 6 total
+Snapshots:   0 total
+Time:        2.784 s
+Ran all test suites within paths "tests/orv15-vfy-public-operation.test.ts".

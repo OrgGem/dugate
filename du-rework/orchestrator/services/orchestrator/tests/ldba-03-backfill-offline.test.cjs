@@ -616,7 +616,9 @@ test('ORV11 preserves disabled local identity and assignments with runtime roles
   const user = fixture.target.get('admin_local_users|' + userId);
   assert.equal(user.role, 'operator');
   assert.equal(user.is_enabled, false);
-  assert.equal(user.is_locked, true);
+  // Legacy User has no lock column. The reset marker and disabled flag gate login;
+  // the password-reset activation path requires this imported account to be unlocked.
+  assert.equal(user.is_locked, false);
   assert.equal(user.legacy_password_reset_required, true);
   assert.ok(fixture.target.has('user_profile_assignments|' + userId + '|' + API_KEY_ID));
 });

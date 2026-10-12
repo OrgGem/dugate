@@ -19,6 +19,68 @@ export type ImmutableAttempt<T extends { tenantId: string }> = Readonly<{
   operationId?: string;
 }>;
 
+type TenantAttemptEntry = {
+  tenantId: string;
+  idempotencyKey: string;
+  request: unknown;
+  state: AttemptState;
+  operationId?: string;
+};
+
+/** In-memory, tenant-partitioned attempt storage shared by the Admin screens.
+ * An accepted operation can only be removed after matching terminal evidence. */
+export class TenantAttemptRegistry<Attempt extends TenantAttemptEntry> {
+  private readonly attempts = new Map<string, Attempt>();
+
+  get(tenantId: string): Attempt | null {
+    return this.attempts.get(tenantId) ?? null;
+  }
+
+  has(tenantId: string): boolean {
+    return this.attempts.has(tenantId);
+  }
+
+  set(tenantId: string, attempt: Attempt | null): boolean {
+    if (!tenantId || tenantId.length > 128) throw new Error('Attempt registry requires a bounded tenant scope.');
+    if (attempt && attempt.tenantId !== tenantId) throw new Error('Attempt registry scope does not match the request tenant.');
+    const current = this.attempts.get(tenantId);
+    if (current?.state === 'ACCEPTED'
+      && (!attempt || attempt.state !== 'ACCEPTED' || attempt.operationId !== current.operationId
+        || attempt.idempotencyKey !== current.idempotencyKey || attempt.request !== current.request)) return false;
+    if (attempt) this.attempts.set(tenantId, attempt);
+    else this.attempts.delete(tenantId);
+    return true;
+  }
+
+  /** Clear only the accepted operation whose terminal state was just observed. */
+  clearAcceptedOperation(tenantId: string, operationId: string): boolean {
+    const current = this.attempts.get(tenantId);
+    if (!current || current.state !== 'ACCEPTED' || current.operationId !== operationId) return false;
+    this.attempts.delete(tenantId);
+    return true;
+  }
+}
+
+type UploadedArtifact = { tenantId: string; apiKeyId: string; artifactId: string };
+
+/** File upload reuse is based on object identity and its exact auth context.
+ * Filenames, lengths and timestamps are deliberately not cache keys. */
+export class FileArtifactCache<FileRef extends object> {
+  private readonly entries = new WeakMap<FileRef, UploadedArtifact>();
+
+  get(file: FileRef, tenantId: string, apiKeyId: string): string | null {
+    const entry = this.entries.get(file);
+    return entry?.tenantId === tenantId && entry.apiKeyId === apiKeyId ? entry.artifactId : null;
+  }
+
+  set(file: FileRef, tenantId: string, apiKeyId: string, artifactId: string): void {
+    if (!tenantId || tenantId.length > 128 || !apiKeyId || apiKeyId.length > 256 || !artifactId || artifactId.length > 256) {
+      throw new Error('Uploaded artifact cache requires bounded tenant, key and artifact identities.');
+    }
+    this.entries.set(file, { tenantId, apiKeyId, artifactId });
+  }
+}
+
 const MAX_REQUEST_BYTES = 1024 * 1024;
 const MAX_DEPTH = 32;
 const MAX_NODES = 20_000;

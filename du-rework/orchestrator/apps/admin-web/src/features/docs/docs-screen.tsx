@@ -11,7 +11,7 @@ import { NativeSelect } from '@/components/ui/select';
 import { createAdminApiClient, type AdminApiProblem, type AdminWebSession, type ProfileApiKeyRow, type ProfileListRow, type ProfileSelfServiceAssignedPage, type OperationDetail, type AdminWorkbenchEndpointTestRequest, type AdminWorkbenchPromptWizardRequest } from '@/lib/api';
 import { parseProfileDetail, parseProfileListPage } from '@/features/profiles/state';
 import { useTenant } from '@/lib/tenant-context';
-import { acceptAttempt, createImmutableAttempt, markAttemptDispatched, retainAfterFailure, type ImmutableAttempt } from '@/features/submissions/immutable-attempt';
+import { acceptAttempt, createImmutableAttempt, markAttemptDispatched, retainAfterFailure, TenantAttemptRegistry, type ImmutableAttempt } from '@/features/submissions/immutable-attempt';
 
 const ACTIONS = ['ingest', 'extract', 'analyze', 'transform', 'generate', 'compare'] as const;
 type WorkbenchAction = typeof ACTIONS[number];
@@ -279,8 +279,8 @@ export function DocsScreen() {
   const [wizardAttempt, setWizardAttempt] = useState<WizardAttempt | null>(null);
   const [pollingNotice, setPollingNotice] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const testAttempts = useRef(new Map<string, TestAttempt>());
-  const wizardAttempts = useRef(new Map<string, WizardAttempt>());
+  const testAttempts = useRef(new TenantAttemptRegistry<TestAttempt>());
+  const wizardAttempts = useRef(new TenantAttemptRegistry<WizardAttempt>());
   const testInFlight = useRef(new Set<string>());
   const wizardInFlight = useRef(new Set<string>());
   const uploadInFlight = useRef(new Set<string>());
@@ -290,15 +290,11 @@ export function DocsScreen() {
   const activeTenantId = useRef<string | null>(null);
 
   function rememberTestAttempt(scope: string, attempt: TestAttempt | null): void {
-    if (attempt) testAttempts.current.set(scope, attempt);
-    else testAttempts.current.delete(scope);
-    if (scope === activeTenantId.current) setTestAttempt(attempt);
+    if (testAttempts.current.set(scope, attempt) && scope === activeTenantId.current) setTestAttempt(attempt);
   }
 
   function rememberWizardAttempt(scope: string, attempt: WizardAttempt | null): void {
-    if (attempt) wizardAttempts.current.set(scope, attempt);
-    else wizardAttempts.current.delete(scope);
-    if (scope === activeTenantId.current) setWizardAttempt(attempt);
+    if (wizardAttempts.current.set(scope, attempt) && scope === activeTenantId.current) setWizardAttempt(attempt);
   }
 
   useEffect(() => {
@@ -370,8 +366,8 @@ export function DocsScreen() {
     setTestBusy(Boolean(tenantId && testInFlight.current.has(tenantId)));
     setWizardBusy(Boolean(tenantId && wizardInFlight.current.has(tenantId)));
     setConfirmAction(null);
-    setTestAttempt(tenantId ? testAttempts.current.get(tenantId) ?? null : null);
-    setWizardAttempt(tenantId ? wizardAttempts.current.get(tenantId) ?? null : null);
+    setTestAttempt(tenantId ? testAttempts.current.get(tenantId) : null);
+    setWizardAttempt(tenantId ? wizardAttempts.current.get(tenantId) : null);
   };
 
   async function loadProfiles(cursor?: string): Promise<void> {
@@ -1054,10 +1050,10 @@ export function DocsScreen() {
           if (proposal) setProposalDraft(proposal);
         }
         if (terminal(detail.operation?.state)) {
-          const completedTest = testAttempts.current.get(tenantId ?? '');
-          if (kind === 'test' && completedTest?.operationId === operationId) rememberTestAttempt(completedTest.tenantId, null);
-          const completedWizard = wizardAttempts.current.get(tenantId ?? '');
-          if (kind === 'wizard' && completedWizard?.operationId === operationId) rememberWizardAttempt(completedWizard.tenantId, null);
+          if (kind === 'test' && tenantId && testAttempts.current.clearAcceptedOperation(tenantId, operationId)
+            && tenantId === activeTenantId.current) setTestAttempt(null);
+          if (kind === 'wizard' && tenantId && wizardAttempts.current.clearAcceptedOperation(tenantId, operationId)
+            && tenantId === activeTenantId.current) setWizardAttempt(null);
           return;
         }
       } catch {

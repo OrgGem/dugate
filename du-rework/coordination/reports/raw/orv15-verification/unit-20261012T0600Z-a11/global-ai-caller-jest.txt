@@ -1,0 +1,10 @@
+PASS tests/orv15-vfy-global-ai-caller.test.ts
+  VFY-ORV15 global AI caller UNKNOWN recovery
+    ✓ re-enters provider-test with the same key after UNKNOWN, then seals the recovered result (8 ms)
+    ✓ does not call the provider again for an immutable definitive failure replay (2 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       2 passed, 2 total
+Snapshots:   0 total
+Time:        2.473 s
+Ran all test suites within paths "tests/orv15-vfy-global-ai-caller.test.ts".

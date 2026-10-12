@@ -1,0 +1,17 @@
+vite v6.4.4 building for production...
+transforming...
+[plugin vite:resolve] Module "node:crypto" has been externalized for browser compatibility, imported by "/workspace/dugate/du-rework/orchestrator/packages/contracts/dist/manifest-validator.js". See https://vite.dev/guide/troubleshooting.html#module-externalized-for-browser-compatibility for more details.
+[plugin vite:resolve] Module "node:crypto" has been externalized for browser compatibility, imported by "/workspace/dugate/du-rework/orchestrator/packages/contracts/dist/hashing.js". See https://vite.dev/guide/troubleshooting.html#module-externalized-for-browser-compatibility for more details.
+[plugin vite:resolve] Module "node:crypto" has been externalized for browser compatibility, imported by "/workspace/dugate/du-rework/orchestrator/packages/contracts/dist/workflow-import.js". See https://vite.dev/guide/troubleshooting.html#module-externalized-for-browser-compatibility for more details.
+✓ 3041 modules transformed.
+rendering chunks...
+computing gzip size...
+../../../../../scratch/orv15-primary-ui-20261012T0610Z-a13/index.html                     0.47 kB │ gzip:   0.29 kB
+../../../../../scratch/orv15-primary-ui-20261012T0610Z-a13/assets/index-A94_Euto.css     66.13 kB │ gzip:  12.20 kB
+../../../../../scratch/orv15-primary-ui-20261012T0610Z-a13/assets/index-Bl2arQ2a.js   2,123.51 kB │ gzip: 504.14 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 5.54s

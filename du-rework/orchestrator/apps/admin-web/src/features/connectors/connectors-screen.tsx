@@ -31,7 +31,7 @@ import { summarizeCurlImport } from './curl-import';
 import { ParityConnectorEditor } from './parity-connector-editor';
 import { useTenant } from '@/lib/tenant-context';
 import type { ProviderTestRequest } from '@du/contracts';
-import type { ImmutableAttempt } from '@/features/submissions/immutable-attempt';
+import { TenantAttemptRegistry, type ImmutableAttempt } from '@/features/submissions/immutable-attempt';
 import {
   buildConnectorUpsertParams,
   connectorActionGating,
@@ -91,16 +91,14 @@ export function ConnectorsScreen() {
   // client and must ride every mutation below.
   const client = useMemo(() => createAdminApiClient(), []);
   const { tenantId } = useTenant();
-  const parityAttempts = useRef(new Map<string, ImmutableAttempt<ProviderTestRequest>>());
+  const parityAttempts = useRef(new TenantAttemptRegistry<ImmutableAttempt<ProviderTestRequest>>());
   const [parityAttemptVersion, setParityAttemptVersion] = useState(0);
   const savedParityAttempt = useMemo(
-    () => tenantId ? parityAttempts.current.get(tenantId) ?? null : null,
+    () => tenantId ? parityAttempts.current.get(tenantId) : null,
     [parityAttemptVersion, tenantId],
   );
   const rememberParityAttempt = useCallback((scope: string, attempt: ImmutableAttempt<ProviderTestRequest> | null) => {
-    if (attempt) parityAttempts.current.set(scope, attempt);
-    else parityAttempts.current.delete(scope);
-    setParityAttemptVersion((version) => version + 1);
+    if (parityAttempts.current.set(scope, attempt)) setParityAttemptVersion((version) => version + 1);
   }, []);
   const [capabilities, setCapabilities] = useState<Loadable<ConnectorCapabilities>>({ kind: 'loading' });
   const [list, setList] = useState<ListState>({ kind: 'idle' });

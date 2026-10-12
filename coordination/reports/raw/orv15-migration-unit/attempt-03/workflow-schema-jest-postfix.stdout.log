@@ -1,0 +1,15 @@
+PASS tests/legacy-workflow-schema-backfill-adapter.test.ts
+  LDBA-06 R4 workflow schema backfill adapter
+    ✓ round-trips a connector schema through the production writer and reader (17 ms)
+    ✓ derives and round-trips static HTTPS origins inside parallel branches (9 ms)
+    ✓ skips dynamic, non-HTTPS and userinfo egress with a reason and writes no row (2 ms)
+    ✓ rejects an unsealed catalog row through the production reader
+    ✓ is idempotent on a second run and reports a writer compare-and-swap race as a skip (6 ms)
+    ✓ matches tenant-name preflight, seed, and duplicate-name semantics
+    ✓ chooses the greatest byte-order key for an updatedAt tie and lists every loser
+
+Test Suites: 1 passed, 1 total
+Tests:       7 passed, 7 total
+Snapshots:   0 total
+Time:        2.355 s, estimated 3 s
+Ran all test suites matching /tests\/legacy-workflow-schema-backfill-adapter.test.ts/i.
