@@ -29,9 +29,7 @@ for (const file of files) {
           const allowed = path.join(workspaceRoot, dir);
           return resolved.startsWith(allowed + path.sep);
         });
-        const isPortalSpec = rel === 'apps/admin-web/src/features/api-docs/api-docs-screen.tsx'
-          && resolved === path.join(workspaceRoot, 'docs/21-openapi.json?raw');
-        if (isSharedHarness || isPortalSpec) sharedWorkspaceReferences.push({ file: rel, spec });
+        if (isSharedHarness) sharedWorkspaceReferences.push({ file: rel, spec });
         else escapes.push({ file: rel, spec });
       }
     }
@@ -39,5 +37,13 @@ for (const file of files) {
   }
 }
 const hasBusinesses = fs.existsSync(path.join(root, 'businesses'));
-console.log(JSON.stringify({tsFiles: files.length, outsideRepoRelativeImports: escapes.length, escapes: escapes.slice(0, 20), sharedWorkspaceReferences: sharedWorkspaceReferences.length, workerSiblingReferences: siblingRefs.length, siblingRefs: siblingRefs.slice(0, 20), businessesDirPresent: hasBusinesses}, null, 2));
-process.exit(escapes.length === 0 && siblingRefs.length === 0 && !hasBusinesses ? 0 : 1);
+const portalSpecSource = path.join(root, 'apps/admin-web/src/features/api-docs/api-docs-screen.tsx');
+const localApiSpec = path.join(root, 'docs/21-openapi.json');
+const portalSource = fs.readFileSync(portalSpecSource, 'utf8');
+const specImport = /import\s+specRaw\s+from\s+['"]([^'"]+)['"]/.exec(portalSource)?.[1];
+const specImportPath = specImport?.replace(/\?raw$/, '');
+const portalSpecResolvesLocally = specImportPath !== undefined
+  && path.resolve(path.dirname(portalSpecSource), specImportPath) === localApiSpec
+  && fs.existsSync(localApiSpec);
+console.log(JSON.stringify({tsFiles: files.length, outsideRepoRelativeImports: escapes.length, escapes: escapes.slice(0, 20), sharedWorkspaceReferences: sharedWorkspaceReferences.length, workerSiblingReferences: siblingRefs.length, siblingRefs: siblingRefs.slice(0, 20), businessesDirPresent: hasBusinesses, portalSpecResolvesLocally}, null, 2));
+process.exit(escapes.length === 0 && siblingRefs.length === 0 && !hasBusinesses && portalSpecResolvesLocally ? 0 : 1);

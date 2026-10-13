@@ -9,7 +9,11 @@ Use Node 24.21.0 and pnpm 10.18.3. Orchestrator can be operated as a **standalon
 
 ```sh
 cd du-rework/orchestrator
-pnpm run docker:up  # Khởi chạy PostgreSQL (15433) và Redis (16380)
+pnpm install --frozen-lockfile
+# Keep real database credentials out of tracked files.
+cp .env.example .env.bootstrap.local
+# Edit .env.bootstrap.local with your external PostgreSQL/Redis URLs.
+pnpm run init:local -- --env-file=.env.bootstrap.local
 pnpm run dev        # Build, start services, and watch Admin Web/backend changes
 ```
 
@@ -40,14 +44,16 @@ orchestrator/
                         # pnpm-workspace.yaml patchedDependencies/overrides)
 ```
 
-The boundary check permits explicit workspace test harness imports and the
-Portal import of `../docs/21-openapi.json`. It checks relative `from` imports;
-it does not prove a standalone repository build.
+The standalone workspace keeps its build inputs, shared TypeScript config,
+patches, vendor packages, and Portal OpenAPI document inside `orchestrator/`.
+`scripts/verify-isolation.cjs` checks relative imports; the standalone build
+is verified separately by `pnpm run build`.
 
-Build order is defined in `../scripts/build-all.cjs` (packages, then
-connector, orchestrator, admin-web, then the three businesses) and runtime
-images in `../scripts/docker/build-runtime.cjs`. `patches/` and `vendor/`
-preserve the canonical security fixes.
+The standalone build order is defined in `scripts/build.cjs` (packages, then
+Connector, Orchestrator, and Admin Web). The parent `du-rework/scripts/build-all.cjs`
+is a separate monorepo build that also builds business workers and container
+images; `pnpm run dev` does not call it. `patches/` and `vendor/` preserve the
+canonical security fixes within this workspace.
 
 Runtime artifact grants require a trusted worker-reachable origin. Configure
 `ORCHESTRATOR_INTERNAL_BASE_URL=http://orchestrator:3002` for the Compose topology;
@@ -58,27 +64,35 @@ remain unchanged. Internal 3002 and Connector 8080 need no default host mapping.
 
 ## Hướng dẫn local từng bước
 
-Chạy Orchestrator và Document Core từ hai terminal, mỗi terminal trong thư mục package tương ứng. Cần Node.js `24.21.0`, pnpm `10.18.3`, Docker Engine và Compose v2. Cài dependency workspace một lần từ `du-rework/`; Document Core dùng các package workspace trong thư mục cha.
-
-```sh
-cd du-rework
-pnpm install --frozen-lockfile --ignore-scripts
-```
+Cần Node.js `24.21.0`, pnpm `10.18.3`, cùng PostgreSQL và Redis đã chạy riêng. Các lệnh bên dưới chạy từ workspace `orchestrator/`; chúng không khởi động, dừng hoặc cấu hình database/container.
 
 ### Terminal Orchestrator
 
 ```sh
 cd du-rework/orchestrator
 pnpm install --frozen-lockfile
-pnpm run docker:up
+```
+
+Copy `.env.example` tới file local bị ignore, sửa `DATABASE_URL` và `REDIS_URL` để trỏ tới các dịch vụ external đang chạy, sau đó tạo profile riêng. Lệnh này sinh credentials cho app, giữ nguyên endpoint database/Redis bạn đã cung cấp và không tạo database password:
+
+```sh
+cp .env.example .env.bootstrap.local
+# Edit .env.bootstrap.local with the external service URLs and credentials.
+pnpm run init:local -- --env-file=.env.bootstrap.local
 pnpm run dev
 ```
 
-`docker:up` tạo `orchestrator/.env.local` nếu chưa có rồi dùng đúng file đó cho PostgreSQL (`127.0.0.1:15433`) và Redis (`127.0.0.1:16380`). Profile chứa credentials local được sinh ngẫu nhiên và danh sách token worker theo business; script không in secret. `dev` build các package/service, chạy migration, rồi start Orchestrator và Connector. Watch mode bật mặc định: Admin Web được Vite phục vụ trên cùng `http://127.0.0.1:3001/admin/` với React HMR; login, OIDC callback và `/admin/api` đi qua Admin Shell để giữ session, Host, cookie và CSRF checks. Thay đổi backend, Connector và shared package sẽ được build trước khi restart services. Nếu build lỗi, services dừng đến khi có lần build thành công sau thay đổi source tiếp theo. Dùng `pnpm run dev -- --no-watch` để build một lần và phục vụ bundle tĩnh. Dừng process bằng `Ctrl+C`; `pnpm run docker:down` dừng containers và giữ volume database. Nếu dev process đang chạy từ trước khi bật watch mode, hãy dừng và chạy lại một lần để dùng runner mới.
+`pnpm run dev` kiểm tra kết nối TCP tới PostgreSQL và Redis, build packages/services bên trong workspace, chạy migration PostgreSQL rồi start Orchestrator và Connector. Nếu thiếu kết nối hoặc migration lỗi, startup dừng và nêu endpoint cần kiểm tra; runner không gợi ý chạy `docker:up`. Khi đã có `.env.local`, runner dùng file đó nguyên trạng và không sinh lại credentials.
 
-Khi chạy Orchestrator local, runner tự đặt `DU_CONNECTOR_BASE_URLS` thành route mặc định tĩnh tới `CONNECTOR_URL` nếu biến này chưa được đặt. Route ID cụ thể trong map cấu hình luôn được ưu tiên; nếu tự đặt map mà không có `"*"`, ID mới vẫn trả về `404`. `SERVICE_IDENTITY_SECRET` phải là Base64 của 32 byte và được dùng chung bởi Orchestrator với Connector; runner dừng với lỗi rõ ràng nếu thiếu.
+Watch mode bật mặc định: Admin Web được Vite phục vụ trên cùng `http://127.0.0.1:3001/admin/` với React HMR; login, OIDC callback và `/admin/api` đi qua Admin Shell để giữ session, Host, cookie và CSRF checks. Thay đổi backend, Connector, shared package hoặc `orchestrator/tsconfig.base.json` sẽ được build trước khi restart services. Nếu build lỗi, services dừng đến lần build thành công tiếp theo. Dùng `pnpm run dev -- --no-watch` để build một lần và phục vụ bundle tĩnh. Dừng bằng `Ctrl+C`; runner chỉ dừng các tiến trình do phiên đó tạo.
 
-Capability `test` của management UI đi cùng management route; để thực sự chạy provider test còn cần `INVOCATION_GRANT_SECRET` và metadata encryption hoạt động qua `DU_ENCRYPTION_METADATA_ENABLED=true`, `DU_VAULT_TRANSIT_OPTIONS`, cùng hai token Transit riêng `DU_VAULT_TRANSIT_ENC_TOKEN` và `DU_VAULT_TRANSIT_DEC_TOKEN`. Credential workflow chỉ bật khi cấu hình writer Vault KV v2 gồm `DU_VAULT_KV_OPTIONS` và `DU_VAULT_KV_TOKEN`; `DU_CONNECTOR_INITIAL_BINDINGS` là tùy chọn khi cần binding ban đầu. Connector cần `VAULT_ADDR`, `VAULT_APPROLE_ROLE_ID` và `VAULT_APPROLE_SECRET_ID` để đọc credential đã lưu trong Vault. Cấp cho mỗi identity đúng policy và KV path cần thiết trước khi bật luồng này.
+Khi chạy Orchestrator local, runner tự đặt `DU_CONNECTOR_BASE_URLS` thành route mặc định tĩnh tới `CONNECTOR_URL` nếu biến này chưa được đặt. Route ID cụ thể trong map cấu hình luôn được ưu tiên; nếu tự đặt map mà không có `"*"`, ID mới vẫn trả về `404`. `SERVICE_IDENTITY_SECRET` phải là Base64 của 32 byte và được dùng chung bởi Orchestrator với Connector; runner dừng với lỗi rõ ràng nếu thiếu. Business workers vẫn là các project riêng: Orchestrator runner không build hoặc launch Document Core, LC Checker hay Example Review.
+
+Profile mới tạo bằng `init:local` bật real-mode metadata/public-upload encryption và đặt `DU_VAULT_MOCK=true`. `pnpm run dev` sẽ khởi động mock Vault loopback cho Orchestrator KV v2 và Transit; cũng có thể bật tường minh với `pnpm run dev -- --mock-vault`. Khi `DU_VAULT_MOCK` không bật, các Vault Transit/KV options hiện có được giữ nguyên và dùng như đã cấu hình. Mock chỉ dành cho dev/test: dữ liệu KV seed và các lần ghi tồn tại trong bộ nhớ của tiến trình, vì vậy ghi mới mất khi mock dừng; Transit key material được tái tạo ổn định từ tên key và version nên ciphertext mock vẫn giải mã được sau restart nếu fixture/key reference không đổi.
+
+Mock này chỉ phục vụ các adapter `DU_VAULT_*` của Orchestrator. Nó không cấu hình hoặc thay thế Connector `VAULT_ADDR`/AppRole. Để Connector đọc/ghi credential KV v2, cấu hình một Vault thật cùng `VAULT_ADDR`, `VAULT_APPROLE_ROLE_ID` và `VAULT_APPROLE_SECRET_ID`; nếu cả ba biến này không được đặt, Connector khởi động mà không có Vault credential resolver. Cấu hình thiếu một phần sẽ làm startup thất bại.
+
+Capability `test` của management UI đi cùng management route; để thực sự chạy provider test còn cần `INVOCATION_GRANT_SECRET` và metadata encryption. Credential workflow cần writer Vault KV v2 hoạt động cùng binding đã provision; `DU_CONNECTOR_INITIAL_BINDINGS` là tùy chọn khi cần binding ban đầu. Startup không tự provision business version, profile, API key hoặc provider binding.
 
 ### Terminal Document Core
 

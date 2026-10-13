@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import specRaw from '../../../../../../docs/21-openapi.json?raw';
+import specRaw from '../../../../../docs/21-openapi.json?raw';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,11 +15,12 @@ import {
 /**
  * API Reference (Swagger-style viewer) for the Orchestrator Portal.
  *
- * Source of truth: the generated `docs/21-openapi.json` artifact, imported as
- * a raw string at build time so the spec ships inside the Portal bundle and
- * loads offline from the image. There is no CDN download and no runtime
- * BFF proxy; the page performs zero requests. Try-it-out is intentionally not
- * implemented: nothing here sends a request or a credential.
+ * Source artifact: the project-local `docs/21-openapi.json` mirror of the
+ * canonical generated spec. It is imported as a raw string at build time so
+ * the spec ships inside the Portal bundle and loads offline from the image.
+ * There is no CDN download and no runtime BFF proxy; the page performs zero
+ * requests. Try-it-out is intentionally not implemented: nothing here sends
+ * a request or a credential.
  *
  * Route: /api-docs behind the Orchestrator shell mount (admin/api-docs),
  * so the server-side session gate already protects it exactly like the other

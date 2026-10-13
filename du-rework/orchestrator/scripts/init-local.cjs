@@ -3,22 +3,37 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { randomBytes } = require('node:crypto');
 const { parseEnv } = require('node:util');
-const { localSecrets } = require('../../scripts/runtime-env.cjs');
+const { localSecrets } = require('./runtime-env.cjs');
+const { isWithin, resolveLocalPath } = require('./local-paths.cjs');
 
 const root = path.resolve(__dirname, '..');
 const file = path.join(root, '.env.local');
 
-function initLocalEnv() {
-  if (fs.existsSync(file)) {
-    return file;
+function initLocalEnv({ mode = 'dev', output = file, databaseUrl, redisUrl } = {}) {
+  const rootReal = fs.realpathSync(root);
+  const targetCandidate = path.resolve(rootReal, output);
+  if (!isWithin(rootReal, targetCandidate)) {
+    throw new Error('Local profile output must stay inside the orchestrator directory.');
   }
+  const targetParent = resolveLocalPath(rootReal, path.relative(rootReal, path.dirname(targetCandidate)), 'Local profile output directory');
+  const target = path.join(targetParent, path.basename(targetCandidate));
+  if (fs.existsSync(target)) return resolveLocalPath(rootReal, path.relative(rootReal, target), 'Local profile output');
+  if (!['dev', 'docker'].includes(mode)) throw new Error('Profile mode must be dev or docker.');
 
-  const password = randomBytes(24).toString('hex');
+  const externalDatabaseUrl = databaseUrl ?? process.env.DATABASE_URL;
+  const externalRedisUrl = redisUrl ?? process.env.REDIS_URL;
+  if (mode === 'dev' && (!externalDatabaseUrl || !externalRedisUrl)) {
+    throw new Error('Set DATABASE_URL and REDIS_URL for your already running external services before generating a dev profile. This command does not create database credentials or start containers.');
+  }
+  const password = mode === 'docker' ? randomBytes(24).toString('hex') : undefined;
+  const encryptedDevProfile = mode === 'dev';
   const values = {
     NODE_ENV: 'development',
-    LOCAL_POSTGRES_PASSWORD: password,
-    DATABASE_URL: `postgresql://du:${password}@127.0.0.1:15433/du_orchestrator_dev`,
-    REDIS_URL: 'redis://127.0.0.1:16380',
+    ...(mode === 'docker' ? {
+      LOCAL_POSTGRES_PASSWORD: password,
+      DATABASE_URL: `postgresql://du:${password}@127.0.0.1:15433/du_orchestrator_dev`,
+      REDIS_URL: 'redis://127.0.0.1:16380',
+    } : { DATABASE_URL: externalDatabaseUrl, REDIS_URL: externalRedisUrl }),
     ORCHESTRATOR_PORT: '3000',
     ORCHESTRATOR_HOST: '127.0.0.1',
     ORCHESTRATOR_INTERNAL_PORT: '3002',
@@ -36,23 +51,25 @@ function initLocalEnv() {
     CONNECTOR_MIGRATION_DIRECTORY: './services/connector/src/db/migrations',
     RUNTIME_URL: 'http://127.0.0.1:3002/api/runtime/v1',
     CONNECTOR_URL: 'http://127.0.0.1:8088',
-    DU_DATA_MODE: 'synthetic',
-    DU_SYNTHETIC_DATA_ACK: JSON.stringify({
+    DU_DATA_MODE: encryptedDevProfile ? 'real' : 'synthetic',
+    DU_SYNTHETIC_DATA_ACK: encryptedDevProfile ? '' : JSON.stringify({
       mode: 'synthetic-data-exempt',
       reason: 'Isolated development with generated synthetic fixtures only',
       approvedBy: 'local-developer',
       acknowledgedAt: new Date().toISOString(),
       isolatedFromRealData: true,
     }),
-    DU_ENCRYPTION_METADATA_ENABLED: 'false',
+    DU_ENCRYPTION_METADATA_ENABLED: String(encryptedDevProfile),
+    DU_ENCRYPTION_PUBLIC_UPLOAD_ENABLED: String(encryptedDevProfile),
     DU_METADATA_PLAINTEXT_READ_MODE: 'forbid',
+    DU_VAULT_MOCK: String(encryptedDevProfile),
   };
 
-  const content = '# Local development profile generated automatically\n'
+  const content = `# Private ${mode === 'dev' ? 'external-service' : 'Docker'} local development profile\n`
     + Object.entries(values).map(([k, v]) => `${k}=${v}`).join('\n') + '\n';
-  fs.writeFileSync(file, content, { encoding: 'utf8', flag: 'wx', mode: 0o600 });
-  console.log('[init] Created .env.local with safe generated credentials.');
-  return file;
+  fs.writeFileSync(target, content, { encoding: 'utf8', flag: 'wx', mode: 0o600 });
+  console.log(`[init] Created ${path.relative(root, target)} with generated app credentials; secret values are not printed.`);
+  return target;
 }
 
 const workerTokenKeys = {
@@ -128,15 +145,33 @@ function ensureLocalWorkerIdentities() {
 }
 
 if (require.main === module) {
-  const args = process.argv.slice(2);
+  const rawArgs = process.argv.slice(2);
+  const args = rawArgs[0] === '--' ? rawArgs.slice(1) : rawArgs;
+  const envFileArg = args.find((arg) => arg.startsWith('--env-file='));
+  const outputArg = args.find((arg) => arg.startsWith('--output='));
+  for (const arg of args) {
+    if (!['--docker', '--ensure-worker-identities', '--help'].includes(arg)
+      && !arg.startsWith('--env-file=') && !arg.startsWith('--output=')) {
+      throw new Error('Unknown option. Use --help for usage.');
+    }
+  }
   if (args.includes('--help')) {
-    console.log('node scripts/init-local.cjs [--ensure-worker-identities]');
+    console.log('node scripts/init-local.cjs [--env-file=PATH] [--output=PATH] [--docker] [--ensure-worker-identities]');
   } else if (args.includes('--ensure-worker-identities')) {
     ensureLocalWorkerIdentities();
-  } else if (args.length) {
-    throw new Error('Unknown option. Use --help for usage.');
   } else {
-    initLocalEnv();
+    const inputPath = envFileArg ? resolveLocalPath(root, envFileArg.slice('--env-file='.length), '--env-file') : undefined;
+    let input = {};
+    if (inputPath) {
+      input = parseEnv(fs.readFileSync(inputPath, 'utf8'));
+    }
+    const configured = { ...input, ...process.env };
+    initLocalEnv({
+      mode: args.includes('--docker') ? 'docker' : 'dev',
+      output: outputArg?.slice('--output='.length) ?? '.env.local',
+      databaseUrl: configured.DATABASE_URL,
+      redisUrl: configured.REDIS_URL,
+    });
   }
 }
 

@@ -1,6 +1,12 @@
 // Shared environment helpers for orchestrator standalone development.
 const { createHmac, randomBytes } = require('node:crypto');
 
+const LOCAL_WORKER_TOKEN_KEYS = {
+  'document-core': 'DOCUMENT_CORE_RUNTIME_TOKEN',
+  'lc-checker': 'LC_RUNTIME_TOKEN',
+  'example-review': 'EXAMPLE_REVIEW_RUNTIME_TOKEN',
+};
+
 function signedConnectorToken(identitySecret, now = Date.now()) {
   const key = Buffer.from(identitySecret || '', 'base64');
   if (key.length !== 32) throw new Error('SERVICE_IDENTITY_SECRET must encode 32 bytes');
@@ -70,6 +76,7 @@ function validateRuntimeEnvironment(env, { services = 'all' } = {}) {
 function localSecrets(now = Date.now()) {
   const rawGrant = randomBytes(16).toString('hex');
   const identity = randomBytes(32).toString('base64');
+  const map = Object.fromEntries(Object.keys(LOCAL_WORKER_TOKEN_KEYS).map(b => [b, randomBytes(32).toString('hex')]));
   return {
     RUNTIME_TOKEN: randomBytes(32).toString('hex'),
     ADMIN_TOKEN: randomBytes(32).toString('hex'),
@@ -84,6 +91,8 @@ function localSecrets(now = Date.now()) {
       activeVersion: 1,
       keys: { 1: randomBytes(32).toString('base64') }
     }),
+    WORKER_IDENTITY_TOKENS_BY_BUSINESS: JSON.stringify(map),
+    ...Object.fromEntries(Object.entries(LOCAL_WORKER_TOKEN_KEYS).map(([business, key]) => [key, map[business]])),
     CONNECTOR_SERVICE_TOKEN: signedConnectorToken(identity, now),
   };
 }

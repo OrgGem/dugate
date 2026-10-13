@@ -5,13 +5,15 @@
   "description": "DU Platform Orchestrator standalone project",
   "scripts": {
     "dev": "node scripts/dev.cjs",
+    "init:local": "node scripts/init-local.cjs",
     "stop": "node scripts/stop.cjs",
     "build": "node scripts/build.cjs",
     "migrate": "node scripts/migrate.cjs",
+    "test:dev": "node --test tests/dev-isolation.test.cjs",
     "test": "pnpm -r run test",
     "lint": "pnpm -r run lint",
     "clean": "pnpm -r run clean",
-    "docker:up": "node scripts/init-local.cjs && docker compose --env-file .env.local up -d",
+    "docker:up": "node scripts/init-local.cjs --docker && docker compose --env-file .env.local up -d",
     "docker:down": "docker compose --env-file .env.local down",
     "docker:logs": "docker compose --env-file .env.local logs -f"
   },

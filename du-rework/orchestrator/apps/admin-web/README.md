@@ -82,9 +82,12 @@ document is `no-store`.
 ### API Reference (`admin/api-docs`)
 
 The Portal renders the generated OpenAPI artifact `docs/21-openapi.json` at
-`/api-docs` (mounted as `admin/api-docs`). The spec is imported as a raw
-string at build time, so it ships inside the Portal bundle and loads offline
-from the image — no CDN, no runtime fetch, no second spec source. Operations
+`/api-docs` (mounted as `admin/api-docs`). This workspace carries a local,
+byte-for-byte mirror of the canonical `du-rework/docs/21-openapi.json`; Vite
+imports the in-tree file as a raw string at build time, so copied standalone
+projects need no parent checkout to bundle the spec. Refresh the mirror when
+the canonical artifact changes. The spec ships inside the Portal bundle and
+loads offline from the image — no CDN or runtime fetch. Operations
 are grouped/filtered by the `tags` / `x-api-family` metadata the generator
 emits (Public / Admin / Runtime / Connector) and each family shows its PM-M02
 origin (`servers`). Try-it-out is intentionally absent: the page never sends a

@@ -2,27 +2,19 @@
 const path = require('node:path');
 const fs = require('node:fs');
 const { spawnSync } = require('node:child_process');
+const { resolveLocalPath } = require('./local-paths.cjs');
 
 const ROOT = path.resolve(__dirname, '..');
 
-// Find active env file: --env-file, .env.local, .env, or parent .env.orchestrator.local
-let envFile = '.env.local';
-const customEnvArg = process.argv.find((a) => a.startsWith('--env-file='));
-if (customEnvArg) {
-  envFile = customEnvArg.slice('--env-file='.length);
-} else if (!fs.existsSync(path.join(ROOT, envFile))) {
-  if (fs.existsSync(path.join(ROOT, '.env'))) {
-    envFile = '.env';
-  } else if (fs.existsSync(path.join(ROOT, '../.env.orchestrator.local'))) {
-    envFile = '../.env.orchestrator.local';
-  } else {
-    // Generate .env.local if not present
-    const { initLocalEnv } = require('./init-local.cjs');
-    envFile = path.relative(ROOT, initLocalEnv());
-  }
+const rawArgs = process.argv.slice(2);
+const args = rawArgs[0] === '--' ? rawArgs.slice(1) : rawArgs;
+for (const arg of args) {
+  if (!arg.startsWith('--env-file=')) throw new Error(`Unknown migrate option: ${arg}`);
 }
-
-const resolvedEnvPath = path.resolve(ROOT, envFile);
+const customEnvArg = args.find((arg) => arg.startsWith('--env-file='));
+const envFile = customEnvArg?.slice('--env-file='.length)
+  ?? (fs.existsSync(path.join(ROOT, '.env.local')) ? '.env.local' : '.env');
+const resolvedEnvPath = resolveLocalPath(ROOT, envFile, '--env-file');
 
 const cliPath = path.join(ROOT, 'services/orchestrator/dist/migrate-cli.js');
 if (!fs.existsSync(cliPath)) {
@@ -36,7 +28,7 @@ if (!fs.existsSync(cliPath)) {
   }
 }
 
-console.log(`\x1b[34m[migrate] Running database migrations using ${envFile}...\x1b[0m`);
+console.log(`\x1b[34m[migrate] Running database migrations using ${path.relative(ROOT, resolvedEnvPath)}...\x1b[0m`);
 
 const result = spawnSync(process.execPath, [`--env-file=${resolvedEnvPath}`, cliPath, 'migrate'], {
   cwd: ROOT,
@@ -46,7 +38,6 @@ const result = spawnSync(process.execPath, [`--env-file=${resolvedEnvPath}`, cli
 if (result.status === 0) {
   console.log('\x1b[32m[migrate] Migrations completed successfully!\x1b[0m\n');
 } else {
-  console.error('\x1b[31m[migrate] Migration failed. Check if PostgreSQL server is running and DATABASE_URL is correct.\x1b[0m');
-  console.error('\x1b[33m[migrate] To start local PostgreSQL and Redis, run: pnpm run docker:up\x1b[0m\n');
+  console.error('\x1b[31m[migrate] Migration failed. Verify the externally managed PostgreSQL service and DATABASE_URL. This command does not start or manage databases.\x1b[0m\n');
   process.exit(result.status || 1);
 }

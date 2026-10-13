@@ -13,12 +13,14 @@ const {
   validateRuntimeEnvironment,
 } = require('./runtime-env.cjs');
 const { createAdminWebDevServerOptions } = require('./dev-admin-web.cjs');
+const { assertExternalDependenciesReachable } = require('./runtime-dependencies.cjs');
+const { resolveLocalPath } = require('./local-paths.cjs');
 
 const ROOT = path.resolve(__dirname, '..');
-const WORKSPACE_ROOT = path.resolve(ROOT, '..');
+const WORKSPACE_ROOT = ROOT;
 const ADMIN_WEB_ROOT = path.join(ROOT, 'apps/admin-web');
 const CHILD_SHIM = path.join(WORKSPACE_ROOT, 'scripts/dev-child.cjs');
-const buildCoordinator = require(path.join(WORKSPACE_ROOT, 'scripts/dev-build-coordinator.cjs'));
+const buildCoordinator = require('./dev-build-coordinator.cjs');
 const children = new Set();
 const activeServices = new Map();
 const sourceWatchers = [];
@@ -32,6 +34,7 @@ let reloadPromise;
 let reloadSequence = 0;
 let watchEnabled = true;
 let internalAdminShellPort;
+let mockVaultService;
 
 function forceTerminate(child) {
   if (!child?.pid || child.exitCode !== null || child.signalCode !== null) return;
@@ -97,6 +100,14 @@ async function shutdown(code = 0) {
     await Promise.all([...activeServices.values()].map((child) => stopChild(child)));
     for (const child of children) {
       if (child.exitCode === null && child.signalCode === null) await stopChild(child);
+    }
+    if (mockVaultService) {
+      const service = mockVaultService;
+      mockVaultService = undefined;
+      try { await service.stop(); } catch (error) {
+        console.error('[dev] Mock Vault shutdown failed:', error.message);
+        process.exitCode = 1;
+      }
     }
   })();
   return shutdownPromise;
@@ -206,7 +217,7 @@ async function startServices() {
       waitForReady(`http://127.0.0.1:${Number(process.env.CONNECTOR_PORT)}/health/ready`, 'connector'),
     ]);
   } catch (error) {
-    if (!stopping) console.warn(`[dev] Warning: ${error.message}. (Services may still be starting up)`);
+    if (!stopping) throw error;
   }
 }
 
@@ -311,7 +322,6 @@ function startRuntimeWatchers() {
     });
     sourceWatchers.push(watcher);
   }
-  watchConfigDirectory(WORKSPACE_ROOT, path.join(WORKSPACE_ROOT, 'tsconfig.base.json'));
   watchConfigDirectory(ROOT, path.join(ROOT, 'tsconfig.base.json'));
 }
 
@@ -329,7 +339,8 @@ function printReadyBanner(publicPort, internalPort, portalPort, connectorPort) {
 }
 
 async function main() {
-  const args = process.argv.slice(2);
+  const rawArgs = process.argv.slice(2);
+  const args = rawArgs[0] === '--' ? rawArgs.slice(1) : rawArgs;
   if (args.includes('--help')) {
     console.log([
       'Usage: pnpm run dev [options]',
@@ -338,6 +349,7 @@ async function main() {
       '  --env-file=PATH     Explicit path to environment file',
       '  --skip-build        Skip initial build of packages & services',
       '  --skip-migrate      Skip database migrations',
+      '  --mock-vault        Explicitly use the local dev-only Vault mock',
       '  --no-watch          Build once and serve the built Admin Web bundle',
       '  --watch             Alias for the default watch mode',
       '  --help              Show this help message',
@@ -348,28 +360,49 @@ async function main() {
   if (args.includes('--no-watch') && args.includes('--watch')) throw new Error('Choose either --watch or --no-watch.');
   watchEnabled = !args.includes('--no-watch');
   for (const arg of args) {
-    if (!['--skip-build', '--skip-migrate', '--no-watch', '--watch'].includes(arg) && !arg.startsWith('--env-file=')) {
+    if (!['--skip-build', '--skip-migrate', '--mock-vault', '--no-watch', '--watch'].includes(arg) && !arg.startsWith('--env-file=')) {
       throw new Error(`Unknown option: ${arg}. Use --help for usage.`);
     }
   }
 
   // 1. Locate environment file.
-  let envFile = '.env.local';
+  let envFile;
   const customEnvArg = args.find((arg) => arg.startsWith('--env-file='));
   if (customEnvArg) {
     envFile = customEnvArg.slice('--env-file='.length);
-  } else if (!fs.existsSync(path.join(ROOT, envFile))) {
-    if (fs.existsSync(path.join(ROOT, '.env'))) envFile = '.env';
-    else if (fs.existsSync(path.join(WORKSPACE_ROOT, '.env.orchestrator.local'))) envFile = '../.env.orchestrator.local';
-    else {
-      const { initLocalEnv } = require('./init-local.cjs');
-      envFile = path.relative(ROOT, initLocalEnv());
-    }
+  } else if (fs.existsSync(path.join(ROOT, '.env.local'))) {
+    envFile = '.env.local';
+  } else if (fs.existsSync(path.join(ROOT, '.env'))) {
+    envFile = '.env';
+  } else {
+    throw new Error('No local environment file found. Create orchestrator/.env.local from .env.example and set DATABASE_URL and REDIS_URL for your external services.');
   }
-  const resolvedEnvFile = path.resolve(ROOT, envFile);
-  console.log(`[dev] Using environment file: ${envFile}`);
+  const resolvedEnvFile = resolveLocalPath(ROOT, envFile, '--env-file');
+  console.log(`[dev] Using environment file: ${path.relative(ROOT, resolvedEnvFile)}`);
   const configured = { ...parseEnv(fs.readFileSync(resolvedEnvFile, 'utf8')), ...process.env };
   Object.assign(process.env, configured);
+  if (args.includes('--mock-vault')) {
+    if (process.env.DU_VAULT_MOCK === 'false') throw new Error('--mock-vault conflicts with DU_VAULT_MOCK=false; remove one of the settings.');
+    process.env.DU_VAULT_MOCK = 'true';
+  }
+
+  // DU_VAULT_MOCK is opt-in. An existing real Vault profile is left intact
+  // unless the operator explicitly selects the mock in the profile or CLI.
+  try {
+    if (process.env.DU_VAULT_MOCK === 'true' && process.env.DU_VAULT_MOCK_FIXTURE) {
+      process.env.DU_VAULT_MOCK_FIXTURE = resolveLocalPath(ROOT, process.env.DU_VAULT_MOCK_FIXTURE, 'DU_VAULT_MOCK_FIXTURE');
+    }
+    const { applyMockVaultEnv } = require('../services/orchestrator/tests/mock-vault/bootstrap.cjs');
+    const startedMock = await applyMockVaultEnv(process.env);
+    if (stopping) {
+      if (startedMock) await startedMock.stop();
+      return;
+    }
+    mockVaultService = startedMock;
+    if (startedMock) console.log('[dev] Local dev-only Vault mock enabled for Orchestrator KV and Transit.');
+  } catch (error) {
+    throw new Error(`Mock Vault setup failed: ${error.message}`);
+  }
 
   // 2. Normalize local defaults.
   const defaults = {
@@ -403,12 +436,13 @@ async function main() {
     connectorUrl: process.env.CONNECTOR_URL,
   }));
   validateRuntimeEnvironment(process.env, { services: 'all' });
+  await assertExternalDependenciesReachable(process.env);
 
   const configuredPorts = [publicPort, internalPort, portalPort, connectorPort];
   if (new Set(configuredPorts).size !== configuredPorts.length) throw new Error('Orchestrator, Runtime, Admin, and Connector ports must be distinct.');
   for (const port of configuredPorts) {
     if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error(`Invalid local service port: ${port}`);
-    if (!await isPortAvailable(port)) throw new Error(`Port ${port} is currently in use. Stop the existing process or run "pnpm run stop".`);
+    if (!await isPortAvailable(port)) throw new Error(`Port ${port} is currently in use. Identify and stop its owner, or configure a different local port.`);
   }
   internalAdminShellPort = watchEnabled
     ? await findInternalAdminShellPort(portalPort + 1, new Set(configuredPorts))
@@ -425,7 +459,7 @@ async function main() {
   ];
   const missingArtifacts = requiredArtifacts.some((file) => !fs.existsSync(path.join(ROOT, file)));
   if (!args.includes('--skip-build')) {
-    await buildCoordinator.withBuildLock(WORKSPACE_ROOT, async () => {
+    await buildCoordinator.withBuildLock(ROOT, async () => {
       if (watchEnabled) buildCoordinator.publishBuildState(WORKSPACE_ROOT, 'building', { source: 'orchestrator', reason: 'initial-build' });
       try {
         runNode(['scripts/build.cjs']);
@@ -447,8 +481,7 @@ async function main() {
     try {
       runNode(['scripts/migrate.cjs', `--env-file=${resolvedEnvFile}`]);
     } catch {
-      console.warn('\x1b[33m[dev] Migration warning: Postgres may not be running yet. Proceeding with service startup...\x1b[0m');
-      console.warn('\x1b[33m[dev] Run "pnpm run docker:up" to start PostgreSQL and Redis.\x1b[0m');
+      throw new Error('Database migration failed. Check the external PostgreSQL endpoint configured by DATABASE_URL; this command does not start or manage databases.');
     }
   }
 
