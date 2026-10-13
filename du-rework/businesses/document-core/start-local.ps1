@@ -1,37 +1,27 @@
 [CmdletBinding()]
 param(
-  [string]$EnvFile = '.env.orchestrator.local',
-  [ValidateRange(1, 65535)]
-  [int]$ConnectorPort = $(if ($env:CONNECTOR_PORT) { [int]$env:CONNECTOR_PORT } else { 8080 }),
-  [string]$ConnectorUrl = $env:CONNECTOR_URL
+  [string]$EnvFile = $env:DU_ENV_FILE,
+  [switch]$SkipBuild
 )
 
 $ErrorActionPreference = 'Stop'
-$WorkspaceRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
-$ResolvedEnvFile = if ([System.IO.Path]::IsPathRooted($EnvFile)) { $EnvFile } else { Join-Path $WorkspaceRoot $EnvFile }
-if (-not (Test-Path -LiteralPath $ResolvedEnvFile -PathType Leaf)) {
-  throw "Local env file not found: $ResolvedEnvFile. Create it with node scripts/init-orchestrator-local.cjs --output=.env.orchestrator.local."
-}
+$ProjectDir = (Resolve-Path $PSScriptRoot).Path
+$Arguments = @()
 
-$HadConnectorPort = Test-Path Env:CONNECTOR_PORT
-$PreviousConnectorPort = $env:CONNECTOR_PORT
-$HadConnectorUrl = Test-Path Env:CONNECTOR_URL
-$PreviousConnectorUrl = $env:CONNECTOR_URL
-$ExitCode = 1
-Push-Location $WorkspaceRoot
-try {
-  $env:CONNECTOR_PORT = [string]$ConnectorPort
-  if ([string]::IsNullOrWhiteSpace($ConnectorUrl)) {
-    $env:CONNECTOR_URL = "http://127.0.0.1:$ConnectorPort"
-  } else {
-    $env:CONNECTOR_URL = $ConnectorUrl
+if (-not [string]::IsNullOrWhiteSpace($EnvFile)) {
+  $ResolvedEnvFile = if ([IO.Path]::IsPathRooted($EnvFile)) { $EnvFile } else { Join-Path $ProjectDir $EnvFile }
+  if (-not (Test-Path -LiteralPath $ResolvedEnvFile -PathType Leaf)) {
+    throw "Environment file not found: $ResolvedEnvFile"
   }
-  Get-Command node -ErrorAction Stop | Out-Null
-  & node scripts/dev.cjs "--env-file=$ResolvedEnvFile" '--services=workers' '--workers=document-core' '--skip-build' '--skip-migrate' '--local-identity'
+  $Arguments += "--env-file=$((Resolve-Path -LiteralPath $ResolvedEnvFile).Path)"
+}
+if ($SkipBuild -or $env:DU_SKIP_BUILD -eq '1') { $Arguments += '--skip-build' }
+
+Push-Location $ProjectDir
+try {
+  & node 'scripts/dev.cjs' @Arguments
   $ExitCode = $LASTEXITCODE
 } finally {
   Pop-Location
-  if ($HadConnectorPort) { $env:CONNECTOR_PORT = $PreviousConnectorPort } else { Remove-Item Env:CONNECTOR_PORT -ErrorAction SilentlyContinue }
-  if ($HadConnectorUrl) { $env:CONNECTOR_URL = $PreviousConnectorUrl } else { Remove-Item Env:CONNECTOR_URL -ErrorAction SilentlyContinue }
 }
 exit $ExitCode

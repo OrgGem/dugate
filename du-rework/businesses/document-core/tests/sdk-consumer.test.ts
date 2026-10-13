@@ -6,6 +6,7 @@ import {
 } from '@du/worker-sdk';
 import {
   BusinessJobV1,
+  businessQueueName,
   ClaimResult,
   validateManifest,
   InvocationGrant,
@@ -72,6 +73,26 @@ function stubFetch(routes: Route[], calls: { path: string; method: string; body?
   };
 }
 
+function businessRegistrationRoute(): Route {
+  const registration = validateManifest(documentCoreManifest);
+  if (!registration.ok) throw new Error('fixture manifest is invalid');
+  return {
+    method: 'PUT',
+    pattern: /^\/businesses\/document-core\/versions\/1\.1\.0$/,
+    handler: () => ({
+      status: 200,
+      json: {
+        businessId: documentCoreManifest.businessId,
+        version: documentCoreManifest.version,
+        digest: registration.digest,
+        queue: businessQueueName(documentCoreManifest.businessId, documentCoreManifest.version),
+        created: true,
+        replayed: false,
+      },
+    }),
+  };
+}
+
 function testConsumer() {
   let handler: ((job: BusinessJobV1) => Promise<void>) | undefined;
   const deliveries: Promise<void>[] = [];
@@ -117,7 +138,7 @@ describe('Worker-SDK Consumer Compatibility (WORKLOAD-REBALANCE-02)', () => {
   });
 
   describe('1. defineBusiness Registration & Validation (REG-04)', () => {
-    it('manifest passes contract validation and registers all 9 declared handler kinds', () => {
+    it('manifest passes contract validation and registers all declared handler kinds', () => {
       const validation = validateManifest(documentCoreManifest);
       expect(validation.ok).toBe(true);
 
@@ -135,6 +156,8 @@ describe('Worker-SDK Consumer Compatibility (WORKLOAD-REBALANCE-02)', () => {
         'compare',
         'disbursement',
         'doc-compare',
+        'schema-workflow',
+        'legacy-workflow-branch',
       ]);
 
       for (const kind of declaredKinds) {
@@ -177,14 +200,20 @@ describe('Worker-SDK Consumer Compatibility (WORKLOAD-REBALANCE-02)', () => {
       const calls: { path: string; method: string; body?: unknown }[] = [];
       let completedBody: any;
       let failedBody: any;
-
       const routes: Route[] = [
+        businessRegistrationRoute(),
         {
           method: 'PUT',
           pattern: /^\/workers\/[^/]+\/heartbeat$/,
           handler: () => ({
             status: 200,
-            json: { health: 'HEALTHY', leaseExpiresAt: new Date(Date.now() + 60000).toISOString(), capacity: 1 },
+            json: {
+              health: 'HEALTHY',
+              leaseExpiresAt: new Date(Date.now() + 60000).toISOString(),
+              capacity: 1,
+              controlRevision: 1,
+              controlState: 'OPEN',
+            },
           }),
         },
         {
@@ -447,12 +476,19 @@ describe('Worker-SDK Consumer Compatibility (WORKLOAD-REBALANCE-02)', () => {
       let reportedFailure: unknown;
 
       const routes: Route[] = [
+        businessRegistrationRoute(),
         {
           method: 'PUT',
           pattern: /^\/workers\/[^/]+\/heartbeat$/,
           handler: () => ({
             status: 200,
-            json: { health: 'HEALTHY', leaseExpiresAt: new Date(Date.now() + 60000).toISOString(), capacity: 1 },
+            json: {
+              health: 'HEALTHY',
+              leaseExpiresAt: new Date(Date.now() + 60000).toISOString(),
+              capacity: 1,
+              controlRevision: 1,
+              controlState: 'OPEN',
+            },
           }),
         },
         {
@@ -591,12 +627,19 @@ describe('Worker-SDK Consumer Compatibility (WORKLOAD-REBALANCE-02)', () => {
       let reportedFailure: any;
 
       const routes: Route[] = [
+        businessRegistrationRoute(),
         {
           method: 'PUT',
           pattern: /^\/workers\/[^/]+\/heartbeat$/,
           handler: () => ({
             status: 200,
-            json: { health: 'HEALTHY', leaseExpiresAt: new Date(Date.now() + 60000).toISOString(), capacity: 1 },
+            json: {
+              health: 'HEALTHY',
+              leaseExpiresAt: new Date(Date.now() + 60000).toISOString(),
+              capacity: 1,
+              controlRevision: 1,
+              controlState: 'OPEN',
+            },
           }),
         },
         {
@@ -695,12 +738,19 @@ describe('Worker-SDK Consumer Compatibility (WORKLOAD-REBALANCE-02)', () => {
       let terminalFailureReports = 0;
 
       const routes: Route[] = [
+        businessRegistrationRoute(),
         {
           method: 'PUT',
           pattern: /^\/workers\/[^/]+\/heartbeat$/,
           handler: () => ({
             status: 200,
-            json: { health: 'HEALTHY', leaseExpiresAt: new Date(Date.now() + 60000).toISOString(), capacity: 1 },
+            json: {
+              health: 'HEALTHY',
+              leaseExpiresAt: new Date(Date.now() + 60000).toISOString(),
+              capacity: 1,
+              controlRevision: 1,
+              controlState: 'OPEN',
+            },
           }),
         },
         {

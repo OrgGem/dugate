@@ -17,7 +17,7 @@ function fakeFetch(statuses: readonly number[]): { fetchFn: typeof fetch; calls:
     index += 1;
     return {
       status,
-      json: async () => ({ queue: 'du-business-lc-checker-1.0.0' }),
+      json: async () => ({ queue: expectedQueue(lcCheckerManifest) }),
       text: async () => 'detail',
     } as Response;
   }) as unknown as typeof fetch;
@@ -26,7 +26,7 @@ function fakeFetch(statuses: readonly number[]): { fetchFn: typeof fetch; calls:
 
 describe('P9-02 worker registration', () => {
   it('derives the queue from the manifest identity', () => {
-    expect(expectedQueue()).toBe('du-business-lc-checker-1.0.0');
+    expect(expectedQueue()).toBe(`du-business-${lcCheckerManifest.businessId}-${lcCheckerManifest.version}`);
   });
 
   it('walks register -> enable -> activate in order, with the right token on each hop', async () => {
@@ -38,10 +38,10 @@ describe('P9-02 worker registration', () => {
       fetchFn,
     });
     expect(calls.map((call) => call.method)).toEqual(['PUT', 'PUT', 'PUT']);
-    expect(calls[0]?.url).toBe('http://orchestrator:3000/api/runtime/v1/businesses/lc-checker/versions/1.0.0');
+    expect(calls[0]?.url).toBe(`http://orchestrator:3000/api/runtime/v1/businesses/${lcCheckerManifest.businessId}/versions/${lcCheckerManifest.version}`);
     expect(calls[0]?.authorization).toBe('Bearer rt-test');
     expect(calls[1]?.authorization).toBe('Bearer adm-test');
-    expect(result).toMatchObject({ registered: true, enabled: true, activated: true, queue: 'du-business-lc-checker-1.0.0' });
+    expect(result).toMatchObject({ registered: true, enabled: true, activated: true, queue: expectedQueue(lcCheckerManifest) });
     expect(result.manifestDigest).toMatch(/^sha256:[0-9a-f]{64}$/);
   });
 
@@ -85,7 +85,10 @@ describe('P9-02 worker registration', () => {
   it('produces a dry run with no network I/O and no invented platform digests', () => {
     const plan = buildRegistrationDryRun();
     expect(plan.businessId).toBe('lc-checker');
-    expect([...plan.connectorSlots].sort()).toEqual(['crosscheck', 'ocr', 'report', 'vision']);
+    expect([...plan.connectorSlots].sort()).toEqual(
+      [...(lcCheckerManifest.actions[0]?.connectorSlots ?? []).map((slot) => slot.name)].sort()
+    );
+    expect(plan.connectorSlots).toEqual(expect.arrayContaining(['crosscheck', 'ocr', 'report', 'vision']));
     expect(plan.handlerKinds).toEqual(['lc-checker', 'lc-checker-ocr', 'lc-checker-visual', 'root']);
     expect(plan.registrationSteps.map((step) => step.step)).toEqual([1, 2, 3]);
     expect(JSON.stringify(plan)).not.toContain('frozenPlatformDigests');

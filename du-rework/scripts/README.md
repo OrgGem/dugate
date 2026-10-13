@@ -1,6 +1,6 @@
 # Local development ? Orchestrator, Portal, Connector and workers
 
-Run from `du-rework` with Node **>=24.21.0 <25** and pnpm **10.18.3**. Install dependencies with `pnpm install --frozen-lockfile`. PostgreSQL and Redis must already be running; configure their actual URLs, tokens and identity secrets in a private `.env.local` copied from `.env.local.sample`. The runner does not seed users or create infrastructure. Use the existing local-user bootstrap procedure; no default admin password is promised.
+Run from `du-rework` with Node **>=24.21.0 <25** and pnpm **10.18.3**. Install the platform dependencies with `pnpm install --frozen-lockfile`; a normal `pnpm dev` also installs each selected worker's own nested workspace. PostgreSQL and Redis must already be running; configure their actual URLs, tokens and identity secrets in a private `.env.local` copied from `.env.local.sample`. The runner does not seed users or create infrastructure. Use the existing local-user bootstrap procedure; no default admin password is promised.
 
 ```powershell
 pnpm dev --help
@@ -23,13 +23,13 @@ pnpm dev --env-file=.env.local --skip-build --skip-migrate
 
 The runner defaults to all three workers; `--workers=` selects a comma-separated subset. Ports remain configurable. Local defaults bind loopback; explicitly configured bind hosts remain operator-controlled. Connector local port 8088 differs from its container port 8080. Docker retains the Compose boundary: internal 3002 and Connector 8080 are not published by default; use `compose/local-debug.yml` for optional loopback debugging.
 
-Each normal launch builds all canonical packages in dependency order, including Portal and three workers, from their exact directories (excluding migration-candidate duplicates). It applies Orchestrator migrations to the configured database, aborting on failure; Connector initializes its own schema during startup. Both backend and Connector readiness must pass before workers start. `--skip-migrate` is for a database already migrated; backend schema verification still applies. `--skip-build` uses existing outputs and checks required artifacts.
+Each normal launch builds canonical platform packages in dependency order, including Portal, then installs/builds selected workers from their independent nested workspaces and lockfiles. It applies Orchestrator migrations to the configured database, aborting on failure; Connector initializes its own schema during startup. Both backend and Connector readiness must pass before workers start. `--skip-migrate` is for a database already migrated; backend schema verification still applies. `--skip-build` uses existing outputs and checks required artifacts.
 
 Ctrl+C stops this runner's children. Occupied ports cause a clear startup failure, without killing other listeners. `pnpm stop` targets absolute Node entrypoints in this workspace, including all three workers; older manually launched relative entrypoints must be stopped from their original terminal.
 
 PowerShell/CMD/Bash `start-all` wrappers use this same runner. `dev-live.ps1` and `dev-live.sh` select `.env.live`: a normal launch migrates that configured database too; use `--check` to inspect without writes. No live environment is started by this documentation update.
 
-`--watch` watches compiled JavaScript; it does not compile TypeScript or provide Vite HMR. Rebuild source changes before using them. The Portal is built and served through the real BFF, preserving its session/CSRF behavior.
+`--watch` watches compiled JavaScript for Orchestrator and Connector; it does not compile their TypeScript or provide Vite HMR. Worker `dev` scripts watch their local source and vendored packages. The Portal is built and served through the real BFF, preserving its session/CSRF behavior.
 
 ## Workflow runtime configuration
 

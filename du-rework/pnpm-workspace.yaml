@@ -2,8 +2,10 @@ packages:
   - orchestrator/packages/*
   - orchestrator/services/*
   - orchestrator/apps/*
-  - businesses/*
   - tests/*
+
+# Business workers are independent nested pnpm workspaces. Their vendored
+# @du/* packages intentionally stay outside the platform workspace graph.
 
 allowBuilds:
   esbuild: set this to true or false

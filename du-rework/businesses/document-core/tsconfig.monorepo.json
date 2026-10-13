@@ -1,0 +1,27 @@
+{
+  "extends": "./tsconfig.test.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "rootDir": "../..",
+    "paths": {
+      "@du/orchestrator": ["../../orchestrator/services/orchestrator/dist/index.d.ts"],
+      "@du/connector": ["../../orchestrator/services/connector/dist/index.d.ts"]
+    }
+  },
+  "include": [
+    "tests/all-variants-e2e.test.ts",
+    "tests/bounded-input.test.ts",
+    "tests/build-dependency-order.test.ts",
+    "tests/bullmq-smoke.test.ts",
+    "tests/corpus-regression.test.ts",
+    "tests/ingest-scan-fixtures.test.ts",
+    "tests/ingest-wire.test.ts",
+    "tests/ingest.test.ts",
+    "tests/multi-container-e2e.integration.test.ts",
+    "tests/orv14-worker-private-https-owner.test.ts",
+    "tests/p8-03-provider-convergence.test.ts",
+    "tests/r1-e-sdk-metadata-adapter.test.ts",
+    "tests/r1-e-trusted-format-propagation.test.ts"
+  ],
+  "exclude": ["dist", "node_modules"]
+}

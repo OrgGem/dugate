@@ -2,9 +2,8 @@ services:
   document-core:
     image: ${DU_IMAGE_PREFIX:-du}-document-core:${DU_IMAGE_TAG:-local}
     build:
-      context: ..
+      context: ../businesses/document-core
       dockerfile: Dockerfile
-      target: document-core
     environment:
       RUNTIME_URL: ${RUNTIME_URL:-http://orchestrator:3002/api/runtime/v1}
       RUNTIME_TOKEN: ${DOCUMENT_CORE_RUNTIME_TOKEN:?Set the document-core business identity token}

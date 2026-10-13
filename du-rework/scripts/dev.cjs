@@ -6,7 +6,12 @@ const fs = require('node:fs');
 const net = require('node:net');
 const readline = require('node:readline');
 const { parseEnv } = require('node:util');
-const { serviceEnvironment, validateRuntimeEnvironment, signedConnectorToken } = require('./runtime-env.cjs');
+const {
+  serviceEnvironment,
+  localConnectorManagementEnvironment,
+  validateRuntimeEnvironment,
+  signedConnectorToken,
+} = require('./runtime-env.cjs');
 const ROOT = path.resolve(__dirname, '..');
 const ALL_WORKERS = ['document-core', 'lc-checker', 'example-review'];
 const children = [];
@@ -67,6 +72,23 @@ function start(name, entry) {
     if (!stopping) { console.error(`[${name}] Exited (${code ?? signal}); stopping this dev session`); shutdown(code || 1); }
   });
 }
+function startWorker(name) {
+  const cwd = path.join(ROOT, 'businesses', name);
+  const launch = workerDevLaunch(name, { skipBuild: process.argv.includes('--skip-build') });
+  const child = spawn(launch.command, launch.args, { cwd, env: serviceEnvironment(process.env, name), detached: process.platform !== 'win32', stdio: ['ignore', 'pipe', 'pipe'] });
+  children.push(child);
+  for (const stream of [child.stdout, child.stderr]) readline.createInterface({ input: stream }).on('line', line => console.log(`[${name}] ${line}`));
+  child.once('error', () => { console.error(`[${name}] Failed to start local worker dev script`); shutdown(1); });
+  child.once('exit', (code, signal) => {
+    if (!stopping) { console.error(`[${name}] Exited (${code ?? signal}); stopping this dev session`); shutdown(code || 1); }
+  });
+}
+function workerDevLaunch(name, { skipBuild = false } = {}) {
+  const workerRoot = path.join(ROOT, 'businesses', name);
+  const args = [path.join(workerRoot, 'scripts', 'dev.cjs'), '--inherited-env'];
+  if (skipBuild) args.push('--skip-build');
+  return { command: process.execPath, args, cwd: workerRoot };
+}
 async function main() {
   const args = process.argv.slice(2);
   if (args.includes('--help')) {
@@ -93,6 +115,10 @@ async function main() {
   if (new URL(process.env.RUNTIME_URL).port === String(publicPort)) throw new Error('RUNTIME_URL points to Public ingress; use the Internal listener');
   const services = args.find(arg => arg.startsWith('--services='))?.slice('--services='.length) ?? 'all';
   if (!['all', 'orchestrator', 'connector', 'workers'].includes(services)) throw new Error('Invalid service selection');
+  Object.assign(process.env, localConnectorManagementEnvironment(process.env, {
+    services,
+    connectorUrl: process.env.CONNECTOR_URL,
+  }));
   const selection = args.find(arg => arg.startsWith('--workers='))?.slice('--workers='.length) ?? (['all', 'workers'].includes(services) ? 'all' : 'none');
   const workers = selection === 'all' ? ALL_WORKERS : selection === 'none' ? [] : selection.split(',');
   if (new Set(workers).size !== workers.length || workers.some(worker => !ALL_WORKERS.includes(worker))) throw new Error('Invalid worker selection');
@@ -141,13 +167,17 @@ async function main() {
       console.error('[dev] Provisioning notice:', e.message);
     }
   }
-  if (!stopping) for (const worker of workers) start(worker, `businesses/${worker}/dist/main.js`);
+  if (!stopping) for (const worker of workers) startWorker(worker);
 }
-process.on('SIGINT', () => shutdown());
-process.on('SIGTERM', () => shutdown());
-main().catch(error => {
-  // Only runner-generated diagnostics are exposed; URL parsing errors may contain credentials.
-  const safe = ['Use Node', 'Unknown dev', 'Copy .env', 'Listener ports', 'RUNTIME_URL points', 'Invalid worker', 'Invalid service', 'Port ', 'Missing build', 'Prerequisite command', 'Service readiness', 'Worker tokens', 'Missing worker identity', 'Vault encrypt', 'Metadata plaintext', 'Workflow runtime', 'DU_', 'CONNECTOR_', 'INVOCATION_GRANT_SECRET', 'SERVICE_IDENTITY_SECRET', 'WORKER_IDENTITY_TOKENS_BY_BUSINESS', 'DOCUMENT_CORE_RUNTIME_TOKEN', 'LC_RUNTIME_TOKEN', 'EXAMPLE_REVIEW_RUNTIME_TOKEN', 'DATABASE_URL is required', 'REDIS_URL is required', 'RUNTIME_TOKEN is required', 'ADMIN_TOKEN is required', 'ENCRYPTION_KEY is required', 'ADMIN_SHELL_COOKIE_SECRET is required'];
-  console.error('[dev] ' + (safe.some(prefix => error.message.startsWith(prefix)) ? error.message : 'Invalid configuration; credentials are not printed'));
-  shutdown(1);
-});
+module.exports = { workerDevLaunch };
+
+if (require.main === module) {
+  process.on('SIGINT', () => shutdown());
+  process.on('SIGTERM', () => shutdown());
+  main().catch(error => {
+    // Only runner-generated diagnostics are exposed; URL parsing errors may contain credentials.
+    const safe = ['Use Node', 'Unknown dev', 'Copy .env', 'Listener ports', 'RUNTIME_URL points', 'Invalid worker', 'Invalid service', 'Port ', 'Missing build', 'Prerequisite command', 'Service readiness', 'Worker tokens', 'Missing worker identity', 'Vault encrypt', 'Metadata plaintext', 'Workflow runtime', 'DU_', 'CONNECTOR_', 'INVOCATION_GRANT_SECRET', 'SERVICE_IDENTITY_SECRET', 'WORKER_IDENTITY_TOKENS_BY_BUSINESS', 'DOCUMENT_CORE_RUNTIME_TOKEN', 'LC_RUNTIME_TOKEN', 'EXAMPLE_REVIEW_RUNTIME_TOKEN', 'DATABASE_URL is required', 'REDIS_URL is required', 'RUNTIME_TOKEN is required', 'ADMIN_TOKEN is required', 'ENCRYPTION_KEY is required', 'ADMIN_SHELL_COOKIE_SECRET is required'];
+    console.error('[dev] ' + (safe.some(prefix => error.message.startsWith(prefix)) ? error.message : 'Invalid configuration; credentials are not printed'));
+    shutdown(1);
+  });
+}

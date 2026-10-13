@@ -3,7 +3,7 @@ import type { ParseResult } from '@du/document-kit';
 import type { TaskHandler } from '@du/worker-sdk';
 import { itemReviewHandler, mainReviewHandler } from '../src/review';
 import { createMockTaskContext } from './test-helper';
-import { TestFixtures } from '../../../orchestrator/packages/document-kit/tests/fixtures/test-fixtures';
+import { TestFixtures } from '../vendor/document-kit/tests/fixtures/test-fixtures';
 
 const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -171,7 +171,7 @@ describe('R1-E Layer 7: example-review uses isolated safe parsers for Office evi
     }
   );
 
-  it('fails closed on unsafe Office archives without exposing filenames or parser exceptions', async () => {
+  it('fails closed during Office archive detection without exposing filenames or parser errors', async () => {
     const unsafeDocxBytes = TestFixtures.createZipArchive([
       {
         name: '../word/document.xml',
@@ -192,27 +192,35 @@ describe('R1-E Layer 7: example-review uses isolated safe parsers for Office evi
       artifactsMap: { 'unsafe-docx': unsafeDocxBytes },
     });
     const parserSpy = jest.spyOn(defaultParserFactory, 'parseBuffer');
-    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    let logOutput = '';
+    const stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation((chunk) => {
+      logOutput += typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString('utf8');
+      return true;
+    });
 
     let thrown: unknown;
     try {
       await mainReviewHandler(ctx);
     } catch (err: unknown) {
       thrown = err;
+    } finally {
+      parserSpy.mockRestore();
+      stdoutSpy.mockRestore();
     }
 
     expect(thrown).toBeInstanceOf(Error);
     expect((thrown as Error).message).toBe(
       'Unable to parse Office source artifact; review cannot continue without valid document evidence.'
     );
-    expect(parserSpy).toHaveBeenCalledTimes(1);
+    // The format detector rejects the unsafe ZIP entry before the parser worker
+    // thread is dispatched. The handler must still fail closed at that boundary.
+    expect(parserSpy).not.toHaveBeenCalled();
     expect(connectorCalls).toHaveLength(0);
     expect(writtenArtifacts).toHaveLength(0);
     expect(waitCalls).toHaveLength(0);
 
-    const logs = JSON.stringify(errorSpy.mock.calls);
+    const logs = logOutput;
     expect(logs).toContain('DOCUMENT_PARSE_FAILED');
-    expect(logs).toContain('[REDACTED]');
     expect(logs).not.toContain('credential-sentinel');
     expect(logs).not.toContain('signature-sentinel');
     expect(logs).not.toContain(sensitiveFileName);

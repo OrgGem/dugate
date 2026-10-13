@@ -21,9 +21,11 @@ Chạy lệnh tại thư mục `du-rework/`, **không phải** root DUGate cũ. 
 ```sh
 corepack enable
 pnpm install --frozen-lockfile
-pnpm build
+pnpm build:all
 pnpm lint
 ```
+
+The root workspace contains the platform packages, services and tests. Each business worker under `businesses/` is an independent nested pnpm workspace with its own lockfile and vendored `@du/*` runtime packages; root `pnpm install` does not merge those packages into the platform dependency graph. `pnpm build:all` installs and builds the platform and each worker from its local workspace.
 
 ### Local development
 
@@ -46,11 +48,15 @@ pnpm dev --skip-build --skip-migrate
 | Internal admin/runtime API | `http://127.0.0.1:3002` |
 | Connector | `http://127.0.0.1:8088` |
 
-The runner builds and applies migrations unless skipped, waits for readiness before starting workers, and rejects occupied ports. It does not terminate unrelated port owners. `Ctrl+C` stops this session's processes; `pnpm stop` handles matching rework processes. See [local scripts](scripts/README.md) for configuration, watch mode and troubleshooting.
+The runner builds the platform, installs/builds selected worker workspaces, applies migrations unless skipped, and waits for readiness before starting workers. Each worker then runs its own `dev` script from its local workspace so its vendored dependencies are watched with its source. The runner rejects occupied ports and does not terminate unrelated port owners. `Ctrl+C` stops this session's processes; `pnpm stop` handles matching rework processes. See [local scripts](scripts/README.md) for configuration, watch mode and troubleshooting.
 
-`pnpm build` build các package/service/business trong workspace; `pnpm lint` hiện chạy các script lint của từng package (chủ yếu là TypeScript typecheck). Cấu hình mẫu ở [`.env.example`](.env.example); copy thành `.env` rồi thay toàn bộ token, mật khẩu và khóa mẫu trước khi chạy. Không commit `.env` hoặc dùng secret mẫu ngoài môi trường test. `RUNTIME_TOKEN` dành cho worker/runtime, `ADMIN_TOKEN` dành cho admin; **external client chỉ dùng `x-api-key`** đã được cấp.
+`pnpm build` builds packages and services in the platform workspace; `pnpm build:all` also installs and builds all three standalone workers. `pnpm lint` runs the platform package lint scripts (mostly TypeScript typechecks); run `pnpm lint` inside a worker directory to check that standalone worker. Cấu hình mẫu ở [`.env.example`](.env.example); copy thành `.env` rồi thay toàn bộ token, mật khẩu và khóa mẫu trước khi chạy. Không commit `.env` hoặc dùng secret mẫu ngoài môi trường test. `RUNTIME_TOKEN` dành cho worker/runtime, `ADMIN_TOKEN` dành cho admin; **external client chỉ dùng `x-api-key`** đã được cấp.
 
 Hướng dẫn riêng: [Orchestrator](orchestrator/services/orchestrator/README.md), [Connector](orchestrator/services/connector/README.md), [document-core](businesses/document-core/README.md), [example-review](businesses/example-review/README.md), [lc-checker](businesses/lc-checker/README.md), [integration tests](tests/README.md) và [test infra](infra/README.md).
+
+### Independent SDK-free worker
+
+The [independent worker sample](samples/independent-worker/README.md) implements the current Runtime protocol without `@du/worker-sdk`; it is only a minimal inline-input `echo` root handler, with no Document Core, artifact, Connector, or workflow parity. The existing `document-core`, `example-review`, and `lc-checker` workers remain workspace projects using `@du/worker-sdk`; `businesses/document-core/template/vendor/worker-sdk/` is a vendored SDK and is not SDK-free. See the [du-worker-runtime skill](skills/du-worker-runtime/SKILL.md) for the protocol guide. Migrating existing workers off the SDK is separate work.
 
 ### Chạy thủ công từng service và phụ thuộc local
 
@@ -100,7 +106,7 @@ docker compose -f infra/docker-compose.yml ps
 
 Muốn thử riêng Connector với DB/Redis test: `docker compose -f infra/docker-compose.yml --profile connector up -d --build connector`. Profile này là fixture single-replica, **không** phải deployment production; container có thể áp dụng migration vào test DB. Xem [infra README](infra/README.md).
 
-Docker deployment (2026-10-05): all five services now build through the canonical [Dockerfile](Dockerfile); full-stack and standalone Compose files reuse shared fragments. Generate local-only credentials with `node scripts/docker/init-env.cjs .env.docker`, then run `docker compose --env-file .env.docker up -d --build --wait`. See [deployment guide](docs/12b-deployment-guide.md) and [measured repair receipt](coordination/reports/docker-fix-all-2026-10-05.md). Business registration, provider bindings and existing release gates remain separate deployment requirements.
+The root [Dockerfile](Dockerfile) builds Orchestrator and Connector from the platform workspace and keeps `--target` compatibility for workers by building each nested workspace with its own lockfile. Normal Compose worker builds use the worker-local Dockerfile and context, which package only that worker and its vendored dependencies. Full-stack and standalone Compose files reuse shared service fragments. Generate local-only credentials with `node scripts/docker/init-env.cjs .env.docker`, then run `docker compose --env-file .env.docker up -d --build --wait`. See [deployment guide](docs/12b-deployment-guide.md). Business registration, provider bindings and existing release gates remain separate deployment requirements.
 
 ## Tích hợp qua Public API
 

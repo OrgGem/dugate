@@ -2,9 +2,8 @@ services:
   example-review:
     image: ${DU_IMAGE_PREFIX:-du}-example-review:${DU_IMAGE_TAG:-local}
     build:
-      context: ..
+      context: ../businesses/example-review
       dockerfile: Dockerfile
-      target: example-review
     environment:
       RUNTIME_URL: ${RUNTIME_URL:-http://orchestrator:3002/api/runtime/v1}
       RUNTIME_TOKEN: ${EXAMPLE_REVIEW_RUNTIME_TOKEN:?Set the example-review business identity token}

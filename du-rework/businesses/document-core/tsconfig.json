@@ -1,12 +1,22 @@
 {
-  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "lib": ["ES2022"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
     "outDir": "dist",
-    "rootDir": "src",
-    "paths": {
-      "@du/orchestrator": ["../../orchestrator/services/orchestrator/dist/index.d.ts"],
-      "@du/connector": ["../../orchestrator/services/connector/dist/index.d.ts"]
-    }
+    "rootDir": "src"
   },
   "include": ["src/**/*.ts"],
   "exclude": ["tests", "dist", "node_modules"]

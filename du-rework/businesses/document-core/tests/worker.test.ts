@@ -18,7 +18,9 @@ describe('Document Core Worker & Handlers (P5-02)', () => {
       'extract',
       'generate',
       'ingest',
+      'legacy-workflow-branch',
       'root',
+      'schema-workflow',
       'transform',
     ]);
   });

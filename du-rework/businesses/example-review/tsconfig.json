@@ -1,18 +1,33 @@
 {
-  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "lib": ["ES2022"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "composite": true,
     "baseUrl": ".",
     "outDir": "dist",
     "rootDir": "src",
-    "types": ["node", "jest"],
-    "typeRoots": ["../../orchestrator/packages/worker-sdk/node_modules/@types"],
-    "paths": {
-      "@du/contracts": ["../../orchestrator/packages/contracts"],
-      "@du/document-kit": ["../../orchestrator/packages/document-kit"],
-      "@du/worker-sdk": ["../../orchestrator/packages/worker-sdk"],
-      "@du/orchestrator": ["../../orchestrator/services/orchestrator/dist/index.d.ts"]
-    }
+    "types": ["node"]
   },
+  "references": [
+    { "path": "vendor/contracts" },
+    { "path": "vendor/egress" },
+    { "path": "vendor/observability" },
+    { "path": "vendor/worker-sdk" },
+    { "path": "vendor/document-kit" }
+  ],
   "include": ["src/**/*.ts"],
-  "exclude": ["tests", "dist", "node_modules"]
+  "exclude": ["tests", "dist", "node_modules", "vendor"]
 }

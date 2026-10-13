@@ -1,25 +1,32 @@
 {
   "name": "@du/document-core",
   "version": "1.1.0",
+  "private": true,
   "description": "Document Core Business containing 6 actions and 28 variants",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc -b",
-    "build:deps": "node scripts/build-dependencies.cjs",
-    "test:integration": "jest tests/multi-container-e2e.integration.test.ts --runInBand --testPathIgnorePatterns=/__offline_default_excludes_integration__/",
-    "test:integration:full": "node scripts/build-dependencies.cjs && jest tests/multi-container-e2e.integration.test.ts --runInBand --testPathIgnorePatterns=/__offline_default_excludes_integration__/",
+    "dev": "node scripts/dev.cjs",
+    "dev:check": "node scripts/dev.cjs --check",
+    "build": "node scripts/build.cjs",
+    "test:dev-isolation": "node --test tests/dev-runner-isolation.test.cjs",
+    "build:deps": "node scripts/build.cjs --dependencies-only",
+    "test:integration": "jest --config jest.integration.config.cjs --runInBand",
+    "test:monorepo": "node scripts/build-dependencies.cjs && pnpm run build && jest --config jest.monorepo.config.cjs --runInBand",
+    "test:monorepo:typecheck": "node scripts/build-dependencies.cjs && pnpm run build && tsc --noEmit -p tsconfig.monorepo.json",
+    "test:integration:full": "pnpm run test:monorepo",
     "start": "node dist/main.js",
-    "test": "jest --runInBand",
+    "test": "node scripts/build.cjs && jest --runInBand",
     "clean": "rimraf dist",
     "lint": "tsc --noEmit -p tsconfig.json",
-    "test:typecheck": "tsc --noEmit -p tsconfig.test.json"
+    "test:typecheck": "node scripts/build.cjs && tsc --noEmit -p tsconfig.test.json"
   },
   "dependencies": {
     "@du/contracts": "workspace:*",
     "@du/document-kit": "workspace:*",
     "@du/egress": "workspace:*",
     "@du/worker-sdk": "workspace:*",
+    "bullmq": "^5.34.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
@@ -28,7 +35,7 @@
     "jest": "^29.7.0",
     "ts-jest": "^29.1.2",
     "typescript": "^5.4.0",
-    "bullmq": "^5.34.0"
+    "rimraf": "^5.0.5"
   },
   "engines": {
     "node": ">=24.21.0 <25"

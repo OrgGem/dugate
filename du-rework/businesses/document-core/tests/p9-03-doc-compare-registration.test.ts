@@ -11,15 +11,17 @@ import { STEP_KEYS } from '../src/recipes/step-keys';
 import { documentCoreHandlers } from '../src/worker';
 
 describe('P9-03 doc-compare registration', () => {
-  it('declares the workflow action with the single reasoning slot the runner binds', () => {
+  it('declares the reasoning binding and optional legacy compatibility slots', () => {
     expect(validateManifest(documentCoreManifest).ok).toBe(true);
 
     const action = documentCoreManifest.actions.find((candidate) => candidate.name === 'doc-compare');
     expect(action).toBeDefined();
-    // One slot, not two: DEFAULT_DOC_COMPARE_BINDING drives both stages through
-    // `reasoning` and switches the provider task per stage instead.
-    expect(action!.connectorSlots.map((slot) => slot.name)).toEqual(['reasoning']);
-    expect(action!.connectorSlots.every((slot) => slot.required)).toBe(true);
+    // The workflow uses one reasoning binding for both stages. Optional legacy
+    // slots remain in the manifest for compatibility with existing profiles.
+    expect(action!.connectorSlots.map((slot) => slot.name)).toEqual([
+      'reasoning', 'legacy-ocr', 'legacy-toc', 'legacy-compare', 'legacy-report',
+    ]);
+    expect(action!.connectorSlots.every((slot) => !slot.required)).toBe(true);
     expect(DEFAULT_DOC_COMPARE_BINDING.slot).toBe('reasoning');
 
     expect((action!.inputSchema as { required: string[] }).required).toEqual([

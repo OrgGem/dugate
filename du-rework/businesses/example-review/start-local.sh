@@ -1,16 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-WORKSPACE_ROOT="$(cd -- "$SCRIPT_DIR/../.." && pwd)"
-ENV_FILE="${1:-.env.orchestrator.local}"
-if [[ "$ENV_FILE" != /* ]]; then ENV_FILE="$WORKSPACE_ROOT/$ENV_FILE"; fi
-if [[ ! -f "$ENV_FILE" ]]; then
-  printf 'Local env file not found: %s\nCreate it with node scripts/init-orchestrator-local.cjs --output=.env.orchestrator.local.\n' "$ENV_FILE" >&2
-  exit 1
-fi
-
-export CONNECTOR_PORT="${CONNECTOR_PORT:-8080}"
-export CONNECTOR_URL="${CONNECTOR_URL:-http://127.0.0.1:${CONNECTOR_PORT}}"
-cd "$WORKSPACE_ROOT"
-exec node scripts/dev.cjs "--env-file=$ENV_FILE" --services=workers --workers=example-review --skip-build --skip-migrate --local-identity
+PROJECT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+ARGS=()
+if [[ -n "${1:-}" ]]; then ARGS+=("--env-file=$1"); fi
+if [[ "${DU_SKIP_BUILD:-0}" == 1 ]]; then ARGS+=(--skip-build); fi
+if [[ "${DU_DEV_CHECK:-0}" == 1 ]]; then ARGS+=(--check); fi
+if [[ "${DU_DEV_NO_WATCH:-0}" == 1 ]]; then ARGS+=(--no-watch); fi
+cd "$PROJECT_DIR"
+exec node scripts/dev.cjs "${ARGS[@]}"

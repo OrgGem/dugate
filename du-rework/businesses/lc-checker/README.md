@@ -111,11 +111,18 @@ examiner to cite bracketed rule ids that the validator can resolve.
 
 ## Development
 
+Each worker checkout is also a small pnpm workspace. It vendors the current contracts, egress, observability, and worker SDK source under `vendor/`; LC Checker does not import `@du/document-kit`, so it does not carry that package. The source hashes and upstream paths are recorded in `vendor/PROVENANCE.json`.
+
+Run these commands from `businesses/lc-checker/`:
+
 ```bash
-pnpm --filter @du/lc-checker test          # offline unit suite
-pnpm --filter @du/lc-checker test:typecheck
-pnpm --filter @du/lc-checker build
+pnpm install
+pnpm run build
+pnpm run test:unit          # offline unit suite
+pnpm run test:typecheck
 ```
+
+See [`README-LOCAL.md`](README-LOCAL.md) for worker-local development and Docker setup.
 
 ## Verification status
 

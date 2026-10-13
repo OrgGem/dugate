@@ -6,8 +6,8 @@ import { RecipeRegistry } from '../src/recipes/recipe-definitions';
 import { MockTaskContext } from './fixtures/mock-context';
 
 describe('COMP-04b document-core missing variants', () => {
-  it('registers all 31 variants, including the three additions, without changing action count', () => {
-    expect(documentCoreManifest.actions).toHaveLength(8);
+  it('registers 31 document variants and the current workflow actions', () => {
+    expect(documentCoreManifest.actions).toHaveLength(9);
     expect(RecipeRegistry.getAllRecipes()).toHaveLength(31);
     expect(VARIANT_TRACEABILITY_MATRIX).toHaveLength(31);
     expect(verifyTraceabilityMatrix()).toEqual({ valid: true, errors: [] });

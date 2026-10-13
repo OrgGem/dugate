@@ -394,7 +394,13 @@ describe('Provider-Backed Variant (DOC-02-01 extract/invoice) — SDK Facade & R
           pattern: /^\/workers\/[^/]+\/heartbeat$/,
           handler: () => ({
             status: 200,
-            json: { health: 'HEALTHY', leaseExpiresAt: new Date(Date.now() + 60000).toISOString(), capacity: 1 },
+            json: {
+              health: 'HEALTHY',
+              leaseExpiresAt: new Date(Date.now() + 60000).toISOString(),
+              capacity: 1,
+              controlRevision: 1,
+              controlState: 'OPEN',
+            },
           }),
         },
         {

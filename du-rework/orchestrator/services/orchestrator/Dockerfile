@@ -9,12 +9,14 @@ RUN corepack enable && corepack prepare pnpm@10.18.3 --activate
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc tsconfig.base.json ./
 COPY orchestrator/patches ./orchestrator/patches
 COPY orchestrator/vendor ./orchestrator/vendor
+# orchestrator/** packages resolve their extends as orchestrator/tsconfig.base.json,
+# not the root config. Without this every tsc falls back to ES3/ES5 defaults.
+COPY orchestrator/tsconfig.base.json ./orchestrator/tsconfig.base.json
 RUN --mount=type=cache,id=du-pnpm-store,target=/pnpm/store \
     pnpm config set store-dir /pnpm/store \
     && pnpm fetch --frozen-lockfile --ignore-scripts --fetch-retries=5
 COPY orchestrator/packages ./orchestrator/packages
 COPY orchestrator/services ./orchestrator/services
-COPY businesses ./businesses
 COPY docs/21-openapi.json ./docs/21-openapi.json
 COPY orchestrator/apps ./orchestrator/apps
 COPY tests ./tests
@@ -26,11 +28,31 @@ FROM build-base AS orchestrator-build
 RUN --network=none --mount=type=cache,id=du-pnpm-store,target=/pnpm/store node scripts/docker/build-runtime.cjs orchestrator
 FROM build-base AS connector-build
 RUN --network=none --mount=type=cache,id=du-pnpm-store,target=/pnpm/store node scripts/docker/build-runtime.cjs connector
-FROM build-base AS document-core-build
+
+# The worker builds have their own workspace roots and lockfiles. Keeping their
+# source out of the platform workspace prevents vendored @du packages from
+# colliding with the canonical platform packages while preserving root target
+# compatibility for callers that still select a worker target.
+FROM ${NODE_IMAGE} AS worker-build-base
+WORKDIR /workspace
+ENV PNPM_HOME=/pnpm
+ENV PATH=/pnpm:$PATH
+RUN corepack enable && corepack prepare pnpm@10.18.3 --activate
+RUN --mount=type=cache,id=du-pnpm-store,target=/pnpm/store pnpm config set store-dir /pnpm/store
+COPY scripts/docker/build-runtime.cjs ./scripts/docker/build-runtime.cjs
+COPY businesses/document-core ./businesses/document-core
+COPY businesses/lc-checker ./businesses/lc-checker
+COPY businesses/example-review ./businesses/example-review
+RUN --mount=type=cache,id=du-pnpm-store,target=/pnpm/store \
+    cd businesses/document-core && pnpm fetch --frozen-lockfile --ignore-scripts --fetch-retries=5 \
+    && cd ../lc-checker && pnpm fetch --frozen-lockfile --ignore-scripts --fetch-retries=5 \
+    && cd ../example-review && pnpm fetch --frozen-lockfile --ignore-scripts --fetch-retries=5
+
+FROM worker-build-base AS document-core-build
 RUN --network=none --mount=type=cache,id=du-pnpm-store,target=/pnpm/store node scripts/docker/build-runtime.cjs document-core
-FROM build-base AS lc-checker-build
+FROM worker-build-base AS lc-checker-build
 RUN --network=none --mount=type=cache,id=du-pnpm-store,target=/pnpm/store node scripts/docker/build-runtime.cjs lc-checker
-FROM build-base AS example-review-build
+FROM worker-build-base AS example-review-build
 RUN --network=none --mount=type=cache,id=du-pnpm-store,target=/pnpm/store node scripts/docker/build-runtime.cjs example-review
 
 FROM ${NODE_IMAGE} AS runtime-base

@@ -79,17 +79,21 @@ The output artifact `${reviewId}.review.json` emitted with role `output`:
 
 ## Commands
 
-From `du-rework/`:
+From `businesses/example-review/`:
 
 ```bash
-pnpm --filter @du/example-review build
-pnpm --filter @du/example-review lint
-pnpm --filter @du/example-review test
+pnpm install
+pnpm run build
+pnpm run lint
+pnpm run test:unit
 ```
+
+This package vendors the current contracts, document-kit, egress, observability, and worker SDK source under `vendor/`. Its upstream source paths and SHA-256 hashes are recorded in `vendor/PROVENANCE.json`. The default unit suite is offline; live Orchestrator continuation and admin tests are available only through the explicit `test:integration:workspace` script from the monorepo.
 
 ### Docker Build & Run
 
 ```bash
-docker build -f businesses/example-review/Dockerfile -t du-example-review:1.0.0 .
-docker run --rm -e RUNTIME_URL=http://localhost:3000/api/runtime/v1 -e RUNTIME_TOKEN=secret -e REDIS_URL=redis://localhost:6379 du-example-review:1.0.0
+docker build -t du-example-review:1.0.0 .
 ```
+
+Build from this directory so the worker-local Dockerfile can install and package its vendored dependencies. See [`README-LOCAL.md`](README-LOCAL.md) for the local Runtime settings.

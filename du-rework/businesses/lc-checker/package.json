@@ -5,18 +5,22 @@
   "description": "Letter of Credit document checker business: UCP 600 / ISBP 821 document-set compliance examination",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "packageManager": "pnpm@10.18.3",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -b tsconfig.json",
     "start": "node dist/main.js",
-    "test": "jest --runInBand",
-    "test:unit": "jest --testPathIgnorePatterns=integration --runInBand",
-    "test:typecheck": "tsc --noEmit -p tsconfig.test.json",
-    "lint": "tsc --noEmit -p tsconfig.json",
-    "clean": "rimraf dist"
+    "dev": "node scripts/dev.cjs",
+    "dev:check": "node scripts/dev.cjs --check",
+    "test": "pnpm run build && jest --runInBand",
+    "test:unit": "pnpm run build && jest --runInBand",
+    "test:dev-isolation": "node --test tests/dev-runner-isolation.test.cjs",
+    "test:typecheck": "pnpm run build && tsc --noEmit -p tsconfig.test.json",
+    "lint": "pnpm run build",
+    "clean": "rimraf dist vendor/*/dist"
   },
   "dependencies": {
     "@du/contracts": "workspace:*",
-    "@du/document-kit": "workspace:*",
     "@du/worker-sdk": "workspace:*"
   },
   "devDependencies": {

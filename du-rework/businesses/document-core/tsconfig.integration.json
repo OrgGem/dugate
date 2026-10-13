@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.test.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "rootDir": "../..",
+    "paths": {
+      "@du/orchestrator": ["../../orchestrator/services/orchestrator/dist/index.d.ts"],
+      "@du/connector": ["../../orchestrator/services/connector/dist/index.d.ts"]
+    }
+  },
+  "include": ["tests/multi-container-e2e.integration.test.ts"],
+  "exclude": ["dist", "node_modules"]
+}

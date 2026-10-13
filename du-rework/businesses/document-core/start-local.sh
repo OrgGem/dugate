@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-WORKSPACE_ROOT="$(cd -- "$SCRIPT_DIR/../.." && pwd)"
-ENV_FILE="${1:-.env.orchestrator.local}"
-if [[ "$ENV_FILE" != /* ]]; then ENV_FILE="$WORKSPACE_ROOT/$ENV_FILE"; fi
-if [[ ! -f "$ENV_FILE" ]]; then
-  printf 'Local env file not found: %s\nCreate it with node scripts/init-orchestrator-local.cjs --output=.env.orchestrator.local.\n' "$ENV_FILE" >&2
-  exit 1
-fi
+PROJECT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+ENV_FILE="${1:-${DU_ENV_FILE:-}}"
+ARGS=()
 
-export CONNECTOR_PORT="${CONNECTOR_PORT:-8080}"
-export CONNECTOR_URL="${CONNECTOR_URL:-http://127.0.0.1:${CONNECTOR_PORT}}"
-cd "$WORKSPACE_ROOT"
-exec node scripts/dev.cjs "--env-file=$ENV_FILE" --services=workers --workers=document-core --skip-build --skip-migrate --local-identity
+if [[ -n "$ENV_FILE" ]]; then
+  if command -v cygpath >/dev/null 2>&1 && [[ "$ENV_FILE" == /* ]]; then
+    ENV_FILE="$(cygpath -w "$ENV_FILE")"
+  fi
+  ARGS+=("--env-file=$ENV_FILE")
+fi
+if [[ "${DU_SKIP_BUILD:-0}" == 1 ]]; then ARGS+=(--skip-build); fi
+
+cd "$PROJECT_DIR"
+exec node scripts/dev.cjs "${ARGS[@]}"

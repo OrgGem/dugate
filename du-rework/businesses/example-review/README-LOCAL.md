@@ -1,23 +1,23 @@
 # example-review local worker
 
-`example-review` is a queue worker with no public HTTP listener. Its application config requires Orchestrator's Runtime URL/token and Redis; it does not declare a Connector URL requirement.
+Run the worker from this directory. It reads `businesses/example-review/.env.local`, uses the internal Runtime API on port 3002, and watches this package's `src/` and `vendor/` trees for edits.
 
-## Start
-
-From this directory:
+Copy `.env.local.example` to `.env.local` and set the existing `example-review` business runtime token. The runner passes only the worker's allowlisted settings to its child process.
 
 ```powershell
-./start-local.ps1
+Copy-Item .env.local.example .env.local
+pnpm install
+pnpm run dev
 ```
 
 ```bash
-bash ./start-local.sh
+cp .env.local.example .env.local
+pnpm install
+pnpm run dev
 ```
 
-Use `-EnvFile D:\path\to\profile.env` in PowerShell or pass the env-file path as the first Bash argument. The common runner currently waits for both Orchestrator and Connector health before starting any worker, so start Connector as well even though this business config does not consume it directly.
+The worker has no HTTP listener. The local runner defaults `RUNTIME_URL` to `http://127.0.0.1:3002/api/runtime/v1` and `REDIS_URL` to `redis://127.0.0.1:16380`. Start PostgreSQL, Redis, and Orchestrator separately; start Connector when the selected workflow uses connector slots. The runner does not contact services during startup.
 
-## Required configuration and dependencies
+`pnpm run dev -- --skip-build` starts from existing `dist/` artifacts. `pnpm run build`, `pnpm run test:unit`, and `pnpm run test:typecheck` work from this directory without the parent workspace. The live continuation and admin integration tests are explicit monorepo-only checks and are excluded from the default offline suite.
 
-Start PostgreSQL, Redis, Orchestrator, and Connector before this launcher. Configure `DATABASE_URL`, `REDIS_URL`, `SERVICE_IDENTITY_SECRET`, `INVOCATION_GRANT_SECRET`, `CONNECTOR_ENCRYPTION_KEY`, `CONNECTOR_INVOCATION_ENCRYPTION_KEYS`, and `EXAMPLE_REVIEW_RUNTIME_TOKEN` (or that business's entry in `WORKER_IDENTITY_TOKENS_BY_BUSINESS`). The runner maps the selected runtime token and defaults `RUNTIME_URL` to `http://127.0.0.1:3002/api/runtime/v1`. It mints a short-lived Connector identity for this local worker session because that is required by the shared runner's worker startup contract.
-
-The launcher skips builds and Orchestrator migrations and expects workspace build artifacts to exist. It does not register the manifest. See [`coordination/reports/local-dev-services-guide.md`](../../coordination/reports/local-dev-services-guide.md) for manifest provisioning and the startup order. Press Ctrl+C to stop this worker session.
+For a production image, copy `.env.docker.example` to `.env.docker.local`, replace the placeholder with the existing example-review runtime token, then run `docker compose up -d --build`. The Docker context is this directory and the image contains only production package files and dependencies. The standalone Compose example reaches host services through `host.docker.internal`.

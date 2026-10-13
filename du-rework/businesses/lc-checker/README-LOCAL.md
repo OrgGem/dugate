@@ -1,9 +1,25 @@
 # LC Checker local worker
 
-From the `du-rework` root, run `./businesses/lc-checker/scripts/start-local.ps1` or `bash businesses/lc-checker/scripts/start-local.sh`. The script reads the root `.env.local` by default; set `DU_ENV_FILE` for another env file. It builds LC Checker and workspace dependencies unless `-SkipBuild` or `DU_SKIP_BUILD=1` is used.
+Run the worker from this directory. It reads `businesses/lc-checker/.env.local`, uses the internal Runtime API on port 3002, and watches this package's `src/` and `vendor/` trees for edits.
 
-LC Checker is a worker and **does not expose an HTTP listener**. Its launcher sets `PORT=0` to avoid inheriting a misleading server port. It registers and heartbeats through `RUNTIME_URL=http://127.0.0.1:3002/api/runtime/v1`, uses Redis at `redis://127.0.0.1:6379`, and invokes Connector at `http://127.0.0.1:8080`.
+Create the worker-local config once, then use the already-provisioned `lc-checker` runtime token and an issued Connector invoke token:
 
-Start PostgreSQL/Redis, Orchestrator, and Connector first. Configure `LC_RUNTIME_TOKEN` in `.env.local` and ensure the Orchestrator worker identity map contains the same `lc-checker` token. The launcher maps the token to `RUNTIME_TOKEN` using the repository's shared local environment helper. When `CONNECTOR_SERVICE_TOKEN` is blank, it creates a short-lived local Connector identity from `SERVICE_IDENTITY_SECRET`; this is only for local development and must match the service identity key configured by Connector and Orchestrator.
+```powershell
+Copy-Item .env.local.example .env.local
+pnpm install
+pnpm run dev
+```
 
-The common local ports are Orchestrator Public 3000, Admin 3001, Internal 3002, Connector 8080, and Redis 6379. LC Checker has no separate port to publish; its health is represented by Runtime registration and heartbeat state.
+```bash
+cp .env.local.example .env.local
+pnpm install
+pnpm run dev
+```
+
+The worker has no HTTP listener. The local runner defaults `RUNTIME_URL` to `http://127.0.0.1:3002/api/runtime/v1`, `REDIS_URL` to `redis://127.0.0.1:16380`, and `CONNECTOR_URL` to `http://127.0.0.1:8088`. Start PostgreSQL, Redis, Orchestrator, and Connector separately before expecting the worker to register or process tasks.
+
+The local config uses `CONNECTOR_SERVICE_TOKEN`. For development, you may replace that line with `SERVICE_IDENTITY_SECRET` to mint a fresh short-lived Connector JWT using the shared HS256 identity contract; set one value, not both. The signing key stays out of the worker process. This does not rotate or rewrite the existing business runtime token.
+
+`pnpm run dev -- --skip-build` starts from existing `dist/` artifacts. `pnpm run build`, `pnpm run test:unit`, and `pnpm run test:typecheck` work from this directory without the parent workspace. Integration tests requiring Orchestrator services live outside this package's default offline suite.
+
+For a production image, copy `.env.docker.example` to `.env.docker.local`, replace the placeholders with the existing LC Checker runtime token and an issued Connector invoke token, then run `docker compose up -d --build`. The Docker context is this directory and the image contains only production package files and dependencies. The standalone Compose example reaches host services through `host.docker.internal`; container loopback points back to the worker itself.

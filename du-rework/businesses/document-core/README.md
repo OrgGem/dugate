@@ -35,10 +35,10 @@ Worker configuration is parsed and validated using Zod at startup with fail-clos
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `RUNTIME_URL` | **Yes** | — | Runtime API base URL (e.g. `http://localhost:3000/api/runtime/v1`) |
+| `RUNTIME_URL` | **Yes** | — | Internal Runtime API base URL (e.g. `http://127.0.0.1:3002/api/runtime/v1`) |
 | `RUNTIME_TOKEN` | **Yes** | — | Bearer service identity token scoped to this business |
-| `REDIS_URL` | **Yes** | — | Redis connection URL for BullMQ queue consumption (e.g. `redis://localhost:6380`) |
-| `CONNECTOR_URL` | No | `undefined` | Connector internal base URL (e.g. `http://localhost:8080`) |
+| `REDIS_URL` | **Yes** | — | Redis connection URL for BullMQ queue consumption (e.g. `redis://127.0.0.1:16380`) |
+| `CONNECTOR_URL` | No | `undefined` | Connector local base URL (e.g. `http://127.0.0.1:8088`) |
 | `CONNECTOR_SERVICE_TOKEN` | Required with `CONNECTOR_URL` | — | Short-lived signed Bearer token with audience `connector` and scope `connector:invoke`; issue it through the service identity authority and keep its signing secret in Connector only |
 | `CONCURRENCY` | No | `1` | Max concurrent task deliveries (positive integer) |
 | `HEARTBEAT_INTERVAL_MS` | No | `10000` | Lease heartbeat interval in milliseconds |
@@ -49,55 +49,46 @@ Worker configuration is parsed and validated using Zod at startup with fail-clos
 ## Build & Run
 
 ### Prerequisites
-- Node.js 20+
-- pnpm 9+
-- Redis (e.g. at `localhost:6380`)
-- Running Orchestrator Runtime service (or local fake runtime for offline testing)
+- Node.js `24.21.0` and pnpm `10.18.3`
+- Installed dependencies from this directory's nested workspace
+- Running local Orchestrator, Connector, PostgreSQL, and Redis
 
 ### Local Development
-From the `du-rework/` workspace root:
+From this directory, install the standalone workspace and start the local worker:
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm build
-
-# Start the worker in another terminal after Orchestrator and Redis are ready.
-# Set both Connector values only when handlers invoke Connector.
-pnpm --filter @du/document-core start
+pnpm run dev:check
+pnpm run dev
 ```
 
-Set `RUNTIME_URL`, `RUNTIME_TOKEN`, and `REDIS_URL` in the worker terminal
-before the `start` command. For example, in PowerShell:
-
-```powershell
-$env:RUNTIME_URL = 'http://127.0.0.1:3000/api/runtime/v1'
-$env:RUNTIME_TOKEN = '<runtime-token-rieng>'
-$env:REDIS_URL = 'redis://127.0.0.1:6380'
-```
+Set the worker's local `.env.local` from `.env.example`. Use the existing Document Core worker token and an issued Connector invoke token. For development, the existing service identity key can replace the short-lived Connector token in `.env.local`; the runner derives a fresh Connector token at startup and removes the key before starting the worker. It builds the vendored package sources and this worker in dependency order, then watches `src/` and `vendor/`. See the [local worker guide](README-LOCAL.md) for setup details. Vendored source origins and SHA-256 hashes are recorded in [vendor/PROVENANCE.json](vendor/PROVENANCE.json).
 
 The worker alone does not provision an active business version, profile, or
 external API key. See the [root usage guide](../../README.md).
 
 ### Docker Execution
-The service container uses a workspace-aware Dockerfile. From `du-rework/`:
+Build the standalone image with this directory as its context:
 
 ```sh
-docker build -f businesses/document-core/Dockerfile -t du-document-core:latest .
+docker build -t du-document-core:latest .
 ```
 
 Run the image only on a network where the configured Orchestrator, Redis and
-optional Connector endpoints are reachable. The root full-stack Compose is
-currently blocked by duplicate included services; see the [Docker status](../../README.md#docker).
+optional Connector endpoints are reachable. The image contains the production
+dependency closure and the worker build; it does not contain this workspace's
+development tools.
 On direct execution, `dist/main.js` validates environment variables, initiates worker registration, and handles `SIGTERM` / `SIGINT` signals to gracefully drain in-flight jobs within `SHUTDOWN_GRACE_MS`.
 
 ## Testing
 
 ```sh
-# Offline default; excludes *.integration.test.ts.
-pnpm --filter @du/document-core test
+# Standalone package tests.
+pnpm run test
 
-# Separate live multi-container suite; requires an approved test-DB window.
-pnpm --filter @du/document-core test:integration:full
+# Explicit monorepo integration; requires built Orchestrator/Connector services
+# and their test infrastructure.
+pnpm run test:integration:full
 ```
 
 ## Architectural Boundaries

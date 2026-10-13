@@ -4,13 +4,15 @@ module.exports = {
   testEnvironment: 'node',
   roots: ['<rootDir>/tests'],
   testMatch: ['**/*.test.ts'],
+  testPathIgnorePatterns: ['\\.integration\\.test\\.ts$'],
   transform: {
-    '^.+\\.ts$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.json' }],
+    '^.+\\.ts$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.test.json' }],
   },
   moduleNameMapper: {
-    '^@du/contracts$': '<rootDir>/../../orchestrator/packages/contracts/dist/index.js',
-    '^@du/document-kit$': '<rootDir>/../../orchestrator/packages/document-kit/src/index.ts',
-    '^@du/worker-sdk$': '<rootDir>/../../orchestrator/packages/worker-sdk/dist/index.js',
-    '^@du/orchestrator$': '<rootDir>/../../orchestrator/services/orchestrator/dist/index.js',
+    '^@du/contracts$': '<rootDir>/vendor/contracts/src/index.ts',
+    '^@du/document-kit$': '<rootDir>/vendor/document-kit/src/index.ts',
+    '^@du/egress$': '<rootDir>/vendor/egress/src/index.ts',
+    '^@du/observability$': '<rootDir>/vendor/observability/src/index.ts',
+    '^@du/worker-sdk$': '<rootDir>/vendor/worker-sdk/src/index.ts',
   },
 };

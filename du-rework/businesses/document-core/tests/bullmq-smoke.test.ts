@@ -11,6 +11,7 @@ import {
   ArtifactUploadGrant,
   SaveStepAck,
   TaskReportAck,
+  validateManifest,
 } from '@du/contracts';
 import { startDocumentCoreWorker, WorkerHandle } from '../src';
 
@@ -75,7 +76,7 @@ describe('Document Core — BullMQ & Redis Smoke Suite', () => {
     const taskId = randomUUID();
     const operationId = randomUUID();
     const deliveryId = `smoke-delivery-${testId}`;
-    const queueName = businessQueueName('document-core', '1.0.0');
+    const queueName = businessQueueName('document-core', '1.1.0');
 
     // Recorded events at fake runtime
     const recorded = {
@@ -104,6 +105,26 @@ describe('Document Core — BullMQ & Redis Smoke Suite', () => {
         // non-JSON body (e.g. raw artifact upload)
       }
 
+      // 0. Business version registration: PUT /businesses/:id/versions/:version
+      if (req.method === 'PUT' && url.pathname.startsWith('/businesses/') && url.pathname.includes('/versions/')) {
+        const registration = validateManifest(body);
+        if (!registration.ok) {
+          res.writeHead(422, { 'content-type': 'application/json' });
+          res.end(JSON.stringify({ code: 'INVALID_SCHEMA' }));
+          return;
+        }
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({
+          businessId: registration.manifest.businessId,
+          version: registration.manifest.version,
+          digest: registration.digest,
+          queue: registration.queue,
+          created: true,
+          replayed: false,
+        }));
+        return;
+      }
+
       // 1. Worker Heartbeat: PUT /workers/:instanceId/heartbeat
       if (req.method === 'PUT' && url.pathname.includes('/heartbeat') && url.pathname.startsWith('/workers/')) {
         recorded.workerHeartbeats.push(body);
@@ -111,6 +132,8 @@ describe('Document Core — BullMQ & Redis Smoke Suite', () => {
           health: 'HEALTHY',
           leaseExpiresAt: new Date(Date.now() + 60_000).toISOString(),
           capacity: 1,
+          controlRevision: 1,
+          controlState: 'OPEN',
         };
         res.writeHead(200, { 'content-type': 'application/json' });
         res.end(JSON.stringify(ack));
@@ -132,7 +155,7 @@ describe('Document Core — BullMQ & Redis Smoke Suite', () => {
             operationId,
             tenantId: 'tenant-smoke',
             businessId: 'document-core',
-            businessVersion: '1.0.0',
+            businessVersion: '1.1.0',
             action: 'ingest',
             schemaDigest: 'sha256:0000000000000000000000000000000000000000000000000000000000000000',
             manifestDigest: 'sha256:0000000000000000000000000000000000000000000000000000000000000000',
@@ -280,7 +303,7 @@ describe('Document Core — BullMQ & Redis Smoke Suite', () => {
         taskId,
         operationId,
         businessId: 'document-core',
-        businessVersion: '1.0.0',
+        businessVersion: '1.1.0',
         action: 'ingest',
         kind: 'ingest',
         correlationId: `corr-${testId}`,

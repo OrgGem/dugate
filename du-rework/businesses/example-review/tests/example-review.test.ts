@@ -2,6 +2,7 @@ import { parseWorkerConfig } from '../src/config';
 import { mainReviewHandler } from '../src/review';
 import { startExampleReviewWorker } from '../src/worker';
 import { createMockTaskContext } from './test-helper';
+import { validateManifest } from '@du/contracts';
 
 describe('Deterministic Aggregate Output & Worker Configuration (P7-01 / P7-02 / A07-04)', () => {
   it('produces byte-identical output artifacts for identical review evaluations', async () => {
@@ -89,26 +90,43 @@ describe('Deterministic Aggregate Output & Worker Configuration (P7-01 / P7-02 /
       },
     };
 
-    const mockFetch = async () =>
-      new Response(
-        JSON.stringify({
-          health: 'HEALTHY',
-          leaseExpiresAt: new Date(Date.now() + 60_000).toISOString(),
-          capacity: 1,
-        }),
-        { status: 200, headers: { 'content-type': 'application/json' } }
-      );
+    let registeredVersion = '';
+    const mockFetch: typeof fetch = async (input, init) => {
+      const requestUrl = new URL(String(input));
+      if (init?.method === 'PUT' && requestUrl.pathname.includes('/businesses/')) {
+        const validation = validateManifest(JSON.parse(String(init.body)));
+        if (!validation.ok) throw new Error('worker submitted an invalid manifest');
+        registeredVersion = validation.manifest.version;
+        return new Response(JSON.stringify({
+          businessId: validation.manifest.businessId,
+          version: validation.manifest.version,
+          digest: validation.digest,
+          queue: validation.queue,
+          created: true,
+          replayed: false,
+        }), { status: 201, headers: { 'content-type': 'application/json' } });
+      }
+      return new Response(JSON.stringify({
+        health: 'HEALTHY',
+        leaseExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+        capacity: 1,
+        controlRevision: 0,
+        controlState: 'OPEN',
+        backupEffectFence: { state: 'OPEN', revision: 0, acknowledged: true },
+      }), { status: 200, headers: { 'content-type': 'application/json' } });
+    };
 
     const handle = await startExampleReviewWorker({
       runtimeUrl: 'http://mock-runtime:3000/api/runtime/v1',
       runtimeToken: 'mock-token',
       consumer: mockConsumer,
-      fetchImpl: mockFetch as unknown as typeof fetch,
+      fetchImpl: mockFetch,
       heartbeatIntervalMs: 60_000,
       imageDigest: 'sha256:mock-image',
     });
 
     expect(handle).toBeDefined();
+    expect(registeredVersion).toBe('1.0.0');
     expect(handle.queueName).toBe('du-business-example-review-1.0.0');
     expect(handle.stopped).toBe(false);
 
@@ -209,16 +227,16 @@ describe('FINDING 1 — existing output paths are token-free', () => {
     expect(cap.joined()).toBe(''); // parse never logs at all
   });
 
-  it('src/main.ts contains no console line that could serialize config secrets (static pin)', () => {
+  it('src/main.ts uses structured safe errors and contains no unguarded console logging', () => {
     const src = readFileSync(join(__dirname, '..', 'src', 'main.ts'), 'utf8');
     const codeLines = src
       .split('\n')
       .map((l) => l.trim())
       .filter((l) => l.length > 0 && !l.startsWith('//') && !l.startsWith('*'));
     const consoleLines = codeLines.filter((l) => /console\./.test(l));
-    expect(consoleLines.length).toBeGreaterThan(0); // pin is watching REAL code, not an empty set
-    for (const line of consoleLines) {
-      expect(FORBIDDEN_LOG_SHAPE.test(line)).toBe(false);
-    }
+    expect(consoleLines).toEqual([]);
+    expect(src).toContain('createLogger');
+    expect(src).toContain('safeErrorForLog(error)');
+    expect(FORBIDDEN_LOG_SHAPE.test('safeErrorForLog(error)')).toBe(false);
   });
 });

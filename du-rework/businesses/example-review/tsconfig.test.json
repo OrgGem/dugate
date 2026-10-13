@@ -1,15 +1,21 @@
 {
-  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "lib": ["ES2022"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
     "noEmit": true,
-    "types": ["node", "jest"],
-    "paths": {
-      "@du/contracts": ["../../orchestrator/packages/contracts"],
-      "@du/document-kit": ["../../orchestrator/packages/document-kit"],
-      "@du/worker-sdk": ["../../orchestrator/packages/worker-sdk"],
-      "@du/orchestrator": ["../../orchestrator/services/orchestrator/dist/index.d.ts"]
-    }
+    "rootDir": ".",
+    "types": ["node", "jest"]
   },
   "include": ["src/**/*.ts", "tests/**/*.ts"],
-  "exclude": ["dist", "node_modules"]
+  "exclude": ["dist", "node_modules", "vendor", "tests/**/*.integration.test.ts"]
 }
