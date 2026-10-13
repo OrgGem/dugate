@@ -1134,7 +1134,7 @@ export function DocsScreen() {
           {sessionState.kind === 'failed' ? <AlertBanner variant="error" title="Admin session unavailable">{sessionState.problem.title ?? 'The session and CSRF proof could not be read. Retry by reloading this page.'}</AlertBanner> : null}
           {session && session.role === 'viewer' ? <AlertBanner variant="warning" title="Viewer access is read-only">The Test Endpoint and Prompt Wizard require an admin or operator session.</AlertBanner> : null}
           {session && !tenantId ? <AlertBanner variant="warning" title="Choose a tenant first">Select a tenant in the admin shell before loading tenant Profiles.</AlertBanner> : null}
-          {session && tenantId ? <p className="text-xs text-[var(--text-sub)]">Tenant scope: <code>{tenantId}</code>{session.localUser ? ' · local USER assignment scope' : ''}</p> : null}
+          {session?.localUser ? <p className="text-xs text-[var(--text-sub)]">This session uses its local USER assignment scope.</p> : null}
         </CardContent>
       </Card>
 

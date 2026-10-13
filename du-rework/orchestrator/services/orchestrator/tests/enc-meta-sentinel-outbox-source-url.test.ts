@@ -40,9 +40,10 @@ import { adaptKeyProviderForMetadata } from '../src/modules/encryption/metadata-
 import type { KeyProvider, WrapDekInput, WrappedDek } from '../src/modules/encryption/vault-transit-provider';
 import { openDispatchSourceUrl } from '../src/modules/operations/ingestion-consumer';
 import { loadMigrationFiles } from '../src/db/migrations';
+import { mockCreateStorageGenerationFixture, mockOpenBackupEffectGateResult } from './helpers/backup-effect-gate';
 
 const KEY_REF = 'enc-meta-sentinel-v1';
-const TENANT = 'enc-meta-tenant';
+const TENANT = '86000000-0000-4000-8000-000000000001';
 const API_KEY = 'enc-meta-api-key';
 const BUSINESS = 'document-core';
 const ACTION = 'extract';
@@ -76,10 +77,16 @@ jest.mock('pg', () => {
     operations: new Map(),
     outbox: [],
   };
+  let mockStorage: ReturnType<typeof mockCreateStorageGenerationFixture> | undefined;
+  const getMockStorage = () => (mockStorage ??= mockCreateStorageGenerationFixture());
   interface PgResult { rows: unknown[]; rowCount: number }
   function answer(sql: string, params: unknown[] = []): PgResult {
     const text = String(sql).replace(/\s+/g, ' ').trim();
     state.queries.push(text);
+    const backupGate = mockOpenBackupEffectGateResult(text);
+    if (backupGate) return backupGate;
+    const storage = getMockStorage().answer(text, params);
+    if (storage) return storage;
     const write = (): PgResult => {
       state.writes.push({ sql: text, params });
       return { rows: [], rowCount: 1 };
@@ -113,6 +120,24 @@ jest.mock('pg', () => {
       });
       return write();
     }
+    if (/SELECT t\.id AS task_id,o\.business_id,o\.business_version\s+FROM tasks t/i.test(text)) {
+      // The inactive-version parking sweep must not consume active backlog.
+      return { rows: [], rowCount: 0 };
+    }
+    if (/SELECT ob\.id,ob\.aggregate_id,ob\.delivery_id,ob\.type,ob\.payload/i.test(text)) {
+      if (/AS claim_token/.test(text)) {
+        const row = state.outbox.find((candidate) => candidate.id === String(params[0]));
+        return row
+          ? { rows: [{ ...row, claim_token: params[1], business_id: BUSINESS, business_version: '1.0.0', tenant_id: TENANT, queue_name: 'du-q' }], rowCount: 1 }
+          : { rows: [], rowCount: 0 };
+      }
+      // Model the active dispatcher page: ingestion-gated rows belong to the
+      // ingestion consumer, while ready rows may be published to BullMQ.
+      const rows = state.outbox
+        .filter((row) => row.dispatched_at === null && row.payload['gate'] !== 'ingestion')
+        .map((row) => ({ ...row, business_id: BUSINESS, business_version: '1.0.0', tenant_id: TENANT, queue_name: 'du-q' }));
+      return { rows, rowCount: rows.length };
+    }
     if (/FROM outbox WHERE dispatched_at IS NULL/.test(text)) {
       // Emulate the dispatcher's own WHERE clause (dispatcher.ts:35-46):
       // gate='ingestion' rows are the consumer's work, never published here.
@@ -125,10 +150,21 @@ jest.mock('pg', () => {
     if (/FROM tasks t JOIN operations o/.test(text)) {
       return { rows: [{ business_id: BUSINESS, business_version: '1.0.0', queue: 'du-q' }], rowCount: 1 };
     }
+    if (/SELECT id FROM tenants WHERE id=\$1/i.test(text)) {
+      return { rows: [{ id: String(params[0]) }], rowCount: 1 };
+    }
+    if (/FROM business_catalog WHERE business_id=\$1/i.test(text)) {
+      return {
+        rows: [{ enabled: true, activation_revision: 1, submissions_paused: false, pre_drain_version: null }],
+        rowCount: 1,
+      };
+    }
     if (/FROM business_versions/i.test(text)) {
       return {
         rows: [{
           version: '1.0.0',
+          status: 'ENABLED',
+          is_active: true,
           manifest: {
             actions: [{ name: ACTION, inputSchema: { type: 'object', additionalProperties: true } }],
             runtime: { handlerKinds: ['root'] },
@@ -139,6 +175,13 @@ jest.mock('pg', () => {
         rowCount: 1,
       };
     }
+    if (/FROM api_keys k WHERE k\.id=\$1/i.test(text)) {
+      return {
+        rows: [{ name: 'enc-meta-test-key', spending_limit: '0', total_used: '0', tenant_id: String(params[1]) }],
+        rowCount: 1,
+      };
+    }
+    if (/FROM usage_events ue JOIN operations/i.test(text)) return { rows: [], rowCount: 0 };
     if (/FROM operations WHERE id=\$1/i.test(text)) {
       const row = state.operations.get(String(params[0]));
       return row ? { rows: [row], rowCount: 1 } : { rows: [], rowCount: 0 };
@@ -491,6 +534,8 @@ describe('ENC-META-SENTINEL G1: URL submission through the real createApp', () =
     // The gated row was never marked dispatched.
     const outboxUpdates = scripted().writes.filter((w) => w.sql.includes('UPDATE outbox'));
     const touchedIds = outboxUpdates.map((w) => String(w.params[0]));
-    expect(touchedIds).toEqual(['ob-ready']);
+    expect(touchedIds).toEqual(['ob-ready', 'ob-ready']);
+    expect(outboxUpdates[0]!.sql).toContain('SET claim_token=$2');
+    expect(outboxUpdates[1]!.sql).toContain('SET dispatched_at=statement_timestamp()');
   });
 });

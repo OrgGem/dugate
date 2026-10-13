@@ -707,7 +707,15 @@ export async function uploadArtifactStream(
         'content-type': options.mimeType,
         'content-length': String(options.sizeBytes),
       },
-      body: Readable.toWeb(meter) as unknown as RequestInit['body'],
+      body: Readable.toWeb(meter, {
+        strategy: {
+          highWaterMark,
+          // The default Web Streams strategy counts chunks. These are byte
+          // streams, so a 64 KiB high-water mark must account for chunk bytes;
+          // otherwise a fast producer can queue the whole artifact in memory.
+          size: (chunk: Uint8Array) => chunk.byteLength,
+        },
+      }) as unknown as RequestInit['body'],
       signal: scope.signal,
       duplex: 'half',
     } as RequestInit & { duplex: 'half' };

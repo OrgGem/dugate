@@ -30,7 +30,14 @@ function createRaceHarness(initialState: OperationState) {
   const task = {
     state: initialState === 'WAITING_INPUT' ? 'WAITING_INPUT' : initialState === 'TIMED_OUT' ? 'CANCELLED' : initialState,
   };
-  const wait = { status: initialState === 'WAITING_INPUT' ? 'OPEN' : 'CANCELLED' };
+  const wait = {
+    id: 'wait-row-1',
+    task_id: TASK_ID,
+    wait_id: 'br08-wait-1',
+    input_schema: { type: 'object', additionalProperties: true },
+    response_ref: null,
+    status: initialState === 'WAITING_INPUT' ? 'OPEN' : 'CANCELLED',
+  };
   const events: QueryEvent[] = [];
   const counters = {
     cancellationOperationUpdates: 0,
@@ -57,7 +64,7 @@ function createRaceHarness(initialState: OperationState) {
       await previous;
       const transactionId = ++nextTransactionId;
       const client = {
-        query: async <Row extends QueryResultRow = QueryResultRow>(sql: string): Promise<QueryResult<Row>> => {
+        query: async <Row extends QueryResultRow = QueryResultRow>(sql: string, params: unknown[] = []): Promise<QueryResult<Row>> => {
           const normalized = sql.replace(/\s+/g, ' ').trim();
           events.push({ transactionId, sql: normalized });
 
@@ -68,6 +75,15 @@ function createRaceHarness(initialState: OperationState) {
               state: operation.state,
               state_version: operation.stateVersion,
             }]);
+          }
+          if (/^SELECT id, task_id, wait_id, input_schema, status, response_ref FROM human_waits WHERE operation_id=\$1 AND wait_id=\$2 FOR UPDATE$/i.test(normalized)) {
+            return pgResult<Row>([{ ...wait, wait_id: String(params[1]) }]);
+          }
+          if (/^SELECT state, \(lease_expires_at IS NOT NULL AND lease_expires_at > clock_timestamp\(\)\) AS lease_active/i.test(normalized)) {
+            return pgResult<Row>([]);
+          }
+          if (/^(SAVEPOINT|RELEASE SAVEPOINT|ROLLBACK TO SAVEPOINT)/i.test(normalized)) {
+            return pgResult<Row>([], 'SAVEPOINT');
           }
           if (/^UPDATE operations SET state='CANCELLED'/i.test(normalized)) {
             counters.cancellationOperationUpdates += 1;
@@ -147,8 +163,9 @@ describe('BR-08 offline cancel/resume race', () => {
     expect(harness.wait.status).toBe('CANCELLED');
 
     const resumeQueries = harness.events.filter((event) => event.transactionId === 2);
-    expect(resumeQueries).toHaveLength(1);
+    expect(resumeQueries).toHaveLength(2);
     expect(resumeQueries[0]?.sql).toMatch(/^SELECT .* FROM operations .* FOR UPDATE$/i);
+    expect(resumeQueries[1]?.sql).toMatch(/^SELECT id, task_id, wait_id, input_schema, status, response_ref FROM human_waits /i);
     expect(harness.counters.resumeQueueWrites).toBe(0);
     expect(harness.counters.childTaskInserts).toBe(0);
   });
@@ -176,8 +193,9 @@ describe('BR-08 offline cancel/resume race', () => {
       expect(harness.operation.state).toBe(terminalState);
 
       const resumeQueries = harness.events.filter((event) => event.transactionId === 2);
-      expect(resumeQueries).toHaveLength(1);
+      expect(resumeQueries).toHaveLength(2);
       expect(resumeQueries[0]?.sql).toMatch(/^SELECT .* FROM operations .* FOR UPDATE$/i);
+      expect(resumeQueries[1]?.sql).toMatch(/^SELECT id, task_id, wait_id, input_schema, status, response_ref FROM human_waits /i);
       expect(harness.counters.cancellationOperationUpdates).toBe(0);
       expect(harness.counters.resumeQueueWrites).toBe(0);
       expect(harness.counters.childTaskInserts).toBe(0);

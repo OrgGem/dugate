@@ -461,12 +461,14 @@ describe('W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP', () => 
     expect(seen.some((id) => ['44444444-4444-4444-8444-444444444444', '55555555-5555-5555-8555-555555555555'].includes(id))).toBe(false);
   });
 
-  it('a cursor minted inside tenant A pages ONLY tenant B windows when replayed scoped to B - and never leaks A ids', async () => {
+  it('rejects a tenant-A cursor replayed under tenant B before issuing another page query', async () => {
     const cursor = await mintNext('deadline_at:asc', 2, '&tenant=' + TENANT_A);
+    const before = pageQueries();
     const r = await apiGet('limit=5&sort=deadline_at:asc&tenant=' + TENANT_B + '&cursor=' + encodeURIComponent(cursor));
-    expect(r.status).toBe(200);
-    const ids = pageOf(r).items.map((x) => x.id);
-    expect(ids.every((id) => id.startsWith('4') || id.startsWith('5'))).toBe(true);
+    expect(r.status).toBe(422);
+    expect(r.contentType).toContain('application/problem+json');
+    expect((JSON.parse(r.body) as { code?: string }).code).toBe('INVALID_SCHEMA');
+    expect(pageQueries()).toBe(before);
   });
 });
 

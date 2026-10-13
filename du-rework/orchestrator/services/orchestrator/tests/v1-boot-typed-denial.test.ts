@@ -167,6 +167,9 @@ const BOOT_ENV_NAMES = [
   'ARTIFACT_S3_REGION', 'ARTIFACT_S3_ENDPOINT', 'ARTIFACT_S3_FORCE_PATH_STYLE',
   'SHUTDOWN_BUDGET_MS', 'ADMIN_SHELL_COOKIE_SECRET', 'ADMIN_SHELL_PORT', 'ADMIN_SHELL_HOST',
   'ENCRYPTION_KEY', 'NEXTAUTH_SECRET', 'ORCHESTRATOR_INTERNAL_BASE_URL',
+  'DU_ORCHESTRATOR_RUNTIME_IDENTITY', 'DU_ORCHESTRATOR_RUNTIME_SLOT',
+  'DU_ORCHESTRATOR_RUNTIME_REVISION', 'DU_ORCHESTRATOR_RUNTIME_IMAGE_DIGEST',
+  'DU_ORCHESTRATOR_SERVICE_RUNTIME_CONTROL_TOKEN',
 ] as const;
 
 async function withBootEnv<T>(overrides: Partial<Record<(typeof BOOT_ENV_NAMES)[number], string>>, work: () => Promise<T>): Promise<T> {
@@ -278,7 +281,13 @@ describe('V1 boot missing profile cipher key policy', () => {
 
   it('refuses a keyless real-data boot with the artifact seam enabled outside dev/test', async () => {
     mockPolicy = { ...DEFAULT_BOOT_POLICY, metadataEncryption: true, publicUploadEncryption: true };
-    await withNodeEnv('production', () => withBootEnv({}, async () => {
+    await withNodeEnv('production', () => withBootEnv({
+      DU_ORCHESTRATOR_RUNTIME_IDENTITY: 'boot-test-runtime',
+      DU_ORCHESTRATOR_RUNTIME_SLOT: 'blue',
+      DU_ORCHESTRATOR_RUNTIME_REVISION: 'test-revision',
+      DU_ORCHESTRATOR_RUNTIME_IMAGE_DIGEST: `orchestrator@sha256:${'a'.repeat(64)}`,
+      DU_ORCHESTRATOR_SERVICE_RUNTIME_CONTROL_TOKEN: 'boot-test-service-runtime-control-token-123456',
+    }, async () => {
       await expect(runMain()).rejects.toThrow(
         /refusing to boot: ENCRYPTION_KEY \(or NEXTAUTH_SECRET\) is required/,
       );

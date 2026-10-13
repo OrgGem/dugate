@@ -328,6 +328,7 @@ function createDb(initialSize: number, initiallyExists = true): {
     manifestVersionId: string | null;
     sha256: string | null;
     sizeBytes: number;
+    uploadApiKeyId: string | null;
   };
 } {
   const row = {
@@ -349,6 +350,7 @@ function createDb(initialSize: number, initiallyExists = true): {
     storageVersionId: null as string | null,
     manifestVersionId: null as string | null,
     sha256: null as string | null,
+    uploadApiKeyId: null as string | null,
   };
   const control = { releaseFailuresRemaining: 0 };
   let exists = initiallyExists;
@@ -358,7 +360,26 @@ function createDb(initialSize: number, initiallyExists = true): {
   const execute = async (sql: string, params: unknown[] = []) => {
     const query = sql.replace(/\s+/g, ' ').trim();
     if (query.startsWith('SELECT') && query.includes('FROM api_keys')) {
-      return { rowCount: 1, rows: [{ id: API_KEY_ID, tenant_id: row.tenantId }] };
+      return {
+        rowCount: 1,
+        rows: [{ id: API_KEY_ID, tenant_id: row.tenantId, name: 'offline', spending_limit: '0.00', total_used: '0.00' }],
+      };
+    }
+    if (query.startsWith('UPDATE artifacts SET upload_api_key_id=$3')) {
+      const [artifactId, tenantId, apiKeyId] = params as [string, string, string];
+      if (
+        !exists || row.artifactId !== artifactId || row.tenantId !== tenantId || row.purpose !== 'input'
+        || (row.uploadApiKeyId !== null && row.uploadApiKeyId !== apiKeyId)
+      ) return { rowCount: 0, rows: [] };
+      row.uploadApiKeyId = apiKeyId;
+      return { rowCount: 1, rows: [{ id: row.artifactId }] };
+    }
+    if (query.startsWith('SELECT id FROM artifacts WHERE id=$1 AND tenant_id=$2 AND upload_api_key_id=$3')) {
+      const [artifactId, tenantId, apiKeyId] = params as [string, string, string];
+      return exists && row.artifactId === artifactId && row.tenantId === tenantId
+        && row.uploadApiKeyId === apiKeyId && row.purpose === 'input'
+        ? { rowCount: 1, rows: [{ id: row.artifactId }] }
+        : { rowCount: 0, rows: [] };
     }
     if (query.startsWith('SELECT') && query.includes('FROM artifacts') && query.includes('id = ANY($1::uuid[])')) {
       const ids = Array.isArray(params[0]) ? params[0] as string[] : [];
@@ -382,8 +403,19 @@ function createDb(initialSize: number, initiallyExists = true): {
           },
           digest: 'sha256:offline-data02',
           queue: 'du-business-document-core-1.0.0',
+          status: 'ENABLED',
+          is_active: true,
         }],
       };
+    }
+    if (query.startsWith('SELECT enabled,activation_revision,submissions_paused,pre_drain_version FROM business_catalog')) {
+      return {
+        rowCount: 1,
+        rows: [{ enabled: true, activation_revision: 1, submissions_paused: false, pre_drain_version: null }],
+      };
+    }
+    if (query.startsWith('SELECT') && query.includes('FROM usage_events ue JOIN operations o')) {
+      return { rowCount: 0, rows: [] };
     }
     if (query.startsWith('INSERT INTO operations')) {
       const now = new Date().toISOString();
@@ -459,7 +491,7 @@ function createDb(initialSize: number, initiallyExists = true): {
       row.token = String(params[5]);
       row.storageKey = String(params[6]);
       row.uploadToken = String(params[7]);
-      row.sessionExpiresAt = params[9] as Date;
+      row.sessionExpiresAt = params[10] as Date;
       row.multipartUploadId = null;
       exists = true;
       return { rowCount: 1, rows: [{ id: row.artifactId }] };
@@ -567,6 +599,9 @@ function gatewayFor(options: {
     cryptoStorage: new CryptoStorageFacade(options.provider ?? keyProvider()),
     keyRef: KEY_REF,
     keyVersion: 3,
+    // Model an open backup snapshot gate; gate lock/conflict behavior has its
+    // own focused coverage in backup-effect-fence tests.
+    backupSnapshotWriteGate: { assertWriteAllowed: async () => undefined },
     maxBytes: options.maxBytes,
     putObjectMaxBytes: options.putObjectMaxBytes,
     multipartPartBytes: options.multipartPartBytes,

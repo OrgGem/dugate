@@ -174,6 +174,13 @@ function harness(rows: KeyRow[]): Harness {
         if (params[0] !== KEY_HASH) return pgResult([]);
         return pgResult([{ id: 'key-1', tenant_id: TENANT }]);
       }
+      if (/FROM operations\s+WHERE id=\$1 AND tenant_id=\$2 AND api_key_id=\$3/i.test(sql)) {
+        if (params[0] !== OP_ID || params[1] !== TENANT || params[2] !== 'key-1') return pgResult([]);
+        return pgResult([{
+          id: OP_ID, tenant_id: TENANT, api_key_id: 'key-1', state: 'SUCCEEDED',
+          result_ref: RESULT_REF, endpoint_slug: 'extract:invoice',
+        }]);
+      }
       if (/FROM operations o\s+LEFT JOIN artifacts/i.test(sql)) return pgResult([]);
       if (/FROM artifacts a/i.test(sql)) {
         const row = { state: 'READY', mime_type: 'application/octet-stream', tenant_id: TENANT, storage_key: 'sk' };
@@ -183,6 +190,7 @@ function harness(rows: KeyRow[]): Harness {
     },
   };
   const ctx = {
+    ingressAudience: 'public',
     method: 'GET',
     pathname: '/api/v1/operations/' + OP_ID + '/result',
     searchParams: new URLSearchParams(''),
@@ -205,7 +213,7 @@ function harness(rows: KeyRow[]): Harness {
     },
     deliveryEncryption: delivery,
     cryptoConfig,
-    config: { maxBlobBytes: 1024 },
+    config: { adminToken: ADMIN_TOKEN, maxBlobBytes: 1024 },
   } as unknown as RouteContext;
   return { ctx, store, delivery, keys };
 }
@@ -215,6 +223,12 @@ type Outcome =
   | { kind: 'problem'; status: number }
 async function call(h: Harness, pathname: string): Promise<Outcome> {
   (h.ctx as unknown as { pathname: string }).pathname = pathname;
+  const internal = pathname.startsWith('/api/internal/');
+  (h.ctx as unknown as { ingressAudience: string }).ingressAudience = internal ? 'internal' : 'public';
+  (h.ctx as unknown as { headers: Record<string, string> }).headers = {
+    'x-api-key': API_KEY,
+    ...(internal ? { authorization: `Bearer ${ADMIN_TOKEN}` } : {}),
+  };
   try {
     const res = await route(h.ctx);
     return { kind: 'body', status: res.status, body: (res.body ?? {}) as Record<string, unknown> };
@@ -223,10 +237,11 @@ async function call(h: Harness, pathname: string): Promise<Outcome> {
     return { kind: 'problem', status: err.status };
   }
 }
-const RESULT_PATH = '/api/v1/operations/' + OP_ID + '/result';
+const RESULT_PATH = '/api/internal/operations/' + OP_ID + '/result';
+const PUBLIC_RESULT_PATH = '/api/v1/operations/' + OP_ID + '/result';
 const DOWNLOAD_PATH = '/api/v1/artifacts/' + ARTIFACT_ID + '/download';
 
-describe('W-ENC-08-WIRE-ENC07: the Admin toggle drives public delivery', () => {
+describe('W-ENC-08-WIRE-ENC07: the Admin toggle drives encrypted result and public download delivery', () => {
   it('a tenant with delivery off still gets the plaintext result', async () => {
     const h = harness([{ version: 1, revokedAt: null, fingerprint: 'SHA256:one' }]);
     const out = await call(h, RESULT_PATH);
@@ -235,10 +250,20 @@ describe('W-ENC-08-WIRE-ENC07: the Admin toggle drives public delivery', () => {
     expect(out.body['encrypted']).toBeUndefined();
     expect((out.body['data'] as { resultRef?: string }).resultRef).toBe(RESULT_REF);
   });
+  it('the published public /result route preserves encrypted delivery', async () => {
+    const h = harness([{ version: 1, revokedAt: null, fingerprint: 'SHA256:one' }]);
+    await h.store.set(TENANT, { storageKeyRef: null, deliveryEncryption: true, pinnedRecipientKeyVersion: null });
+    const out = await call(h, PUBLIC_RESULT_PATH);
+    expect(out.kind).toBe('body');
+    if (out.kind !== 'body') throw new Error('unreachable');
+    expect(out.body['encrypted']).toBe(true);
+    const payload = JSON.parse(externalDecrypt(out.body['delivery']).toString('utf8')) as Record<string, unknown>;
+    expect((payload['data'] as { resultRef?: string }).resultRef).toBe(RESULT_REF);
+  });
   it('turning the toggle on encrypts the NEXT result, with no restart', async () => {
     const h = harness([{ version: 1, revokedAt: null, fingerprint: 'SHA256:one' }]);
     await h.store.set(TENANT, { storageKeyRef: null, deliveryEncryption: true, pinnedRecipientKeyVersion: null });
-    const out = await call(h, RESULT_PATH);
+    const out = await call(h, PUBLIC_RESULT_PATH);
     if (out.kind !== 'body') throw new Error('unreachable');
     expect(out.body['encrypted']).toBe(true);
     const payload = JSON.parse(externalDecrypt(out.body['delivery']).toString('utf8')) as Record<string, unknown>;

@@ -22,7 +22,7 @@ import { readBoundedBody } from './body';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { isHttpError } from '../../../http/errors';
 import { AdminUsageEventQuerySchema } from '../../../modules/usage/usage';
-import { BusinessEnableRequestSchema, UsageEventDrilldownQuerySchema } from '@du/contracts';
+import { BusinessEnableRequestSchema, UsageEventDrilldownQuerySchema, VersionActivationRequestSchema } from '@du/contracts';
 import { authorizeAuditTenantRead } from '../../../modules/admin-actions/rbac';
 import { SESSION_COOKIE_NAME } from '../../../modules/auth/session-store';
 import type { AdminShellRequest } from '../shell-types';
@@ -55,7 +55,7 @@ export type OperationsRoute =
   | { kind: 'worker-instances' }
   | { kind: 'business-versions'; businessId: string }
   | { kind: 'business-enable'; businessId: string }
-  | { kind: 'business-action'; businessId: string; version: string; action: 'enable' | 'activate' | 'deactivate' }
+  | { kind: 'business-action'; businessId: string; version: string; action: 'enable' | 'activate' | 'deactivate' | 'pre-drain' | 'pre-drain/cancel' }
   | { kind: 'invalid' };
 
 const OPERATIONS_PARAM_ALLOWLIST = [
@@ -101,11 +101,11 @@ export function matchOperationsRoute(relative: string): OperationsRoute | null {
     const businessId = decodePathSegment(businessEnableMatch[1] ?? '');
     return businessId === null ? { kind: 'invalid' } : { kind: 'business-enable', businessId };
   }
-  const actionMatch = /^\/businesses\/([^/]+)\/versions\/([^/]+)\/(enable|activate|deactivate)$/.exec(relative);
+  const actionMatch = /^\/businesses\/([^/]+)\/versions\/([^/]+)\/(enable|activate|deactivate|pre-drain(?:\/cancel)?)$/.exec(relative);
   if (actionMatch) {
     const businessId = decodePathSegment(actionMatch[1] ?? '');
     const version = decodePathSegment(actionMatch[2] ?? '');
-    const action = actionMatch[3] as 'enable' | 'activate' | 'deactivate';
+    const action = actionMatch[3] as 'enable' | 'activate' | 'deactivate' | 'pre-drain' | 'pre-drain/cancel';
     if (businessId === null || version === null) return { kind: 'invalid' };
     return { kind: 'business-action', businessId, version, action };
   }
@@ -492,12 +492,33 @@ export async function handleOperationsRoute(
     return;
   }
 
+  // Version routing mutations carry the revision seen on the list response.
+  // An omitted or stale revision is never converted into an unconditional
+  // activation by this BFF.
+  const actionBody = await readBoundedBody(req);
+  if (actionBody === null) {
+    writeProblem(res, 413, 'PAYLOAD_TOO_LARGE', 'request body exceeds limit', correlationId);
+    return;
+  }
+  let parsedBody: unknown;
+  try {
+    parsedBody = JSON.parse(actionBody || '{}');
+  } catch {
+    writeProblem(res, 422, 'INVALID_SCHEMA', 'business version action payload is invalid', correlationId);
+    return;
+  }
+  const parsed = VersionActivationRequestSchema.safeParse(parsedBody);
+  if (!parsed.success) {
+    writeProblem(res, 422, 'INVALID_SCHEMA', 'expectedActivationRevision is required', correlationId);
+    return;
+  }
+  const jsonBody = JSON.stringify(parsed.data);
   // business-action (upstream verb is PUT)
   const upstream = new URL(
     `/api/v1/admin/businesses/${encodeURIComponent(route.businessId)}/versions/${encodeURIComponent(route.version)}/${route.action}`,
     base,
   );
-  const response = await callUpstream(runtime, upstream, { method: 'PUT', credential, correlationId });
+  const response = await callUpstream(runtime, upstream, { method: 'PUT', credential, correlationId, jsonBody });
   await relayUpstream(res, response, correlationId);
 }
 

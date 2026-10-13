@@ -199,7 +199,7 @@ describe('WFA legacy operation lifecycle adapters', () => {
       waitId: 'server-wait-a',
       expectedStateVersion: 17,
       input: { step: 2, extracted_data: { approved: true } },
-    });
+    }, undefined, PRINCIPAL.apiKeyId);
   });
 
   it('does not resume an operation owned by a different API key', async () => {
@@ -247,7 +247,8 @@ describe('WFA legacy operation lifecycle adapters', () => {
       refId: 'operation-a',
     });
     expect(query).toHaveBeenCalledTimes(1);
-    expect(query.mock.calls[0]?.[0]).toContain("pipeline_json->0->>'workflow' IS NULL OR api_key_id = $3");
+    expect(query.mock.calls[0]?.[0]).toContain('AND api_key_id = $3');
+    expect(query.mock.calls[0]?.[1]).toEqual(['operation-a', PRINCIPAL.tenantId, PRINCIPAL.apiKeyId]);
   });
 
   it('returns no workflow operation to another API key in the same tenant', async () => {

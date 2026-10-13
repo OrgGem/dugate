@@ -65,6 +65,24 @@ export interface FormFieldProps {
   children: React.ReactNode;
 }
 
+function findChildControlId(children: React.ReactNode): string | undefined {
+  let foundId: string | undefined;
+
+  React.Children.forEach(children, (child) => {
+    if (foundId || !React.isValidElement(child)) return;
+
+    if (child.type === React.Fragment) {
+      foundId = findChildControlId((child.props as { children?: React.ReactNode }).children);
+      return;
+    }
+
+    const childId = (child.props as { id?: unknown }).id;
+    if (typeof childId === 'string' && childId.length > 0) foundId = childId;
+  });
+
+  return foundId;
+}
+
 /**
  * Composite FormField wrapper providing structured a11y, labeling, helper description, and error display.
  */
@@ -78,12 +96,13 @@ export function FormField({
   children,
 }: FormFieldProps) {
   const generatedId = React.useId();
-  const fieldId = id || generatedId;
+  const existingChildId = findChildControlId(children);
+  const fieldId = existingChildId || id || generatedId;
   const descriptionId = description ? `${fieldId}-desc` : undefined;
   const errorId = error ? `${fieldId}-err` : undefined;
 
   let content = children;
-  if (React.isValidElement(children)) {
+  if (React.isValidElement(children) && children.type !== React.Fragment) {
     const childProps = children.props as Record<string, unknown>;
     const existingDescribedBy =
       typeof childProps['aria-describedby'] === 'string' ? childProps['aria-describedby'] : undefined;
@@ -91,7 +110,7 @@ export function FormField({
     const combinedDescribedBy = describedByParts.length > 0 ? describedByParts.join(' ') : undefined;
 
     content = React.cloneElement(children as React.ReactElement<Record<string, unknown>>, {
-      id: childProps.id || fieldId,
+      id: fieldId,
       'aria-describedby': combinedDescribedBy,
       'aria-invalid': error ? true : childProps['aria-invalid'],
       'aria-errormessage': error ? errorId : childProps['aria-errormessage'],
@@ -117,7 +136,7 @@ export function FormField({
       <div className="w-full min-w-0">{content}</div>
 
       {description && (
-        <p id={descriptionId} className="text-xs text-[var(--text-sub)] leading-normal">
+        <p id={descriptionId} className="min-w-0 break-words text-xs text-[var(--text-sub)] leading-normal">
           {description}
         </p>
       )}
@@ -127,7 +146,7 @@ export function FormField({
           id={errorId}
           role="alert"
           aria-live="polite"
-          className="text-xs font-medium text-[var(--badge-danger-text)] flex items-center gap-1"
+          className="flex min-w-0 items-center gap-1 break-words text-xs font-medium text-[var(--badge-danger-text)]"
         >
           {error}
         </p>

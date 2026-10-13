@@ -19,6 +19,8 @@ interface FakeRow {
   payload: Record<string, unknown>;
   dispatched_at: Date | null;
   attempts: number;
+  created_at: Date;
+  due_at: Date;
   task_state: string;
   lease_expires_at: Date | null;
   op_state: string;
@@ -28,7 +30,8 @@ const TERMINAL_OP_STATES = ['SUCCEEDED', 'FAILED', 'CANCELLED', 'TIMED_OUT'];
 const LIVE_JOB_STATES = ['active', 'delayed', 'prioritized', 'waiting', 'waiting-children'];
 
 function eligible(row: FakeRow): boolean {
-  return ['READY', 'QUEUED'].includes(row.task_state)
+  return ['READY', 'QUEUED', 'RETRY_PENDING'].includes(row.task_state)
+    && (row.task_state !== 'RETRY_PENDING' || row.due_at.getTime() <= Date.now())
     && (row.lease_expires_at === null || row.lease_expires_at.getTime() < Date.now())
     && !TERMINAL_OP_STATES.includes(row.op_state);
 }
@@ -49,6 +52,9 @@ function makeWorld(opts: { onCandidatesRead?: () => void } = {}) {
   const candidateSqls: string[] = [];
   const queueLookups: { queueName: string; jobId: string }[] = [];
   const queues = new Map<string, QueueBehavior>();
+  let cursor: { last_created_at: Date | null; last_task_id: string | null } = {
+    last_created_at: null, last_task_id: null,
+  };
 
   function behaviorFor(queueName: string): QueueBehavior {
     let behavior = queues.get(queueName);
@@ -63,18 +69,36 @@ function makeWorld(opts: { onCandidatesRead?: () => void } = {}) {
     return {
       query: async (text: string, params: unknown[] = []) => {
         const sql = text.replace(/\s+/g, ' ').trim();
+        if (sql.includes('FROM queue_integrity_sweep_cursor')) {
+          return { rows: [cursor], rowCount: 1 };
+        }
+        if (sql.startsWith('INSERT INTO queue_integrity_sweep_cursor')) {
+          return { rows: [], rowCount: 1 };
+        }
+        if (sql.startsWith('UPDATE queue_integrity_sweep_cursor')) {
+          cursor = params.length
+            ? { last_created_at: new Date(String(params[0])), last_task_id: String(params[1]) }
+            : { last_created_at: null, last_task_id: null };
+          return { rows: [], rowCount: 1 };
+        }
         if (sql.includes('DISTINCT ON (ob.aggregate_id)')) {
           candidateSqls.push(sql);
           const graceMs = Number(params[0]);
           const limit = Number(params[1] ?? 50);
+          const afterCreatedAt = params[2] ? new Date(String(params[2])).getTime() : null;
+          const afterTaskId = params[3] ? String(params[3]) : null;
           const candidates = [...rows.values()]
             .filter((row) => row.dispatched_at !== null
               && row.dispatched_at.getTime() < Date.now() - graceMs
               && eligible(row)
+              && (afterCreatedAt === null || row.created_at.getTime() > afterCreatedAt
+                || (row.created_at.getTime() === afterCreatedAt
+                  && row.aggregate_id.localeCompare(afterTaskId ?? '') > 0))
               && ![...rows.values()].some((pending) => pending.aggregate_id === row.aggregate_id
                 && ['task.dispatch', 'task.continuation'].includes(pending.type)
                 && pending.dispatched_at === null))
-            .sort((a, b) => a.aggregate_id.localeCompare(b.aggregate_id)
+            .sort((a, b) => a.created_at.getTime() - b.created_at.getTime()
+              || a.aggregate_id.localeCompare(b.aggregate_id)
               || (b.dispatched_at?.getTime() ?? 0) - (a.dispatched_at?.getTime() ?? 0))
             .filter((row, index, all) => index === 0 || all[index - 1]?.aggregate_id !== row.aggregate_id)
             .slice(0, limit)
@@ -86,6 +110,7 @@ function makeWorld(opts: { onCandidatesRead?: () => void } = {}) {
               attempts: row.attempts,
               task_id: row.aggregate_id,
               task_state: row.task_state,
+              task_created_at: new Date(row.created_at),
               business_id: 'biz-mm05',
               business_version: '1.0.0',
               queue_name: 'du-business-mm05-1.0.0',
@@ -166,6 +191,8 @@ function makeWorld(opts: { onCandidatesRead?: () => void } = {}) {
       },
       dispatched_at: input.dispatched_at === undefined ? new Date(Date.now() - 60_000) : input.dispatched_at,
       attempts: input.attempts ?? 1,
+      created_at: input.created_at ?? new Date(Date.now() - 120_000 + rows.size * 1000),
+      due_at: input.due_at ?? new Date(Date.now() - 60_000),
       task_state: input.task_state ?? 'READY',
       lease_expires_at: input.lease_expires_at ?? null,
       op_state: input.op_state ?? 'QUEUED',
@@ -332,8 +359,34 @@ describe('MM-05 sweepQueueIntegrity (offline, durable replacement protocol)', ()
     const sql = world.candidateSqls[0]!;
     expect(sql).toContain("ob.type IN ('task.dispatch','task.continuation')");
     expect(sql).toContain("pending.dispatched_at IS NULL");
-    expect(sql).toContain("t.state IN ('READY','QUEUED')");
+    expect(sql).toContain("t.state IN ('READY','QUEUED','RETRY_PENDING')");
+    expect(sql).toContain("t.state <> 'RETRY_PENDING' OR t.due_at <= now()");
     expect(sql).toContain('DISTINCT ON (ob.aggregate_id)');
+  });
+
+  it('includes due RETRY_PENDING work and skips retries whose due time has not arrived', async () => {
+    const world = makeWorld();
+    world.seed({ delivery_id: 'retry-due', task_state: 'RETRY_PENDING', due_at: new Date(Date.now() - 1000) });
+    world.seed({ delivery_id: 'retry-future', task_state: 'RETRY_PENDING', due_at: new Date(Date.now() + 60_000) });
+
+    const result = await sweepOf(world).sweepQueueIntegrity({ graceMs: 1 });
+
+    expect(result.candidates).toBe(1);
+    expect(world.queueLookups.map((entry) => entry.jobId)).toEqual([jobIdForDelivery('retry-due')]);
+  });
+
+  it('advances a durable cursor so bounded scans reach later tasks', async () => {
+    const world = makeWorld();
+    const created = new Date(Date.now() - 120_000);
+    world.seed({ aggregate_id: '00000000-0000-4000-8000-000000000001', delivery_id: 'oldest', created_at: created });
+    world.seed({ aggregate_id: '00000000-0000-4000-8000-000000000002', delivery_id: 'next', created_at: new Date(created.getTime() + 1000) });
+
+    await sweepOf(world).sweepQueueIntegrity({ graceMs: 1, limit: 1 });
+    await sweepOf(world).sweepQueueIntegrity({ graceMs: 1, limit: 1 });
+
+    expect(world.queueLookups.map((entry) => entry.jobId)).toEqual([
+      jobIdForDelivery('oldest'), jobIdForDelivery('next'),
+    ]);
   });
 
   it('fail closes without queue access', async () => {

@@ -1,7 +1,3 @@
-// VENDORED from @du/worker-sdk @ b088eececcb5f3df0b4edbe073a29401dafda624 (worktree 2026-10-06)
-// source: packages/worker-sdk/src/crypto-storage.ts (lines=984) sha256=EE382E4CE5E1F55FC01BC7039D1DCC89FE16216E43A8174A4FDA1890593E3177
-// why: worker surface required by src/worker.ts, src/main.ts, types/context.ts, step-checkpoint, fanout
-
 /**
  * W-ENC-04-SEAM: the worker-side application encryption seam for artifact
  * bytes (ADR-18 baseline 1-3).
@@ -34,6 +30,11 @@ import {
   timingSafeEqual,
 } from 'node:crypto';
 import { Readable } from 'node:stream';
+import {
+  StorageChunkAadSchema,
+  StorageContextAadSchema,
+  StorageSingleShotAadSchema,
+} from '@du/contracts';
 
 /**
  * Vault Transit ciphertext plus the application key reference it was made
@@ -227,22 +228,25 @@ function validateEncryptContext(context: CryptoStorageEncryptContext): CryptoSto
 
 function contextAad(context: CryptoStorageContext): Buffer {
   const validated = validateContext(context);
-  return Buffer.from(JSON.stringify({
+  return Buffer.from(JSON.stringify(StorageContextAadSchema.parse({
     format: 'du-crypto-storage-v1',
     tenantId: validated.tenantId,
     artifactId: validated.artifactId,
     objectVersion: validated.objectVersion,
     purpose: validated.purpose,
-  }), 'utf8');
+  })), 'utf8');
 }
 
 function singleAad(context: CryptoStorageContext, sizeBytes: number, sha256: string): Buffer {
-  return Buffer.from(JSON.stringify({
+  return Buffer.from(JSON.stringify(StorageSingleShotAadSchema.parse({
     format: 'du-crypto-storage-single-v1',
-    context: JSON.parse(contextAad(context).toString('utf8')) as Record<string, unknown>,
+    context: StorageContextAadSchema.parse({
+      format: 'du-crypto-storage-v1',
+      ...validateContext(context),
+    }),
     sizeBytes,
     sha256,
-  }), 'utf8');
+  })), 'utf8');
 }
 
 function chunkAad(
@@ -251,13 +255,16 @@ function chunkAad(
   sizeBytes: number,
   sha256: string,
 ): Buffer {
-  return Buffer.from(JSON.stringify({
+  return Buffer.from(JSON.stringify(StorageChunkAadSchema.parse({
     format: 'du-crypto-storage-chunk-v1',
-    context: JSON.parse(contextAad(context).toString('utf8')) as Record<string, unknown>,
+    context: StorageContextAadSchema.parse({
+      format: 'du-crypto-storage-v1',
+      ...validateContext(context),
+    }),
     index,
     sizeBytes,
     sha256,
-  }), 'utf8');
+  })), 'utf8');
 }
 
 function sha256(bytes: Uint8Array): string {

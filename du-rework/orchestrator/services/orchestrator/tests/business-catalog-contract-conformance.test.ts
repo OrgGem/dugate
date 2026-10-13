@@ -29,6 +29,9 @@ interface BusinessRow extends QueryResultRow {
   business_id: string;
   enabled: boolean;
   lifecycle_revision: number;
+  activation_revision: number;
+  submissions_paused: boolean;
+  pre_drain_version: string | null;
   version: string;
   status: string;
   is_active: boolean;
@@ -37,6 +40,8 @@ interface BusinessRow extends QueryResultRow {
   created_at: Date;
   updated_at: Date;
   active_version: string | null;
+  admission_eligible: boolean;
+  admission_reason: string;
   created_at_cursor: string;
   updated_at_cursor: string;
 }
@@ -47,6 +52,9 @@ function row(businessId: string, createdAt: string): BusinessRow {
     business_id: businessId,
     enabled: true,
     lifecycle_revision: 2,
+    activation_revision: 9,
+    submissions_paused: false,
+    pre_drain_version: null,
     version: '2.0.0',
     status: 'ENABLED',
     is_active: true,
@@ -55,6 +63,8 @@ function row(businessId: string, createdAt: string): BusinessRow {
     created_at: timestamp,
     updated_at: timestamp,
     active_version: '2.0.0',
+    admission_eligible: true,
+    admission_reason: 'ELIGIBLE',
     created_at_cursor: timestamp.toISOString(),
     updated_at_cursor: timestamp.toISOString(),
   };
@@ -199,6 +209,16 @@ describe('Business catalog legacy route contract conformance', () => {
     expect(count).toBeDefined();
     expect(page?.sql).toContain('FROM business_versions');
     expect(page?.sql).toContain('DISTINCT ON (business_id)');
+    expect(page?.sql).toContain('activation_revision');
+    expect(page?.sql).toContain('admission_eligible');
+    expect(page?.sql).toContain('admission_reason');
+    expect((body['items'] as Record<string, unknown>[])[0]).toMatchObject({
+      activationRevision: 9,
+      admissionEligible: true,
+      admissionReason: 'ELIGIBLE',
+      submissionsPaused: false,
+      preDrainVersion: null,
+    });
     expect(page?.sql).toContain('ORDER BY business_page.created_at DESC, business_page.business_id DESC');
     expect(page?.sql).toMatch(/LIMIT \$\d+$/);
     expect(page?.params.at(-1)).toBe(3);

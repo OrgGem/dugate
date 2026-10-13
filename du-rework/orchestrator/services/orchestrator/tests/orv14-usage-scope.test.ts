@@ -93,7 +93,7 @@ describe('ORV14 scoped internal Usage reads', () => {
     await createUsageService(summaryDb.db).getUsageSummary(TENANT, new Date(FROM), new Date(TO), undefined, localScope);
     expect(summaryDb.calls[0]!.sql).toContain('o.api_key_id = ANY($4::uuid[])');
     expect(summaryDb.calls[0]!.sql).toContain('o.profile_id = ANY($5::uuid[])');
-    expect(summaryDb.calls[0]!.params).toEqual([TENANT, FROM, TO, [KEY], [PROFILE], TENANT, localScope.userId, localScope.roleVersion]);
+    expect(summaryDb.calls[0]!.params).toEqual([TENANT, new Date(FROM).toISOString(), new Date(TO).toISOString(), [KEY], [PROFILE], TENANT, localScope.userId, localScope.roleVersion]);
 
     const exportDb = fakeDb([]);
     await createUsageService(exportDb.db).getUsageEventExportPage(TENANT, { tenantId: TENANT, from: FROM, to: TO }, localScope);

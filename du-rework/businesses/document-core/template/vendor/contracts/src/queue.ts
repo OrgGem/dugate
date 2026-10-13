@@ -1,7 +1,3 @@
-// VENDORED from @du/contracts @ b088eececcb5f3df0b4edbe073a29401dafda624 (worktree 2026-10-06)
-// source: packages/contracts/src/queue.ts (lines=57) sha256=8CF57F09B6C910AF0501D06505589724BA0767E6D835D90BB49A6CD82AF5687D
-// why: BusinessJobV1, BusinessJobV1Schema, businessQueueName for vendored worker-sdk
-
 import { z } from 'zod';
 
 /**

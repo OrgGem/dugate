@@ -66,7 +66,7 @@ function harness() {
         expect(result.kind).toBe('completed');
         if (result.kind !== 'completed') throw new Error('not completed');
         const id = randomUUID();
-        operations.set(id, { id, tenant_id: ctx.tenantId, api_key_id: ctx.apiKeyId, business_id: ctx.businessId, created_at: new Date('2026-10-11T00:00:00Z'), state: 'SUCCEEDED', result_ref: result.resultRef, output_format: submission.output.format });
+        operations.set(id, { id, tenant_id: ctx.tenantId, api_key_id: ctx.apiKeyId, business_id: ctx.businessId, action: ctx.action, endpoint_slug: ctx.legacyEndpointSlug, created_at: new Date('2026-10-11T00:00:00Z'), state: 'SUCCEEDED', result_ref: result.resultRef, output_format: submission.output.format });
         if (ctx.idempotencyKey) identities.set(ctx.idempotencyKey, { hash: canonicalRequestHash(ctx.legacyRequestIdentity!), id });
         return { operation: { id }, replayed: false };
       },
@@ -160,7 +160,7 @@ describe('ORV11 compatibility producer to document worker and result reader', ()
   it('freezes the legacy callback body without canonical delivery fields', async () => {
     let payload: unknown;
     const query = jest.fn(async (sql: string, values?: unknown[]) => {
-      if (sql.startsWith('SELECT')) return { rowCount: 1, rows: [{ id: 'op', tenant_id: principal.tenantId, state: 'SUCCEEDED', state_version: 2, callback_url: 'https://example.com/callback', updated_at: new Date().toISOString(), callback_policy: null, pipeline_json: [{ legacyCallback: true }] }] };
+      if (sql.startsWith('SELECT')) return { rowCount: 1, rows: [{ id: 'op', tenant_id: principal.tenantId, state: 'SUCCEEDED', state_version: 2, callback_url: 'https://example.com/callback', updated_at: new Date().toISOString(), callback_policy: null, pipeline_json: [{ processor: 'extract', legacyCallback: true }] }] };
       if (sql.includes('INSERT')) { payload = JSON.parse(String(values![6])); return { rowCount: 1, rows: [{ delivery_id: 'delivery' }] }; }
       throw new Error('Legacy callback must not be stamped with canonical fields');
     });

@@ -63,6 +63,7 @@ function parseOperationWire(value: unknown): OperationWire | null {
   const id = stringValue(value['id']);
   const state = stringValue(value['state']);
   if (id === null || state === null) return null;
+  const progressValue = value['progress'];
   return {
     id,
     state,
@@ -76,6 +77,10 @@ function parseOperationWire(value: unknown): OperationWire | null {
     retryOf: stringValue(value['retryOf']),
     errorCode: stringValue(value['errorCode']),
     deadlineAt: stringValue(value['deadlineAt']),
+    ...(isRecord(progressValue) && typeof progressValue['percent'] === 'number'
+      && Number.isFinite(progressValue['percent']) && progressValue['percent'] >= 0 && progressValue['percent'] <= 100
+      ? { progress: { percent: progressValue['percent'], ...(stringValue(progressValue['message']) ? { message: stringValue(progressValue['message'])! } : {}) } }
+      : {}),
   };
 }
 
@@ -101,6 +106,13 @@ function parseOperationDetail(value: unknown): OperationDetail | null {
       taskKey: stringValue(task['taskKey']) ?? '',
       kind: stringValue(task['kind']) ?? '',
       state: stringValue(task['state']) ?? '',
+      spawnedBy: stringValue(task['spawnedBy']),
+      ...(Object.hasOwn(task, 'admissionParkedReason') ? { admissionParkedReason: stringValue(task['admissionParkedReason']) } : {}),
+      ...(Object.hasOwn(task, 'admissionParkedAt') ? { admissionParkedAt: stringValue(task['admissionParkedAt']) } : {}),
+      leasedBy: stringValue(task['leasedBy']),
+      leaseExpiresAt: stringValue(task['leaseExpiresAt']),
+      dueAt: stringValue(task['dueAt']),
+      awaitedChildren: parseTaskLinks(task['awaitedChildren']),
       attempt: typeof task['attempt'] === 'number' ? task['attempt'] : 0,
       maxAttempts: typeof task['maxAttempts'] === 'number' ? task['maxAttempts'] : 0,
       errorCode: stringValue(task['errorCode']),
@@ -123,6 +135,16 @@ function parseOperationDetail(value: unknown): OperationDetail | null {
     serverNow: stringValue(value['serverNow']),
     raw: value,
   };
+}
+
+function parseTaskLinks(value: unknown): Array<{ taskId: string; joinPolicy: string }> {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((row) => {
+    if (!isRecord(row)) return [];
+    const taskId = stringValue(row['taskId']);
+    const joinPolicy = stringValue(row['joinPolicy']);
+    return taskId !== null && joinPolicy !== null ? [{ taskId, joinPolicy }] : [];
+  });
 }
 
 function parseTraceAuditPage(value: unknown): TraceAuditPage | null {
@@ -290,6 +312,15 @@ export function buildTraceTimeline(detail: OperationDetail, auditValue: unknown)
       title: 'Latest operation state',
       summary: `${operation.state}${operation.errorCode ? ` · ${operation.errorCode}` : ''}`,
     });
+    if (operation.progress !== undefined) {
+      events.push({
+        id: 'operation-progress',
+        occurredAt: lastUpdated,
+        source: 'operation',
+        title: 'Latest progress snapshot',
+        summary: `${operation.progress.percent}%${operation.progress.message ? ` · ${operation.progress.message}` : ''}`,
+      });
+    }
   }
 
   const taskObservedAt = timeValue(operation.updatedAt ?? operation.createdAt);
@@ -299,7 +330,18 @@ export function buildTraceTimeline(detail: OperationDetail, auditValue: unknown)
       occurredAt: taskObservedAt,
       source: 'task',
       title: `${task.taskKey || task.kind || 'Task'} snapshot`,
-      summary: [task.state, `attempt ${task.attempt}/${task.maxAttempts}`, task.errorCode].filter(Boolean).join(' · '),
+      summary: [
+        task.state,
+        `attempt ${task.attempt}/${task.maxAttempts}`,
+        task.spawnedBy ? `spawned by ${task.spawnedBy}` : 'root task',
+        task.awaitedChildren?.length ? `awaits child join ${task.awaitedChildren.map((edge) => `${edge.taskId} (${edge.joinPolicy})`).join(', ')}` : null,
+        task.admissionParkedReason ? `parked: ${task.admissionParkedReason}` : null,
+        task.admissionParkedAt ? `parked since ${task.admissionParkedAt}` : null,
+        task.leasedBy ? `worker ${task.leasedBy}` : null,
+        task.leaseExpiresAt ? `lease until ${task.leaseExpiresAt}` : null,
+        task.dueAt ? `due ${task.dueAt}` : null,
+        task.errorCode,
+      ].filter(Boolean).join(' · '),
     });
   }
 
@@ -363,11 +405,26 @@ export function getTracePayloadPreview(detail: OperationDetail): unknown {
   return maskSensitivePayload(preview);
 }
 
+export function traceWorkspacePath(search: string, view: 'trace' | 'operations'): string {
+  const params = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search);
+  if (view === 'operations') params.set('view', 'operations');
+  else params.delete('view');
+  const query = params.toString();
+  return `/trace${query ? `?${query}` : ''}`;
+}
+
+export function legacyOperationsWorkspacePath(search: string, hash = ''): string {
+  const params = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search);
+  params.set('view', 'operations');
+  const query = params.toString();
+  return `/trace${query ? `?${query}` : ''}${hash}`;
+}
+
 export function buildTraceLinks(operationId: string, tenantId: string): { operations: string; audit: string } {
-  const operationQuery = new URLSearchParams({ id: operationId });
+  const operationQuery = new URLSearchParams({ view: 'operations', id: operationId, tenantId });
   const auditQuery = new URLSearchParams({ tenantId, resource: `operation:${operationId}` });
   return {
-    operations: `/operations?${operationQuery.toString()}`,
+    operations: `/trace?${operationQuery.toString()}`,
     audit: `/audit?${auditQuery.toString()}`,
   };
 }

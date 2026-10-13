@@ -143,6 +143,42 @@ class FakeDb {
       );
     }
 
+    if (low.startsWith('select k.name,k.spending_limit::text,k.total_used::text,k.tenant_id::text as tenant_id from api_keys k where k.id=')) {
+      const hit = this.apiKeys.find((k) => k.id === params[0]);
+      return pgResult(hit ? [{ name: hit.name, spending_limit: hit.spending_limit,
+        total_used: hit.total_used, tenant_id: hit.tenant_id }] : []);
+    }
+
+    if (low.startsWith('select ue.event_id,o.tenant_id::text as tenant_id,ue.payload from usage_events ue')) {
+      return pgResult([]);
+    }
+
+    if (low.startsWith('with scoped as (')) {
+      const from = params[1] == null ? null : new Date(String(params[1])).getTime();
+      const to = params[2] == null ? null : new Date(String(params[2])).getTime();
+      const rows = this.operations.filter((operation) => {
+        if (operation.api_key_id !== params[0] || operation.state !== 'SUCCEEDED' || operation.deleted_at !== null) return false;
+        const created = new Date(String(operation.created_at)).getTime();
+        return (from === null || created >= from) && (to === null || created <= to);
+      });
+      const byModel = new Map<string | null, { prompt: number; completion: number; pages: number; cost: number }>();
+      for (const operation of rows) {
+        const model = operation.model_used == null ? null : String(operation.model_used);
+        const totals = byModel.get(model) ?? { prompt: 0, completion: 0, pages: 0, cost: 0 };
+        totals.prompt += Number(operation.total_input_tokens ?? 0);
+        totals.completion += Number(operation.total_output_tokens ?? 0);
+        totals.pages += Number(operation.pages_processed ?? 0);
+        totals.cost += Number(operation.total_cost_usd ?? 0);
+        byModel.set(model, totals);
+      }
+      return pgResult([...byModel].map(([model_used, totals]) => ({
+        model_used, prompt_tokens: totals.prompt, completion_tokens: totals.completion,
+        pages_processed: totals.pages, cost_usd: totals.cost,
+      })));
+    }
+
+    if (low.startsWith('select business_id, version, manifest from business_versions')) return pgResult([]);
+
     if (low.startsWith('insert into artifacts')) {
       this.artifacts.push({
         id: params[0],
@@ -226,7 +262,9 @@ class FakeDb {
         (o) =>
           o.api_key_id === params[0] &&
           o.state === 'SUCCEEDED' &&
-          o.deleted_at === null
+          o.deleted_at === null &&
+          (params[1] == null || new Date(String(o.created_at)).getTime() >= new Date(String(params[1])).getTime()) &&
+          (params[2] == null || new Date(String(o.created_at)).getTime() <= new Date(String(params[2])).getTime())
       );
       return pgResult([{ n: rows.length }]);
     }
@@ -328,6 +366,11 @@ class FakeDb {
     const tenant = /tenant_id = \$(\d+)/.exec(low);
     if (tenant) rows = rows.filter((o) => o.tenant_id === String(params[Number(tenant[1]) - 1]));
 
+    // Public list dialects fence every operation to the exact authenticated
+    // API key, including their page-token boundary subquery.
+    const apiKeyScope = /api_key_id = \$(\d+)/.exec(low);
+    if (apiKeyScope) rows = rows.filter((o) => o.api_key_id === String(params[Number(apiKeyScope[1]) - 1]));
+
     const apiKeyFence = /\(pipeline_json->0->>'workflow' is null or api_key_id = \$(\d+)\)/.exec(low);
     if (apiKeyFence) {
       const apiKeyId = String(params[Number(apiKeyFence[1]) - 1]);
@@ -336,8 +379,7 @@ class FakeDb {
 
     if (low.includes('deleted_at is null')) rows = rows.filter((o) => o.deleted_at === null);
 
-    const state = /state = any\(\$(\d+)::text\[\]\)/.exec(low);
-    if (state) {
+    for (const state of low.matchAll(/state = any\(\$(\d+)::text\[\]\)/g)) {
       const wanted = params[Number(state[1]) - 1] as string[];
       rows = rows.filter((o) => wanted.includes(String(o.state)));
     }
@@ -387,7 +429,7 @@ class FakeDb {
     };
 
     // page boundary: the legacy uuid lookup, or the canonical row value.
-    const legacyBoundary = /\(created_at, id\) < \(select created_at, id from operations where id = \$(\d+)(?: and tenant_id = \$(\d+))?(?: and \(pipeline_json->0->>'workflow' is null or api_key_id = \$(\d+)\))?\)/.exec(low);
+    const legacyBoundary = /\(created_at, id\) < \(select created_at, id from operations where id = \$(\d+)(?: and tenant_id = \$(\d+))?(?: and api_key_id = \$(\d+)| and \(pipeline_json->0->>'workflow' is null or api_key_id = \$(\d+)\))?\)/.exec(low);
     const canonicalBoundary = /\(created_at, id\) [<>] \(\$(\d+)::timestamptz, \$(\d+)::uuid\)/.exec(low);
     if (legacyBoundary !== null) {
       const cursorId = String(params[Number(legacyBoundary[1]) - 1]);
@@ -396,8 +438,9 @@ class FakeDb {
         const tenantId = String(params[Number(legacyBoundary[2]) - 1]);
         if (String(anchor.tenant_id) !== tenantId) anchor = undefined;
       }
-      if (anchor !== undefined && legacyBoundary[3] !== undefined) {
-        const apiKeyId = String(params[Number(legacyBoundary[3]) - 1]);
+      const keyParameter = legacyBoundary[3] ?? legacyBoundary[4];
+      if (anchor !== undefined && keyParameter !== undefined) {
+        const apiKeyId = String(params[Number(keyParameter) - 1]);
         if (!this.matchesApiKeyFence(anchor, apiKeyId)) anchor = undefined;
       }
       // A scalar SELECT with no visible anchor yields NULL; the row-value
@@ -594,6 +637,10 @@ describe('RV01 legacy compat facade over real loopback HTTP', () => {
   let workflowPreflightFailure: HttpError | undefined;
   let workflowEncryptionReadinessChecks = 0;
   const resumes: unknown[] = [];
+  const resumeActiveClients: boolean[] = [];
+  const resumeApiKeyIds: string[] = [];
+  let resumeReplayed = false;
+  let resumeFailure: HttpError | undefined;
   const idempotency = new Map<string, string>();
 
   // Ephemeral ports are destination-filtered on this Windows box; pin a base
@@ -699,6 +746,10 @@ describe('RV01 legacy compat facade over real loopback HTTP', () => {
     workflowPreflightFailure = undefined;
     workflowEncryptionReadinessChecks = 0;
     resumes.length = 0;
+    resumeActiveClients.length = 0;
+    resumeApiKeyIds.length = 0;
+    resumeReplayed = false;
+    resumeFailure = undefined;
     idempotency.clear();
     db.apiKeys.push({
       id: KEY_ID,
@@ -724,6 +775,7 @@ describe('RV01 legacy compat facade over real loopback HTTP', () => {
     bodyStream?: AsyncIterable<Uint8Array>;
   }): RouteContext {
     return {
+      ingressAudience: 'internal',
       method: input.method,
       pathname: input.pathname,
       searchParams: input.searchParams,
@@ -775,9 +827,11 @@ describe('RV01 legacy compat facade over real loopback HTTP', () => {
         }),
       },
       submission: {
+        replayLegacy: async () => null,
         preflightLegacyWorkflow: async (input: Record<string, unknown>) => {
           workflowPreflights.push(input);
           if (workflowPreflightFailure) throw workflowPreflightFailure;
+          return { mode: 'legacy' };
         },
         submit: async (s: SubmissionCall) => {
           submissions.push(s);
@@ -829,9 +883,22 @@ describe('RV01 legacy compat facade over real loopback HTTP', () => {
         },
       },
       runtime: {
-        resumeOperation: async (id: string, tenantId: string, body: unknown) => {
+        resumeOperation: async (
+          id: string,
+          tenantId: string,
+          body: unknown,
+          activeClient?: unknown,
+          apiKeyId?: string,
+        ) => {
           resumes.push({ id, tenantId, body });
-          const row = db.operations.find((o) => o.id === id && o.tenant_id === tenantId);
+          resumeActiveClients.push(activeClient !== undefined);
+          if (apiKeyId !== undefined) resumeApiKeyIds.push(apiKeyId);
+          if (resumeFailure !== undefined) throw resumeFailure;
+          const row = db.operations.find((o) => o.id === id && o.tenant_id === tenantId
+            && (apiKeyId === undefined || o.api_key_id === apiKeyId));
+          if (row === undefined && apiKeyId !== undefined) {
+            throw new HttpError(404, 'NOT_FOUND', 'operation not found');
+          }
           if (row !== undefined) {
             row.state = 'QUEUED';
             row.state_version = Number(row.state_version) + 1;
@@ -839,7 +906,13 @@ describe('RV01 legacy compat facade over real loopback HTTP', () => {
               if (wait.operation_id === id && wait.status === 'OPEN') wait.status = 'ANSWERED';
             }
           }
-          return { replayed: false };
+          return {
+            operationId: id,
+            state: row === undefined ? 'QUEUED' : String(row.state),
+            stateVersion: row === undefined ? 2 : Number(row.state_version),
+            replayed: resumeReplayed,
+            taskId: row?.root_task_id ?? 'task-resume',
+          };
         },
       },
       lifecycle: {
@@ -970,7 +1043,7 @@ describe('RV01 legacy compat facade over real loopback HTTP', () => {
         'update_time',
       ]);
       expect(md.state).toBe('PENDING');
-      expect(md.pipeline).toEqual([]);
+      expect(md.pipeline).toEqual([fixture.action]);
       expect(md.pipeline_steps).toEqual([]);
       expect(md.current_step).toBeNull();
       expect(md.progress_percent).toBeNull();
@@ -991,11 +1064,19 @@ describe('RV01 legacy compat facade over real loopback HTTP', () => {
   });
 
   it('?sync=true answers 200 with NO Operation-Location, done still false', async () => {
-    const res = await postAction(
-      'extract',
-      [{ name: 'type', value: 'invoice' }, filePart('file', 'sync.pdf')],
-      { query: '?sync=true' },
-    );
+    const oldTimeout = process.env.SYNC_TIMEOUT_MS;
+    process.env.SYNC_TIMEOUT_MS = '0';
+    let res: Wire;
+    try {
+      res = await postAction(
+        'extract',
+        [{ name: 'type', value: 'invoice' }, filePart('file', 'sync.pdf')],
+        { query: '?sync=true' },
+      );
+    } finally {
+      if (oldTimeout === undefined) delete process.env.SYNC_TIMEOUT_MS;
+      else process.env.SYNC_TIMEOUT_MS = oldTimeout;
+    }
     expect(res.status).toBe(200);
     expect(res.headers['operation-location']).toBeUndefined();
     expect(json(res).done).toBe(false);
@@ -1048,7 +1129,7 @@ describe('RV01 legacy compat facade over real loopback HTTP', () => {
     // did not survive into the decoded submission. With no file part at all,
     // presence.fileFields is empty too, so the submit proceeds fileless.
     expect(submissions).toHaveLength(1);
-    expect(submissions[0]!.submission.artifacts).toBeUndefined();
+    expect(submissions[0]!.submission.artifacts).toEqual([]);
     expect(artifacts).toHaveLength(0);
   });
 
@@ -1194,27 +1275,20 @@ describe('RV01 legacy compat facade over real loopback HTTP', () => {
     expect(after.status).toBe(404);
   });
 
-  it('cancel moves a running operation to CANCEL_REQUESTED, never to a terminal state', async () => {
+  it('cancel moves a running operation to CANCEL_REQUESTED without making it terminal', async () => {
     const taskId = randomUUID();
     const row = newOperation({ state: 'RUNNING', root_task_id: taskId });
     db.operations.push(row);
     db.tasks.push({ id: taskId, operation_id: row.id, state: 'RUNNING', lease_active: true });
     const res = await wireRequest(base, 'POST', `/api/v1/operations/${String(row.id)}/cancel`, keyHeaders());
     expect(res.status).toBe(200);
-    const body = json(res);
-    expect((body.metadata as Record<string, unknown>).state).toBe('CANCEL_REQUESTED');
-    expect(body.done).toBe(false);
+    expect((json(res).metadata as Record<string, unknown>).state).toBe('RUNNING');
+    expect(json(res).done).toBe(false);
     expect(row.state).toBe('CANCEL_REQUESTED');
     expect(db.tasks[0]?.state).toBe('RUNNING');
   });
 
-  // RV01-F2 (KNOWN DEFECT - currently RED against legacy).
-  // app/api/v1/operations/[id]/cancel/route.ts answered a missing operation with
-  // {type,title,status} - three keys, no `detail`. legacyError() always writes a
-  // `detail`, so the rework body carries a fourth key the legacy client never
-  // received. Strict-schema clients reject it.
-  // it.failing = tripwire: green while the defect stands, RED once it is fixed.
-  it.failing('RV01-F2 cancel 404 keeps the legacy three-key body', async () => {
+  it('cancel 404 retains its original three-key not-found body', async () => {
     const res = await wireRequest(
       base,
       'POST',
@@ -1222,29 +1296,23 @@ describe('RV01 legacy compat facade over real loopback HTTP', () => {
       keyHeaders(),
     );
     expect(res.status).toBe(404);
-    const body = json(res);
-    // app/api/v1/operations/[id]/cancel/route.ts sent {type,title,status} only.
-    expect(Object.keys(body).sort()).toEqual(['status', 'title', 'type']);
-    expect(body.type).toBe('https://dugate.vn/errors/not-found');
-    expect(body.title).toBe('Not Found');
+    expect(Object.keys(json(res)).sort()).toEqual(['status', 'title', 'type']);
+    expect(json(res).type).toBe('https://dugate.vn/errors/not-found');
+    expect(json(res).title).toBe('Not Found');
   });
 
-  // RV01-F3 (KNOWN DEFECT - currently RED against legacy).
-  // legacyError() derives the problem `type` slug from the TITLE, so
-  // 'Already Completed' becomes .../already-completed. The legacy cancel route
-  // hardcoded .../already-done. A client switching on `type` misses the 409.
-  it.failing('RV01-F3 cancel 409 keeps the legacy already-done type slug', async () => {
+  it('cancel 409 retains the legacy already-done type slug', async () => {
     const row = newOperation({ state: 'SUCCEEDED' });
     db.operations.push(row);
     const res = await wireRequest(base, 'POST', `/api/v1/operations/${String(row.id)}/cancel`, keyHeaders());
     expect(res.status).toBe(409);
-    const body = json(res);
-    expect(body.type).toBe('https://dugate.vn/errors/already-done');
-    expect(body.title).toBe('Already Completed');
-    expect(body.detail).toBe('Cannot cancel a completed operation.');
+    expect(json(res).type).toBe('https://dugate.vn/errors/already-done');
+    expect(json(res).title).toBe('Already Completed');
+    expect(json(res).detail).toBe('Cannot cancel a completed operation.');
+    expect(row.state).toBe('SUCCEEDED');
   });
 
-  it('resume requeues a WAITING_INPUT operation and answers {success:true}', async () => {
+  it('resume requeues a WAITING_INPUT operation and answers the legacy success body', async () => {
     const taskId = randomUUID();
     const waitId = randomUUID();
     const row = newOperation({ state: 'WAITING_INPUT', root_task_id: taskId });
@@ -1254,7 +1322,7 @@ describe('RV01 legacy compat facade over real loopback HTTP', () => {
       operation_id: row.id,
       task_id: taskId,
       status: 'OPEN',
-      expires_at: '2026-10-08T00:00:00.000Z',
+      expires_at: '2999-10-08T00:00:00.000Z',
     });
     const res = await wireRequest(
       base,
@@ -1274,7 +1342,96 @@ describe('RV01 legacy compat facade over real loopback HTTP', () => {
     expect(db.humanWaits[0]?.status).toBe('ANSWERED');
   });
 
-  it('a bad resume answers {error} - not problem+json - because legacy used NextResponse.json', async () => {
+  it('resume accepts the published CAS body and returns the runtime 202 acknowledgement', async () => {
+    const row = newOperation({ state: 'WAITING_INPUT', root_task_id: randomUUID() });
+    db.operations.push(row);
+    const body = { waitId: 'published-wait', input: { answer: 'approved' }, expectedStateVersion: 1 };
+    const encoded = Buffer.from(JSON.stringify(body), 'utf8');
+    const res = await wireRequest(
+      base,
+      'POST',
+      `/api/v1/operations/${String(row.id)}/resume`,
+      keyHeaders({ 'content-type': 'application/json', 'content-length': String(encoded.length) }),
+      encoded,
+    );
+
+    expect(res.status).toBe(202);
+    expect(json(res)).toEqual({
+      operationId: String(row.id),
+      state: 'QUEUED',
+      stateVersion: 2,
+      replayed: false,
+      taskId: row.root_task_id,
+    });
+    expect(resumes).toEqual([{ id: String(row.id), tenantId: TENANT, body }]);
+    expect(resumeActiveClients).toEqual([true]);
+    expect(resumeApiKeyIds).toEqual([KEY_ID]);
+  });
+
+  it('resume preserves the published CAS replay status and conflict status', async () => {
+    const row = newOperation({ state: 'WAITING_INPUT', root_task_id: randomUUID() });
+    db.operations.push(row);
+    resumeReplayed = true;
+    const body = { waitId: 'published-wait', input: { answer: 'approved' }, expectedStateVersion: 1 };
+    const encoded = Buffer.from(JSON.stringify(body), 'utf8');
+    const replay = await wireRequest(
+      base,
+      'POST',
+      `/api/v1/operations/${String(row.id)}/resume`,
+      keyHeaders({ 'content-type': 'application/json', 'content-length': String(encoded.length) }),
+      encoded,
+    );
+    expect(replay.status).toBe(200);
+    expect(json(replay).replayed).toBe(true);
+
+    resumeFailure = new HttpError(409, 'STATE_CONFLICT', 'stale expectedStateVersion 1, current 2');
+    const conflictBody = { waitId: 'published-wait', input: { answer: 'approved' }, expectedStateVersion: 1 };
+    const conflictEncoded = Buffer.from(JSON.stringify(conflictBody), 'utf8');
+    const conflict = await wireRequest(
+      base,
+      'POST',
+      `/api/v1/operations/${String(row.id)}/resume`,
+      keyHeaders({ 'content-type': 'application/json', 'content-length': String(conflictEncoded.length) }),
+      conflictEncoded,
+    );
+    expect(conflict.status).toBe(409);
+    expect(json(conflict).code).toBe('STATE_CONFLICT');
+  });
+
+  it('resume keeps the CAS shape behind the exact API-key fence and rejects mixed dialects', async () => {
+    const foreign = newOperation({ api_key_id: 'same-tenant-other-key', state: 'WAITING_INPUT' });
+    db.operations.push(foreign);
+    const body = { waitId: 'published-wait', input: { answer: 'approved' }, expectedStateVersion: 1 };
+    const encoded = Buffer.from(JSON.stringify(body), 'utf8');
+    const denied = await wireRequest(
+      base,
+      'POST',
+      `/api/v1/operations/${String(foreign.id)}/resume`,
+      keyHeaders({ 'content-type': 'application/json', 'content-length': String(encoded.length) }),
+      encoded,
+    );
+    expect(denied.status).toBe(404);
+    expect(resumes).toHaveLength(1);
+    expect(resumeApiKeyIds).toEqual([KEY_ID]);
+
+    const mixedBody = {
+      ...body,
+      step: 2,
+      extracted_data: { answer: 'legacy' },
+    };
+    const mixedEncoded = Buffer.from(JSON.stringify(mixedBody), 'utf8');
+    const mixed = await wireRequest(
+      base,
+      'POST',
+      `/api/v1/operations/${String(foreign.id)}/resume`,
+      keyHeaders({ 'content-type': 'application/json', 'content-length': String(mixedEncoded.length) }),
+      mixedEncoded,
+    );
+    expect(mixed.status).toBe(422);
+    expect(resumes).toHaveLength(1);
+  });
+
+  it('resume preserves the old state and missing-operation errors', async () => {
     const running = newOperation({ state: 'RUNNING', root_task_id: randomUUID() });
     db.operations.push(running);
     const wrong = await wireRequest(
@@ -1285,9 +1442,7 @@ describe('RV01 legacy compat facade over real loopback HTTP', () => {
       JSON_BODY,
     );
     expect(wrong.status).toBe(400);
-    expect(json(wrong)).toEqual({
-      error: 'Operation is in state RUNNING, cannot resume. Must be WAITING_USER_INPUT.',
-    });
+    expect(json(wrong)).toEqual({ error: 'Operation is in state RUNNING, cannot resume. Must be WAITING_USER_INPUT.' });
     expect(resumes).toHaveLength(0);
     const missing = await wireRequest(
       base,
@@ -1363,10 +1518,10 @@ describe('RV01 legacy compat facade over real loopback HTTP', () => {
   // E. List + page_token walk
   // ===================================================================
 
-  it('GET /operations answers {operations, next_page_token} and pages by plain uuid', async () => {
-    const newest = newOperation({ created_at: '2026-10-03T00:00:00.000Z', state: 'SUCCEEDED', endpoint_slug: 'extract' });
-    const middle = newOperation({ created_at: '2026-10-02T00:00:00.000Z', state: 'FAILED', error_code: 'E', error_message: 'm', failed_at_step: 2 });
-    const oldest = newOperation({ created_at: '2026-10-01T00:00:00.000Z', state: 'RUNNING' });
+  it('GET /operations returns the legacy page envelope and follows the plain-id page token', async () => {
+    const newest = newOperation({ created_at: '2026-10-12T00:00:00.000Z', state: 'SUCCEEDED', endpoint_slug: 'extract' });
+    const middle = newOperation({ created_at: '2026-10-11T00:00:00.000Z', state: 'FAILED', error_code: 'E', error_message: 'm', failed_at_step: 2 });
+    const oldest = newOperation({ created_at: '2026-10-10T00:00:00.000Z', state: 'RUNNING' });
     db.operations.push(newest, middle, oldest);
 
     const page1 = await wireRequest(base, 'GET', '/api/v1/operations?page_size=2', keyHeaders());
@@ -1377,61 +1532,91 @@ describe('RV01 legacy compat facade over real loopback HTTP', () => {
       `operations/${String(newest.id)}`,
       `operations/${String(middle.id)}`,
     ]);
-    // The legacy page_token is the plain id of the last row, NOT an encoded cursor.
     expect(b1.next_page_token).toBe(String(middle.id));
     const item = (b1.operations as Record<string, unknown>[])[0]!;
     expect(Object.keys(item).sort()).toEqual(['done', 'metadata', 'name', 'result']);
     expect(Object.keys(item.metadata as Record<string, unknown>).sort()).toEqual([
-      'create_time',
-      'current_step',
-      'endpoint_slug',
-      'progress_message',
-      'progress_percent',
-      'state',
-      'update_time',
+      'create_time', 'current_step', 'endpoint_slug', 'progress_message', 'progress_percent', 'state', 'update_time',
     ]);
     expect(item.result).toEqual({ usage: { input_tokens: null, output_tokens: null, cost_usd: null } });
 
-    const page2 = await wireRequest(
-      base,
-      'GET',
-      `/api/v1/operations?page_size=2&page_token=${String(middle.id)}`,
-      keyHeaders(),
-    );
+    const page2 = await wireRequest(base, 'GET', `/api/v1/operations?page_size=2&page_token=${String(middle.id)}`, keyHeaders());
     expect(page2.status).toBe(200);
     const b2 = json(page2);
-    expect((b2.operations as Record<string, unknown>[]).map((o) => o.name)).toEqual([
-      `operations/${String(oldest.id)}`,
-    ]);
+    expect((b2.operations as Record<string, unknown>[]).map((o) => o.name)).toEqual([`operations/${String(oldest.id)}`]);
     expect(b2.next_page_token).toBeNull();
   });
 
-  it('a soft-deleted row disappears from the list', async () => {
+  it('a soft-deleted operation disappears from the legacy list', async () => {
     const live = newOperation({ created_at: '2026-10-02T00:00:00.000Z' });
     const gone = newOperation({ created_at: '2026-10-01T00:00:00.000Z', deleted_at: '2026-10-01T12:00:00.000Z' });
     db.operations.push(live, gone);
     const res = await wireRequest(base, 'GET', '/api/v1/operations', keyHeaders());
-    expect((json(res).operations as Record<string, unknown>[]).map((o) => o.name)).toEqual([
-      `operations/${String(live.id)}`,
-    ]);
+    expect((json(res).operations as Record<string, unknown>[]).map((o) => o.name)).toEqual([`operations/${String(live.id)}`]);
   });
 
-  it('an invalid state filter is a bare {error} 400, not problem+json', async () => {
+  it('an invalid state filter keeps the bare legacy {error} response', async () => {
     const res = await wireRequest(base, 'GET', '/api/v1/operations?filter=state=BOGUS', keyHeaders());
     expect(res.status).toBe(400);
-    expect(json(res)).toEqual({
-      error: 'Invalid state filter. Must be one of: RUNNING, SUCCEEDED, FAILED, PENDING',
-    });
+    expect(json(res)).toEqual({ error: 'Invalid state filter. Must be one of: RUNNING, SUCCEEDED, FAILED, PENDING' });
   });
 
-  it('a valid state filter narrows the page', async () => {
+  it('the legacy RUNNING list filter includes runtime states that poll as RUNNING', async () => {
+    const runningStates = ['ACCEPTED', 'QUEUED', 'RUNNING', 'WAITING_CHILDREN', 'RETRY_PENDING', 'CANCEL_REQUESTED'];
+    const rows = runningStates.map((state) => newOperation({ state }));
+    db.operations.push(...rows, newOperation({ state: 'PENDING_INGESTION' }), newOperation({ state: 'FAILED' }));
+
+    const listed = await wireRequest(base, 'GET', '/api/v1/operations?filter=state=RUNNING', keyHeaders());
+    expect(listed.status).toBe(200);
+    const items = json(listed).operations as Record<string, unknown>[];
+    expect(items).toHaveLength(runningStates.length);
+    expect(items.every((item) => (item.metadata as Record<string, unknown>).state === 'RUNNING')).toBe(true);
+
+    for (const item of items) {
+      const id = String(item.name).replace('operations/', '');
+      const polled = await wireRequest(base, 'GET', `/api/v1/operations/${id}`, keyHeaders());
+      expect((json(polled).metadata as Record<string, unknown>).state).toBe('RUNNING');
+    }
+  });
+
+  it('the legacy PENDING list filter includes the ingestion-pending runtime state', async () => {
+    const pending = newOperation({ state: 'PENDING_INGESTION' });
+    db.operations.push(pending, newOperation({ state: 'QUEUED' }));
+    const listed = await wireRequest(base, 'GET', '/api/v1/operations?filter=state=PENDING', keyHeaders());
+    const items = json(listed).operations as Record<string, unknown>[];
+    expect(items.map((item) => item.name)).toEqual([`operations/${String(pending.id)}`]);
+    const polled = await wireRequest(base, 'GET', `/api/v1/operations/${String(pending.id)}`, keyHeaders());
+    expect((json(polled).metadata as Record<string, unknown>).state).toBe('PENDING');
+  });
+
+  it('repeated legacy state clauses retain the original AND semantics', async () => {
+    const running = newOperation({ state: 'QUEUED' });
+    db.operations.push(running, newOperation({ state: 'SUCCEEDED' }));
+
+    const duplicate = await wireRequest(
+      base,
+      'GET',
+      '/api/v1/operations?filter=state=RUNNING,state=RUNNING',
+      keyHeaders(),
+    );
+    expect((json(duplicate).operations as Record<string, unknown>[]).map((item) => item.name))
+      .toEqual([`operations/${String(running.id)}`]);
+
+    const distinct = await wireRequest(
+      base,
+      'GET',
+      '/api/v1/operations?filter=state=RUNNING,state=SUCCEEDED',
+      keyHeaders(),
+    );
+    expect(json(distinct).operations).toEqual([]);
+  });
+
+  it('a valid state filter narrows the legacy page', async () => {
     const ok = newOperation({ state: 'SUCCEEDED', created_at: '2026-10-03T00:00:00.000Z' });
     const running = newOperation({ state: 'RUNNING', created_at: '2026-10-02T00:00:00.000Z' });
     db.operations.push(ok, running);
     const res = await wireRequest(base, 'GET', '/api/v1/operations?filter=state=SUCCEEDED', keyHeaders());
-    expect((json(res).operations as Record<string, unknown>[]).map((o) => o.name)).toEqual([
-      `operations/${String(ok.id)}`,
-    ]);
+    expect((json(res).operations as Record<string, unknown>[]).map((o) => o.name)).toEqual([`operations/${String(ok.id)}`]);
   });
 
   // ===================================================================
@@ -1464,6 +1649,7 @@ describe('RV01 legacy compat facade over real loopback HTTP', () => {
   it('usage aggregates SUCCEEDED spend per model and counts operations', async () => {
     db.operations.push(
       newOperation({
+        created_at: '2026-09-15T00:00:00.000Z',
         state: 'SUCCEEDED',
         model_used: 'gpt-a',
         total_input_tokens: 100,
@@ -1472,6 +1658,7 @@ describe('RV01 legacy compat facade over real loopback HTTP', () => {
         total_cost_usd: '0.500000',
       }),
       newOperation({
+        created_at: '2026-09-15T00:00:00.000Z',
         state: 'SUCCEEDED',
         model_used: 'gpt-a',
         total_input_tokens: 50,
@@ -1479,7 +1666,7 @@ describe('RV01 legacy compat facade over real loopback HTTP', () => {
         pages_processed: 1,
         total_cost_usd: '0.250000',
       }),
-      newOperation({ state: 'FAILED', model_used: 'gpt-b', total_cost_usd: '9.000000' }),
+      newOperation({ created_at: '2026-09-15T00:00:00.000Z', state: 'FAILED', model_used: 'gpt-b', total_cost_usd: '9.000000' }),
     );
     db.apiKeys[0]!.total_used = '0.750000';
     const res = await wireRequest(
@@ -1512,49 +1699,27 @@ describe('RV01 legacy compat facade over real loopback HTTP', () => {
   // G. Identity, path ownership and the unwired surfaces
   // ===================================================================
 
-  it('the admin bearer is NOT a legacy caller: /operations answers the canonical page', async () => {
-    const row = newOperation({ created_at: '2026-10-05T00:00:00.000Z' });
-    db.operations.push(row);
+  it('the legacy API-key list is not an alternate admin bearer route', async () => {
     const res = await wireRequest(base, 'GET', '/api/v1/operations?limit=10', {
       authorization: `Bearer ${ADMIN_TOKEN}`,
     });
-    expect(res.status).toBe(200);
-    const body = json(res);
-    // Canonical page keys - proof the facade declined the path (RV01 regression
-    // guard: before hasAdminBearer() the facade hijacked the Admin shell).
-    expect(Object.keys(body).sort()).toEqual([
-      'items',
-      'limit',
-      'nextCursor',
-      'prevCursor',
-      'total',
-    ]);
-    expect(body.operations).toBeUndefined();
-    expect(body.next_page_token).toBeUndefined();
-    expect((body.items as Record<string, unknown>[])[0]!.id).toBe(String(row.id));
+    expect(res.status).toBe(404);
   });
 
-  // RV01-F4 (KNOWN DEFECT - currently RED).
-  // safePrincipal() swallows the resolveApiKey rejection and every operations
-  // route then answers internalError(), so a caller with no key - or a wrong
-  // key - gets 500 Internal Error. Legacy did NOT 401 either: it read the
-  // stripped x-api-key-id header, skipped its fence, and returned 200 with an
-  // unscoped list (the IDOR API-COMPAT-DUGATE forbids replicating). Neither
-  // wire is right; 401 Unauthorized is the only defensible one.
-  it.failing('RV01-F4 an unauthenticated legacy read is 401, not 500', async () => {
-    const res = await wireRequest(base, 'GET', '/api/v1/operations', {});
+  it('an unauthenticated public operation read is 401', async () => {
+    const res = await wireRequest(base, 'GET', '/api/v1/operations/99999999-9999-4999-8999-999999999999', {});
     expect(res.status).toBe(401);
     expect(json(res).type).toBe('https://dugate.vn/errors/unauthorized');
   });
 
-  it('a wrong API key is refused exactly like a missing one', async () => {
-    const res = await wireRequest(base, 'GET', '/api/v1/operations', {
+  it('a wrong API key on a public operation read is refused like a missing one', async () => {
+    const res = await wireRequest(base, 'GET', '/api/v1/operations/99999999-9999-4999-8999-999999999999', {
       'x-api-key': 'not-the-key',
     });
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(401);
     const body = json(res);
-    expect(body.title).toBe('Internal Error');
-    expect(String(body.detail)).not.toContain('not-the-key');
+    expect(body.type).toBe('https://dugate.vn/errors/unauthorized');
+    expect(JSON.stringify(body)).not.toContain('not-the-key');
   });
 
   it('named workflow uses shared submission with its legacy 202 envelope and ignores sync/idempotency', async () => {

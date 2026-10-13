@@ -31,6 +31,7 @@ export type ParityRoute =
   | { kind: 'connector-draft' | 'connector-rollback'; connectorId: string }
   | { kind: 'connector-activate'; connectorId: string; revision: string }
   | { kind: 'tenant-connector-list' }
+  | { kind: 'tenant-connector-chain'; connectorId: string }
   | { kind: 'provider-test' }
   | { kind: 'invalid' };
 
@@ -74,6 +75,11 @@ export function matchParityRoute(relative: string): ParityRoute | null {
   }
   if (relative === '/parity/provider-tests') return { kind: 'provider-test' };
   if (relative === '/parity/tenant-connectors') return { kind: 'tenant-connector-list' };
+  const chain = /^\/parity\/connectors\/([^/]+)\/chain$/.exec(relative);
+  if (chain) {
+    const connectorId = connectorSegment(chain[1] ?? '');
+    return connectorId ? { kind: 'tenant-connector-chain', connectorId } : { kind: 'invalid' };
+  }
   return null;
 }
 
@@ -99,14 +105,14 @@ export async function handleParityRoute(
   }
 
   const method = (req.method ?? 'GET').toUpperCase();
-  const read = route.kind === 'api-key-list' || route.kind === 'connector-revision' || route.kind === 'tenant-connector-list';
+  const read = route.kind === 'api-key-list' || route.kind === 'connector-revision' || route.kind === 'tenant-connector-list' || route.kind === 'tenant-connector-chain';
   if ((read && method !== 'GET') || (!read && method !== 'POST' && method !== 'PUT' && method !== 'PATCH')) {
     writeProblem(res, 405, 'METHOD_NOT_ALLOWED', 'parity read routes require GET and mutations require POST, PUT or PATCH', correlationId); return;
   }
   if (!read && !ctx.verifyCsrf(firstHeaderValue(req.headers['x-csrf-token']))) {
     writeProblem(res, 403, 'CSRF_REJECTED', 'missing or invalid CSRF proof', correlationId); return;
   }
-  if (route.kind !== 'api-key-list' && route.kind !== 'connector-revision' && route.kind !== 'tenant-connector-list' && !localUserProviderTest && (ctx.role !== 'admin' || ctx.principal.kind !== 'platform')) {
+  if (route.kind !== 'api-key-list' && route.kind !== 'connector-revision' && route.kind !== 'tenant-connector-list' && route.kind !== 'tenant-connector-chain' && !localUserProviderTest && (ctx.role !== 'admin' || ctx.principal.kind !== 'platform')) {
     writeProblem(res, 403, 'ADMIN_CREDENTIAL_REQUIRED', 'API-key and Connector changes require platform Admin access', correlationId); return;
   }
 
@@ -135,6 +141,9 @@ export async function handleParityRoute(
         writeProblem(res, 422, 'INVALID_SCHEMA', 'tenant Connector query exceeds its bounds', correlationId); return;
       }
     }
+  }
+  if (route.kind === 'tenant-connector-chain') {
+    if (query.has('connectorId')) { writeProblem(res, 422, 'INVALID_SCHEMA', 'tenant Connector chain identifier must be in the path', correlationId); return; }
   }
   const body = read ? undefined : await parseBody(req, res, correlationId);
   if (!read && body === null) return;
@@ -231,6 +240,7 @@ function routePath(route: ParityRoute, tenantId: string): string {
     case 'connector-activate': return `/api/internal/parity/connectors/${encodeURIComponent(route.connectorId)}/revisions/${route.revision}/activate`;
     case 'connector-rollback': return `/api/internal/parity/connectors/${encodeURIComponent(route.connectorId)}/rollback/draft`;
     case 'tenant-connector-list': return `/api/internal/parity/tenant-connectors?tenantId=${encodeURIComponent(tenantId)}`;
+    case 'tenant-connector-chain': return `/api/internal/parity/connectors/${encodeURIComponent(route.connectorId)}/chain?tenantId=${encodeURIComponent(tenantId)}`;
     case 'provider-test': return '/api/internal/parity/provider-tests';
     case 'invalid': throw new Error('invalid parity route');
   }

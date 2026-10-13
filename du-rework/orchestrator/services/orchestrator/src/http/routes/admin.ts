@@ -12,6 +12,7 @@ import {
   ADMIN_BUSINESS_LIST_QUERY_PARAMS,
   ADMIN_BUSINESS_VERSION_LIST_QUERY_PARAMS,
   BusinessEnableRequestSchema,
+  VersionActivationRequestSchema,
   SecretCatalogCreateSchema,
   SecretCatalogDisableSchema,
   SecretCatalogRotateSchema,
@@ -73,6 +74,7 @@ import { getBusinessVersionImpactPreview } from '../../modules/admin-read/busine
 import { hashKey } from './api-key-auth';
 import type { RouteContext, RouteResult } from '../route-context';
 import { handleAdminProfileGroupsRoute } from './admin-profile-groups';
+import { admissionReasonForVersion, readBusinessAdmission } from '../../modules/registry/version-admission';
 
 function assertAdminAuth(ctx: RouteContext) {
   // Admin and runtime credentials are distinct (R08-01). The fail-closed
@@ -161,6 +163,14 @@ function readBusinessLifecycleRevision(value: number | string): number {
   return revision;
 }
 
+function readBusinessActivationRevision(value: number | string): number {
+  const revision = Number(value);
+  if (!Number.isSafeInteger(revision) || revision < 1) {
+    throw new Error('business activation revision is invalid');
+  }
+  return revision;
+}
+
 export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult | null> {
   const { method, pathname } = ctx;
   const profileGroupRoute = await handleAdminProfileGroupsRoute(ctx);
@@ -223,35 +233,23 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult 
       assertAdminAuth(ctx);
       const businessId = decodeURIComponent(m[1]!);
       const version = decodeURIComponent(m[2]!);
-      // W29-C fix kept: an enable that affects no row (never-registered
-      // version) fails closed with 404 — the throw rolls the transaction
-      // back, so there is nothing to commit.
-      // R3-01: UPDATE + ledger INSERT in ONE transaction (auditedMutation).
-      await auditedMutation(
+      const parsed = VersionActivationRequestSchema.safeParse(ctx.body);
+      if (!parsed.success) throw new HttpError(422, 'INVALID_SCHEMA', 'version enable payload is invalid');
+      const result = await auditedMutation(
         ctx.db,
         ctx.audit,
-        async (client) => {
-          const result = await client.query(
-            'UPDATE business_versions SET status=$3, updated_at=now() WHERE business_id=$1 AND version=$2',
-            [businessId, version, 'ENABLED']
-          );
-          if (!result.rowCount) {
-            throw new HttpError(404, 'NOT_FOUND', `business ${businessId}@${version} not registered`);
-          }
-        },
-        () => ({
-          // W48-C1: platform-global audit row (business_versions is not
-          // tenant-scoped — there is no honest tenant to attribute this to).
+        (client) => ctx.registry.enableVersion(businessId, version, parsed.data.expectedActivationRevision, client, 'admin'),
+        (r) => ({
           tenantId: null,
           actor: 'admin',
           ...ADMIN_TOKEN_AUDIT_FIELDS,
           action: 'business.enable',
-          resource: `business:${businessId}@${version}`,
+          resource: `business:${businessId}@${version}:activation-revision:${r.activationRevision}`,
           severity: 'success',
           correlationId: ctx.correlationId,
-        })
+        }),
       );
-      return { status: 200, body: { businessId, version, status: 'ENABLED' } };
+      return { status: 200, body: result };
     }
   }
 
@@ -272,6 +270,7 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult 
           parsed.data.enabled,
           parsed.data.expectedLifecycleRevision,
           client,
+          'admin',
         );
         if (!changed.replayed) {
           await ctx.audit.record({
@@ -298,18 +297,26 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult 
     const m = /^\/api\/v1\/admin\/businesses\/([^/]+)\/versions\/([^/]+)\/activate$/.exec(pathname);
     if (m && method === 'PUT') {
       assertAdminAuth(ctx);
+      const parsed = VersionActivationRequestSchema.safeParse(ctx.body);
+      if (!parsed.success) throw new HttpError(422, 'INVALID_SCHEMA', 'version activation payload is invalid');
       // R3-01: activation + ledger INSERT share one transaction.
       const result = await auditedMutation(
         ctx.db,
         ctx.audit,
-        (client) => ctx.registry.activateVersion(decodeURIComponent(m[1]!), decodeURIComponent(m[2]!), client),
+        (client) => ctx.registry.activateVersion(
+          decodeBusinessPathSegment(m[1]!, 'businessId'),
+          decodeBusinessPathSegment(m[2]!, 'version'),
+          parsed.data.expectedActivationRevision,
+          client,
+          'admin',
+        ),
         (r) => ({
           // W48-C1: platform-global audit row (no tenant on business_versions).
           tenantId: null,
           actor: 'admin',
           ...ADMIN_TOKEN_AUDIT_FIELDS,
           action: 'business.activate',
-          resource: `business:${r.businessId}@${r.version}`,
+          resource: `business:${r.businessId}@${r.version}:activation-revision:${r.activationRevision}`,
           severity: 'info',
           correlationId: ctx.correlationId,
         })
@@ -325,11 +332,19 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult 
     const m = /^\/api\/v1\/admin\/businesses\/([^/]+)\/versions\/([^/]+)\/deactivate$/.exec(pathname);
     if (m && method === 'PUT') {
       assertAdminAuth(ctx);
+      const parsed = VersionActivationRequestSchema.safeParse(ctx.body);
+      if (!parsed.success) throw new HttpError(422, 'INVALID_SCHEMA', 'version deactivation payload is invalid');
       // R3-01: drain + ledger INSERT share one transaction.
       const result = await auditedMutation(
         ctx.db,
         ctx.audit,
-        (client) => ctx.registry.deactivateVersion(decodeURIComponent(m[1]!), decodeURIComponent(m[2]!), client),
+        (client) => ctx.registry.deactivateVersion(
+          decodeBusinessPathSegment(m[1]!, 'businessId'),
+          decodeBusinessPathSegment(m[2]!, 'version'),
+          parsed.data.expectedActivationRevision,
+          client,
+          'admin',
+        ),
         (r) => ({
           // W48-C1: platform-global audit row. `business.drain` is the wire
           // kind the renderer knows (AUDIT_KIND_META); the route keeps the
@@ -338,12 +353,72 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult 
           actor: 'admin',
           ...ADMIN_TOKEN_AUDIT_FIELDS,
           action: 'business.drain',
-          resource: `business:${r.businessId}@${r.version}`,
+          resource: `business:${r.businessId}@${r.version}:activation-revision:${r.activationRevision}`,
           severity: 'warning',
           correlationId: ctx.correlationId,
         })
       );
       return { status: result.replayed ? 200 : 202, body: result };
+    }
+  }
+
+  // Pre-drain pauses new operations while the currently active version keeps
+  // claiming required retries/children. Activation is a separate CAS after
+  // the durable remaining-operation count reaches zero; cancellation resumes
+  // operation admission without changing the active pointer.
+  {
+    const m = /^\/api\/v1\/admin\/businesses\/([^/]+)\/versions\/([^/]+)\/pre-drain$/.exec(pathname);
+    if (m && method === 'PUT') {
+      assertAdminAuth(ctx);
+      const parsed = VersionActivationRequestSchema.safeParse(ctx.body);
+      if (!parsed.success) throw new HttpError(422, 'INVALID_SCHEMA', 'pre-drain payload is invalid');
+      const businessId = decodeBusinessPathSegment(m[1]!, 'businessId');
+      const version = decodeBusinessPathSegment(m[2]!, 'version');
+      const result = await auditedMutation(
+        ctx.db,
+        ctx.audit,
+        (client) => ctx.registry.startVersionPreDrain(
+          businessId, version, parsed.data.expectedActivationRevision, client, 'admin',
+        ),
+        (r) => ({
+          tenantId: null,
+          actor: 'admin',
+          ...ADMIN_TOKEN_AUDIT_FIELDS,
+          action: 'business.pre_drain',
+          resource: `business:${r.businessId}@${r.version}:activation-revision:${r.activationRevision}`,
+          severity: 'warning',
+          correlationId: ctx.correlationId,
+        }),
+      );
+      return { status: 200, body: result };
+    }
+  }
+
+  {
+    const m = /^\/api\/v1\/admin\/businesses\/([^/]+)\/versions\/([^/]+)\/pre-drain\/cancel$/.exec(pathname);
+    if (m && method === 'PUT') {
+      assertAdminAuth(ctx);
+      const parsed = VersionActivationRequestSchema.safeParse(ctx.body);
+      if (!parsed.success) throw new HttpError(422, 'INVALID_SCHEMA', 'pre-drain cancellation payload is invalid');
+      const businessId = decodeBusinessPathSegment(m[1]!, 'businessId');
+      const version = decodeBusinessPathSegment(m[2]!, 'version');
+      const result = await auditedMutation(
+        ctx.db,
+        ctx.audit,
+        (client) => ctx.registry.cancelVersionPreDrain(
+          businessId, version, parsed.data.expectedActivationRevision, client, 'admin',
+        ),
+        (r) => ({
+          tenantId: null,
+          actor: 'admin',
+          ...ADMIN_TOKEN_AUDIT_FIELDS,
+          action: 'business.pre_drain_cancel',
+          resource: `business:${r.businessId}@${r.version}:activation-revision:${r.activationRevision}`,
+          severity: 'success',
+          correlationId: ctx.correlationId,
+        }),
+      );
+      return { status: 200, body: result };
     }
   }
 
@@ -565,8 +640,13 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult 
           businessId: r.business_id,
           enabled: r.enabled,
           lifecycleRevision: readBusinessLifecycleRevision(r.lifecycle_revision),
+          activationRevision: readBusinessActivationRevision(r.activation_revision),
+          submissionsPaused: r.submissions_paused,
+          preDrainVersion: r.pre_drain_version,
           version: r.active_version ?? r.version,
           activeVersion: r.active_version,
+          admissionEligible: r.admission_eligible,
+          admissionReason: r.admission_reason,
           status: r.status,
           isActive: r.is_active,
           registeredAt: dateToIso(r.created_at),
@@ -753,16 +833,86 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult 
       const query = parseAdminResourceListQuery(ctx.searchParams, ADMIN_BUSINESS_VERSION_LIST_QUERY_PARAMS);
       const page = await listBusinessVersionPage(ctx.db, businessId, query);
       if (page.total === 0) throw new HttpError(404, 'NOT_FOUND', `business '${businessId}' is not registered`);
-      const logicalBusiness = await ctx.db.query<{ enabled: boolean; lifecycle_revision: number | string }>(
-        'SELECT enabled,lifecycle_revision FROM business_catalog WHERE business_id=$1',
-        [businessId],
+      const admission = await ctx.db.tx((client) => readBusinessAdmission(client, businessId, undefined, 'SHARE'));
+      if (!admission) throw new HttpError(404, 'NOT_FOUND', `business '${businessId}' is not registered`);
+      const logicalBusiness = await ctx.db.query<{ lifecycle_revision: number | string }>(
+        'SELECT lifecycle_revision FROM business_catalog WHERE business_id=$1', [businessId],
       );
-      if (!logicalBusiness.rows[0]) throw new HttpError(404, 'NOT_FOUND', `business '${businessId}' is not registered`);
+      const lifecycleRevision = logicalBusiness.rows[0]?.lifecycle_revision;
+      if (lifecycleRevision === undefined) throw new HttpError(404, 'NOT_FOUND', `business '${businessId}' is not registered`);
+      const remaining = admission.preDrainVersion
+        ? await ctx.db.query<{ count: number | string }>(
+          `SELECT count(*)::int AS count FROM operations
+            WHERE business_id=$1 AND business_version=$2
+              AND state NOT IN ('SUCCEEDED','FAILED','CANCELLED','TIMED_OUT')`,
+          [businessId, admission.preDrainVersion],
+        )
+        : null;
+      const remainingOperations = Number(remaining?.rows[0]?.count ?? 0);
+      const workCounts = await ctx.db.query<{
+        business_version: string;
+        parked_task_count: number | string;
+        draining_task_count: number | string;
+        parked_reasons: Record<string, number> | string | null;
+      }>(
+        `WITH task_counts AS (
+           SELECT o.business_version,
+                  count(*) FILTER (
+                    WHERE t.admission_parked_reason IS NOT NULL
+                      AND t.state NOT IN ('SUCCEEDED','FAILED','CANCELLED','TIMED_OUT')
+                  )::int AS parked_task_count,
+                  count(*) FILTER (
+                    WHERE t.state='RUNNING' AND t.lease_expires_at > clock_timestamp()
+                      AND o.business_version IS DISTINCT FROM $2::text
+                  )::int AS draining_task_count
+             FROM tasks t JOIN operations o ON o.id=t.operation_id
+            WHERE o.business_id=$1
+            GROUP BY o.business_version
+         ), reason_counts AS (
+           SELECT o.business_version,t.admission_parked_reason AS reason,count(*)::int AS count
+             FROM tasks t JOIN operations o ON o.id=t.operation_id
+            WHERE o.business_id=$1 AND t.admission_parked_reason IS NOT NULL
+              AND t.state NOT IN ('SUCCEEDED','FAILED','CANCELLED','TIMED_OUT')
+            GROUP BY o.business_version,t.admission_parked_reason
+         ), reasons AS (
+           SELECT business_version,jsonb_object_agg(reason,count) AS parked_reasons
+             FROM reason_counts GROUP BY business_version
+         )
+         SELECT counts.business_version,counts.parked_task_count,counts.draining_task_count,
+                COALESCE(reasons.parked_reasons,'{}'::jsonb) AS parked_reasons
+           FROM task_counts counts LEFT JOIN reasons USING (business_version)`,
+        [businessId, admission.activeVersion],
+      );
+      const countsByVersion = new Map(workCounts.rows.map((row) => {
+        let parkedReasons: Record<string, number> = {};
+        if (typeof row.parked_reasons === 'string') {
+          try {
+            const parsed: unknown = JSON.parse(row.parked_reasons);
+            if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+              parkedReasons = Object.fromEntries(Object.entries(parsed).map(([reason, count]) => [reason, Number(count)]));
+            }
+          } catch {
+            parkedReasons = {};
+          }
+        } else if (row.parked_reasons && typeof row.parked_reasons === 'object') {
+          parkedReasons = Object.fromEntries(Object.entries(row.parked_reasons).map(([reason, count]) => [reason, Number(count)]));
+        }
+        return [row.business_version, {
+          parkedTaskCount: Number(row.parked_task_count),
+          drainingTaskCount: Number(row.draining_task_count),
+          parkedReasons,
+        }] as const;
+      }));
       const items = page.rows.map((r) => ({
         businessId: r.business_id,
         version: r.version,
         status: r.status,
-        isActive: r.is_active,
+        isActive: admission.activeVersion === r.version,
+        admissionEligible: admission.enabled && admission.activeVersion === r.version && r.status === 'ENABLED',
+        admissionReason: admissionReasonForVersion({ ...admission, targetStatus: r.status }, r.version),
+        parkedTaskCount: countsByVersion.get(r.version)?.parkedTaskCount ?? 0,
+        drainingTaskCount: countsByVersion.get(r.version)?.drainingTaskCount ?? 0,
+        parkedReasons: countsByVersion.get(r.version)?.parkedReasons ?? {},
         registeredAt: dateToIso(r.created_at),
         createdAt: dateToIso(r.created_at),
         updatedAt: dateToIso(r.updated_at),
@@ -773,9 +923,13 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult 
         status: 200,
         body: {
           businessId,
-          enabled: logicalBusiness.rows[0].enabled,
-          lifecycleRevision: readBusinessLifecycleRevision(logicalBusiness.rows[0].lifecycle_revision),
-          activeVersion: page.activeVersion,
+          enabled: admission.enabled,
+          lifecycleRevision: readBusinessLifecycleRevision(lifecycleRevision),
+          activeVersion: admission.activeVersion,
+          activationRevision: admission.activationRevision,
+          submissionsPaused: admission.submissionsPaused,
+          preDrainVersion: admission.preDrainVersion,
+          remainingOperations,
           ...listPage({
             items,
             nextCursor: page.nextCursor,
@@ -1063,7 +1217,7 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult 
         management: !!ctx.connectorManagement,
         credentialWorkflow: !!ctx.credentialWorkflow,
         test: !!ctx.connectorManagement,
-        knownConnectorIds: Object.keys(ctx.config.connectorBaseUrls ?? {}),
+        knownConnectorIds: Object.keys(ctx.config.connectorBaseUrls ?? {}).filter((id) => id !== '*'),
       },
     };
   }

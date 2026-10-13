@@ -86,6 +86,10 @@ function workerHeartbeatRoute(backupEffectFence?: unknown): Route {
     capacity: 1,
     controlRevision: 0,
     controlState: 'OPEN',
+    activeVersion: MANIFEST.version,
+    activationRevision: 1,
+    admissionEligible: true,
+    admissionReason: 'ELIGIBLE',
     ...(backupEffectFence === undefined ? {} : { backupEffectFence }),
   };
   return {
@@ -93,6 +97,20 @@ function workerHeartbeatRoute(backupEffectFence?: unknown): Route {
     pattern: /^\/workers\/[^/]+\/heartbeat$/,
     handler: () => ({ status: 200, json: ack }),
   };
+}
+
+function workerRetirementRoute(): Route {
+  return {
+    method: 'POST',
+    pattern: /^\/workers\/[^/]+\/retire$/,
+    handler: () => ({ status: 200, json: { retired: true } }),
+  };
+}
+
+function replaceWorkerHeartbeatRoute(routes: Route[], replacement: Route): void {
+  const index = routes.findIndex((route) => route.method === 'PUT' && route.pattern.test('/workers/fixture/heartbeat'));
+  if (index < 0) throw new Error('worker heartbeat fixture route is missing');
+  routes[index] = replacement;
 }
 
 function businessRegistrationRoute(result: Record<string, unknown> = {}): Route {
@@ -184,10 +202,14 @@ function testConsumer(options: { waitForDeliveries?: boolean } = {}): {
   push: (job: BusinessJobV1, delivery?: DeliveryControl) => Promise<void>;
   started: jest.Mock;
   stopped: jest.Mock;
+  paused: jest.Mock;
+  resumed: jest.Mock;
 } {
   let handler: DeliveryHandler | undefined;
   const deliveries: Promise<void>[] = [];
   const started = jest.fn();
+  const paused = jest.fn();
+  const resumed = jest.fn();
   const stopped = jest.fn(async () => {
     if (options.waitForDeliveries !== false) await Promise.allSettled(deliveries);
   });
@@ -196,6 +218,8 @@ function testConsumer(options: { waitForDeliveries?: boolean } = {}): {
       started();
       handler = next;
     },
+    pause: paused,
+    resume: resumed,
     stop: stopped,
   };
   const push = (job: BusinessJobV1, delivery?: DeliveryControl): Promise<void> => {
@@ -204,18 +228,19 @@ function testConsumer(options: { waitForDeliveries?: boolean } = {}): {
     deliveries.push(result);
     return result;
   };
-  return { consumer, push, started, stopped };
+  return { consumer, push, started, stopped, paused, resumed };
 }
 
-function successRoutes(claim: (match: RegExpMatchArray) => { status: number; json: unknown } | Promise<{ status: number; json: unknown }>): Route[] {
+function successRoutes(claim: (match: RegExpMatchArray, body: unknown) => { status: number; json: unknown } | Promise<{ status: number; json: unknown }>): Route[] {
   return [
     businessRegistrationRoute(),
     workerHeartbeatRoute({ state: 'OPEN', revision: 0, acknowledged: true }),
+    workerRetirementRoute(),
     taskHeartbeatRoute(),
     {
       method: 'POST',
       pattern: /^\/tasks\/([^/]+)\/claim$/,
-      handler: (match) => claim(match),
+      handler: (match, body) => claim(match, body),
     },
     {
       method: 'POST',
@@ -247,6 +272,42 @@ const commonConfig = {
 };
 
 describe('WOC SDK claim outcomes and pinned execution snapshot', () => {
+  it('defers attempt exhaustion unless the Runtime returns its durable terminal response', async () => {
+    const calls: CapturedCall[] = [];
+    let status = 409;
+    let handlerCalls = 0;
+    const routes = successRoutes(() => ({
+      status,
+      json: {
+        type: 'urn:du:error:task_attempts_exhausted',
+        status,
+        code: 'TASK_ATTEMPTS_EXHAUSTED',
+        title: 'task attempts are exhausted',
+      },
+    }));
+    const { consumer, push } = testConsumer();
+    const definition = defineBusiness(MANIFEST, {
+      root: async () => {
+        handlerCalls += 1;
+        return { kind: 'completed', resultRef: 'artifact://must-not-run' };
+      },
+      child: async () => ({ kind: 'completed', resultRef: 'artifact://child-result' }),
+    });
+    const handle = await startWorker(definition, {
+      ...commonConfig,
+      consumer,
+      fetchImpl: stubFetch(routes, calls),
+    });
+    const deferred = new Error('attempt-exhaustion-not-terminal-deferred');
+    await expect(push(makeJob(), { defer: async () => { throw deferred; } })).rejects.toBe(deferred);
+    status = 410;
+    await push(makeJob({ deliveryId: 'durably-terminal-attempt-cap' }));
+    await handle.stop(1000);
+
+    expect(handlerCalls).toBe(0);
+    expect(calls.filter((call) => call.path.endsWith('/claim'))).toHaveLength(2);
+  });
+
   it('retries a deferred admission outcome after bounded delay without requiring a custom consumer hook', async () => {
     jest.useFakeTimers();
     try {
@@ -422,7 +483,7 @@ describe('WOC SDK same-instance task single-flight', () => {
     expect(calls.some((call) => call.path.endsWith('/fail'))).toBe(false);
   });
 
-  it('releases the reservation after a lost claim ACK so the delayed retry can claim once', async () => {
+  it('reconciles a lost claim ACK once with the same delivery before releasing its reservation', async () => {
     const taskId = randomUUID();
     const operationId = randomUUID();
     const calls: CapturedCall[] = [];
@@ -437,7 +498,7 @@ describe('WOC SDK same-instance task single-flight', () => {
       }
       return { status: 200, json: makeClaim({ taskId: match[1]!, operationId }) };
     });
-    const { consumer, push } = testConsumer({ waitForDeliveries: false });
+    const { consumer, push } = testConsumer();
     let handlerCount = 0;
     const definition = defineBusiness(MANIFEST, {
       root: async () => {
@@ -448,13 +509,12 @@ describe('WOC SDK same-instance task single-flight', () => {
     });
     const handle = await startWorker(definition, { ...commonConfig, consumer, fetchImpl: stubFetch(routes, calls) });
     const job = makeJob({ taskId, operationId });
-    const delayed = new Error('lost-claim-redelivery-delayed');
-    await expect(push(job, { defer: async () => { throw delayed; } })).rejects.toBe(delayed);
-
-    await push(job, { defer: async () => { throw new Error('successful retry should not defer'); } });
+    const defer = jest.fn(async (_delayMs: number): Promise<never> => { throw new Error('ambiguous claim was unnecessarily deferred'); });
+    await push(job, { defer });
     await handle.stop(100);
 
     expect(claimAttempts).toBe(2);
+    expect(defer).not.toHaveBeenCalled();
     expect(handlerCount).toBe(1);
     expect(calls.filter((call) => call.path === `/tasks/${taskId}/claim`)).toHaveLength(2);
     expect(calls.filter((call) => call.path.endsWith('/fail'))).toHaveLength(0);
@@ -818,5 +878,440 @@ describe('WOC SDK heartbeat compatibility', () => {
     expect(started).not.toHaveBeenCalled();
     expect(stopped).toHaveBeenCalledTimes(1);
     expect(calls.some((call) => call.path.endsWith('/claim'))).toBe(false);
+  });
+
+  it('waits for an ordinary in-flight heartbeat before idempotent consumer retirement', async () => {
+    jest.useFakeTimers();
+    try {
+      const calls: CapturedCall[] = [];
+      let heartbeatCount = 0;
+      let resolveHeartbeat!: (result: { status: number; json: unknown }) => void;
+      const routes = successRoutes(() => ({ status: 200, json: makeClaim() }));
+      replaceWorkerHeartbeatRoute(routes, {
+        method: 'PUT',
+        pattern: /^\/workers\/[^/]+\/heartbeat$/,
+        handler: () => {
+          heartbeatCount += 1;
+          if (heartbeatCount === 1) {
+            return {
+              status: 200,
+              json: {
+                health: 'HEALTHY',
+                leaseExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+                capacity: 1,
+                controlRevision: 0,
+                controlState: 'OPEN',
+                backupEffectFence: { state: 'OPEN', revision: 0, acknowledged: true },
+              },
+            };
+          }
+          return new Promise((resolve) => { resolveHeartbeat = resolve; });
+        },
+      });
+      const { consumer, stopped } = testConsumer();
+      const definition = defineBusiness(MANIFEST, {
+        root: async () => ({ kind: 'completed', resultRef: 'artifact://must-not-run' }),
+        child: async () => ({ kind: 'completed', resultRef: 'artifact://child-result' }),
+      });
+      const handle = await startWorker(definition, {
+        ...commonConfig,
+        consumer,
+        fetchImpl: stubFetch(routes, calls),
+        heartbeatIntervalMs: 25,
+      });
+
+      await jest.advanceTimersByTimeAsync(25);
+      expect(resolveHeartbeat).toBeDefined();
+      const firstStop = handle.stop(0);
+      const secondStop = handle.stop(10_000);
+      expect(secondStop).toBe(firstStop);
+      await Promise.resolve();
+      expect(calls.some((call) => call.path.endsWith('/retire'))).toBe(false);
+
+      resolveHeartbeat({
+        status: 200,
+        json: {
+          health: 'HEALTHY',
+          leaseExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+          capacity: 1,
+          controlRevision: 0,
+          controlState: 'OPEN',
+          backupEffectFence: { state: 'OPEN', revision: 0, acknowledged: true },
+        },
+      });
+      await firstStop;
+      expect(stopped).toHaveBeenCalledTimes(1);
+      const retirement = calls.find((call) => call.path.endsWith('/retire'));
+      expect(retirement?.method).toBe('POST');
+      expect(retirement?.body).toEqual({
+        businessId: MANIFEST.businessId,
+        businessVersion: MANIFEST.version,
+        manifestDigest: MANIFEST_DIGEST,
+      });
+      expect(calls.findIndex((call) => call.path.endsWith('/retire')))
+        .toBeGreaterThan(calls.findIndex((call) => call.path.endsWith('/heartbeat') && call.at > 0));
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('bounds an unconfirmed consumer close and skips immediate retirement', async () => {
+    jest.useFakeTimers();
+    try {
+      const calls: CapturedCall[] = [];
+      const { consumer } = testConsumer();
+      consumer.stop = jest.fn(() => new Promise<void>(() => undefined));
+      const definition = defineBusiness(MANIFEST, {
+        root: async () => ({ kind: 'completed', resultRef: 'artifact://must-not-run' }),
+        child: async () => ({ kind: 'completed', resultRef: 'artifact://child-result' }),
+      });
+      const handle = await startWorker(definition, {
+        ...commonConfig,
+        consumer,
+        fetchImpl: stubFetch(successRoutes(() => ({ status: 200, json: makeClaim() })), calls),
+        heartbeatIntervalMs: 25,
+      });
+
+      const stopping = handle.stop(0);
+      await jest.advanceTimersByTimeAsync(1_000);
+      await stopping;
+      await jest.advanceTimersByTimeAsync(1_000);
+      expect(calls.filter((call) => call.path.endsWith('/heartbeat'))).toHaveLength(1);
+      expect(calls.some((call) => call.path.endsWith('/retire'))).toBe(false);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+});
+
+describe('WOC SDK version admission and in-flight lease drain', () => {
+  it.each(['missing tuple', 'unknown reason'])('fails closed for new claims when heartbeat admission is %s', async (missingMode) => {
+    const calls: CapturedCall[] = [];
+    const ack: Record<string, unknown> = {
+      health: 'HEALTHY',
+      leaseExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+      capacity: 1,
+      controlRevision: 0,
+      controlState: 'OPEN',
+      backupEffectFence: { state: 'OPEN', revision: 0, acknowledged: true },
+      activeVersion: MANIFEST.version,
+      activationRevision: 1,
+      admissionEligible: true,
+      admissionReason: 'ELIGIBLE',
+    };
+    if (missingMode === 'missing tuple') {
+      delete ack.activeVersion;
+      delete ack.activationRevision;
+      delete ack.admissionEligible;
+      delete ack.admissionReason;
+    } else {
+      ack.admissionReason = 'FUTURE_ADMISSION_STATE';
+    }
+    const routes: Route[] = [
+      businessRegistrationRoute(),
+      {
+        method: 'PUT',
+        pattern: /^\/workers\/[^/]+\/heartbeat$/,
+        handler: () => ({ status: 200, json: ack }),
+      },
+      workerRetirementRoute(),
+    ];
+    const { consumer, push, paused } = testConsumer();
+    const definition = defineBusiness(MANIFEST, {
+      root: async () => ({ kind: 'completed', resultRef: 'artifact://must-not-run' }),
+      child: async () => ({ kind: 'completed', resultRef: 'artifact://child-result' }),
+    });
+    const handle = await startWorker(definition, { ...commonConfig, consumer, fetchImpl: stubFetch(routes, calls) });
+    const deferred = new Error('admission-denied-delivery-deferred');
+    await expect(push(makeJob(), { defer: async () => { throw deferred; } })).rejects.toBe(deferred);
+    await handle.stop(1000);
+
+    expect(paused).toHaveBeenCalled();
+    expect(calls.some((call) => call.path.endsWith('/claim'))).toBe(false);
+  });
+
+  it('keeps new claims closed when eligibility conflicts at the same activation revision', async () => {
+    jest.useFakeTimers();
+    try {
+      const calls: CapturedCall[] = [];
+      let heartbeatIndex = 0;
+      let claimCount = 0;
+      const heartbeatStates = [
+        { activeVersion: '1.0.0', activationRevision: 3, admissionEligible: true, admissionReason: 'ELIGIBLE' },
+        { activeVersion: '2.0.0', activationRevision: 3, admissionEligible: false, admissionReason: 'VERSION_NOT_ACTIVE' },
+        { activeVersion: '1.0.0', activationRevision: 3, admissionEligible: true, admissionReason: 'ELIGIBLE' },
+      ];
+      const routes = successRoutes(() => {
+        claimCount += 1;
+        return { status: 200, json: makeClaim() };
+      });
+      replaceWorkerHeartbeatRoute(routes, {
+        method: 'PUT',
+        pattern: /^\/workers\/[^/]+\/heartbeat$/,
+        handler: () => {
+          const versionState = heartbeatStates[Math.min(heartbeatIndex, heartbeatStates.length - 1)]!;
+          heartbeatIndex += 1;
+          return { status: 200, json: {
+            health: 'HEALTHY',
+            leaseExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+            capacity: 1,
+            controlRevision: 0,
+            controlState: 'OPEN',
+            backupEffectFence: { state: 'OPEN', revision: 0, acknowledged: true },
+            ...versionState,
+          } };
+        },
+      });
+      const { consumer, push, paused } = testConsumer();
+      const definition = defineBusiness(MANIFEST, {
+        root: async () => ({ kind: 'completed', resultRef: 'artifact://must-not-run' }),
+        child: async () => ({ kind: 'completed', resultRef: 'artifact://child-result' }),
+      });
+      const handle = await startWorker(definition, {
+        ...commonConfig,
+        consumer,
+        fetchImpl: stubFetch(routes, calls),
+        heartbeatIntervalMs: 20,
+      });
+
+      await jest.advanceTimersByTimeAsync(20);
+      await jest.advanceTimersByTimeAsync(20);
+      const deferred = new Error('conflicting-revision-delivery-deferred');
+      await expect(push(makeJob(), { defer: async () => { throw deferred; } })).rejects.toBe(deferred);
+      await handle.stop(1000);
+
+      expect(paused).toHaveBeenCalled();
+      expect(claimCount).toBe(0);
+      expect(calls.some((call) => call.path.endsWith('/claim'))).toBe(false);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('reconciles a lost claim ACK after cutover with the exact in-flight identity', async () => {
+    jest.useFakeTimers();
+    try {
+    const calls: CapturedCall[] = [];
+    let heartbeatIndex = 0;
+    const heartbeatStates = [
+      { activeVersion: '1.0.0', activationRevision: 1, admissionEligible: true, admissionReason: 'ELIGIBLE' },
+      { activeVersion: '2.0.0', activationRevision: 2, admissionEligible: false, admissionReason: 'VERSION_NOT_ACTIVE' },
+    ];
+    let resolveClaimStarted!: () => void;
+    const claimStarted = new Promise<void>((resolve) => { resolveClaimStarted = resolve; });
+    let releaseLostAck!: () => void;
+    const lostAckGate = new Promise<void>((resolve) => { releaseLostAck = resolve; });
+    let committed = false;
+    const claimBodies: unknown[] = [];
+    const routes = successRoutes(async (match, body) => {
+      claimBodies.push(body);
+      if (claimBodies.length === 1) {
+        committed = true;
+        resolveClaimStarted();
+        await lostAckGate;
+        throw new Error('claim committed but response was lost');
+      }
+      if (!committed) {
+        return { status: 409, json: {
+          type: 'urn:du:error:version_not_active',
+          status: 409,
+          code: 'VERSION_NOT_ACTIVE',
+          title: 'version is no longer active',
+        } };
+      }
+      return { status: 200, json: makeClaim({ taskId: match[1] }) };
+    });
+    replaceWorkerHeartbeatRoute(routes, {
+      method: 'PUT',
+      pattern: /^\/workers\/[^/]+\/heartbeat$/,
+      handler: () => {
+        const versionState = heartbeatStates[Math.min(heartbeatIndex, heartbeatStates.length - 1)]!;
+        heartbeatIndex += 1;
+        return { status: 200, json: {
+          health: 'HEALTHY',
+          leaseExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+          capacity: 1,
+          controlRevision: 0,
+          controlState: 'OPEN',
+          backupEffectFence: { state: 'OPEN', revision: 0, acknowledged: true },
+          ...versionState,
+        } };
+      },
+    });
+
+    const { consumer, push, paused } = testConsumer();
+    let handlerCalls = 0;
+    const definition = defineBusiness(MANIFEST, {
+      root: async () => {
+        handlerCalls += 1;
+        return { kind: 'completed', resultRef: 'artifact://reconciled-claim' };
+      },
+      child: async () => ({ kind: 'completed', resultRef: 'artifact://child-result' }),
+    });
+    const handle = await startWorker(definition, {
+      ...commonConfig,
+      consumer,
+      fetchImpl: stubFetch(routes, calls),
+      heartbeatIntervalMs: 20,
+    });
+
+    const job = makeJob();
+    const delivery = push(job, { defer: async () => { throw new Error('claim delivery was unnecessarily deferred'); } });
+    await claimStarted;
+    await jest.advanceTimersByTimeAsync(20);
+    expect(paused).toHaveBeenCalled();
+    releaseLostAck();
+    await delivery;
+    await handle.stop(1000);
+
+    expect(claimBodies).toHaveLength(2);
+    expect(claimBodies[1]).toEqual(claimBodies[0]);
+    expect(handlerCalls).toBe(1);
+    expect(calls.filter((call) => call.path.endsWith('/complete'))).toHaveLength(1);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('drains a claimed v1 task across v1 to v2 to v1 heartbeats and ignores a stale admission ACK', async () => {
+    jest.useFakeTimers();
+    try {
+      const calls: CapturedCall[] = [];
+      let heartbeatIndex = 0;
+      let claimCount = 0;
+      const heartbeatStates = [
+        { activeVersion: '1.0.0', activationRevision: 5, admissionEligible: true, admissionReason: 'ELIGIBLE' },
+        { activeVersion: '2.0.0', activationRevision: 6, admissionEligible: false, admissionReason: 'VERSION_NOT_ACTIVE' },
+        { activeVersion: '1.0.0', activationRevision: 5, admissionEligible: true, admissionReason: 'ELIGIBLE' },
+        { activeVersion: '1.0.0', activationRevision: 7, admissionEligible: true, admissionReason: 'ELIGIBLE' },
+      ];
+      const routes = successRoutes((match) => {
+        claimCount += 1;
+        return { status: 200, json: makeClaim({ taskId: match[1] }) };
+      });
+      replaceWorkerHeartbeatRoute(routes, {
+        method: 'PUT',
+        pattern: /^\/workers\/[^/]+\/heartbeat$/,
+        handler: () => {
+          const versionState = heartbeatStates[Math.min(heartbeatIndex, heartbeatStates.length - 1)]!;
+          heartbeatIndex += 1;
+          return { status: 200, json: {
+            health: 'HEALTHY',
+            leaseExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+            capacity: 1,
+            controlRevision: 0,
+            controlState: 'OPEN',
+            backupEffectFence: { state: 'OPEN', revision: 0, acknowledged: true },
+            ...versionState,
+          } };
+        },
+      });
+      const artifactId = randomUUID();
+      const invocationId = randomUUID();
+      routes.push(
+        {
+          method: 'POST',
+          pattern: /^\/tasks\/[^/]+\/artifacts$/,
+          handler: () => ({ status: 200, json: {
+            artifactId,
+            uploadUrl: 'http://runtime/artifact-upload',
+            expiresAt: new Date(Date.now() + 60_000).toISOString(),
+          } }),
+        },
+        {
+          method: 'PUT',
+          pattern: /^\/artifact-upload$/,
+          handler: () => ({ status: 200, json: { uploaded: true } }),
+        },
+        {
+          method: 'POST',
+          pattern: /^\/artifacts\/[^/]+\/finalize$/,
+          handler: () => ({ status: 200, json: { finalized: true } }),
+        },
+        {
+          method: 'PUT',
+          pattern: /^\/tasks\/[^/]+\/steps\/after-cutover$/,
+          handler: () => ({ status: 200, json: { stepKey: 'after-cutover', generation: 1, replayed: false } }),
+        },
+        {
+          method: 'POST',
+          pattern: /^\/tasks\/[^/]+\/invocation-grants$/,
+          handler: () => ({ status: 200, json: {
+            grant: 'signed-after-cutover',
+            invocationId,
+            connectorId: 'test-connector',
+            connectorRevision: 1,
+            expiresAt: new Date(Date.now() + 60_000).toISOString(),
+            allowedOptions: {},
+          } }),
+        },
+      );
+
+      const { consumer, push, paused, resumed } = testConsumer();
+      let releaseHandler!: () => void;
+      let handlerStarted!: () => void;
+      const started = new Promise<void>((resolve) => { handlerStarted = resolve; });
+      let activeSignal: AbortSignal | undefined;
+      let connectorCalls = 0;
+      let handlerCalls = 0;
+      const definition = defineBusiness(MANIFEST, {
+        root: async (ctx) => {
+          handlerCalls += 1;
+          if (handlerCalls > 1) return { kind: 'completed', resultRef: 'artifact://reactivated' };
+          activeSignal = ctx.signal;
+          const waiting = new Promise<void>((resolve) => { releaseHandler = resolve; });
+          handlerStarted();
+          await waiting;
+          await ctx.step.run('after-cutover', 'sha256:after-cutover', async () => {
+            await ctx.connector.invoke('model', { prompt: 'continue the claimed task' }, {});
+            return { completedAfterSwitch: true };
+          });
+          return { kind: 'completed', resultRef: 'artifact://finished-after-cutover' };
+        },
+        child: async () => ({ kind: 'completed', resultRef: 'artifact://child-result' }),
+      });
+      const handle = await startWorker(definition, {
+        ...commonConfig,
+        consumer,
+        fetchImpl: stubFetch(routes, calls),
+        heartbeatIntervalMs: 20,
+        leaseSafetyMarginMs: 20,
+        invokeConnector: async (grant) => {
+          connectorCalls += 1;
+          return { invocationId: grant.invocationId, state: 'SUCCEEDED' };
+        },
+      });
+
+      const firstDelivery = push(makeJob());
+      await started;
+      await jest.advanceTimersByTimeAsync(20);
+      const cutoverAt = Date.now();
+      expect(paused).toHaveBeenCalled();
+      expect(activeSignal?.aborted).toBe(false);
+      await jest.advanceTimersByTimeAsync(20);
+      expect(resumed).toHaveBeenCalledTimes(1);
+
+      const newTaskId = randomUUID();
+      const deferred = new Error('inactive-v1-delivery-deferred');
+      await expect(push(makeJob({ taskId: newTaskId }), { defer: async () => { throw deferred; } })).rejects.toBe(deferred);
+      expect(claimCount).toBe(1);
+
+      releaseHandler();
+      await firstDelivery;
+      expect(activeSignal?.aborted).toBe(false);
+      expect(calls.some((call) => call.path.endsWith('/steps/after-cutover'))).toBe(true);
+      expect(calls.some((call) => call.path.endsWith('/invocation-grants'))).toBe(true);
+      expect(connectorCalls).toBe(1);
+      expect(calls.some((call) => call.path.endsWith('/complete') && call.at >= cutoverAt)).toBe(true);
+      expect(calls.some((call) => call.path.startsWith('/tasks/') && call.path.endsWith('/heartbeat') && call.at >= cutoverAt)).toBe(true);
+
+      await jest.advanceTimersByTimeAsync(20);
+      expect(resumed).toHaveBeenCalledTimes(2);
+      await push(makeJob({ taskId: newTaskId, deliveryId: `reactivated-${newTaskId}` }));
+      expect(claimCount).toBe(2);
+      await handle.stop(1000);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });

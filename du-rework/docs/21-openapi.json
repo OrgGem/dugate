@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "DUGate rework API (code-derived, W40-CX)",
-    "version": "1.6.0",
-    "description": "Since 1.6.0: BASIC_ADMIN_USAGE_V1 and bounded Compose Admin/host-runner routes are documented as separate schemas and auth planes; since 1.5.0: legacy workflow multipart admission facades at /api/v1/docs/workflows and /api/v1/docs/workflows/schema are documented; runtime compatibility acceptance is tracked separately in the WFA plan. From orchestrator server.ts + connector http/server.ts. Absent surfaces in x-absent. Since 1.3.0: server origins are family-scoped to the PM-M02 ingress - public JSON Orchestrator 3000, admin/management and runtime internal JSON Orchestrator 3002, Connector service 8080 - with tags/x-api-family on every operation and generation-time overrides DU_OPENAPI_PUBLIC_ORIGIN / DU_OPENAPI_INTERNAL_ORIGIN / DU_OPENAPI_CONNECTOR_ORIGIN. Try-it-out stays disabled by default in any Portal rendering; this document grants no interactive access. Since 1.2.0: GET /api/v1/usage/events (COST-03) is published with its query, cursor, ledger-record and page schemas. Since 1.1.0: the RESULT-WIRE-01 delivery surfaces are published - components.schemas carries ResultEnvelope v1, EncryptedResultEnvelope v1, RecipientDeliveryEnvelope and EncryptedArtifactDownload, and GET /api/v1/artifacts/{id}/download is a documented path instead of an x-absent entry."
+    "version": "1.7.0",
+    "description": "Since 1.7.0: public API-key document aliases and operation compatibility flows (list, read, result, download, cancel, resume, delete) are described alongside the existing workflow facades. Both resume body dialects are supported. Since 1.6.0: BASIC_ADMIN_USAGE_V1 and bounded Compose Admin/host-runner routes are documented as separate schemas and auth planes; since 1.5.0: legacy workflow multipart admission facades at /api/v1/docs/workflows and /api/v1/docs/workflows/schema are documented; runtime compatibility acceptance is tracked separately in the WFA plan. From orchestrator server.ts + connector http/server.ts. Absent surfaces in x-absent. Since 1.3.0: server origins are family-scoped to the PM-M02 ingress - public JSON Orchestrator 3000, admin/management and runtime internal JSON Orchestrator 3002, Connector service 8080 - with tags/x-api-family on every operation and generation-time overrides DU_OPENAPI_PUBLIC_ORIGIN / DU_OPENAPI_INTERNAL_ORIGIN / DU_OPENAPI_CONNECTOR_ORIGIN. Try-it-out stays disabled by default in any Portal rendering; this document grants no interactive access. Since 1.2.0: GET /api/v1/usage/events (COST-03) is published with its query, cursor, ledger-record and page schemas. Since 1.1.0: the RESULT-WIRE-01 delivery surfaces are published - components.schemas carries ResultEnvelope v1, EncryptedResultEnvelope v1, RecipientDeliveryEnvelope and EncryptedArtifactDownload, and GET /api/v1/artifacts/{id}/download is a documented path instead of an x-absent entry."
   },
   "servers": [
     {
@@ -5187,6 +5187,992 @@
         "additionalProperties": false,
         "description": "Legacy notification_only canonical body; dispatcher additionally stamps stable deliveryId. Receiver must also deduplicate x-du-delivery-id.",
         "x-source": "orchestrator/packages/contracts/src/public-api.ts#WebhookPayloadSchema"
+      },
+      "LegacyOperationEnvelope": {
+        "type": "object",
+        "required": [
+          "name",
+          "done",
+          "metadata"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Resource name in the form operations/{id}."
+          },
+          "done": {
+            "type": "boolean"
+          },
+          "metadata": {
+            "type": "object",
+            "required": [
+              "state"
+            ],
+            "properties": {
+              "state": {
+                "type": "string"
+              },
+              "pipeline": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "current_step": {
+                "type": "integer",
+                "nullable": true
+              },
+              "progress_percent": {
+                "type": "number",
+                "nullable": true
+              },
+              "progress_message": {
+                "type": "string",
+                "nullable": true
+              },
+              "create_time": {
+                "type": "string",
+                "nullable": true
+              },
+              "update_time": {
+                "type": "string",
+                "nullable": true
+              },
+              "pipeline_steps": {
+                "type": "array",
+                "items": {}
+              },
+              "workflow": {
+                "type": "string"
+              },
+              "schema_revision": {
+                "type": "integer"
+              },
+              "schema_digest": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": true
+          },
+          "result": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "error": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "additionalProperties": true,
+        "description": "Compatibility envelope returned by legacy submit, poll, cancel, and legacy resume paths."
+      },
+      "LegacyOperationListItem": {
+        "type": "object",
+        "required": [
+          "name",
+          "done",
+          "metadata"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "done": {
+            "type": "boolean"
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "result": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "error": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "additionalProperties": true,
+        "description": "Lighter legacy list projection; it is not the full by-ID operation envelope."
+      },
+      "LegacyOperationsPage": {
+        "type": "object",
+        "required": [
+          "operations",
+          "next_page_token"
+        ],
+        "properties": {
+          "operations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LegacyOperationListItem"
+            }
+          },
+          "next_page_token": {
+            "type": "string",
+            "nullable": true,
+            "description": "ID of the last row on this page; use as page_token to continue."
+          }
+        },
+        "additionalProperties": false
+      },
+      "PublicOperationView": {
+        "type": "object",
+        "required": [
+          "id",
+          "tenantId",
+          "businessId",
+          "businessVersion",
+          "action",
+          "state",
+          "stateVersion",
+          "createdAt",
+          "updatedAt",
+          "deadlineAt",
+          "progress",
+          "links"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenantId": {
+            "type": "string"
+          },
+          "businessId": {
+            "type": "string"
+          },
+          "businessVersion": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "stateVersion": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "startedAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "completedAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "retryOf": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "errorCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "deadlineAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "replayOf": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "progress": {
+            "type": "object",
+            "required": [
+              "percent"
+            ],
+            "properties": {
+              "percent": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          },
+          "links": {
+            "type": "object",
+            "required": [
+              "self",
+              "result"
+            ],
+            "properties": {
+              "self": {
+                "type": "string"
+              },
+              "result": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": true
+      },
+      "PublicOperationsPage": {
+        "type": "object",
+        "required": [
+          "items",
+          "nextCursor",
+          "prevCursor",
+          "total",
+          "limit"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicOperationView"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true
+          },
+          "prevCursor": {
+            "type": "string",
+            "nullable": true
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "additionalProperties": false,
+        "description": "Canonical keyset page. Cursor population is bound to the authenticated API key."
+      },
+      "LegacyCancelRequest": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "description": "Optional compatibility field."
+          }
+        },
+        "additionalProperties": true,
+        "description": "Optional request body accepted by the legacy cancel route."
+      },
+      "LegacyResumeRequest": {
+        "type": "object",
+        "properties": {
+          "step": {
+            "type": "integer",
+            "description": "Legacy step index; applied when extracted_data is also present."
+          },
+          "extracted_data": {
+            "description": "Legacy extracted-data value paired with step."
+          }
+        },
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "waitId"
+              ]
+            },
+            {
+              "required": [
+                "input"
+              ]
+            },
+            {
+              "required": [
+                "expectedStateVersion"
+              ]
+            }
+          ]
+        },
+        "additionalProperties": true,
+        "description": "Legacy body. Both fields may be omitted; partial values are ignored by the compatibility adapter."
+      },
+      "ResumeOperationCasRequest": {
+        "type": "object",
+        "required": [
+          "waitId",
+          "input",
+          "expectedStateVersion"
+        ],
+        "properties": {
+          "waitId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "input": {},
+          "expectedStateVersion": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "step"
+              ]
+            },
+            {
+              "required": [
+                "extracted_data"
+              ]
+            }
+          ]
+        },
+        "additionalProperties": true,
+        "description": "Published CAS resume request; the wait and state version are checked against the operation owned by this API key."
+      },
+      "ResumeOperationAck": {
+        "type": "object",
+        "required": [
+          "operationId",
+          "state",
+          "stateVersion",
+          "replayed",
+          "taskId"
+        ],
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string"
+          },
+          "stateVersion": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "replayed": {
+            "type": "boolean"
+          },
+          "taskId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "additionalProperties": false
+      },
+      "LegacyResumeAck": {
+        "type": "object",
+        "required": [
+          "success",
+          "message"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "message": {
+            "type": "string",
+            "enum": [
+              "Resumed successfully"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "EncryptedOperationDownload": {
+        "type": "object",
+        "required": [
+          "schemaVersion",
+          "encrypted",
+          "delivery",
+          "mimeType"
+        ],
+        "properties": {
+          "schemaVersion": {
+            "type": "string",
+            "enum": [
+              "1"
+            ]
+          },
+          "encrypted": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "delivery": {
+            "$ref": "#/components/schemas/RecipientDeliveryEnvelope"
+          },
+          "mimeType": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Policy-encrypted operation output wrapper; unlike artifact download it has no artifactId."
+      },
+      "PublicApiError": {
+        "type": "object",
+        "description": "Error body varies by compatibility path; see each operation response description.",
+        "additionalProperties": true
+      },
+      "LegacyCoreMultipartFormFields": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "task": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "variant": {
+            "type": "string"
+          },
+          "discriminator": {
+            "type": "string"
+          },
+          "output_format": {
+            "type": "string"
+          },
+          "outputFormat": {
+            "type": "string"
+          },
+          "source_url": {
+            "type": "string"
+          },
+          "sourceUrl": {
+            "type": "string"
+          },
+          "file_urls": {
+            "type": "string",
+            "description": "Legacy JSON-array string of remote file references."
+          },
+          "fileUrls": {
+            "type": "string"
+          },
+          "webhook_url": {
+            "type": "string"
+          },
+          "webhookUrl": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string",
+            "format": "binary"
+          },
+          "source_file": {
+            "type": "string",
+            "format": "binary"
+          },
+          "target_file": {
+            "type": "string",
+            "format": "binary"
+          },
+          "files[]": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "binary"
+            }
+          }
+        },
+        "additionalProperties": true,
+        "description": "Known flat multipart fields. Action-specific input fields are also accepted and normalized by the legacy decoder."
+      },
+      "LegacyCoreMultipartRequest": {
+        "anyOf": [
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegacyCoreMultipartFormFields"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "mode"
+                ],
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "parse",
+                      "ocr",
+                      "digitize",
+                      "split"
+                    ]
+                  }
+                }
+              }
+            ],
+            "description": "ingest form variant through the mode discriminator."
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegacyCoreMultipartFormFields"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "variant"
+                ],
+                "properties": {
+                  "variant": {
+                    "type": "string",
+                    "enum": [
+                      "parse",
+                      "ocr",
+                      "digitize",
+                      "split"
+                    ]
+                  }
+                }
+              }
+            ],
+            "description": "ingest form variant through the variant discriminator."
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegacyCoreMultipartFormFields"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "discriminator"
+                ],
+                "properties": {
+                  "discriminator": {
+                    "type": "string",
+                    "enum": [
+                      "parse",
+                      "ocr",
+                      "digitize",
+                      "split"
+                    ]
+                  }
+                }
+              }
+            ],
+            "description": "ingest form variant through the discriminator discriminator."
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegacyCoreMultipartFormFields"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "invoice",
+                      "contract",
+                      "id-card",
+                      "receipt",
+                      "table",
+                      "custom"
+                    ]
+                  }
+                }
+              }
+            ],
+            "description": "extract form variant through the type discriminator."
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegacyCoreMultipartFormFields"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "variant"
+                ],
+                "properties": {
+                  "variant": {
+                    "type": "string",
+                    "enum": [
+                      "invoice",
+                      "contract",
+                      "id-card",
+                      "receipt",
+                      "table",
+                      "custom"
+                    ]
+                  }
+                }
+              }
+            ],
+            "description": "extract form variant through the variant discriminator."
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegacyCoreMultipartFormFields"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "discriminator"
+                ],
+                "properties": {
+                  "discriminator": {
+                    "type": "string",
+                    "enum": [
+                      "invoice",
+                      "contract",
+                      "id-card",
+                      "receipt",
+                      "table",
+                      "custom"
+                    ]
+                  }
+                }
+              }
+            ],
+            "description": "extract form variant through the discriminator discriminator."
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegacyCoreMultipartFormFields"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "task"
+                ],
+                "properties": {
+                  "task": {
+                    "type": "string",
+                    "enum": [
+                      "classify",
+                      "sentiment",
+                      "compliance",
+                      "fact-check",
+                      "quality",
+                      "risk",
+                      "summarize-eval"
+                    ]
+                  }
+                }
+              }
+            ],
+            "description": "analyze form variant through the task discriminator."
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegacyCoreMultipartFormFields"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "variant"
+                ],
+                "properties": {
+                  "variant": {
+                    "type": "string",
+                    "enum": [
+                      "classify",
+                      "sentiment",
+                      "compliance",
+                      "fact-check",
+                      "quality",
+                      "risk",
+                      "summarize-eval"
+                    ]
+                  }
+                }
+              }
+            ],
+            "description": "analyze form variant through the variant discriminator."
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegacyCoreMultipartFormFields"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "discriminator"
+                ],
+                "properties": {
+                  "discriminator": {
+                    "type": "string",
+                    "enum": [
+                      "classify",
+                      "sentiment",
+                      "compliance",
+                      "fact-check",
+                      "quality",
+                      "risk",
+                      "summarize-eval"
+                    ]
+                  }
+                }
+              }
+            ],
+            "description": "analyze form variant through the discriminator discriminator."
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegacyCoreMultipartFormFields"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "convert",
+                      "translate",
+                      "rewrite",
+                      "redact",
+                      "template"
+                    ]
+                  }
+                }
+              }
+            ],
+            "description": "transform form variant through the action discriminator."
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegacyCoreMultipartFormFields"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "variant"
+                ],
+                "properties": {
+                  "variant": {
+                    "type": "string",
+                    "enum": [
+                      "convert",
+                      "translate",
+                      "rewrite",
+                      "redact",
+                      "template"
+                    ]
+                  }
+                }
+              }
+            ],
+            "description": "transform form variant through the variant discriminator."
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegacyCoreMultipartFormFields"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "discriminator"
+                ],
+                "properties": {
+                  "discriminator": {
+                    "type": "string",
+                    "enum": [
+                      "convert",
+                      "translate",
+                      "rewrite",
+                      "redact",
+                      "template"
+                    ]
+                  }
+                }
+              }
+            ],
+            "description": "transform form variant through the discriminator discriminator."
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegacyCoreMultipartFormFields"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "task"
+                ],
+                "properties": {
+                  "task": {
+                    "type": "string",
+                    "enum": [
+                      "summary",
+                      "outline",
+                      "report",
+                      "email",
+                      "minutes",
+                      "qa"
+                    ]
+                  }
+                }
+              }
+            ],
+            "description": "generate form variant through the task discriminator."
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegacyCoreMultipartFormFields"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "variant"
+                ],
+                "properties": {
+                  "variant": {
+                    "type": "string",
+                    "enum": [
+                      "summary",
+                      "outline",
+                      "report",
+                      "email",
+                      "minutes",
+                      "qa"
+                    ]
+                  }
+                }
+              }
+            ],
+            "description": "generate form variant through the variant discriminator."
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegacyCoreMultipartFormFields"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "discriminator"
+                ],
+                "properties": {
+                  "discriminator": {
+                    "type": "string",
+                    "enum": [
+                      "summary",
+                      "outline",
+                      "report",
+                      "email",
+                      "minutes",
+                      "qa"
+                    ]
+                  }
+                }
+              }
+            ],
+            "description": "generate form variant through the discriminator discriminator."
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegacyCoreMultipartFormFields"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "mode"
+                ],
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "diff",
+                      "semantic",
+                      "version"
+                    ]
+                  }
+                }
+              }
+            ],
+            "description": "compare form variant through the mode discriminator."
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegacyCoreMultipartFormFields"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "variant"
+                ],
+                "properties": {
+                  "variant": {
+                    "type": "string",
+                    "enum": [
+                      "diff",
+                      "semantic",
+                      "version"
+                    ]
+                  }
+                }
+              }
+            ],
+            "description": "compare form variant through the variant discriminator."
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegacyCoreMultipartFormFields"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "discriminator"
+                ],
+                "properties": {
+                  "discriminator": {
+                    "type": "string",
+                    "enum": [
+                      "diff",
+                      "semantic",
+                      "version"
+                    ]
+                  }
+                }
+              }
+            ],
+            "description": "compare form variant through the discriminator discriminator."
+          }
+        ],
+        "description": "Multipart form body for the six core document aliases. The path action determines the required discriminator: ingest/compare use mode, extract uses type, analyze/generate use task, transform uses action. The compatibility variant and discriminator aliases are also supported."
       }
     }
   },
@@ -5340,11 +6326,11 @@
           "429": {
             "description": "Quota exceeded"
           },
-          "503": {
-            "description": "Required service/profile/encryption unavailable"
-          },
           "500": {
             "description": "Redacted internal failure"
+          },
+          "503": {
+            "description": "Required service/profile/encryption unavailable"
           }
         },
         "description": "Compatibility facade maps internally to registered business/action through shared admission and outbox. No HTTP redirect. Uploaded files are selected as files[], then source_file, target_file, file; empty uploads are ignored. Named workflows require at least one file; valid schema workflows can be fileless. Implementation and acceptance evidence: WORKFLOW-API-BACKWARD-COMPAT-2026-10-07.md; full runtime acceptance remains a separate gate.",
@@ -5504,14 +6490,228 @@
           "429": {
             "description": "Quota exceeded"
           },
-          "503": {
-            "description": "Required service/profile/encryption unavailable"
-          },
           "500": {
             "description": "Redacted internal failure"
+          },
+          "503": {
+            "description": "Required service/profile/encryption unavailable"
           }
         },
         "description": "Compatibility facade maps internally to registered business/action through shared admission and outbox. No HTTP redirect. Uploaded files are selected as files[], then source_file, target_file, file; empty uploads are ignored. Named workflows require at least one file; valid schema workflows can be fileless. Implementation and acceptance evidence: WORKFLOW-API-BACKWARD-COMPAT-2026-10-07.md; full runtime acceptance remains a separate gate.",
+        "servers": [
+          {
+            "url": "http://localhost:3000",
+            "description": "PM-M02 Public JSON ingress (Orchestrator 3000). Admin and runtime routes are rejected on this listener."
+          }
+        ],
+        "tags": [
+          "public"
+        ],
+        "x-api-family": "public"
+      }
+    },
+    "/api/v1/docs/{action}": {
+      "post": {
+        "summary": "Legacy multipart document action submission",
+        "operationId": "submitCoreDocumentAction",
+        "description": "Preserves the existing API-key client form flow. Accepts multipart form data, not JSON. Action-specific legacy form fields remain extensible; new clients may use the generic JSON business action route.",
+        "security": [
+          {
+            "ApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "action",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ingest",
+                "extract",
+                "analyze",
+                "transform",
+                "generate",
+                "compare"
+              ]
+            }
+          },
+          {
+            "name": "sync",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "description": "When true, wait for a bounded period and return the legacy envelope with HTTP 200, including done=false on timeout."
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "description": "Retry the same logical submit with the same key."
+          },
+          {
+            "name": "X-Correlation-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/LegacyCoreMultipartRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Legacy envelope for a sync wait or idempotent replay.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyOperationEnvelope"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "New asynchronous operation.",
+            "headers": {
+              "Operation-Location": {
+                "description": "Relative URL for polling the accepted operation.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyOperationEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed multipart body or invalid form fields.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The key or profile is not permitted for the action.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown action or referenced object.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency key conflicts with a different request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Upload or request size exceeds its configured limit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type must be multipart/form-data.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid action input.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Quota or admission limit reached.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required admission or provider service is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiError"
+                }
+              }
+            }
+          }
+        },
         "servers": [
           {
             "url": "http://localhost:3000",
@@ -5609,11 +6809,11 @@
           "description": "SubmissionSchema: sourceUrl optionally accepts HTTPS or s3://bucket/key?versionId=... (max 2048 characters). S3 source reads use the Orchestrator workload IAM identity, not caller credentials or presigned URLs. S3 artifact storage and trusted per-tenant DU_S3_SOURCE_RULES bucket/prefix/region/owner permissions are required. No source endpoint or role ARN override is accepted. HTTP 202 starts asynchronous ingestion."
         },
         "responses": {
-          "202": {
-            "description": "SubmitAck, replayed=false"
-          },
           "200": {
             "description": "SubmitAck replayed=true"
+          },
+          "202": {
+            "description": "SubmitAck, replayed=false"
           },
           "403": {
             "description": "PERMISSION_DENIED: S3 source bucket/prefix is not authorized for the authenticated tenant"
@@ -5824,30 +7024,123 @@
     },
     "/api/v1/operations/{id}": {
       "get": {
-        "summary": "Legacy result by ID, scoped to submitting API key.",
+        "summary": "Legacy operation poll by ID",
+        "operationId": "getPublicOperation",
+        "description": "Returns the legacy envelope for the submitting API key. Optional wait is bounded to 0–30 seconds; a wait timeout still returns HTTP 200 with done=false.",
         "security": [
           {
             "ApiKey": []
           }
         ],
-        "responses": {
-          "200": {
-            "description": "Legacy operation envelope (name, done, metadata, response/error)."
-          },
-          "404": {
-            "description": "Unknown or foreign operation"
-          }
-        },
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "wait",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 30
+            },
+            "description": "Maximum bounded wait in seconds."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Legacy operation envelope returned by the compatibility route.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyOperationEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown, deleted, or foreign-key operation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiError"
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "http://localhost:3000",
+            "description": "PM-M02 Public JSON ingress (Orchestrator 3000). Admin and runtime routes are rejected on this listener."
+          }
+        ],
+        "tags": [
+          "public"
+        ],
+        "x-api-family": "public"
+      },
+      "delete": {
+        "summary": "Soft-delete an operation owned by the API key",
+        "operationId": "deletePublicOperation",
+        "security": [
+          {
+            "ApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
             }
           }
         ],
+        "responses": {
+          "204": {
+            "description": "Operation soft-deleted; no response body."
+          },
+          "401": {
+            "description": "Missing or invalid API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown, already deleted, or foreign-key operation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiError"
+                }
+              }
+            }
+          }
+        },
         "servers": [
           {
             "url": "http://localhost:3000",
@@ -5862,27 +7155,704 @@
     },
     "/api/v1/operations/{id}/download": {
       "get": {
-        "summary": "Legacy result output download; API-key ownership and delivery policy apply.",
+        "summary": "Legacy operation output download",
+        "operationId": "downloadPublicOperation",
+        "description": "Requires exact tenant and API-key ownership. Delivery policy selects raw output bytes with the legacy MIME or an encrypted JSON wrapper; the encrypted operation wrapper does not include artifactId.",
         "security": [
           {
             "ApiKey": []
           }
         ],
-        "responses": {
-          "200": {
-            "description": "Output bytes or encrypted delivery envelope"
-          }
-        },
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": "Output bytes in plain mode or encrypted JSON in policy-encrypted mode.",
+            "headers": {
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Attachment filename from the operation source/output name."
+              }
+            },
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                },
+                "description": "Raw output bytes; response Content-Type is the legacy output MIME."
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncryptedOperationDownload"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown, foreign-key operation, or output unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Operation has not completed successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Output exceeds encrypted delivery limit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Encrypted delivery is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiError"
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "http://localhost:3000",
+            "description": "PM-M02 Public JSON ingress (Orchestrator 3000). Admin and runtime routes are rejected on this listener."
+          }
+        ],
+        "tags": [
+          "public"
+        ],
+        "x-api-family": "public"
+      }
+    },
+    "/api/v1/operations": {
+      "get": {
+        "summary": "Public operation list (legacy and canonical API-key query dialects)",
+        "operationId": "listPublicOperations",
+        "description": "Choose one dialect. Legacy uses filter/page_size/page_token and returns operations/next_page_token. Canonical uses limit/cursor and allow-listed filters and returns items/nextCursor/prevCursor/total/limit. Mixing dialects selects canonical parsing and rejects legacy parameters. Both are scoped to the authenticated tenant and exact API key; cross-key cursor replay is rejected.",
+        "security": [
+          {
+            "ApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "filter",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Legacy CSV filter, e.g. state=RUNNING,processor=extract. Unknown legacy filter keys are ignored."
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "maximum": 100
+            },
+            "description": "Legacy page size, capped at 100."
+          },
+          {
+            "name": "page_token",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Legacy continuation token: operation ID from next_page_token."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Opaque canonical keyset cursor bound to the API-key population and ordering."
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ALL",
+                "RUNNING",
+                "COMPLETED",
+                "FAILED",
+                "CANCELLED",
+                "TIMED_OUT"
+              ]
+            }
+          },
+          {
+            "name": "tenant",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "If supplied, must match the authenticated API-key tenant."
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "created_at:asc",
+                "created_at:desc",
+                "updated_at:asc",
+                "updated_at:desc",
+                "deadline_at:asc",
+                "deadline_at:desc"
+              ],
+              "default": "created_at:desc"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "business",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "apiKey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "profile",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "correlation",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "provider",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "model",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "usage",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "any",
+                "has-recorded-usage",
+                "no-recorded-usage"
+              ]
+            }
+          },
+          {
+            "name": "reservation",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "any",
+                "unknown"
+              ]
+            }
+          },
+          {
+            "name": "attention",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "any",
+                "waiting-input"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Legacy or canonical page, selected by query dialect.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/LegacyOperationsPage"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PublicOperationsPage"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid legacy state filter.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Canonical tenant filter does not match the key tenant.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid canonical filter or cursor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiError"
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "http://localhost:3000",
+            "description": "PM-M02 Public JSON ingress (Orchestrator 3000). Admin and runtime routes are rejected on this listener."
+          }
+        ],
+        "tags": [
+          "public"
+        ],
+        "x-api-family": "public"
+      }
+    },
+    "/api/v1/operations/{id}/cancel": {
+      "post": {
+        "summary": "Cancel a public operation",
+        "operationId": "cancelPublicOperation",
+        "description": "Preserves the legacy HTTP 200 operation-envelope response. Cancellation may remain requested while worker work is stopping; continue polling.",
+        "security": [
+          {
+            "ApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LegacyCancelRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Legacy operation envelope returned by the compatibility route.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyOperationEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown, deleted, or foreign-key operation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Operation is already terminal.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiError"
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "http://localhost:3000",
+            "description": "PM-M02 Public JSON ingress (Orchestrator 3000). Admin and runtime routes are rejected on this listener."
+          }
+        ],
+        "tags": [
+          "public"
+        ],
+        "x-api-family": "public"
+      }
+    },
+    "/api/v1/operations/{id}/resume": {
+      "post": {
+        "summary": "Resume a public operation waiting for human input",
+        "operationId": "resumePublicOperation",
+        "description": "Accepts either legacy {step,extracted_data} or published CAS {waitId,input,expectedStateVersion}; do not mix their fields. Both branches require exact tenant and API-key ownership. Replaying the same answered CAS wait returns 200; a stale or different-input CAS conflicts.",
+        "security": [
+          {
+            "ApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/LegacyResumeRequest"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ResumeOperationCasRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Legacy success or replayed CAS acknowledgement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/LegacyResumeAck"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ResumeOperationAck"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "New CAS resume acknowledgement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResumeOperationAck"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Legacy operation is not waiting for human input or its input failed validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown, deleted, or foreign-key operation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CAS state version is stale, the supplied input differs from an answered wait, or operation state conflicts.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Malformed or mixed resume body fields.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiError"
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "http://localhost:3000",
+            "description": "PM-M02 Public JSON ingress (Orchestrator 3000). Admin and runtime routes are rejected on this listener."
+          }
+        ],
+        "tags": [
+          "public"
+        ],
+        "x-api-family": "public"
+      }
+    },
+    "/api/v1/operations/{id}/result": {
+      "get": {
+        "summary": "Public operation result",
+        "operationId": "getPublicOperationResult",
+        "description": "Requires exact authenticated tenant and API-key ownership. The server tenant delivery policy selects plain ResultEnvelope or encrypted delivery; the caller cannot request plaintext.",
+        "security": [
+          {
+            "ApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ResultResponse selected by server policy.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown, deleted, or foreign-key operation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Operation has not succeeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiError"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Operation result expired.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Encrypted delivery is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiError"
+                }
+              }
+            }
+          }
+        },
         "servers": [
           {
             "url": "http://localhost:3000",
@@ -8672,14 +10642,14 @@
           "201": {
             "description": "redacted revision"
           },
-          "422": {
-            "description": "invalid input"
-          },
           "401": {
             "description": "missing or invalid service identity signature/expiry (GRANT_INVALID)"
           },
           "403": {
             "description": "wrong audience or missing required service scope (BINDING_DENIED)"
+          },
+          "422": {
+            "description": "invalid input"
           }
         },
         "x-source": "du-rework/orchestrator/services/connector/src/http/server.ts:222",
@@ -8709,14 +10679,14 @@
           "201": {
             "description": "pending revision"
           },
-          "422": {
-            "description": "invalid input"
-          },
           "401": {
             "description": "missing or invalid service identity signature/expiry (GRANT_INVALID)"
           },
           "403": {
             "description": "wrong audience or missing required service scope (BINDING_DENIED)"
+          },
+          "422": {
+            "description": "invalid input"
           }
         },
         "x-source": "du-rework/orchestrator/services/connector/src/http/server.ts:256",
@@ -8756,14 +10726,14 @@
           "201": {
             "description": "revision and replayed flag"
           },
-          "422": {
-            "description": "invalid input"
-          },
           "401": {
             "description": "missing or invalid service identity signature/expiry (GRANT_INVALID)"
           },
           "403": {
             "description": "wrong audience or missing required service scope (BINDING_DENIED)"
+          },
+          "422": {
+            "description": "invalid input"
           }
         },
         "x-source": "du-rework/orchestrator/services/connector/src/http/server.ts:284",
@@ -8803,17 +10773,17 @@
           "200": {
             "description": "activated"
           },
-          "409": {
-            "description": "CAS conflict"
-          },
-          "422": {
-            "description": "invalid input"
-          },
           "401": {
             "description": "missing or invalid service identity signature/expiry (GRANT_INVALID)"
           },
           "403": {
             "description": "wrong audience or missing required service scope (BINDING_DENIED)"
+          },
+          "409": {
+            "description": "CAS conflict"
+          },
+          "422": {
+            "description": "invalid input"
           }
         },
         "x-source": "du-rework/orchestrator/services/connector/src/http/server.ts:309",
@@ -8915,14 +10885,14 @@
           "200": {
             "description": "redacted revision"
           },
-          "404": {
-            "description": "no current revision"
-          },
           "401": {
             "description": "missing or invalid service identity signature/expiry (GRANT_INVALID)"
           },
           "403": {
             "description": "wrong audience or missing required service scope (BINDING_DENIED)"
+          },
+          "404": {
+            "description": "no current revision"
           }
         },
         "x-source": "du-rework/orchestrator/services/connector/src/http/server.ts:336",
@@ -8962,14 +10932,14 @@
           "200": {
             "description": "redacted revision"
           },
-          "404": {
-            "description": "revision absent"
-          },
           "401": {
             "description": "missing or invalid service identity signature/expiry (GRANT_INVALID)"
           },
           "403": {
             "description": "wrong audience or missing required service scope (BINDING_DENIED)"
+          },
+          "404": {
+            "description": "revision absent"
           }
         },
         "x-source": "du-rework/orchestrator/services/connector/src/http/server.ts:342",
@@ -9055,14 +11025,14 @@
           "200": {
             "description": "state/result"
           },
-          "404": {
-            "description": "inaccessible or absent"
-          },
           "401": {
             "description": "missing or invalid service identity signature/expiry (GRANT_INVALID)"
           },
           "403": {
             "description": "wrong audience or missing required service scope (BINDING_DENIED)"
+          },
+          "404": {
+            "description": "inaccessible or absent"
           }
         },
         "x-source": "du-rework/orchestrator/services/connector/src/http/server.ts:353",
@@ -9763,24 +11733,6 @@
           }
         ],
         "responses": {
-          "401": {
-            "description": "Missing Portal session"
-          },
-          "403": {
-            "description": "Tenant/RBAC/credential fence; mutations require platform admin and x-csrf-token"
-          },
-          "405": {
-            "description": "Method not allowed"
-          },
-          "422": {
-            "description": "Invalid JSON/schema; no offending secret value echoed"
-          },
-          "503": {
-            "description": "Admin upstream not configured/unavailable"
-          },
-          "404": {
-            "description": "Catalog upstream route absent in current snapshot; no metadata repository API is implemented"
-          },
           "200": {
             "description": "Contract projection if upstream is composed; not a claim of current upstream implementation",
             "content": {
@@ -9790,6 +11742,24 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Missing Portal session"
+          },
+          "403": {
+            "description": "Tenant/RBAC/credential fence; mutations require platform admin and x-csrf-token"
+          },
+          "404": {
+            "description": "Catalog upstream route absent in current snapshot; no metadata repository API is implemented"
+          },
+          "405": {
+            "description": "Method not allowed"
+          },
+          "422": {
+            "description": "Invalid JSON/schema; no offending secret value echoed"
+          },
+          "503": {
+            "description": "Admin upstream not configured/unavailable"
           }
         },
         "operationId": "portalSecretsGetSecrets",
@@ -10080,20 +12050,20 @@
           "403": {
             "description": "Tenant/RBAC/credential fence; mutations require platform admin and x-csrf-token"
           },
+          "404": {
+            "description": "Catalog upstream route absent in current snapshot; no metadata repository API is implemented"
+          },
           "405": {
             "description": "Method not allowed"
+          },
+          "413": {
+            "description": "Bounded BFF body exceeded"
           },
           "422": {
             "description": "Invalid JSON/schema; no offending secret value echoed"
           },
           "503": {
             "description": "Admin upstream not configured/unavailable"
-          },
-          "404": {
-            "description": "Catalog upstream route absent in current snapshot; no metadata repository API is implemented"
-          },
-          "413": {
-            "description": "Bounded BFF body exceeded"
           }
         },
         "operationId": "portalSecretsPostSecrets",
@@ -10203,20 +12173,20 @@
           "403": {
             "description": "Tenant/RBAC/credential fence; mutations require platform admin and x-csrf-token"
           },
+          "404": {
+            "description": "Catalog upstream route absent in current snapshot; no metadata repository API is implemented"
+          },
           "405": {
             "description": "Method not allowed"
+          },
+          "413": {
+            "description": "Bounded BFF body exceeded"
           },
           "422": {
             "description": "Invalid JSON/schema; no offending secret value echoed"
           },
           "503": {
             "description": "Admin upstream not configured/unavailable"
-          },
-          "404": {
-            "description": "Catalog upstream route absent in current snapshot; no metadata repository API is implemented"
-          },
-          "413": {
-            "description": "Bounded BFF body exceeded"
           }
         },
         "operationId": "portalSecretsPostRotate",
@@ -10307,20 +12277,20 @@
           "403": {
             "description": "Tenant/RBAC/credential fence; mutations require platform admin and x-csrf-token"
           },
+          "404": {
+            "description": "Catalog upstream route absent in current snapshot; no metadata repository API is implemented"
+          },
           "405": {
             "description": "Method not allowed"
+          },
+          "413": {
+            "description": "Bounded BFF body exceeded"
           },
           "422": {
             "description": "Invalid JSON/schema; no offending secret value echoed"
           },
           "503": {
             "description": "Admin upstream not configured/unavailable"
-          },
-          "404": {
-            "description": "Catalog upstream route absent in current snapshot; no metadata repository API is implemented"
-          },
-          "413": {
-            "description": "Bounded BFF body exceeded"
           }
         },
         "operationId": "portalSecretsPostDisable",
@@ -10380,20 +12350,20 @@
           "403": {
             "description": "Tenant/RBAC/credential fence; mutations require platform admin and x-csrf-token"
           },
+          "404": {
+            "description": "Catalog upstream route absent in current snapshot; no metadata repository API is implemented"
+          },
           "405": {
             "description": "Method not allowed"
+          },
+          "413": {
+            "description": "Bounded BFF body exceeded"
           },
           "422": {
             "description": "Invalid JSON/schema; no offending secret value echoed"
           },
           "503": {
             "description": "Admin upstream not configured/unavailable"
-          },
-          "404": {
-            "description": "Catalog upstream route absent in current snapshot; no metadata repository API is implemented"
-          },
-          "413": {
-            "description": "Bounded BFF body exceeded"
           }
         },
         "operationId": "portalSecretsPostTest",
@@ -10639,14 +12609,14 @@
           "403": {
             "description": "platform Admin or CSRF denied"
           },
+          "409": {
+            "description": "stale preview/revision, active target fence or idempotency conflict"
+          },
           "422": {
             "description": "unsupported/repeated query parameter or invalid DTO"
           },
           "503": {
             "description": "Admin JSON upstream unavailable"
-          },
-          "409": {
-            "description": "stale preview/revision, active target fence or idempotency conflict"
           }
         },
         "operationId": "portalComposePostAdminApiComposePreviews",
@@ -10822,14 +12792,14 @@
           "403": {
             "description": "platform Admin or CSRF denied"
           },
+          "409": {
+            "description": "stale preview/revision, active target fence or idempotency conflict"
+          },
           "422": {
             "description": "unsupported/repeated query parameter or invalid DTO"
           },
           "503": {
             "description": "Admin JSON upstream unavailable"
-          },
-          "409": {
-            "description": "stale preview/revision, active target fence or idempotency conflict"
           }
         },
         "operationId": "portalComposePostAdminApiComposeJobs",
@@ -10871,14 +12841,14 @@
           "403": {
             "description": "platform Admin or CSRF denied"
           },
+          "404": {
+            "description": "job not found"
+          },
           "422": {
             "description": "unsupported/repeated query parameter or invalid DTO"
           },
           "503": {
             "description": "Admin JSON upstream unavailable"
-          },
-          "404": {
-            "description": "job not found"
           }
         },
         "operationId": "portalComposeGetAdminApiComposeJobsById",
@@ -10910,7 +12880,6 @@
   "x-absent": [
     "GET /api/v1/businesses",
     "GET schema",
-    "POST /docs/{action}",
     "POST /api/v1/artifacts",
     "GET /api/v1/artifacts/{id} metadata",
     "admin /api/internal/v1 base + profiles/api-keys/connectors-CRUD/replay",

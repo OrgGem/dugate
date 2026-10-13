@@ -1,4 +1,5 @@
 import * as http from 'node:http';
+import path from 'node:path';
 import type { Db } from '../src/db/db';
 import { runMaintenanceHostRunner } from '../src/maintenance-host-runner';
 
@@ -183,7 +184,7 @@ describe('ORV15 independent standalone Host composition boundary', () => {
     const serverListen = jest.spyOn(http.Server.prototype, 'listen');
     const hostEnv = {
       DU_MAINTENANCE_EXECUTION_ROLE: 'host', DU_MAINTENANCE_HOST_IDENTITY: 'host-runner-pinned',
-      DU_MAINTENANCE_BACKUP_MANIFEST_PATH: '/synthetic/maintenance.json',
+      DU_MAINTENANCE_BACKUP_MANIFEST_PATH: path.resolve('synthetic-maintenance.json'),
       DU_MAINTENANCE_BACKUP_MANIFEST_SHA256: 'f'.repeat(64),
     };
     const context = {

@@ -123,6 +123,8 @@ export function listRoute(options: {
   headers?: Record<string, string>;
   db?: ListDbFixture;
   config?: Record<string, unknown>;
+  /** Public API-key compatibility leg. Admin list tests stay on the internal listener. */
+  audience?: 'public' | 'internal';
 }): { ctx: RouteContext; calls: { sql: string; params: unknown[] }[] } {
   const calls: { sql: string; params: unknown[] }[] = [];
   const fixture = options.db ?? {};
@@ -142,9 +144,11 @@ export function listRoute(options: {
   };
   // Only the fields this route reads are wired; the cast keeps the fixture
   // from having to fabricate 20 unrelated services.
+  const audience = options.audience ?? 'internal';
   const ctx = {
     method: 'GET',
-    pathname: '/api/v1/operations',
+    pathname: audience === 'public' ? '/api/v1/operations' : '/api/internal/operations',
+    ingressAudience: audience,
     searchParams: new URLSearchParams(options.search),
     headers: options.headers ?? {},
     config: {

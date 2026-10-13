@@ -12,6 +12,7 @@ import {
   getCanonicalNavItems,
 } from '../src/app/admin/p6-01-shell-fixtures';
 import { dispatchShellRequest, matchShellRoute } from '../src/app/admin/shell-router';
+import { handleAuditGet } from '../src/app/admin/section-dispatch';
 import { signCookie } from '../src/app/admin/shell-auth';
 import { AUDIT_NAV_PATH, renderAuditNavTab } from '../src/app/admin/shell-render';
 import type { AdminCookieClaims, AdminShellRequest } from '../src/app/admin/shell-types';
@@ -166,7 +167,7 @@ describe('W-ADM-UX-03 audit route: query forwarding + pane', () => {
   it('renders the pane HTML from the fetcher result', async () => {
     const stub = stubFetcher();
     const out = dispatchShellRequest(
-      get({ role: 'operator' }),
+      get({ role: 'admin' }),
       configWith({ sectionFetchers: { audit: stub.fetcher } }),
     );
     const html = await out.response.deferredSectionExtras?.();
@@ -283,18 +284,23 @@ describe('W-ADM-UX-05 audit route: tenant scoping and authz edges', () => {
     expect(Object.prototype.hasOwnProperty.call(i, 'tenant_id')).toBe(false);
   });
 
-  it('the pane cannot widen its own scope: the token alone decides the tenant', async () => {
-    // The shell has no tenant parameter by design. Tenant scope is the API
-    // route job (authorizeAuditTenantRead), so a crafted URL cannot redirect
-    // the pane at another tenant ledger.
+  it('the pane cannot widen its own scope: the validated session decides the tenant', async () => {
     const s = spy();
-    const out = dispatchShellRequest(
-      get({ role: 'operator', query: { tenantId: '11111111-1111-4111-8111-111111111111' } }),
-      configWith({ sectionFetchers: { audit: s.fetcher } }),
+    const tenantId = '22222222-2222-4222-8222-222222222222';
+    const out = handleAuditGet(
+      'operator',
+      get({ query: { tenantId: '11111111-1111-4111-8111-111111111111' } }),
+      { iss: 'du-admin-shell', role: 'operator', iat: NOW, exp: NOW + 60_000, tenantId },
+      configWith({
+        jsonBaseUrl: 'http://orchestrator.test',
+        tenantAdminTokens: { 'tenant-token': tenantId },
+        sectionFetchers: { audit: s.fetcher },
+      }),
     );
-    await out.response.deferredSectionExtras?.();
-    expect(out.response.status).toBe(200);
-    expect(Object.keys(s.calls[0] as object)).not.toContain('tenantId');
+    await out.deferredSectionExtras?.();
+    expect(out.status).toBe(200);
+    expect((s.calls[0] as unknown as { tenantId?: string }).tenantId).toBe(tenantId);
+    expect(Object.keys(s.calls[0] as object)).not.toContain('tenant_id');
   });
 
   it('a cookie signed with an unknown role is refused 401, not served', () => {

@@ -28,6 +28,9 @@ class RetirementDb implements SqlClient {
     parameters: readonly unknown[] = [],
   ): Promise<SqlResult<Row>> {
     if (text.includes('pg_advisory_xact_lock')) return { rows: [] };
+    if (text.includes('FROM connector_backup_effect_gate')) {
+      return { rows: [{ fence_id: 'backup-gate-test', fence_revision: 1, state: 'OPEN' } as unknown as Row] };
+    }
     if (text.includes('SELECT tenant_id FROM connector_parity_chains')) {
       return { rows: this.owner ? [{ tenant_id: this.owner } as unknown as Row] : [] };
     }
@@ -70,6 +73,38 @@ class RetirementDb implements SqlClient {
 }
 
 describe('ORV14 tenant-owned typed Connector retirement', () => {
+  it('reports whether the tenant connector ID has a typed chain, including non-active revisions', async () => {
+    let called: unknown;
+    const server = createConnectorServer({
+      management: {} as never,
+      parityManagement: {
+        hasTypedChain: async (tenantId: string, connectorId: string) => {
+          called = { tenantId, connectorId };
+          return true;
+        },
+      } as never,
+      runtime: {} as never,
+      capabilities: () => ({}),
+      ready: async () => true,
+      identityVerifier: {
+        verify: async () => ({ subject: 'owner-test', audience: 'connector', scopes: ['connector:management'] }),
+      },
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('Connector test server did not bind');
+    try {
+      const response = await fetch(`http://127.0.0.1:${address.port}/internal/admin/connector-revisions/${CONNECTOR}/chain?tenantId=${TENANT}`, {
+        headers: { authorization: 'Bearer owner-test' },
+      });
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({ hasTypedChain: true });
+      expect(called).toEqual({ tenantId: TENANT, connectorId: CONNECTOR });
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    }
+  });
+
   it('serves the scoped typed retirement route with strict request and acknowledgement DTOs', async () => {
     let called: unknown;
     let scopes = ['connector:management'];

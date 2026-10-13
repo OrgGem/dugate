@@ -131,6 +131,8 @@ export const ConnectorRecipeSchema = z.object({
   adapter: z.enum(['json-http', 'multipart-http', 'gemini', 'openai-compatible']),
   method: z.enum(['POST', 'PUT']),
   endpointUrl: z.string().url().max(2048),
+  /** Model used when an invocation does not supply an explicit model option. */
+  defaultModel: z.string().trim().min(1).max(256).optional(),
   auth: ConnectorRecipeAuthSchema,
   headers: z.array(ConnectorRecipeHeaderSchema).max(64),
   request: z.object({
@@ -155,7 +157,7 @@ export const ConnectorRecipeSchema = z.object({
   timeoutMs: z.number().int().min(100).max(60_000),
   responseBytes: z.number().int().min(1_024).max(2_000_000),
 }).strict().superRefine((recipe, ctx) => {
-  const secretHeaders = new Set(['authorization', 'cookie', 'set-cookie', 'x-api-key', 'api-key']);
+  const secretHeaders = new Set(['authorization', 'cookie', 'set-cookie', 'x-api-key', 'api-key', 'x-goog-api-key']);
   recipe.headers.forEach((header, index) => {
     if (secretHeaders.has(header.name.toLowerCase())) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['headers', index, 'name'], message: 'secret-bearing headers must use a credential slot' });
@@ -192,6 +194,13 @@ export const ConnectorRecipeSchema = z.object({
   const endpoint = new URL(recipe.endpointUrl);
   if (!['http:', 'https:'].includes(endpoint.protocol) || endpoint.username || endpoint.password || endpoint.hash) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['endpointUrl'], message: 'endpoint URL must be an http(s) URL without userinfo or fragment' });
+  }
+  const modelPlaceholders = recipe.endpointUrl.match(/\{[^{}]*\}/g) ?? [];
+  if (modelPlaceholders.length > 0) {
+    const path = recipe.endpointUrl.match(/^[A-Za-z][A-Za-z0-9+.-]*:\/\/[^/?#]+([^?#]*)/)?.[1] ?? '';
+    if (recipe.adapter !== 'gemini' || modelPlaceholders.length !== 1 || modelPlaceholders[0] !== '{model}' || !path.includes('{model}')) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['endpointUrl'], message: 'only one {model} placeholder in a Gemini endpoint path is supported' });
+    }
   }
 });
 export type ConnectorRecipe = z.infer<typeof ConnectorRecipeSchema>;

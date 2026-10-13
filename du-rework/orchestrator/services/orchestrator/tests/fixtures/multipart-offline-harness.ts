@@ -183,9 +183,9 @@ class OfflineMultipartDb {
       if (sql.includes("'INPUT'")) {
         // Public-branch insert: purpose is a SQL literal, operation_id/task_id
         // are absent (NULL), and the replay key is (tenant, token) with no task.
-        const [id, tenantId, fileName, mimeType, sizeBytes, , storageKey,
+        const [id, tenantId, fileName, mimeType, sizeBytes, , storageKey, ,
           uploadToken, uploadId, partSizeBytes, partCount, expiresAt] = args as [
-          string, string, string | null, string, number, string, string,
+          string, string, string | null, string, number, string, string, string,
           string, string, number, number, Date,
         ];
         const replayKey = tenantId + ':' + uploadToken;
@@ -203,10 +203,10 @@ class OfflineMultipartDb {
         });
         return this.result([{ id: String(id) }], 'INSERT');
       }
-      const [id, tenantId, operationId, taskId, purpose, fileName, mimeType, sizeBytes, , storageKey,
+      const [id, tenantId, operationId, taskId, purpose, fileName, mimeType, sizeBytes, , storageKey, ,
         uploadToken, uploadId, partSizeBytes, partCount, expiresAt] = args as [
         string, string, string, string, string, string | null, string, number, string, string,
-        string, string, number, number, Date,
+        string, string, string, number, number, Date,
       ];
       const replayKey = taskId + ':' + uploadToken;
       const clash = [...this.artifacts.values()].some((row) => row.taskId + ':' + row.uploadToken === replayKey);

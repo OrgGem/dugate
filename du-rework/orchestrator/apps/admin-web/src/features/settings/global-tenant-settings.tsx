@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertBanner } from '@/components/ui/state-panel';
+import { Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TablePagination, TableRow } from '@/components/ui/table';
 import {
   createAdminApiClient,
   type AdminApiResult,
@@ -80,19 +81,40 @@ function RevisionHistory<T extends { revision: number; state: string; createdAt:
   onRollback: (revision: number) => void;
   disabled: boolean;
 }) {
+  const pageSize = 8;
+  const [page, setPage] = useState(0);
+  const pageCount = Math.max(1, Math.ceil(items.length / pageSize));
+  const visibleItems = items.slice(page * pageSize, (page + 1) * pageSize);
+  const rangeStart = items.length === 0 ? 0 : page * pageSize + 1;
+  const rangeEnd = Math.min(items.length, (page + 1) * pageSize);
+  const historyStamp = items.map((item) => `${item.revision}:${item.state}:${item.createdAt}`).join('|');
+
+  useEffect(() => {
+    setPage(0);
+  }, [historyStamp]);
+  useEffect(() => {
+    if (page >= pageCount) setPage(Math.max(0, pageCount - 1));
+  }, [page, pageCount]);
+
   return <div className='space-y-2'>
     <h3 className='font-semibold'>Revision history</h3>
-    {items.length === 0 ? <p className='text-sm'>No saved revisions yet.</p> : <ul className='space-y-2'>
-      {items.map((item) => <li key={item.revision} className='flex min-w-0 flex-col gap-2 rounded border p-3 sm:flex-row sm:items-center sm:justify-between'>
-        <div className='min-w-0'>
-          <div className='flex flex-wrap items-center gap-2'><strong>Revision {item.revision}</strong><Badge variant={item.revision === active ? 'success' : item.state === 'DRAFT' ? 'warning' : 'neutral'}>{item.revision === active ? 'CURRENT' : item.state}</Badge></div>
-          <p className='break-all text-xs'>Created {new Date(item.createdAt).toLocaleString()} · {item.actor} · {item.digest}</p>
-        </div>
-        {(item.state === 'PUBLISHED' || item.state === 'SUPERSEDED') && item.revision !== active
-          ? <Button type='button' variant='outline' disabled={disabled} onClick={() => onRollback(item.revision)}>Review rollback</Button>
-          : null}
-      </li>)}
-    </ul>}
+    {items.length === 0 ? <p className='text-sm'>No saved revisions yet.</p> : <>
+      <TableContainer maxHeight={320} aria-label='Settings revision history'>
+        <Table aria-label='Settings revisions' density='compact'>
+          <TableHeader sticky><TableRow><TableHead>Revision</TableHead><TableHead>State</TableHead><TableHead>Created by</TableHead><TableHead>Digest</TableHead><TableHead>Action</TableHead></TableRow></TableHeader>
+          <TableBody>{visibleItems.map((item) => <TableRow key={item.revision}>
+            <TableCell className='whitespace-nowrap font-medium'>Revision {item.revision}{item.revision === active ? ' · current' : ''}</TableCell>
+            <TableCell><Badge variant={item.revision === active ? 'success' : item.state === 'DRAFT' ? 'warning' : 'neutral'}>{item.revision === active ? 'CURRENT' : item.state}</Badge></TableCell>
+            <TableCell className='min-w-40 break-all text-xs'>{new Date(item.createdAt).toLocaleString()} · {item.actor}</TableCell>
+            <TableCell className='max-w-64 break-all font-mono text-xs'>{item.digest}</TableCell>
+            <TableCell>{(item.state === 'PUBLISHED' || item.state === 'SUPERSEDED') && item.revision !== active
+              ? <Button type='button' variant='outline' size='sm' disabled={disabled} onClick={() => onRollback(item.revision)}>Review rollback</Button>
+              : '—'}</TableCell>
+          </TableRow>)}</TableBody>
+        </Table>
+      </TableContainer>
+      <TablePagination hasPreviousPage={page > 0} hasNextPage={page + 1 < pageCount} onPreviousPage={() => setPage((current) => Math.max(0, current - 1))} onNextPage={() => setPage((current) => Math.min(pageCount - 1, current + 1))} status={`Showing ${rangeStart}–${rangeEnd} of ${items.length} loaded revisions. Page ${page + 1} of ${pageCount}.`} ariaLabel='Settings revision pagination' />
+    </>}
   </div>;
 }
 
@@ -458,11 +480,11 @@ export function TenantAiSettingsPanel({
             <label className='block text-sm md:col-span-2'>Test files (up to four)<input className='mt-1 block w-full min-w-0 rounded border p-2' type='file' multiple disabled={busy || Boolean(testUnknown)} onChange={(event) => { const files = Array.from(event.target.files ?? []).slice(0, 4); setTestFiles(files); setError(files.length < (event.target.files?.length ?? 0) ? 'The test accepts up to four files.' : null); }} /><span className='mt-1 block text-xs'>Files are uploaded through the tenant artifact route under the selected key; artifact IDs are never typed or pasted.</span></label>
             <fieldset disabled={busy || Boolean(testUnknown)} className='space-y-2 rounded border p-3 md:col-span-2'><legend className='px-1 text-sm font-medium'>Typed test parameters</legend>
               <p className='text-xs'>Optional action parameters are entered as simple values; credential, authorization and arbitrary URL fields are rejected. The provider test still uses the selected Profile and request admission checks.</p>
-              {testParameters.map((parameter, index) => <div key={`parameter-${index}`} className='grid min-w-0 grid-cols-1 items-end gap-2 sm:grid-cols-[minmax(8rem,1fr)_8rem_minmax(8rem,2fr)_auto]'>
+              {testParameters.map((parameter, index) => <div key={`parameter-${index}`} className='grid min-w-0 grid-cols-1 items-start gap-2 sm:grid-cols-[minmax(8rem,1fr)_8rem_minmax(8rem,2fr)_auto]'>
                 <label className='block min-w-0 text-xs'>Name<input className='mt-1 block w-full min-w-0 rounded border p-2 text-sm' maxLength={128} value={parameter.name} onChange={(event) => setTestParameters((rows) => rows.map((row, position) => position === index ? { ...row, name: event.target.value } : row))} /></label>
                 <label className='block text-xs'>Type<select className='mt-1 block w-full rounded border p-2 text-sm' value={parameter.kind} onChange={(event) => setTestParameters((rows) => rows.map((row, position) => position === index ? { ...row, kind: event.target.value as AiTestParameter['kind'], value: event.target.value === 'boolean' ? 'false' : '' } : row))}><option value='string'>Text</option><option value='number'>Number</option><option value='boolean'>Boolean</option></select></label>
                 <label className='block min-w-0 text-xs'>Value{parameter.kind === 'boolean' ? <select className='mt-1 block w-full min-w-0 rounded border p-2 text-sm' value={parameter.value} onChange={(event) => setTestParameters((rows) => rows.map((row, position) => position === index ? { ...row, value: event.target.value } : row))}><option value='true'>True</option><option value='false'>False</option></select> : <input className='mt-1 block w-full min-w-0 rounded border p-2 text-sm' type={parameter.kind === 'number' ? 'number' : 'text'} value={parameter.value} maxLength={8192} onChange={(event) => setTestParameters((rows) => rows.map((row, position) => position === index ? { ...row, value: event.target.value } : row))} />}</label>
-                <Button type='button' variant='outline' aria-label={`Remove test parameter ${index + 1}`} onClick={() => setTestParameters((rows) => rows.filter((_, position) => position !== index))}>Remove</Button>
+                <div className='flex items-start sm:pt-6'><Button type='button' variant='outline' aria-label={`Remove test parameter ${index + 1}`} onClick={() => setTestParameters((rows) => rows.filter((_, position) => position !== index))}>Remove</Button></div>
               </div>)}
               <Button type='button' variant='outline' disabled={testParameters.length >= 16} onClick={() => setTestParameters((rows) => [...rows, { name: '', kind: 'string', value: '' }])}>Add parameter</Button>
             </fieldset>
@@ -518,7 +540,7 @@ function PromptSettingsEditor({ read, value, dirty, busy, canWrite, issues, diff
   const draft = read.prompts.draft;
   const active = activeRevision(read.prompts.history, read.prompts.activeRevision);
   return <section className='space-y-4 border-t pt-4' aria-labelledby='tenant-prompt-defaults-heading'>
-    <div className='flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between'><div><h2 id='tenant-prompt-defaults-heading' className='text-lg font-semibold'>Prompt defaults</h2><p className='text-sm'>Five separate tenant defaults. Presets change this unsaved form only. Explicit Profile and Code overrides keep their documented precedence.</p></div>
+    <div className='flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between'><div><h2 id='tenant-prompt-defaults-heading' className='text-lg font-semibold'>Prompt defaults</h2><p className='text-sm'>Five separate tenant defaults. Presets change this unsaved form only. Explicit Profile and Code overrides keep their documented precedence.</p></div>
       <label className='block text-sm'>Apply preset to draft<select className='mt-1 block w-full min-w-0 rounded border p-2 sm:w-52' defaultValue='' disabled={busy} onChange={(event) => { if (event.target.value === 'en' || event.target.value === 'vi') onPreset(event.target.value); event.currentTarget.value = ''; }}><option value=''>Choose English or Vietnamese</option><option value='en'>English</option><option value='vi'>Tiếng Việt</option></select></label>
     </div>
     <p className='text-xs'>Required placeholders: compare uses <code>{'{file1}'}</code> and <code>{'{file2}'}</code>; generate uses <code>{'{user_prompt}'}</code> and <code>{'{input_content}'}</code>. Image, PDF and DOCX slots have no required template variables.</p>
@@ -526,7 +548,7 @@ function PromptSettingsEditor({ read, value, dirty, busy, canWrite, issues, diff
       {(['image', 'pdf', 'docx', 'compare', 'generate'] as const).map((key) => <label key={key} className='block min-w-0 text-sm font-medium'>{({ image: 'Image processing', pdf: 'PDF conversion', docx: 'DOCX conversion', compare: 'Document comparison', generate: 'Document generation' })[key]}<textarea className='mt-1 block min-h-40 w-full min-w-0 rounded border p-2 font-mono text-xs leading-5' maxLength={32_768} value={value[key]} onChange={(event) => onChange(key, event.target.value)} disabled={busy || !canWrite} /></label>)}
     </div>
     {issues.length > 0 && <AlertBanner variant='error' title='Prompt draft needs correction'><ul className='list-disc pl-5'>{issues.map((issue) => <li key={issue}>{issue}</li>)}</ul></AlertBanner>}
-    {diff.length > 0 && <details><summary className='cursor-pointer text-sm font-medium'>Review prompt diff against active revision ({diff.length} slots)</summary><div className='mt-2 space-y-3'>{diff.map((item) => <div key={item.name} className='grid min-w-0 grid-cols-1 gap-2 lg:grid-cols-2'><h3 className='font-medium lg:col-span-2'>{item.name}</h3><pre className='max-h-64 overflow-auto whitespace-pre-wrap break-words rounded bg-muted p-2 text-xs'>{item.before}</pre><pre className='max-h-64 overflow-auto whitespace-pre-wrap break-words rounded bg-muted p-2 text-xs'>{item.after}</pre></div>)}</div></details>}
+    {diff.length > 0 && <details><summary className='cursor-pointer text-sm font-medium'>Review prompt diff against active revision ({diff.length} slots)</summary><div className='mt-2 space-y-3'>{diff.map((item) => <div key={item.name} className='grid min-w-0 grid-cols-1 gap-2 lg:grid-cols-2'><h3 className='font-medium lg:col-span-2'>{item.name}</h3><pre className='max-h-64 max-w-full overflow-auto whitespace-pre-wrap break-all rounded bg-muted p-2 text-xs'>{item.before}</pre><pre className='max-h-64 max-w-full overflow-auto whitespace-pre-wrap break-all rounded bg-muted p-2 text-xs'>{item.after}</pre></div>)}</div></details>}
     <div className='flex flex-wrap gap-2'><Button type='button' disabled={!canWrite || !dirty || issues.length > 0} onClick={onSave}>Save prompt draft</Button><Button type='button' variant='outline' disabled={busy || !dirty} onClick={onDiscard}>Discard local prompt edits</Button><Button type='button' disabled={!canWrite || !draft || issues.length > 0 || draft.state === 'PUBLISHED' || draft.state === 'SUPERSEDED'} onClick={onPublish}>Publish prompt draft</Button></div>
     {dirty && <p role='status' className='text-sm'>Unsaved prompt changes are held only in this page until saved as a revision.</p>}
     <RevisionHistory items={read.prompts.history} active={read.prompts.activeRevision} disabled={!canWrite} onRollback={onRollback} />

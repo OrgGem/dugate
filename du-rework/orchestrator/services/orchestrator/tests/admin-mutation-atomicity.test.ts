@@ -169,8 +169,20 @@ describe('R3-01 auditedMutation: one transaction, or nothing', () => {
 });
 
 describe('R3-01 registry.activateVersion/deactivateVersion join the route transaction', () => {
-  const enabledRow = (sql: string) =>
-    sql.includes('SELECT status, is_active') ? [{ status: 'ENABLED', is_active: false }] : [];
+  const enabledRow = (sql: string) => {
+    if (sql.startsWith('SELECT enabled,activation_revision,submissions_paused,pre_drain_version')) {
+      return [{ enabled: true, activation_revision: 1, submissions_paused: false, pre_drain_version: null }];
+    }
+    if (sql.includes('SELECT version,status,is_active')) {
+      return [{ version: '1.0.0', status: 'ENABLED', is_active: false }];
+    }
+    if (sql.includes('SELECT status FROM business_versions')) return [{ status: 'ENABLED' }];
+    if (sql.includes('UPDATE business_catalog') && sql.includes('RETURNING activation_revision')) {
+      return [{ activation_revision: 2 }];
+    }
+    if (sql.includes('SELECT EXISTS')) return [{ found: false }];
+    return [];
+  };
 
   it('activate + audit atomic on the caller client; no nested BEGIN', async () => {
     const f = makeFake({ rows: enabledRow });
@@ -179,12 +191,12 @@ describe('R3-01 registry.activateVersion/deactivateVersion join the route transa
     const result = await auditedMutation(
       f.db,
       audit,
-      (client) => registry.activateVersion('biz', '1.0.0', client),
+      (client) => registry.activateVersion('biz', '1.0.0', 1, client),
       (r) => auditInput({ action: 'business.activate', resource: `business:${r.businessId}@${r.version}`, severity: 'info' })
     );
     expect(result).toMatchObject({ businessId: 'biz', version: '1.0.0', replayed: false });
     expect(f.txCount()).toBe(1); // only auditedMutation's tx — registry used the client
-    expect(f.committed.some((c) => /is_active = true/.test(c.sql))).toBe(true);
+    expect(f.committed.some((c) => /is_active\s*=\s*true/.test(c.sql))).toBe(true);
     expect(f.committed.at(-1)!.sql).toMatch(/INSERT INTO admin_audit_events/);
   });
 
@@ -199,7 +211,7 @@ describe('R3-01 registry.activateVersion/deactivateVersion join the route transa
       auditedMutation(
         f.db,
         audit,
-        (client) => registry.activateVersion('biz', '1.0.0', client),
+        (client) => registry.activateVersion('biz', '1.0.0', 1, client),
         () => auditInput({ action: 'business.activate' })
       )
     ).rejects.toThrow(/injected failure/);
@@ -210,21 +222,30 @@ describe('R3-01 registry.activateVersion/deactivateVersion join the route transa
   it('standalone call (no client) still runs in its own tx', async () => {
     const f = makeFake({ rows: enabledRow });
     const registry = createRegistryService(f.db);
-    await registry.activateVersion('biz', '1.0.0');
+    await registry.activateVersion('biz', '1.0.0', 1);
     expect(f.txCount()).toBe(1);
-    expect(f.committed.some((c) => /is_active = true/.test(c.sql))).toBe(true);
+    expect(f.committed.some((c) => /is_active\s*=\s*true/.test(c.sql))).toBe(true);
   });
 
   it('drain + audit atomic', async () => {
     const f = makeFake({
-      rows: (sql) => (sql.includes('SELECT status, is_active') ? [{ status: 'ENABLED', is_active: true }] : []),
+      rows: (sql) => {
+        const common = enabledRow(sql);
+        if (sql.includes('SELECT enabled,activation_revision,submissions_paused,pre_drain_version')) {
+          return [{ enabled: true, activation_revision: 1, submissions_paused: false, pre_drain_version: null }];
+        }
+        if (sql.includes('SELECT version,status,is_active')) {
+          return [{ version: '1.0.0', status: 'ENABLED', is_active: true }];
+        }
+        return common;
+      },
     });
     const registry = createRegistryService(f.db);
     const audit = createAuditService(f.db);
     const result = await auditedMutation(
       f.db,
       audit,
-      (client) => registry.deactivateVersion('biz', '1.0.0', client),
+      (client) => registry.deactivateVersion('biz', '1.0.0', 1, client),
       () => auditInput({ action: 'business.drain', severity: 'warning' })
     );
     expect(result).toMatchObject({ active: false, replayed: false });
@@ -235,14 +256,25 @@ describe('R3-01 registry.activateVersion/deactivateVersion join the route transa
 describe('R3-01 profiles.createRevision joins the route transaction', () => {
   const rows = (sql: string) =>
     sql.includes('FROM api_keys')
-      ? [{ id: 'key-9', tenant_id: 'ten-9' }]
+      ? [{ id: 'key-9', tenant_id: 'ten-9', hash: 'hash-x', prefix: 'test', status: 'ACTIVE' }]
       : sql.includes('max(revision)')
         ? [{ m: 2 }]
         : [];
 
+  const connectorManagement = {
+    getRecipeRevision: async () => undefined,
+    hasRecipeChain: async () => false,
+    getRevision: async (connectorId: string, revision: number) => ({
+      connectorId,
+      revision,
+      state: 'ACTIVE',
+      tenantId: 'ten-9',
+    }),
+  } as never;
+
   it('binding INSERT + audit INSERT commit together, audit carries the tenant', async () => {
     const f = makeFake({ rows });
-    const profiles = createProfileService(f.db);
+    const profiles = createProfileService(f.db, { connectorManagement });
     const audit = createAuditService(f.db);
     const result = await auditedMutation(
       f.db,
@@ -281,7 +313,7 @@ describe('R3-01 profiles.createRevision joins the route transaction', () => {
       rows,
       failOn: (sql) => /INSERT INTO admin_audit_events/.test(sql),
     });
-    const profiles = createProfileService(f.db);
+    const profiles = createProfileService(f.db, { connectorManagement });
     const audit = createAuditService(f.db);
     await expect(
       auditedMutation(
@@ -307,7 +339,7 @@ describe('R3-01 profiles.createRevision joins the route transaction', () => {
 
   it("standalone createRevision is transactional too (was untx'ed pre-fix)", async () => {
     const f = makeFake({ rows });
-    const profiles = createProfileService(f.db);
+    const profiles = createProfileService(f.db, { connectorManagement });
     await profiles.createRevision({
       apiKeyHash: 'hash-x',
       businessId: 'biz',

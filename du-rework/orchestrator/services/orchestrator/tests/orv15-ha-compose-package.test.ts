@@ -8,6 +8,32 @@ import { absoluteGrantUrl } from '../src/server';
 
 const repositoryRoot = path.resolve(__dirname, '../../../..');
 const composeRoot = path.join(repositoryRoot, 'compose');
+const hostPath = (...parts: string[]): string => path.resolve(os.tmpdir(), 'orv15-host-paths', ...parts);
+const gitBash = path.join(process.env['ProgramFiles'] ?? 'C:\\Program Files', 'Git', 'bin', 'bash.exe');
+
+function posixPath(value: string): string {
+  const normalized = path.resolve(value).replace(/\\/g, '/');
+  return normalized.replace(/^([A-Za-z]):\/(.*)$/, (_match, drive: string, rest: string) => `/${drive.toLowerCase()}/${rest}`);
+}
+
+function shellInvocation(script: string, args: string[]): { command: string; args: string[] } {
+  if (process.platform !== 'win32') return { command: script, args };
+  if (!existsSync(gitBash)) throw new Error('Git Bash is required to run the POSIX selector fixture on Windows');
+  return {
+    command: gitBash,
+    args: [posixPath(script), ...args.map((argument) => /^[A-Za-z]:[\\/]/.test(argument) ? posixPath(argument) : argument)],
+  };
+}
+
+function spawnShell(script: string, args: string[], options: Parameters<typeof spawn>[2]): ReturnType<typeof spawn> {
+  const invocation = shellInvocation(script, args);
+  return spawn(invocation.command, invocation.args, options);
+}
+
+function spawnShellSync(script: string, args: string[], options?: Parameters<typeof spawnSync>[2]): ReturnType<typeof spawnSync> {
+  const invocation = shellInvocation(script, args);
+  return spawnSync(invocation.command, invocation.args, options);
+}
 
 function digest(value: string): string {
   return `${value}@sha256:${'a'.repeat(64)}`;
@@ -41,21 +67,21 @@ function runtimeTarget(service: 'orchestrator' | 'connector' | 'worker') {
       revision: 'r15.1',
       slots: {
         blue: { composeFiles: [
-          { path: '/srv/du/releases/availability.yml', sha256: 'a'.repeat(64) },
-          { path: `/srv/du/releases/${service}-blue-r15.1.yml`, sha256: 'b'.repeat(64) },
+          { path: hostPath('releases', 'availability.yml'), sha256: 'a'.repeat(64) },
+          { path: hostPath('releases', `${service}-blue-r15.1.yml`), sha256: 'b'.repeat(64) },
         ], imageDigest },
         green: { composeFiles: [
-          { path: '/srv/du/releases/availability.yml', sha256: 'a'.repeat(64) },
-          { path: `/srv/du/releases/${service}-green-r15.1.yml`, sha256: 'c'.repeat(64) },
+          { path: hostPath('releases', 'availability.yml'), sha256: 'a'.repeat(64) },
+          { path: hostPath('releases', `${service}-green-r15.1.yml`), sha256: 'c'.repeat(64) },
         ], imageDigest },
       },
     }],
   };
   if (service !== 'worker') {
     Object.assign(target, {
-      selectorFile: `/etc/du/availability/selectors/${service}`,
+      selectorFile: hostPath('availability', 'selectors', service),
       fixedIngressProbeUrl: `http://127.0.0.1:18081/${service}/identity`,
-      reloadExecutable: '/usr/local/sbin/reload-selector',
+      reloadExecutable: hostPath('sbin', 'reload-selector'),
       reloadExecutableSha256: 'd'.repeat(64),
       reloadArgs: ['--context', 'production', service],
     });
@@ -67,12 +93,12 @@ function trustedManifest() {
   return {
     schemaVersion: 1,
     hostId: 'du-host-prod-a',
-    dockerBinary: '/usr/bin/docker',
+    dockerBinary: hostPath('usr', 'bin', 'docker'),
     dockerSha256: 'e'.repeat(64),
     dockerContext: 'production',
-    workingDirectory: '/srv/du',
-    homeDirectory: '/root',
-    dockerConfigDirectory: '/root/.docker',
+    workingDirectory: hostPath('du'),
+    homeDirectory: hostPath('root'),
+    dockerConfigDirectory: hostPath('root', '.docker'),
     targets: [runtimeTarget('orchestrator'), runtimeTarget('connector'), runtimeTarget('worker')],
   };
 }
@@ -117,14 +143,15 @@ function createSelectorProcessHarness() {
   const privateHelper = path.join(root, 'reload-selector');
   const dockerStub = path.join(root, 'docker-stub');
   const lockPath = path.join(availabilityRoot, '.reload-selector.lock');
+  const bashEnv = path.join(root, 'bash-env');
   const dockerLog = path.join(root, 'docker.log');
   const rmdirLog = path.join(root, 'rmdir.log');
   const privateSource = source
-    .replace('root=/etc/du/availability', `root=${availabilityRoot}`)
-    .replace('docker=/usr/bin/docker', `docker=${dockerStub}`);
+    .replace('root=/etc/du/availability', `root=${posixPath(availabilityRoot)}`)
+    .replace('docker=/usr/bin/docker', `docker=${posixPath(dockerStub)}`);
   expect(privateSource).not.toBe(source);
-  expect(privateSource).toContain(`root=${availabilityRoot}`);
-  expect(privateSource).toContain(`docker=${dockerStub}`);
+  expect(privateSource).toContain(`root=${posixPath(availabilityRoot)}`);
+  expect(privateSource).toContain(`docker=${posixPath(dockerStub)}`);
   writeFileSync(privateHelper, privateSource, { mode: 0o700 });
   writeFileSync(dockerStub, [
     '#!/bin/sh',
@@ -151,19 +178,22 @@ function createSelectorProcessHarness() {
     'if [ "${1-}" = "${TEST_LOCK_PATH-}" ]; then printf "called\\n" >> "$TEST_RMDIR_LOG"; fi',
     'exec /usr/bin/rmdir "$@"',
   ].join('\n') + '\n', { mode: 0o700 });
+  writeFileSync(bashEnv, 'PATH="$TEST_BIN:$PATH"\nexport PATH\n');
 
   return {
     root, availabilityRoot, selectors, selected, privateHelper, lockPath, dockerLog, rmdirLog,
     env(mode: 'before' | 'after' | 'normal', reached = '', signal = ''): NodeJS.ProcessEnv {
       return {
-        PATH: `${bin}:/usr/bin:/bin`,
-        TEST_LOCK_PATH: lockPath,
+        PATH: `${posixPath(bin)}:/usr/bin:/bin`,
+        TEST_BIN: posixPath(bin),
+        BASH_ENV: posixPath(bashEnv),
+        TEST_LOCK_PATH: posixPath(lockPath),
         TEST_LOCK_MODE: mode === 'normal' ? '' : mode,
-        TEST_LOCK_REACHED: reached,
-        TEST_LOCK_RELEASE: path.join(root, 'release-lock'),
-        TEST_DOCKER_LOG: dockerLog,
+        TEST_LOCK_REACHED: reached ? posixPath(reached) : '',
+        TEST_LOCK_RELEASE: posixPath(path.join(root, 'release-lock')),
+        TEST_DOCKER_LOG: posixPath(dockerLog),
         TEST_DOCKER_SIGNAL: signal,
-        TEST_RMDIR_LOG: rmdirLog,
+        TEST_RMDIR_LOG: posixPath(rmdirLog),
       };
     },
     release(): void { writeFileSync(path.join(root, 'release-lock'), 'release\n'); },
@@ -332,7 +362,7 @@ describe('ORV15 two-slot Compose package', () => {
       // A models Connector's per-service selector write before invoking Nginx.
       writeFileSync(path.join(harness.selectors, 'connector'), 'green\n');
       const reached = path.join(harness.root, 'first-before-lock');
-      first = spawn(harness.privateHelper, ['--context', 'unit', 'connector'], {
+      first = spawnShell(harness.privateHelper, ['--context', 'unit', 'connector'], {
         env: harness.env('before', reached), stdio: 'ignore',
       });
       await waitForMarker(reached, first);
@@ -340,7 +370,7 @@ describe('ORV15 two-slot Compose package', () => {
       // An independent Orchestrator cutover commits while A is stopped just
       // before the global helper lock. A must read this newer sibling value.
       writeFileSync(path.join(harness.selectors, 'orchestrator'), 'green\n');
-      second = spawn(harness.privateHelper, ['--context', 'unit', 'orchestrator'], {
+      second = spawnShell(harness.privateHelper, ['--context', 'unit', 'orchestrator'], {
         env: harness.env('normal'), stdio: 'ignore',
       });
       expect(await waitForExit(second)).toBe(0);
@@ -367,13 +397,13 @@ describe('ORV15 two-slot Compose package', () => {
     try {
       writeFileSync(path.join(harness.selectors, 'connector'), 'green\n');
       const reached = path.join(harness.root, 'first-after-lock');
-      first = spawn(harness.privateHelper, ['--context', 'unit', 'connector'], {
+      first = spawnShell(harness.privateHelper, ['--context', 'unit', 'connector'], {
         env: harness.env('after', reached), stdio: 'ignore',
       });
       await waitForMarker(reached, first);
 
       writeFileSync(path.join(harness.selectors, 'orchestrator'), 'green\n');
-      blocked = spawn(harness.privateHelper, ['--context', 'unit', 'orchestrator'], {
+      blocked = spawnShell(harness.privateHelper, ['--context', 'unit', 'orchestrator'], {
         env: harness.env('normal'), stdio: 'ignore',
       });
       expect(await waitForExit(blocked)).toBe(75);
@@ -386,7 +416,7 @@ describe('ORV15 two-slot Compose package', () => {
       expect(firstInclude).toContain('orchestrator-green-http:3000');
       expect(firstInclude).toContain('connector-green-http:8080');
 
-      retry = spawn(harness.privateHelper, ['--context', 'unit', 'orchestrator'], {
+      retry = spawnShell(harness.privateHelper, ['--context', 'unit', 'orchestrator'], {
         env: harness.env('normal'), stdio: 'ignore',
       });
       expect(await waitForExit(retry)).toBe(0);
@@ -405,7 +435,7 @@ describe('ORV15 two-slot Compose package', () => {
       const harness = createSelectorProcessHarness();
       try {
         writeFileSync(path.join(harness.selectors, 'orchestrator'), 'green\n');
-        const child = spawn(harness.privateHelper, ['--context', 'unit', 'orchestrator'], {
+        const child = spawnShell(harness.privateHelper, ['--context', 'unit', 'orchestrator'], {
           env: harness.env('normal', '', signal), stdio: 'ignore',
         });
         expect(await waitForExit(child)).toBe(expectedCode);
@@ -462,7 +492,7 @@ describe('ORV15 two-slot Compose package', () => {
       writeFileSync(path.join(selectors, 'connector'), 'blue\n');
       writeFileSync(selected, 'previous\n');
 
-      const rendered = spawnSync(script, ['--render-only', root], { encoding: 'utf8' });
+      const rendered = spawnShellSync(script, ['--render-only', root], { encoding: 'utf8' });
       expect(rendered.status).toBe(0);
       expect(rendered.stdout).toContain('orchestrator-green-http:3000');
       expect(rendered.stdout).toContain('connector-blue-http:8080');
@@ -470,16 +500,16 @@ describe('ORV15 two-slot Compose package', () => {
       expect(existsSync(path.join(root, '.reload-selector.lock'))).toBe(false);
 
       writeFileSync(path.join(selectors, 'connector'), 'purple\n');
-      const rejected = spawnSync(script, ['--render-only', root], { encoding: 'utf8' });
+      const rejected = spawnShellSync(script, ['--render-only', root], { encoding: 'utf8' });
       expect(rejected.status).not.toBe(0);
       expect(rejected.stdout).toBe('');
       expect(readFileSync(selected, 'utf8')).toBe('previous\n');
 
       if (typeof process.getuid === 'function' && process.getuid() !== 0) {
-        const production = spawnSync(script, ['--context', 'production', 'orchestrator'], { encoding: 'utf8' });
+        const production = spawnShellSync(script, ['--context', 'production', 'orchestrator'], { encoding: 'utf8' });
         expect(production.status).toBe(77);
       }
-      const relativeRoot = spawnSync(script, ['--render-only', 'relative/path'], { encoding: 'utf8' });
+      const relativeRoot = spawnShellSync(script, ['--render-only', 'relative/path'], { encoding: 'utf8' });
       expect(relativeRoot.status).toBe(64);
     } finally { rmSync(root, { recursive: true, force: true }); }
   });

@@ -194,6 +194,7 @@ describe('W-OIDC04-FLOW-1: the minted session is exactly what the SEC-00 gate re
       // Δ8/T-AUD-01: the store's principal (issuer/sub) rides into the gate.
       principalId: record.sub,
       issuer: record.issuer,
+      sessionCreatedAt: record.createdAt,
     });
   });
 
@@ -281,6 +282,7 @@ describe('W-OIDC04-FLOW-1: the minted session is exactly what the SEC-00 gate re
       // Δ8/T-AUD-01: the store's principal (issuer/sub) rides into the gate.
       principalId: record.sub,
       issuer: record.issuer,
+      sessionCreatedAt: record.createdAt,
     });
     const refused = {
       ok: false,

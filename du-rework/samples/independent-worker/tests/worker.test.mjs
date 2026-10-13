@@ -62,6 +62,9 @@ class FakeRuntime {
   controlRevision = 1;
   backupState = 'OPEN';
   backupRevision = 1;
+  activeVersion;
+  activationRevision = 1;
+  heartbeatAdmissionSequence = [];
   nextHeartbeatGate;
   heartbeatCalls = 0;
 
@@ -73,7 +76,7 @@ class FakeRuntime {
     const path = url.pathname.slice(prefix.length);
     const method = init.method;
     const body = init.body === undefined ? undefined : JSON.parse(init.body);
-    this.requests.push({ method, path, body: body === undefined ? undefined : structuredClone(body) });
+    this.requests.push({ method, path, body: body === undefined ? undefined : structuredClone(body), at: Date.now() });
 
     const registration = /^\/businesses\/([^/]+)\/versions\/([^/]+)$/.exec(path);
     if (registration && method === 'PUT') {
@@ -99,6 +102,25 @@ class FakeRuntime {
       }
       const instanceId = decodeURIComponent(heartbeat[1]);
       const observed = body.observedBackupFenceRevision === this.backupRevision;
+      const activeVersion = this.activeVersion === undefined ? body.businessVersion : this.activeVersion;
+      const eligible = activeVersion === body.businessVersion;
+      const versionState = {
+        activeVersion,
+        activationRevision: this.activationRevision,
+        admissionEligible: eligible,
+        admissionReason: eligible ? 'ELIGIBLE' : activeVersion === null ? 'NO_ACTIVE_VERSION' : 'VERSION_NOT_ACTIVE',
+      };
+      const scriptedState = this.heartbeatAdmissionSequence.shift();
+      if (scriptedState) {
+        const { clearAdmissionTuple, ...overrides } = scriptedState;
+        Object.assign(versionState, overrides);
+        if (clearAdmissionTuple) {
+          delete versionState.activeVersion;
+          delete versionState.activationRevision;
+          delete versionState.admissionEligible;
+          delete versionState.admissionReason;
+        }
+      }
       const ack = {
         health: 'HEALTHY',
         leaseExpiresAt: new Date(Date.now() + 90_000).toISOString(),
@@ -110,6 +132,7 @@ class FakeRuntime {
           revision: this.backupRevision,
           acknowledged: observed,
         },
+        ...versionState,
       };
       const list = this.workerHeartbeats.get(instanceId) ?? [];
       list.push({ body: structuredClone(body), ack });
@@ -129,7 +152,15 @@ class FakeRuntime {
       const task = this.tasks.get(taskId);
       if (!task) return json({ code: 'NOT_FOUND' }, 404);
       task.claims.push(structuredClone(body));
-      if (task.claimError) return json({ code: task.claimError }, 409);
+      if (task.claimAmbiguousGate && task.claims.length === 1) {
+        task.claimCommitted = true;
+        task.claimIdentity = structuredClone(body);
+        task.claimStartedResolve?.();
+        await task.claimAmbiguousGate.promise;
+        throw new Error('claim committed but response was lost');
+      }
+      if (task.claimCommitted) assert.deepEqual(body, task.claimIdentity);
+      if (task.claimError) return json({ code: task.claimError }, task.claimErrorStatus ?? 409);
       return json({
         taskId,
         operationId: task.operationId,
@@ -211,6 +242,8 @@ function taskFor(manifest, id, options = {}) {
     failures: [],
     completed: false,
     completeResponses: options.completeResponses ?? [],
+    claimError: options.claimError,
+    claimErrorStatus: options.claimErrorStatus,
     heartbeatGate: options.heartbeatGate,
     heartbeatCancel: options.heartbeatCancel,
     heartbeatLeaseLost: options.heartbeatLeaseLost,
@@ -336,6 +369,168 @@ test('closes admission for paused control and backup fence until the exact new r
   assert.equal(running.consumer.paused, false, 'second heartbeat carries the exact observed revision');
   await running.consumer.dispatch(jobFor(running.manifest, task));
   assert.equal(task.completed, true);
+  await running.worker.stop(100);
+});
+
+test('fails closed for missing or unknown version admission without claiming new work', async () => {
+  const invalidStates = [
+    { clearAdmissionTuple: true },
+    { admissionReason: 'FUTURE_ADMISSION_STATE' },
+  ];
+  for (const invalidState of invalidStates) {
+    const runtime = new FakeRuntime();
+    // The startup handshake sends a second heartbeat to acknowledge the
+    // backup fence, so keep both replies invalid for version admission.
+    runtime.heartbeatAdmissionSequence = [invalidState, invalidState];
+    const running = await start(runtime);
+    const task = taskFor(running.manifest, 20);
+    runtime.tasks.set(task.taskId, task);
+
+    assert.equal(running.consumer.paused, true);
+    await assert.rejects(running.consumer.dispatch(jobFor(running.manifest, task)), (error) => error.name === 'DelayedError');
+    assert.equal(task.claims.length, 0);
+    assert.equal(task.attempt, 1);
+    await running.worker.stop(100);
+  }
+});
+
+test('drains an already-claimed v1 task through cutover while stale v1 admission stays closed', async () => {
+  const runtime = new FakeRuntime();
+  const handlerGate = gate();
+  let taskContext;
+  let handlerStarted;
+  const started = new Promise((resolve) => { handlerStarted = resolve; });
+  const running = await start(runtime, {
+    heartbeatIntervalMs: 1_000,
+    handler: async (context) => {
+      taskContext = context;
+      handlerStarted();
+      await handlerGate.promise;
+      context.assertExternalEffectAllowed();
+      return createEchoResult(context);
+    },
+  });
+  const task = taskFor(running.manifest, 21);
+  runtime.tasks.set(task.taskId, task);
+  const delivery = running.consumer.dispatch(jobFor(running.manifest, task));
+  await started;
+
+  runtime.activeVersion = '2.0.0';
+  runtime.activationRevision = 2;
+  const cutoverAt = Date.now();
+  await running.worker.refresh();
+  assert.equal(running.consumer.paused, true);
+  assert.equal(taskContext.signal.aborted, false);
+
+  runtime.heartbeatAdmissionSequence.push({
+    activeVersion: '1.0.0',
+    activationRevision: 1,
+    admissionEligible: true,
+    admissionReason: 'ELIGIBLE',
+  });
+  await running.worker.refresh();
+  assert.equal(running.consumer.paused, true, 'a delayed lower-revision v1 ACK cannot reopen claims');
+  assert.equal(taskContext.signal.aborted, false, 'version cutover does not abort the already-claimed lease');
+
+  const waiting = taskFor(running.manifest, 22);
+  runtime.tasks.set(waiting.taskId, waiting);
+  await assert.rejects(running.consumer.dispatch(jobFor(running.manifest, waiting)), (error) => error.name === 'DelayedError');
+  assert.equal(waiting.claims.length, 0);
+  assert.equal(waiting.attempt, 1);
+
+  await waitFor(() => task.heartbeatCalls > 0);
+  runtime.heartbeatAdmissionSequence.push({
+    activeVersion: '1.0.0',
+    activationRevision: 3,
+    admissionEligible: true,
+    admissionReason: 'ELIGIBLE',
+  });
+  await running.worker.refresh();
+  assert.equal(running.consumer.paused, false, 'a new activation revision permits new v1 claims');
+
+  handlerGate.resolve();
+  await delivery;
+  assert.equal(taskContext.signal.aborted, false);
+  assert.equal(task.completed, true);
+  assert.equal(task.failures.length, 0);
+  assert.equal(task.completions.length, 1);
+  assert.equal(task.claims.length, 1);
+  assert.ok(runtime.requests.some((request) => request.path === `/tasks/${task.taskId}/heartbeat` && request.at >= cutoverAt));
+  await running.worker.stop(100);
+});
+
+test('reconciles a lost claim response after cutover before the paused queue can redeliver', async () => {
+  const runtime = new FakeRuntime();
+  const lostAckGate = gate();
+  const claimStartedGate = gate();
+  const running = await start(runtime, { heartbeatIntervalMs: 1_000 });
+  const task = taskFor(running.manifest, 23);
+  task.claimAmbiguousGate = lostAckGate;
+  task.claimStartedResolve = claimStartedGate.resolve;
+  runtime.tasks.set(task.taskId, task);
+
+  const delivery = running.consumer.dispatch(jobFor(running.manifest, task));
+  await claimStartedGate.promise;
+  runtime.activeVersion = '2.0.0';
+  runtime.activationRevision = 2;
+  await running.worker.refresh();
+  assert.equal(running.consumer.paused, true);
+
+  const waiting = taskFor(running.manifest, 24);
+  runtime.tasks.set(waiting.taskId, waiting);
+  await assert.rejects(running.consumer.dispatch(jobFor(running.manifest, waiting)), (error) => error.name === 'DelayedError');
+  assert.equal(waiting.claims.length, 0, 'cutover still denies a new v1 claim');
+
+  lostAckGate.resolve();
+  await delivery;
+  assert.equal(task.claims.length, 2);
+  assert.deepEqual(task.claims[1], task.claims[0], 'replay preserves task, delivery, and worker identity');
+  assert.equal(task.completed, true);
+  assert.equal(task.completions.length, 1);
+  assert.equal(task.failures.length, 0);
+  await running.worker.stop(100);
+});
+
+test('defers admission and capacity claim errors with backoff, and only ACKs durable attempt exhaustion', async () => {
+  const runtime = new FakeRuntime();
+  let handlerCalls = 0;
+  const running = await start(runtime, {
+    handler: async (context) => {
+      handlerCalls += 1;
+      return createEchoResult(context);
+    },
+  });
+  const denialCodes = [
+    'VERSION_NOT_ACTIVE',
+    'NO_ACTIVE_VERSION',
+    'VERSION_NOT_ENABLED',
+    'BUSINESS_SUBMISSIONS_PAUSED',
+    'WORKER_CAPACITY_EXHAUSTED',
+  ];
+
+  for (const [index, code] of denialCodes.entries()) {
+    const task = taskFor(running.manifest, 30 + index, { claimError: code });
+    runtime.tasks.set(task.taskId, task);
+    await assert.rejects(running.consumer.dispatch(jobFor(running.manifest, task)), (error) => error.name === 'DelayedError');
+    assert.equal(task.attempt, 1, `${code} does not consume a task attempt`);
+    assert.equal(task.completions.length, 0);
+    assert.equal(task.failures.length, 0);
+    assert.ok(running.consumer.deferrals.at(-1) >= 125);
+  }
+
+  const exhausted = taskFor(running.manifest, 40, {
+    claimError: 'TASK_ATTEMPTS_EXHAUSTED',
+    claimErrorStatus: 409,
+  });
+  runtime.tasks.set(exhausted.taskId, exhausted);
+  await assert.rejects(running.consumer.dispatch(jobFor(running.manifest, exhausted)), (error) => error.name === 'DelayedError');
+  assert.equal(exhausted.attempt, 1);
+
+  exhausted.claimErrorStatus = 410;
+  await running.consumer.dispatch(jobFor(running.manifest, exhausted));
+  assert.equal(handlerCalls, 0);
+  assert.equal(exhausted.completions.length, 0);
+  assert.equal(exhausted.failures.length, 0);
   await running.worker.stop(100);
 });
 

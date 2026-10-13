@@ -23,6 +23,14 @@ export interface HeartbeatAck {
   capacity: number;
   controlRevision: number;
   controlState: 'OPEN' | 'PAUSED' | 'DRAINING';
+  activeVersion?: string | null;
+  activationRevision?: number;
+  admissionEligible?: boolean;
+  admissionReason?: 'ELIGIBLE'
+    | 'BUSINESS_DISABLED'
+    | 'NO_ACTIVE_VERSION'
+    | 'VERSION_NOT_ACTIVE'
+    | 'VERSION_NOT_ENABLED';
   backupEffectFence?: {
     state: 'OPEN' | 'HELD' | 'UNKNOWN';
     revision: number;
@@ -172,7 +180,14 @@ export class RuntimeClient {
     workerInstanceId: string;
     businessId: string;
   }): Promise<ClaimResult> {
-    return parseClaimResult(await this.request('POST', `/tasks/${encodeURIComponent(taskId)}/claim`, body));
+    const response = await this.request('POST', `/tasks/${encodeURIComponent(taskId)}/claim`, body);
+    try {
+      return parseClaimResult(response);
+    } catch {
+      // A malformed 2xx may follow a committed claim. Preserve the exact
+      // identity and let the worker reconcile it with an idempotent replay.
+      throw new RuntimeHttpError(200, 'INVALID_RUNTIME_RESPONSE', true, true);
+    }
   }
 
   async heartbeatTask(taskId: string, leaseEpoch: number, signal?: AbortSignal): Promise<TaskHeartbeatAck> {
@@ -276,6 +291,7 @@ const SAFE_ACK_CLAIM_CODES = new Set([
 ]);
 
 export function isAckSafeClaimError(error: RuntimeHttpError): boolean {
+  if (error.code === 'TASK_ATTEMPTS_EXHAUSTED') return error.status === 410;
   return SAFE_ACK_CLAIM_CODES.has(error.code);
 }
 
@@ -374,12 +390,36 @@ function parseHeartbeatAck(value: unknown): HeartbeatAck {
     || !Number.isSafeInteger(controlRevision) || (controlRevision as number) < 0
     || !['OPEN', 'PAUSED', 'DRAINING'].includes(String(controlState))
   ) throw new Error('worker heartbeat response does not match Runtime v1');
+  const activationRevision = Number.isSafeInteger(value.activationRevision)
+    && (value.activationRevision as number) >= 1
+    ? value.activationRevision as number
+    : undefined;
+  const activeVersion = typeof value.activeVersion === 'string' || value.activeVersion === null
+    ? value.activeVersion as string | null
+    : undefined;
+  const admissionEligible = typeof value.admissionEligible === 'boolean'
+    ? value.admissionEligible
+    : undefined;
+  const admissionReasons = [
+    'ELIGIBLE',
+    'BUSINESS_DISABLED',
+    'NO_ACTIVE_VERSION',
+    'VERSION_NOT_ACTIVE',
+    'VERSION_NOT_ENABLED',
+  ] as const;
+  const admissionReason = admissionReasons.includes(value.admissionReason as (typeof admissionReasons)[number])
+    ? value.admissionReason as HeartbeatAck['admissionReason']
+    : undefined;
   return {
     health: value.health as HeartbeatAck['health'],
     leaseExpiresAt: value.leaseExpiresAt as string,
     capacity: value.capacity as number,
     controlRevision: controlRevision as number,
     controlState: controlState as HeartbeatAck['controlState'],
+    ...(activationRevision === undefined ? {} : { activationRevision }),
+    ...(activeVersion === undefined ? {} : { activeVersion }),
+    ...(admissionEligible === undefined ? {} : { admissionEligible }),
+    ...(admissionReason === undefined ? {} : { admissionReason }),
     ...(backupEffectFence ? { backupEffectFence } : {}),
   };
 }

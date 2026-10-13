@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { Link } from 'react-router';
 import {
   Activity,
   AlertTriangle,
@@ -20,6 +20,7 @@ import {
   TableContainer,
   TableHead,
   TableHeader,
+  TablePagination,
   TableRow,
 } from '@/components/ui/table';
 import { ADMIN_AUTH_EXPIRED_EVENT, createAdminApiClient, type AdminHealthSnapshot, type AdminWebSession, type OperationWire, type WorkerInstanceList } from '@/lib/api';
@@ -34,6 +35,7 @@ import type { IncidentListPage, IncidentListQuery, QueueInventory, ServiceInvent
 const AUTO_REFRESH_MS = 30_000;
 const SOURCE_STALE_AFTER_MS = 60_000;
 const OPERATIONS_PAGE_LIMIT = 100;
+const WORKER_PAGE_SIZE = 25;
 
 type Projection<T> =
   | { kind: 'loading' }
@@ -145,7 +147,6 @@ function healthProjectionStale(source: Projection<AdminHealthSnapshot>, now: num
 
 export function SystemOperationsScreen() {
   const { tenantId: selectedTenantId } = useTenant();
-  const { section } = useParams();
   const selectionKey = selectedTenantId ?? 'all-tenants';
   const selectionRef = useRef(selectionKey);
   selectionRef.current = selectionKey;
@@ -156,6 +157,9 @@ export function SystemOperationsScreen() {
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [composeRefreshKey, setComposeRefreshKey] = useState(0);
   const [now, setNow] = useState(() => Date.now());
+  const [workerPage, setWorkerPage] = useState(0);
+
+  useEffect(() => setWorkerPage(0), [selectionKey]);
 
   const commit = useCallback((next: DashboardState) => {
     snapshotRef.current = next;
@@ -418,11 +422,6 @@ export function SystemOperationsScreen() {
     return () => window.removeEventListener(ADMIN_AUTH_EXPIRED_EVENT, stopRefreshOnExpiredSession);
   }, []);
 
-  useEffect(() => {
-    if (!section) return;
-    document.getElementById(section)?.scrollIntoView({ block: 'start' });
-  }, [section]);
-
   const visible = snapshot.selectionKey === selectionKey ? snapshot : initialState(selectionKey);
   const healthStale = healthProjectionStale(visible.health, now);
   const operations = visible.operations.kind === 'ready' ? visible.operations.data : [];
@@ -447,6 +446,11 @@ export function SystemOperationsScreen() {
     + signals.unknown.length + signals.overdueInput.length
     + (currentIncidents?.items.length ?? 0)
     + (currentQueues?.queues.filter((queue) => queue.admission.state !== 'OPEN' || queue.workerCompatibility.compatibleOnline === 0).length ?? 0);
+  const workerPageCount = Math.max(1, Math.ceil((currentWorkers?.items.length ?? 0) / WORKER_PAGE_SIZE));
+  const visibleWorkerPage = Math.min(workerPage, workerPageCount - 1);
+  const workerPageItems = currentWorkers?.items.slice(visibleWorkerPage * WORKER_PAGE_SIZE, (visibleWorkerPage + 1) * WORKER_PAGE_SIZE) ?? [];
+  const workerRangeStart = currentWorkers?.items.length ? visibleWorkerPage * WORKER_PAGE_SIZE + 1 : 0;
+  const workerRangeEnd = currentWorkers ? Math.min((visibleWorkerPage + 1) * WORKER_PAGE_SIZE, currentWorkers.items.length) : 0;
 
   return (
     <section aria-labelledby="system-operations-title" className="flex min-w-0 flex-col gap-5">
@@ -477,16 +481,6 @@ export function SystemOperationsScreen() {
       {visible.services.kind === 'ready' && visible.services.problem ? <ProjectionMessage source={visible.services} noun="Service inventory" /> : null}
       {visible.queues.kind === 'ready' && visible.queues.problem ? <ProjectionMessage source={visible.queues} noun="Queue inventory" /> : null}
       {visible.incidents.kind === 'ready' && visible.incidents.problem ? <ProjectionMessage source={visible.incidents} noun="Incident ledger" /> : null}
-
-      <nav aria-label="System operations sections" className="flex flex-wrap gap-2 text-sm">
-        {[
-          ['Services', 'services'],
-          ['Workers & Queues', 'workers-queues'],
-          ...(incidentLedgerVisible ? [['Incidents & triage', 'incidents'] as [string, string]] : []),
-          ['Deployments', 'deployments'],
-          ['Maintenance', 'maintenance'],
-        ].map(([label, id]) => <Link key={id} className="rounded border border-[var(--border-subtle)] px-3 py-2 text-[var(--cf-blue)] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]" to={`/system-operations/${id}`}>{label}</Link>)}
-      </nav>
 
       <section id="services" aria-labelledby="services-title" className="scroll-mt-24">
         <Card>
@@ -571,11 +565,11 @@ export function SystemOperationsScreen() {
                 {currentWorkers.items.length === 0 ? (
                   <div className="rounded-md border border-dashed border-[var(--border-subtle)] p-4 text-sm text-[var(--text-sub)]">No worker heartbeat records were returned. This inventory cannot establish whether unreported deployments exist.</div>
                 ) : (
-                  <TableContainer className="rounded-md border border-[var(--border-subtle)]">
-                    <Table>
-                      <TableHeader><TableRow><TableHead>Worker instance</TableHead><TableHead>Business / version</TableHead><TableHead>Health</TableHead><TableHead className="text-right">Active leases</TableHead><TableHead className="text-right">Capacity</TableHead><TableHead>Last heartbeat</TableHead></TableRow></TableHeader>
+                  <TableContainer maxHeight="50dvh" role="region" aria-label="Worker inventory results" className="rounded-md border border-[var(--border-subtle)]">
+                    <Table density="compact" aria-label="Worker inventory">
+                      <TableHeader sticky><TableRow><TableHead>Worker instance</TableHead><TableHead>Business / version</TableHead><TableHead>Health</TableHead><TableHead className="text-right">Active leases</TableHead><TableHead className="text-right">Capacity</TableHead><TableHead>Last heartbeat</TableHead></TableRow></TableHeader>
                       <TableBody>
-                        {currentWorkers.items.map((worker) => (
+                        {workerPageItems.map((worker) => (
                           <TableRow key={`${worker.businessId}:${worker.instanceId}`}>
                             <TableCell className="font-mono text-xs">{worker.instanceId}</TableCell>
                             <TableCell className="font-mono text-xs">{worker.businessId}@{worker.businessVersion}</TableCell>
@@ -589,6 +583,16 @@ export function SystemOperationsScreen() {
                     </Table>
                   </TableContainer>
                 )}
+                {currentWorkers.items.length > WORKER_PAGE_SIZE ? <TablePagination
+                  ariaLabel="Worker inventory pagination"
+                  hasPreviousPage={visibleWorkerPage > 0}
+                  hasNextPage={visibleWorkerPage + 1 < workerPageCount}
+                  onPreviousPage={() => setWorkerPage(Math.max(0, visibleWorkerPage - 1))}
+                  onNextPage={() => setWorkerPage(Math.min(workerPageCount - 1, visibleWorkerPage + 1))}
+                  status={`Showing ${workerRangeStart}–${workerRangeEnd} of ${currentWorkers.items.length} recorded instances${currentWorkers.truncated ? ' in the capped sample; more may exist' : ''}.`}
+                  previousLabel="Previous"
+                  nextLabel="Next"
+                /> : null}
                 {currentWorkers.truncated ? <p className="text-xs text-[var(--text-sub)]">The API capped this inventory at 500 rows. Some instances may not appear in this sample.</p> : null}
               </>
             ) : null}

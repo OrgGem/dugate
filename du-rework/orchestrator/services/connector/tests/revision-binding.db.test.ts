@@ -80,6 +80,9 @@ class FakePgRevisions implements SqlClient {
       account_id: r.account_id,
     });
 
+    if (/^SELECT fence_id,\s*fence_revision,\s*state FROM connector_backup_effect_gate WHERE singleton_id=1 FOR SHARE$/i.test(sql)) {
+      return result([{ fence_id: null, fence_revision: 0, state: 'OPEN' }]);
+    }
     if (/^INSERT INTO connector_revisions /i.test(sql)) {
       if (!/^INSERT INTO connector_revisions \(connector_id, revision, adapter, config, credential_ref, state, credential_source, tenant_id, account_id\) VALUES \(\$1, \$2, \$3, \$4::jsonb, \$5, \$6, \$7::jsonb, \$8, \$9\) RETURNING \*$/i.test(sql)) {
         throw new Error('FakePg: unsupported INSERT connector_revisions shape: ' + sql);
@@ -467,8 +470,9 @@ describe('W-VAULT01-BIND-1R — reads and mutations are tenant-predicated in SQL
     await repo.getActiveRevision('openai', { tenantId: 'tenant-a' });
     await repo.retireRevision('openai', 1, { tenantId: 'tenant-a' });
     await repo.disable('openai', { tenantId: 'tenant-a' });
-    expect(db.calls).toHaveLength(5);
-    for (const call of db.calls) {
+    const scopedCalls = db.calls.filter((call) => /connector_revisions|secret_versions/i.test(call.sql));
+    expect(scopedCalls).toHaveLength(5);
+    for (const call of scopedCalls) {
       expect(call.sql).toMatch(/tenant_id = \$/);
     }
   });
@@ -477,10 +481,10 @@ describe('W-VAULT01-BIND-1R — reads and mutations are tenant-predicated in SQL
     const db = new FakePgRevisions();
     const repo = new PostgresConnectorConfigRepository(db);
     await repo.revoke('cred-a', { tenantId: 'tenant-a' });
-    expect(db.calls).toHaveLength(1);
-    expect(db.calls[0].sql).toContain('UPDATE secret_versions s SET revoked_at = now()');
-    expect(db.calls[0].sql).toContain('r.credential_ref = s.credential_ref');
-    expect(db.calls[0].params).toEqual(['cred-a', 'tenant-a']);
+    const revokeCalls = db.calls.filter((call) => call.sql.startsWith('UPDATE secret_versions s SET revoked_at = now()'));
+    expect(revokeCalls).toHaveLength(1);
+    expect(revokeCalls[0]?.sql).toContain('r.credential_ref = s.credential_ref');
+    expect(revokeCalls[0]?.params).toEqual(['cred-a', 'tenant-a']);
   });
 
   it('activate CAS with a foreign selector cannot flip anything', async () => {

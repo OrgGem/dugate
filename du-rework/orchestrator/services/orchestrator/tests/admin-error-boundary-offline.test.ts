@@ -195,6 +195,7 @@ function explodingFlow(): OidcFlow {
     handleCallback: boom,
     handleLogout: benign,
     sanitizeReturnTo: () => '/admin',
+    setVerifiedLoginObserver: () => undefined,
   };
 }
 
@@ -218,6 +219,7 @@ function benignLoginFlow(): OidcFlow {
     handleCallback: redirect,
     handleLogout: redirect,
     sanitizeReturnTo: () => '/admin',
+    setVerifiedLoginObserver: () => undefined,
   };
 }
 

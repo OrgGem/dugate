@@ -1,6 +1,7 @@
 import { getOperationsMetrics } from '../src/modules/admin-read/operations-metrics';
 import { listOperationsPage, parseOperationsListQuery } from '../src/modules/operations/list-query';
 import { handleOperationsRoute, matchOperationsRoute } from '../src/app/admin/bff/operations';
+import { handleInternalOperationsRoutes } from '../src/http/routes/internal-operations';
 
 const operationId = '11111111-1111-4111-8111-111111111111';
 const tenantId = '22222222-2222-4222-8222-222222222222';
@@ -50,6 +51,7 @@ describe('ORV14 Admin Operations query and scope', () => {
     const { db, statements } = listDb();
     await listOperationsPage({ db: db as never }, query, null, (row) => ({ id: row['id'] as string }));
     const page = statements.find(({ sql }) => sql.includes('SELECT *, to_char'))!;
+    expect(page.sql).toContain('deleted_at IS NULL');
     expect(page.sql).toContain('strpos(lower(business_id), lower($1)) > 0');
     expect(page.sql).toContain('strpos(lower(action), lower($2)) > 0');
     expect(page.sql).toContain('coalesce(ak.name');
@@ -58,6 +60,27 @@ describe('ORV14 Admin Operations query and scope', () => {
     expect(page.sql).toContain("br.status = 'UNKNOWN'");
     expect(page.sql).toContain("state = 'WAITING_INPUT'");
     expect(page.params).toEqual(['Document Core', 'extract invoice', 'shared key', 'invoice review', 'trace 7', 'Azure OpenAI', 'gpt 4.1', 21]);
+  });
+
+  test('platform operation list also excludes soft-deleted rows', async () => {
+    const { db, statements } = listDb();
+    await listOperationsPage({ db: db as never }, parseOperationsListQuery(new URLSearchParams('limit=10')), null, (row) => row);
+    expect(statements[0]!.sql).toContain('deleted_at IS NULL');
+  });
+
+  test('soft-deleted operation detail is not visible to platform administrators', async () => {
+    const runtime = { getOperation: jest.fn(async () => ({ id: operationId, tenant_id: tenantId, deleted_at: new Date() })) };
+    const context = {
+      ingressAudience: 'internal',
+      method: 'GET',
+      pathname: `/api/internal/operations/${operationId}`,
+      searchParams: new URLSearchParams(),
+      headers: { authorization: 'Bearer platform-token' },
+      config: { adminToken: 'platform-token', tenantAdminTokens: {} },
+      runtime,
+    } as never;
+    await expect(handleInternalOperationsRoutes(context)).rejects.toMatchObject({ status: 404, code: 'NOT_FOUND' });
+    expect(runtime.getOperation).toHaveBeenCalledWith(operationId);
   });
 
   test('binds list cursors to tenant, user assignment, every filter, sort, and limit', async () => {

@@ -307,6 +307,7 @@ const PUBLIC_INIT_BODY = {
   mimeType: 'application/pdf',
   sizeBytes: 70 * 1024 * 1024,
 };
+const apiKeyUploadToken = (token: string): string => publicUploadToken(PUBLIC_TENANT, `${API_KEY_ID}:${token}`);
 const PUBLIC_PART_BODY = { partNumber: 1, sha256: 'a'.repeat(64) };
 const PUBLIC_COMPLETE_BODY = {
   parts: [{ partNumber: 1, etag: '"1"', sizeBytes: 8 * 1024 * 1024, sha256: 'a'.repeat(64) }],
@@ -348,6 +349,7 @@ function publicContext(options: {
   idempotencyKey?: string;
   authorization?: string;
   validKey?: boolean;
+  ownsUpload?: boolean;
   service?: ReturnType<typeof multipartService>;
   gateway?: ReturnType<typeof publicUploadGateway> | null;
   bodyStream?: AsyncIterable<Uint8Array>;
@@ -363,11 +365,20 @@ function publicContext(options: {
   if (options.idempotencyKey) headers['idempotency-key'] = options.idempotencyKey;
   if (options.authorization) headers.authorization = options.authorization;
   const db = {
-    query: jest.fn(async (sql: string) => (
-      String(sql).includes('FROM api_keys') && options.validKey !== false
-        ? { rowCount: 1, rows: [{ id: API_KEY_ID, tenant_id: PUBLIC_TENANT }] }
-        : { rowCount: 0, rows: [] }
-    )),
+    query: jest.fn(async (sql: string) => {
+      const query = String(sql).replace(/\s+/g, ' ').trim();
+      if (query.includes('FROM api_keys') && options.validKey !== false) {
+        return { rowCount: 1, rows: [{ id: API_KEY_ID, tenant_id: PUBLIC_TENANT }] };
+      }
+      if (
+        options.ownsUpload !== false
+        && (query.startsWith('UPDATE artifacts SET upload_api_key_id=')
+          || query.startsWith('SELECT id FROM artifacts WHERE id=$1 AND tenant_id=$2 AND upload_api_key_id=$3'))
+      ) {
+        return { rowCount: 1, rows: [{ id: ARTIFACT_ID }] };
+      }
+      return { rowCount: 0, rows: [] };
+    }),
   } as unknown as Db;
   const ctx = {
     method: options.method ?? 'POST',
@@ -393,7 +404,19 @@ describe('POST /api/v1/uploads (public init)', () => {
     const result = await route(ctx);
     expect(result.status).toBe(201);
     expect(MultipartInitAckSchema.parse(result.body)).toEqual(INIT_ACK);
-    expect(service.publicInit).toHaveBeenCalledWith(PUBLIC_TENANT, PUBLIC_INIT_BODY);
+    expect(service.publicInit).toHaveBeenCalledWith(PUBLIC_TENANT, {
+      ...PUBLIC_INIT_BODY,
+      uploadToken: apiKeyUploadToken(PUBLIC_INIT_BODY.uploadToken),
+    });
+  });
+
+  test('rejects an upload row that cannot be bound to the authenticated api key', async () => {
+    const { ctx, service } = publicContext({ ownsUpload: false });
+    await expect(route(ctx)).rejects.toMatchObject({ status: 409, code: 'STATE_CONFLICT' });
+    expect(service.publicInit).toHaveBeenCalledWith(PUBLIC_TENANT, {
+      ...PUBLIC_INIT_BODY,
+      uploadToken: apiKeyUploadToken(PUBLIC_INIT_BODY.uploadToken),
+    });
   });
 
   test('derives the replay key from Idempotency-Key when the body omits uploadToken', async () => {
@@ -403,13 +426,16 @@ describe('POST /api/v1/uploads (public init)', () => {
     });
     await route(ctx);
     const forwarded = service.publicInit.mock.calls[0]![1] as { uploadToken: string };
-    expect(forwarded.uploadToken).toBe(publicUploadToken(PUBLIC_TENANT, 'loss-retry-1'));
+    expect(forwarded.uploadToken).toBe(apiKeyUploadToken('loss-retry-1'));
   });
 
   test('a body uploadToken wins over the Idempotency-Key header', async () => {
     const { ctx, service } = publicContext({ idempotencyKey: 'ignored', body: PUBLIC_INIT_BODY });
     await route(ctx);
-    expect(service.publicInit).toHaveBeenCalledWith(PUBLIC_TENANT, PUBLIC_INIT_BODY);
+    expect(service.publicInit).toHaveBeenCalledWith(PUBLIC_TENANT, {
+      ...PUBLIC_INIT_BODY,
+      uploadToken: apiKeyUploadToken(PUBLIC_INIT_BODY.uploadToken),
+    });
   });
 
   test('answers 200 on a replayed init', async () => {
@@ -427,7 +453,10 @@ describe('POST /api/v1/uploads (public init)', () => {
     expect(result.status).toBe(201);
     expect((result.body as { uploadUrl: string }).uploadUrl)
       .toBe('/api/v1/uploads/' + ARTIFACT_ID + '/content');
-    expect(gateway?.initSingle).toHaveBeenCalledWith(PUBLIC_TENANT, body);
+    expect(gateway?.initSingle).toHaveBeenCalledWith(PUBLIC_TENANT, {
+      ...body,
+      uploadToken: apiKeyUploadToken(body.uploadToken),
+    });
     expect(service.publicInit).not.toHaveBeenCalled();
   });
 
@@ -474,6 +503,16 @@ describe('POST /api/v1/uploads/:id/{part,complete,abort}', () => {
     const aborted = await route(publicContext({ pathname: '/api/v1/uploads/' + ARTIFACT_ID + '/abort', body: {} }).ctx);
     expect(aborted.status).toBe(200);
     expect(MultipartAbortAckSchema.parse(aborted.body).state).toBe('ABORTED');
+  });
+
+  test('does not invoke the gateway for a public upload owned by another api key', async () => {
+    const { ctx, gateway } = publicContext({
+      pathname: '/api/v1/uploads/' + ARTIFACT_ID + '/complete',
+      body: PUBLIC_COMPLETE_BODY,
+      ownsUpload: false,
+    });
+    await expect(route(ctx)).rejects.toMatchObject({ status: 404, code: 'NOT_FOUND' });
+    expect(gateway?.completeReplay).not.toHaveBeenCalled();
   });
 
   test('service conflicts reach the problem envelope untouched', async () => {

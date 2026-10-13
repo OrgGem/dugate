@@ -16,6 +16,7 @@ import {
   TableContainer,
   TableHead,
   TableHeader,
+  TablePagination,
   TableRow,
 } from '@/components/ui/table';
 import { createAdminApiClient, type AdminApiProblem, type OperationDetail, type OperationWire, type OperationsPage } from '@/lib/api';
@@ -57,7 +58,7 @@ const correlationFromRaw = (raw: unknown): string | null => {
 };
 
 export function OperationsScreen() {
-  const { tenantId: globalTenantId, tenant } = useTenant();
+  const { tenantId: globalTenantId } = useTenant();
   const [searchParams, setSearchParams] = useSearchParams();
   const searchString = searchParams.toString();
   const client = useMemo(() => createAdminApiClient(), []);
@@ -130,6 +131,7 @@ export function OperationsScreen() {
   const [attentionFilter, setAttentionFilter] = useState<'any' | 'waiting-input'>(() => searchParams.get('attention') === 'waiting-input' ? 'waiting-input' : 'any');
   const [fromDate, setFromDate] = useState(() => searchParams.get('from') ?? '');
   const [toDate, setToDate] = useState(() => searchParams.get('to') ?? '');
+  const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const operationSearchFields = [
     { param: 'business', id: 'ops-business', label: 'Business', value: businessFilter, set: setBusinessFilter, placeholder: 'Business id' },
@@ -140,6 +142,21 @@ export function OperationsScreen() {
     { param: 'provider', id: 'ops-provider', label: 'Provider', value: providerFilter, set: setProviderFilter, placeholder: 'Recorded provider' },
     { param: 'model', id: 'ops-model', label: 'Model', value: modelFilter, set: setModelFilter, placeholder: 'Recorded model' },
   ];
+  const activeAdvancedFilterCount = [
+    idFilter.trim(),
+    ...operationSearchFields.map(({ value }) => value.trim()),
+    fromDate,
+    toDate,
+    usageFilter === 'any' ? '' : usageFilter,
+    reservationFilter === 'any' ? '' : reservationFilter,
+    attentionFilter === 'any' ? '' : attentionFilter,
+  ].filter(Boolean).length;
+  useEffect(() => {
+    const params = new URLSearchParams(searchString);
+    if (['id', 'business', 'action', 'apiKey', 'profile', 'correlation', 'provider', 'model', 'from', 'to', 'usage', 'reservation', 'attention'].some((key) => params.has(key))) {
+      setAdvancedFiltersOpen(true);
+    }
+  }, [searchString]);
   const invalidSearchLabel = operationSearchFields.find(({ value }) => value.trim().length > 128 || /[\u0000-\u001f\u007f]/.test(value))?.label ?? null;
   const correlationId = currentDetail === null ? null : correlationFromRaw(currentDetail.raw);
   const selectedPopulation = operationsPopulation({
@@ -652,60 +669,59 @@ export function OperationsScreen() {
               {Object.entries(operationSortLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </select>
           </div>
-          {tenant ? (
-            <div className="flex items-end">
-              <div className="flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg-card)] px-2.5 py-2 text-xs">
-                <span className="text-[var(--text-sub)]">Tenant:</span>
-                <span className="font-semibold text-[var(--text-main)]">{tenant.name}</span>
-              </div>
-            </div>
-          ) : null}
           <div><label htmlFor="ops-limit" className="text-xs font-semibold">Requests per page</label>
             <select id="ops-limit" value={limit} onChange={e => { applyCursor(null); setLimit(e.target.value); updateSearch({ limit: e.target.value, cursor: null }); }} className="mt-1 h-9 w-full rounded-[var(--radius-sm)] border border-[var(--border-dark)] bg-[var(--bg-card)] px-3 text-sm">
               {['20', '50', '100'].map(v => <option key={v} value={v}>{v}</option>)}
             </select>
           </div>
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <div><label htmlFor="ops-id" className="text-xs font-semibold">Operation ID</label>
-            <input id="ops-id" aria-label="Search by operation id" className="mt-1 h-9 w-full rounded-[var(--radius-sm)] border border-[var(--border-dark)] bg-[var(--bg-card)] px-3 text-sm" value={idFilter}
-              placeholder="id contains…"
-              onChange={(e) => { applyCursor(null); setIdFilter(e.target.value); updateSearch({ id: e.target.value, cursor: null }); }} />
-          </div>
-          {operationSearchFields.map(field => <div key={field.param}>
-            <label htmlFor={field.id} className="text-xs font-semibold">{field.label}</label>
-            <input id={field.id} aria-label={`Search by ${field.label.toLowerCase()}`} className="mt-1 h-9 w-full rounded-[var(--radius-sm)] border border-[var(--border-dark)] bg-[var(--bg-card)] px-3 text-sm" value={field.value}
-              placeholder={field.placeholder}
-              onChange={e => { applyCursor(null); field.set(e.target.value); updateSearch({ [field.param]: e.target.value, cursor: null }); }} />
-          </div>)}
-          <div><label htmlFor="ops-from" className="text-xs font-semibold">From</label>
-            <input id="ops-from" aria-label="From date (UTC)" type="date" className="mt-1 h-9 w-full rounded-[var(--radius-sm)] border border-[var(--border-dark)] bg-[var(--bg-card)] px-3 text-sm" value={fromDate}
-              onChange={(e) => { applyCursor(null); setFromDate(e.target.value); updateSearch({ from: e.target.value, cursor: null }); }} />
-          </div>
-          <div><label htmlFor="ops-to" className="text-xs font-semibold">To</label>
-            <input id="ops-to" aria-label="To date (UTC)" type="date" className="mt-1 h-9 w-full rounded-[var(--radius-sm)] border border-[var(--border-dark)] bg-[var(--bg-card)] px-3 text-sm" value={toDate}
-              onChange={(e) => { applyCursor(null); setToDate(e.target.value); updateSearch({ to: e.target.value, cursor: null }); }} />
-          </div>
-          <p className="self-end pb-2 text-xs text-[var(--text-sub)] sm:col-span-2 xl:col-span-4">From and To include the full selected UTC days.</p>
-          <div>
-            <label htmlFor="ops-usage" className="text-xs font-semibold">Usage records</label>
-            <select id="ops-usage" value={usageFilter} onChange={e => { const value = e.target.value as typeof usageFilter; applyCursor(null); setUsageFilter(value); updateSearch({ usage: value === 'any' ? null : value, cursor: null }); }} className="mt-1 h-9 w-full rounded-[var(--radius-sm)] border border-[var(--border-dark)] bg-[var(--bg-card)] px-3 text-sm">
-              <option value="any">Any</option><option value="has-recorded-usage">Has recorded usage</option><option value="no-recorded-usage">No recorded usage</option>
-            </select>
-          </div>
-          <div>
-            <label htmlFor="ops-reservation" className="text-xs font-semibold">Budget reservation</label>
-            <select id="ops-reservation" value={reservationFilter} onChange={e => { const value = e.target.value as typeof reservationFilter; applyCursor(null); setReservationFilter(value); updateSearch({ reservation: value === 'any' ? null : value, cursor: null }); }} className="mt-1 h-9 w-full rounded-[var(--radius-sm)] border border-[var(--border-dark)] bg-[var(--bg-card)] px-3 text-sm">
-              <option value="any">Any</option><option value="unknown">Reservation outcome UNKNOWN</option>
-            </select>
-          </div>
-          <div>
-            <label htmlFor="ops-attention" className="text-xs font-semibold">Attention</label>
-            <select id="ops-attention" value={attentionFilter} onChange={e => { const value = e.target.value as typeof attentionFilter; applyCursor(null); setAttentionFilter(value); updateSearch({ attention: value === 'any' ? null : value, cursor: null }); }} className="mt-1 h-9 w-full rounded-[var(--radius-sm)] border border-[var(--border-dark)] bg-[var(--bg-card)] px-3 text-sm">
-              <option value="any">Any</option><option value="waiting-input">Waiting for human input</option>
-            </select>
-          </div>
-          </div>
+          <details open={advancedFiltersOpen} onToggle={(event) => setAdvancedFiltersOpen(event.currentTarget.open)} className="rounded-md border border-[var(--border-subtle)]">
+            <summary className="flex cursor-pointer list-none flex-wrap items-center gap-2 px-3 py-2 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] [&::-webkit-details-marker]:hidden">
+              <span aria-hidden="true" className="text-[var(--cf-blue)]">{advancedFiltersOpen ? '−' : '+'}</span>
+              <span>Advanced filters</span>
+              {activeAdvancedFilterCount > 0 ? <Badge variant="info">{activeAdvancedFilterCount} active</Badge> : <span className="text-xs font-normal text-[var(--text-sub)]">IDs, ownership, date, usage and attention</span>}
+            </summary>
+            <div className="grid grid-cols-1 gap-3 border-t border-[var(--border-subtle)] p-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div><label htmlFor="ops-id" className="text-xs font-semibold">Operation ID</label>
+                <input id="ops-id" aria-label="Search by operation id" className="mt-1 h-9 w-full rounded-[var(--radius-sm)] border border-[var(--border-dark)] bg-[var(--bg-card)] px-3 text-sm" value={idFilter}
+                  placeholder="id contains…"
+                  onChange={(e) => { applyCursor(null); setIdFilter(e.target.value); updateSearch({ id: e.target.value, cursor: null }); }} />
+              </div>
+              {operationSearchFields.map(field => <div key={field.param}>
+                <label htmlFor={field.id} className="text-xs font-semibold">{field.label}</label>
+                <input id={field.id} aria-label={`Search by ${field.label.toLowerCase()}`} className="mt-1 h-9 w-full rounded-[var(--radius-sm)] border border-[var(--border-dark)] bg-[var(--bg-card)] px-3 text-sm" value={field.value}
+                  placeholder={field.placeholder}
+                  onChange={e => { applyCursor(null); field.set(e.target.value); updateSearch({ [field.param]: e.target.value, cursor: null }); }} />
+              </div>)}
+              <div><label htmlFor="ops-from" className="text-xs font-semibold">From</label>
+                <input id="ops-from" aria-label="From date (UTC)" type="date" className="mt-1 h-9 w-full rounded-[var(--radius-sm)] border border-[var(--border-dark)] bg-[var(--bg-card)] px-3 text-sm" value={fromDate}
+                  onChange={(e) => { applyCursor(null); setFromDate(e.target.value); updateSearch({ from: e.target.value, cursor: null }); }} />
+              </div>
+              <div><label htmlFor="ops-to" className="text-xs font-semibold">To</label>
+                <input id="ops-to" aria-label="To date (UTC)" type="date" className="mt-1 h-9 w-full rounded-[var(--radius-sm)] border border-[var(--border-dark)] bg-[var(--bg-card)] px-3 text-sm" value={toDate}
+                  onChange={(e) => { applyCursor(null); setToDate(e.target.value); updateSearch({ to: e.target.value, cursor: null }); }} />
+              </div>
+              <p className="self-end pb-2 text-xs text-[var(--text-sub)] sm:col-span-2 xl:col-span-4">From and To include the full selected UTC days.</p>
+              <div>
+                <label htmlFor="ops-usage" className="text-xs font-semibold">Usage records</label>
+                <select id="ops-usage" value={usageFilter} onChange={e => { const value = e.target.value as typeof usageFilter; applyCursor(null); setUsageFilter(value); updateSearch({ usage: value === 'any' ? null : value, cursor: null }); }} className="mt-1 h-9 w-full rounded-[var(--radius-sm)] border border-[var(--border-dark)] bg-[var(--bg-card)] px-3 text-sm">
+                  <option value="any">Any</option><option value="has-recorded-usage">Has recorded usage</option><option value="no-recorded-usage">No recorded usage</option>
+                </select>
+              </div>
+              <div>
+                <label htmlFor="ops-reservation" className="text-xs font-semibold">Budget reservation</label>
+                <select id="ops-reservation" value={reservationFilter} onChange={e => { const value = e.target.value as typeof reservationFilter; applyCursor(null); setReservationFilter(value); updateSearch({ reservation: value === 'any' ? null : value, cursor: null }); }} className="mt-1 h-9 w-full rounded-[var(--radius-sm)] border border-[var(--border-dark)] bg-[var(--bg-card)] px-3 text-sm">
+                  <option value="any">Any</option><option value="unknown">Reservation outcome UNKNOWN</option>
+                </select>
+              </div>
+              <div>
+                <label htmlFor="ops-attention" className="text-xs font-semibold">Attention</label>
+                <select id="ops-attention" value={attentionFilter} onChange={e => { const value = e.target.value as typeof attentionFilter; applyCursor(null); setAttentionFilter(value); updateSearch({ attention: value === 'any' ? null : value, cursor: null }); }} className="mt-1 h-9 w-full rounded-[var(--radius-sm)] border border-[var(--border-dark)] bg-[var(--bg-card)] px-3 text-sm">
+                  <option value="any">Any</option><option value="waiting-input">Waiting for human input</option>
+                </select>
+              </div>
+            </div>
+          </details>
           <div className="flex flex-wrap items-center gap-3">
           <Button disabled={busy} onClick={() => void load()}>
             Refresh
@@ -763,9 +779,9 @@ export function OperationsScreen() {
         <EmptyState title="No operations" description="No operations match this filter in the session's scope." actionText="Refresh" onAction={() => void load()} />
       ) : null}
       {pane?.kind === 'ready' ? (
-        <TableContainer>
-          <Table aria-label="Operations">
-            <TableHeader>
+        <TableContainer maxHeight="65dvh" role="region" aria-label="Operations results">
+          <Table aria-label="Operations" density="compact">
+            <TableHeader sticky>
               <TableRow>
                 <TableHead className="w-12 text-center">
                   <input
@@ -786,13 +802,14 @@ export function OperationsScreen() {
                     }}
                   />
                 </TableHead>
-                <TableHead>ID</TableHead>
+                <TableHead className="whitespace-nowrap">ID</TableHead>
                 <TableHead>State</TableHead>
+                <TableHead>Progress</TableHead>
                 <TableHead>Business / action</TableHead>
                 <TableHead>Created</TableHead>
-                <TableHead>Finished</TableHead>
-                <TableHead>Total elapsed</TableHead>
-                <TableHead>Actions</TableHead>
+                <TableHead className="whitespace-nowrap">Finished</TableHead>
+                <TableHead className="whitespace-nowrap">Total elapsed</TableHead>
+                <TableHead className="whitespace-nowrap">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -816,7 +833,7 @@ export function OperationsScreen() {
                   <TableCell className="font-mono text-xs">
                     <button
                       type="button"
-                      className="text-[var(--cf-blue)] underline"
+                      className="whitespace-nowrap text-[var(--cf-blue)] underline"
                       onClick={() => void openDetail(op.id)}
                     >
                       {op.id.slice(0, 8)}…
@@ -827,18 +844,22 @@ export function OperationsScreen() {
                       {op.state}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-xs">
-                    {op.businessId ?? '—'} · {op.action ?? '—'}
+                  <TableCell className="min-w-36 text-xs" title={op.progress?.message ?? 'Progress not reported'}>
+                    {op.progress ? <><span className="font-semibold">{op.progress.percent}%</span>{op.progress.message ? <span className="ml-1 text-[var(--text-sub)]">{op.progress.message}</span> : null}</> : <span className="text-[var(--text-sub)]">Not reported</span>}
+                  </TableCell>
+                  <TableCell className="max-w-64 text-xs" title={`${op.businessId ?? '—'} · ${op.action ?? '—'}`}>
+                    <span className="block max-w-64 truncate">{op.businessId ?? '—'}</span>
+                    <span className="block whitespace-nowrap text-[var(--text-sub)]">{op.action ?? '—'}</span>
                   </TableCell>
                   <TableCell className="whitespace-nowrap text-xs text-[var(--text-sub)]">{formatTime(op.createdAt)}</TableCell>
                   <TableCell className="text-xs">{terminalStates.includes(op.state) ? formatTime(op.completedAt) : 'In progress'}</TableCell>
                   <TableCell className="text-xs">{formatDuration(elapsedMs(op, nowIso))}</TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Button size="sm" variant="outline" onClick={() => void openDetail(op.id)}>Detail</Button>
-                      <Button size="sm" variant="outline" disabled={busy || role === 'viewer' || terminalStates.includes(op.state) || op.state === 'CANCEL_REQUESTED'} onClick={() => requestControl(op, 'cancel')}>Stop</Button>
-                      <Button size="sm" variant="outline" disabled={busy || role !== 'admin' || Boolean(op.errorCode?.includes('UNKNOWN')) || !['FAILED', 'CANCELLED', 'TIMED_OUT'].includes(op.state)} onClick={() => requestControl(op, 'retry')}>Retry</Button>
-                      {terminalStates.includes(op.state) && <Button size="sm" variant="outline" disabled={busy || role === 'viewer'} onClick={() => requestControl(op, 'delete')}>Delete</Button>}
+                  <TableCell className="whitespace-nowrap">
+                    <div className="flex w-max flex-nowrap items-center gap-2">
+                      <Button className="shrink-0" size="sm" variant="outline" onClick={() => void openDetail(op.id)}>Detail</Button>
+                      <Button className="shrink-0" size="sm" variant="outline" disabled={busy || role === 'viewer' || terminalStates.includes(op.state) || op.state === 'CANCEL_REQUESTED'} onClick={() => requestControl(op, 'cancel')}>Stop</Button>
+                      <Button className="shrink-0" size="sm" variant="outline" disabled={busy || role !== 'admin' || Boolean(op.errorCode?.includes('UNKNOWN')) || !['FAILED', 'CANCELLED', 'TIMED_OUT'].includes(op.state)} onClick={() => requestControl(op, 'retry')}>Retry</Button>
+                      {terminalStates.includes(op.state) && <Button className="shrink-0" size="sm" variant="outline" disabled={busy || role === 'viewer'} onClick={() => requestControl(op, 'delete')}>Delete</Button>}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -849,16 +870,18 @@ export function OperationsScreen() {
       ) : null}
 
       {pane?.kind === 'ready' || pane?.kind === 'empty' ? (
-        <div className="flex flex-wrap items-center gap-3" aria-label="Request pagination">
-          <Button disabled={busy || page.kind !== 'ready' || !page.data.prevCursor} onClick={() => { if (page.kind === 'ready') applyCursor(page.data.prevCursor); }}>Previous</Button>
-          <Button disabled={busy || page.kind !== 'ready' || !page.data.nextCursor} onClick={() => { if (page.kind === 'ready') applyCursor(page.data.nextCursor); }}>Next</Button>
-          <Button disabled={busy || cursor === null} onClick={() => applyCursor(null)}>Newest</Button>
-          {/* HONESTY-AUDIT-OPS: only claim a total the server actually sent. */}
-          {page.kind === 'ready' ? (
-            <span className="text-sm">
-              {page.data.items.length} shown · {page.data.totalFromServer ? `${page.data.total} total` : 'total not reported by the server'}
-            </span>
-          ) : null}
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
+          <TablePagination
+            ariaLabel="Operations list pagination"
+            className="min-w-0 flex-1"
+            hasPreviousPage={page.kind === 'ready' && Boolean(page.data.prevCursor)}
+            hasNextPage={page.kind === 'ready' && Boolean(page.data.nextCursor)}
+            onPreviousPage={page.kind === 'ready' ? () => applyCursor(page.data.prevCursor ?? null) : undefined}
+            onNextPage={page.kind === 'ready' ? () => applyCursor(page.data.nextCursor ?? null) : undefined}
+            pending={busy}
+            status={page.kind === 'ready' ? `${page.data.items.length} shown · ${page.data.totalFromServer ? `${page.data.total} total` : 'total not reported by the server'}` : 'No operations page metadata available.'}
+          />
+          <Button className="shrink-0" disabled={busy || cursor === null} onClick={() => applyCursor(null)}>Newest</Button>
         </div>
       ) : null}
       {notice ? <AlertBanner variant="info" title={notice}>Refresh or open the request detail to inspect its current state.</AlertBanner> : null}
@@ -979,6 +1002,9 @@ export function OperationsScreen() {
                       <dt className="text-[var(--text-sub)]">Finished</dt>
                       <dd>{formatTime(detail.operation.completedAt)}</dd>
 
+                      <dt className="text-[var(--text-sub)]">Progress</dt>
+                      <dd>{detail.operation.progress ? `${detail.operation.progress.percent}%${detail.operation.progress.message ? ` · ${detail.operation.progress.message}` : ''}` : 'Not reported'}</dd>
+
                       <dt className="text-[var(--text-sub)]">Total elapsed</dt>
                       <dd>{formatDuration(elapsedMs(detail.operation, nowIso))}</dd>
 
@@ -1030,6 +1056,11 @@ export function OperationsScreen() {
                           <TableRow className="bg-[var(--surface-muted)]">
                             <TableHead className="text-xs">Task</TableHead>
                             <TableHead className="text-xs">State</TableHead>
+                            <TableHead className="text-xs">Admission</TableHead>
+                            <TableHead className="text-xs">Spawned by</TableHead>
+                            <TableHead className="text-xs">Awaited child join</TableHead>
+                            <TableHead className="text-xs">Worker / lease</TableHead>
+                            <TableHead className="text-xs">Due</TableHead>
                             <TableHead className="text-xs">Attempt</TableHead>
                             <TableHead className="text-xs">Error</TableHead>
                           </TableRow>
@@ -1046,6 +1077,24 @@ export function OperationsScreen() {
                                   {task.state}
                                 </Badge>
                               </TableCell>
+                              <TableCell className="min-w-44 text-xs">
+                                {task.admissionParkedReason
+                                  ? <><Badge variant="warning">Parked · {task.admissionParkedReason}</Badge><span className="mt-1 block text-[var(--text-sub)]">{task.admissionParkedAt ? `Since ${formatTime(task.admissionParkedAt)}` : 'Park time unavailable'}</span></>
+                                  : task.admissionParkedReason === null
+                                    ? <span className="text-[var(--text-sub)]">Not parked</span>
+                                    : <span className="text-[var(--text-sub)]">Unavailable</span>}
+                              </TableCell>
+                              <TableCell className="max-w-52 text-xs">
+                                {task.spawnedBy ? <span className="block font-mono">Spawned by {task.spawnedBy.slice(0, 8)}</span> : <span className="block text-[var(--text-sub)]">Root task</span>}
+                              </TableCell>
+                              <TableCell className="max-w-48 text-xs">
+                                {task.awaitedChildren?.length ? task.awaitedChildren.map((edge) => <span key={edge.taskId} className="block font-mono" title={edge.joinPolicy}>Awaits {edge.taskId.slice(0, 8)} · {edge.joinPolicy}</span>) : '—'}
+                              </TableCell>
+                              <TableCell className="max-w-48 text-xs">
+                                <span className="block font-mono">{task.leasedBy ?? 'Unassigned'}</span>
+                                <span className="block text-[var(--text-sub)]">{task.leaseExpiresAt ? `Lease until ${formatTime(task.leaseExpiresAt)}` : 'No active lease'}</span>
+                              </TableCell>
+                              <TableCell className="whitespace-nowrap text-xs">{task.dueAt ? formatTime(task.dueAt) : 'Runnable now'}</TableCell>
                               <TableCell className="text-xs">{task.attempt}/{task.maxAttempts}</TableCell>
                               <TableCell className="text-xs font-mono text-[var(--badge-danger-text)]">{task.errorCode ?? '—'}</TableCell>
                             </TableRow>
@@ -1122,9 +1171,10 @@ export function OperationsScreen() {
                 <div className="flex flex-col gap-2">
                   <div className="flex items-center justify-between">
                     <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--text-sub)]">
-                      Operations Timeline
+                      Task creation-order snapshot
                     </h3>
                   </div>
+                  <p className="text-xs text-[var(--text-sub)]">The horizontal order reflects task creation time only. Spawn ancestry and child join groups are shown in the task graph table.</p>
                   <div
                     aria-label="Operations timeline"
                     className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4 overflow-x-auto"

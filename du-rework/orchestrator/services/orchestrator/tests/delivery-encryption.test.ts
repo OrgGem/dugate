@@ -58,6 +58,7 @@ const TENANT_ENC = 'tenant-encrypted';
 const TENANT_PLAIN = 'tenant-plaintext';
 const FOREIGN_TENANT = 'tenant-foreign';
 const API_KEY = 'enc07-api-key';
+const ADMIN_TOKEN = 'enc07-admin-token';
 const KEY_HASH = createHash('sha256').update(API_KEY).digest('hex');
 const OP_ID = '11111111-1111-4111-8111-111111111111';
 const ARTIFACT_ID = '22222222-2222-4222-8222-222222222222';
@@ -273,6 +274,8 @@ interface HarnessOptions {
   tenant?: string;
   /** Tenant that owns the operation/artifact. Defaults to `tenant`. */
   ownerTenant?: string;
+  /** API key that owns the operation. Defaults to the presented key. */
+  ownerApiKeyId?: string;
   policyByTenant?: Record<string, TenantDeliveryPolicy>;
   /** null = no key registered; a record = that key; a throw = outage. */
   key?: RecipientPublicKeyRecord | null;
@@ -289,6 +292,7 @@ interface HarnessOptions {
 function harness(options: HarnessOptions = {}): RouteContext {
   const tenant = options.tenant ?? TENANT_ENC;
   const owner = options.ownerTenant ?? tenant;
+  const ownerApiKeyId = options.ownerApiKeyId ?? 'api-key-1';
   const policyByTenant = options.policyByTenant ?? { [TENANT_ENC]: { enabled: true } };
   const blob = options.blobBytes ?? ARTIFACT_BYTES;
 
@@ -299,6 +303,17 @@ function harness(options: HarnessOptions = {}): RouteContext {
         // resolves to the tenant the harness authenticated as.
         if (params[0] !== KEY_HASH) return pgResult([]);
         return pgResult([{ id: 'api-key-1', tenant_id: tenant }]);
+      }
+      if (/FROM operations\s+WHERE id=\$1 AND tenant_id=\$2 AND api_key_id=\$3/i.test(sql)) {
+        if (params[0] !== OP_ID || params[1] !== owner || params[2] !== ownerApiKeyId) return pgResult([]);
+        return pgResult([{
+          id: OP_ID,
+          tenant_id: owner,
+          api_key_id: ownerApiKeyId,
+          state: 'SUCCEEDED',
+          result_ref: RESULT_REF,
+          endpoint_slug: 'extract:invoice',
+        }]);
       }
       if (/FROM operations o/i.test(sql) && /LEFT JOIN artifacts/i.test(sql)) {
         return pgResult([{
@@ -325,6 +340,7 @@ function harness(options: HarnessOptions = {}): RouteContext {
   };
 
   return {
+    ingressAudience: 'public',
     method: 'GET',
     pathname: '/',
     searchParams: new URLSearchParams(''),
@@ -356,7 +372,7 @@ function harness(options: HarnessOptions = {}): RouteContext {
         options.registryError,
       ),
     }),
-    config: { maxBlobBytes: options.maxBlobBytes },
+    config: { adminToken: ADMIN_TOKEN, maxBlobBytes: options.maxBlobBytes },
   } as unknown as RouteContext;
 }
 
@@ -373,7 +389,13 @@ async function call(
 ): Promise<Outcome> {
   (ctx as unknown as { pathname: string }).pathname = pathname;
   (ctx as unknown as { searchParams: URLSearchParams }).searchParams = new URLSearchParams(search);
-  (ctx as unknown as { headers: Record<string, string> }).headers = { 'x-api-key': API_KEY, ...headers };
+  const internal = pathname.startsWith('/api/internal/');
+  (ctx as unknown as { ingressAudience: string }).ingressAudience = internal ? 'internal' : 'public';
+  (ctx as unknown as { headers: Record<string, string> }).headers = {
+    'x-api-key': API_KEY,
+    ...(internal ? { authorization: `Bearer ${ADMIN_TOKEN}` } : {}),
+    ...headers,
+  };
   try {
     const res = await route(ctx);
     return {
@@ -393,11 +415,12 @@ async function call(
   }
 }
 
-const RESULT_PATH = `/api/v1/operations/${OP_ID}/result`;
+const RESULT_PATH = `/api/internal/operations/${OP_ID}/result`;
+const PUBLIC_RESULT_PATH = `/api/v1/operations/${OP_ID}/result`;
 const DOWNLOAD_PATH = `/api/v1/artifacts/${ARTIFACT_ID}/download`;
 
-describe('ENC-07: public delivery surfaces follow the server-side policy', () => {
-  it('/result wraps the result in an envelope the external recipient decrypts', async () => {
+describe('ENC-07: internal results and public artifact downloads follow server-side policy', () => {
+  it('the internal result route wraps the result in an envelope the external recipient decrypts', async () => {
     const out = await call(harness(), RESULT_PATH);
     if (out.kind !== 'body') throw new Error('unreachable');
     expect(out.status).toBe(200);
@@ -412,10 +435,31 @@ describe('ENC-07: public delivery surfaces follow the server-side policy', () =>
     expect(externalDecrypt(encryptedArtifact.delivery)).toEqual(ARTIFACT_BYTES);
   });
 
-  it('/result leaves no plaintext resultRef on the wire when encrypted', async () => {
+  it('the encrypted internal result leaves no plaintext resultRef on the wire', async () => {
     const out = await call(harness(), RESULT_PATH);
     if (out.kind !== 'body') throw new Error('unreachable');
     expect(JSON.stringify(out.body)).not.toContain(RESULT_REF);
+  });
+
+  it('the published public /result route preserves encrypted delivery for the owning API key', async () => {
+    const out = await call(harness(), PUBLIC_RESULT_PATH);
+    if (out.kind !== 'body') throw new Error('unreachable');
+    expect(out.status).toBe(200);
+    const encrypted = EncryptedResultEnvelopeSchema.parse(ResultResponseSchema.parse(out.body));
+    const plaintext = ResultEnvelopeSchema.parse(JSON.parse(externalDecrypt(encrypted.delivery).toString('utf8')));
+    expect(plaintext.data).toEqual({ resultRef: RESULT_REF });
+  });
+
+  it('public /result hides operations owned by another tenant or API key', async () => {
+    const wrongTenant = await call(harness({ ownerTenant: 'tenant-other' }), PUBLIC_RESULT_PATH);
+    expect(wrongTenant).toMatchObject({ kind: 'problem', status: 404 });
+    const wrongKey = await call(harness({ ownerApiKeyId: 'api-key-other' }), PUBLIC_RESULT_PATH);
+    expect(wrongKey).toMatchObject({ kind: 'problem', status: 404 });
+  });
+
+  it('public /result does not accept an admin bearer as an API-key principal', async () => {
+    const out = await call(harness(), PUBLIC_RESULT_PATH, '', { authorization: `Bearer ${ADMIN_TOKEN}`, 'x-api-key': '' });
+    expect(out).toMatchObject({ kind: 'body', status: 404 });
   });
 
   it('/download wraps the artifact bytes, and the recipient gets them back exactly', async () => {
@@ -441,12 +485,14 @@ describe('ENC-07: public delivery surfaces follow the server-side policy', () =>
       policyByTenant: { [TENANT_PLAIN]: { enabled: false } },
     });
 
-    const result = await call(ctx, RESULT_PATH);
-    if (result.kind !== 'body') throw new Error('unreachable');
-    expect(result.status).toBe(200);
-    const plainResult = ResultEnvelopeSchema.parse(ResultResponseSchema.parse(result.body));
-    expect(result.body['encrypted']).toBeUndefined();
-    expect(plainResult.data).toEqual({ resultRef: RESULT_REF });
+    for (const path of [RESULT_PATH, PUBLIC_RESULT_PATH]) {
+      const result = await call(ctx, path);
+      if (result.kind !== 'body') throw new Error('unreachable');
+      expect(result.status).toBe(200);
+      const plainResult = ResultEnvelopeSchema.parse(ResultResponseSchema.parse(result.body));
+      expect(result.body['encrypted']).toBeUndefined();
+      expect(plainResult.data).toEqual({ resultRef: RESULT_REF });
+    }
 
     const download = await call(ctx, DOWNLOAD_PATH);
     if (download.kind !== 'body') throw new Error('unreachable');
@@ -462,6 +508,8 @@ describe('ENC-07: public delivery surfaces follow the server-side policy', () =>
       [RESULT_PATH, 'plaintext=1&encrypted=false', {}],
       [RESULT_PATH, '', { 'x-delivery-mode': 'plaintext' }],
       [RESULT_PATH, '', { accept: 'text/plain' }],
+      [PUBLIC_RESULT_PATH, 'encrypted=0', {}],
+      [PUBLIC_RESULT_PATH, '', { 'x-delivery-mode': 'plaintext' }],
       [DOWNLOAD_PATH, 'encrypted=0', {}],
       [DOWNLOAD_PATH, 'plaintext=true', { 'x-delivery-encryption': 'off' }],
       [DOWNLOAD_PATH, '', { accept: 'application/octet-stream' }],
@@ -474,7 +522,7 @@ describe('ENC-07: public delivery surfaces follow the server-side policy', () =>
   });
 
   it('fails closed with 503 when no recipient key is registered', async () => {
-    for (const path of [RESULT_PATH, DOWNLOAD_PATH]) {
+    for (const path of [RESULT_PATH, PUBLIC_RESULT_PATH, DOWNLOAD_PATH]) {
       const out = await call(harness({ key: null }), path);
       expect(out.kind).toBe('problem');
       if (out.kind !== 'problem') throw new Error('unreachable');
@@ -511,14 +559,12 @@ describe('ENC-07: public delivery surfaces follow the server-side policy', () =>
     expect(envelope.recipientKeyVersion).toBe(7);
   });
 
-  it('another tenant gets 404 on both surfaces, before any key is consulted', async () => {
+  it('a tenant API key cannot download another tenant artifact', async () => {
     const ctx = harness({ ownerTenant: FOREIGN_TENANT });
-    for (const path of [RESULT_PATH, DOWNLOAD_PATH]) {
-      const out = await call(ctx, path);
-      expect(out.kind).toBe('problem');
-      if (out.kind !== 'problem') throw new Error('unreachable');
-      expect(out.status).toBe(404);
-    }
+    const out = await call(ctx, DOWNLOAD_PATH);
+    expect(out.kind).toBe('problem');
+    if (out.kind !== 'problem') throw new Error('unreachable');
+    expect(out.status).toBe(404);
   });
 
   it('an artifact past the encrypted-delivery ceiling fails closed instead of buffering', async () => {
@@ -771,6 +817,8 @@ describe('CR28-10 delivery: missing and wrong credentials on the wire', () => {
   ): Promise<Outcome> {
     (ctx as unknown as { pathname: string }).pathname = pathname;
     (ctx as unknown as { searchParams: URLSearchParams }).searchParams = new URLSearchParams('');
+    const internal = pathname.startsWith('/api/internal/');
+    (ctx as unknown as { ingressAudience: string }).ingressAudience = internal ? 'internal' : 'public';
     (ctx as unknown as { headers: Record<string, string> }).headers = headers;
     try {
       const res = await route(ctx);
@@ -785,37 +833,38 @@ describe('CR28-10 delivery: missing and wrong credentials on the wire', () => {
     }
   }
 
-  it('a request with NO api key header is 401 on both surfaces, with no payload', async () => {
-    for (const path of [RESULT_PATH, DOWNLOAD_PATH]) {
-      const out = await callWithHeaders(harness(), path, {});
-      expect(out.kind).toBe('problem');
-      if (out.kind !== 'problem') throw new Error('unreachable');
-      expect(out.status).toBe(401);
-      expect(JSON.stringify(out.problem)).not.toContain(RESULT_REF);
-    }
+  it('a public download request with NO api key header is 401, with no payload', async () => {
+    const out = await callWithHeaders(harness(), DOWNLOAD_PATH, {});
+    expect(out.kind).toBe('problem');
+    if (out.kind !== 'problem') throw new Error('unreachable');
+    expect(out.status).toBe(401);
+    expect(JSON.stringify(out.problem)).not.toContain(RESULT_REF);
   });
 
   it.each([
     ['an empty value', ''],
     ['a wrong value', 'wrong-key'],
     ['the key with a trailing space', API_KEY + ' '],
-  ])('an api key that is %s is 401', async (_label, value) => {
-    const out = await callWithHeaders(harness(), RESULT_PATH, { 'x-api-key': value });
+  ])('an api key that is %s is 401 for public download', async (_label, value) => {
+    const out = await callWithHeaders(harness(), DOWNLOAD_PATH, { 'x-api-key': value });
     expect(out.kind).toBe('problem');
     if (out.kind !== 'problem') throw new Error('unreachable');
     expect(out.status).toBe(401);
   });
 
-  it('a cross-tenant fetch is 404 and never returns key material', async () => {
+  it('an API key cannot authenticate the internal result route', async () => {
+    const out = await callWithHeaders(harness(), RESULT_PATH, { 'x-api-key': API_KEY });
+    expect(out).toMatchObject({ kind: 'problem', status: 401 });
+  });
+
+  it('a cross-tenant public download is 404 and never returns key material', async () => {
     const ctx = harness({ ownerTenant: FOREIGN_TENANT });
-    for (const path of [RESULT_PATH, DOWNLOAD_PATH]) {
-      const out = await call(ctx, path);
-      if (out.kind !== 'problem') throw new Error('unreachable');
-      expect(out.status).toBe(404);
-      const wire = JSON.stringify(out.problem);
-      expect(wire).not.toContain(RECIPIENT_PUBLIC_PEM);
-      expect(wire).not.toContain(RESULT_REF);
-    }
+    const out = await call(ctx, DOWNLOAD_PATH);
+    if (out.kind !== 'problem') throw new Error('unreachable');
+    expect(out.status).toBe(404);
+    const wire = JSON.stringify(out.problem);
+    expect(wire).not.toContain(RECIPIENT_PUBLIC_PEM);
+    expect(wire).not.toContain(RESULT_REF);
   });
 
   it('an envelope with a corrupt ciphertext is rejected by the ENC-01 contract', async () => {

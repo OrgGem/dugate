@@ -486,14 +486,16 @@ function buildOperationsListPredicates(
   query: OperationsListQuery,
   tenantId: string | null,
   userScope?: OperationsListUserScope | null,
+  apiKeyIdScope?: string | null,
 ): OperationsListPredicates {
-  const clauses: string[] = [];
+  const clauses: string[] = ['deleted_at IS NULL'];
   const params: unknown[] = [];
   const bind = (value: unknown): string => {
     params.push(value);
     return `$${params.length}`;
   };
   if (tenantId !== null) clauses.push(`tenant_id = ${bind(tenantId)}`);
+  if (apiKeyIdScope != null) clauses.push(`api_key_id = ${bind(apiKeyIdScope)}`);
   if (query.stateFilter !== 'ALL') {
     clauses.push(`state = ANY(${bind(OPERATIONS_STATE_FILTER_WIRE_STATES[query.stateFilter])}::text[])`);
   }
@@ -542,9 +544,6 @@ function buildOperationsListPredicates(
     if (userScope.apiKeyIds.length === 0) {
       clauses.push('FALSE');
     } else {
-      // Deleted operations are hidden by lifecycle authorization; keep them
-      // out of this assigned population so list, detail and totals agree.
-      clauses.push('deleted_at IS NULL');
       const profileIds = bind([...userScope.profileIds]);
       const apiKeyIds = bind([...userScope.apiKeyIds]);
       clauses.push(`api_key_id = ANY(${apiKeyIds}::uuid[]) AND (profile_id IS NULL OR profile_id = ANY(${profileIds}::uuid[]))`);
@@ -700,17 +699,18 @@ export async function listOperationsPage(
   tenantId: string | null,
   project: (row: Record<string, unknown>) => Record<string, unknown>,
   userScope?: OperationsListUserScope | null,
+  apiKeyIdScope?: string | null,
 ): Promise<Record<string, unknown>> {
-  const populationHash = operationsPopulationHash(query, tenantId, userScope);
+  const populationHash = operationsPopulationHash(query, tenantId, userScope, apiKeyIdScope);
   if (query.cursor) {
     if (query.cursor.populationHash !== null && query.cursor.populationHash !== populationHash) {
       throw new HttpError(422, 'INVALID_SCHEMA', 'cursor belongs to another authorized scope or filter population; drop the cursor to start at the first page');
     }
-    if (query.cursor.populationHash === null && !isLegacyCursorPopulation(query, tenantId, userScope)) {
+    if (query.cursor.populationHash === null && !isLegacyCursorPopulation(query, tenantId, userScope, apiKeyIdScope)) {
       throw new HttpError(422, 'INVALID_SCHEMA', 'legacy cursor cannot be used with this scope or filter population; drop the cursor to start at the first page');
     }
   }
-  const filters = buildOperationsListPredicates(query, tenantId, userScope);
+  const filters = buildOperationsListPredicates(query, tenantId, userScope, apiKeyIdScope);
   const filtersWhere = whereClause(filters.clauses);
   const sort = query.sort;
   const descending = sort.direction === 'desc';
@@ -810,6 +810,7 @@ function operationsPopulationHash(
   query: OperationsListQuery,
   tenantId: string | null,
   userScope?: OperationsListUserScope | null,
+  apiKeyIdScope?: string | null,
 ): string {
   const stableScope = userScope ? {
     tenantId: userScope.tenantId,
@@ -839,6 +840,11 @@ function operationsPopulationHash(
     attention: query.attentionFilter,
     sort: formatOperationsListSort(query.sort),
   };
+  // Preserve existing platform/admin cursor fingerprints while binding
+  // API-key public cursors to the exact key population that issued them.
+  if (apiKeyIdScope != null) {
+    Object.assign(population, { apiKeyIdScope });
+  }
   return createHash('sha256').update(JSON.stringify(population)).digest().subarray(0, POPULATION_HASH_BYTES).toString('base64url');
 }
 
@@ -846,8 +852,9 @@ function isLegacyCursorPopulation(
   query: OperationsListQuery,
   tenantId: string | null,
   userScope?: OperationsListUserScope | null,
+  apiKeyIdScope?: string | null,
 ): boolean {
-  return tenantId === null && userScope == null && query.tenantId === null
+  return tenantId === null && userScope == null && apiKeyIdScope == null && query.tenantId === null
     && query.stateFilter === 'ALL' && query.idContains === null
     && query.from === undefined && query.to === undefined
     && query.businessContains === null && query.actionContains === null

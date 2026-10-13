@@ -1,0 +1,13 @@
+▶ ORV15 bounded frontend repair packet
+  ✔ keeps secret catalog paging server-cursor based and resets cursor history with tenant scope (0.6815ms)
+  ✔ bounds and names long result/catalog regions while retaining their existing paging and mutation guards (0.2718ms)
+  ✔ aligns trace and security actions with control rows and constrains account text on narrow screens (0.1049ms)
+✔ ORV15 bounded frontend repair packet (1.7778ms)
+ℹ tests 3
+ℹ suites 1
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 64.8677

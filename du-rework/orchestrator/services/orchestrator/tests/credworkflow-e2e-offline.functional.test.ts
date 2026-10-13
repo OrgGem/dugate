@@ -6,6 +6,7 @@ import { createCredentialWorkflow, type ConnectorRevisionStore, type RevisionRow
 import type { AuditService } from '../src/modules/audit/audit';
 import { createApp, type App } from '../src/server';
 import { loadMigrationFiles } from '../src/db/migrations';
+import { mockCreateStorageGenerationFixture, mockOpenBackupEffectGateResult } from './helpers/backup-effect-gate';
 import { createConnectorManagementAuthorizationProvider } from '../src/modules/connectors/management-service-identity';
 
 /**
@@ -345,8 +346,14 @@ describe('CREDWORKFLOW-IMPL — G7 chain offline (create→bootstrap→rotate→
 
 jest.mock('pg', () => {
   const state = { schemaLedger: [] as unknown[] };
-  function answer(sql: string): { rows: unknown[]; rowCount: number } {
+  let mockStorage: ReturnType<typeof mockCreateStorageGenerationFixture> | undefined;
+  const getMockStorage = () => (mockStorage ??= mockCreateStorageGenerationFixture());
+  function answer(sql: string, params: unknown[] = []): { rows: unknown[]; rowCount: number } {
     const text = String(sql).replace(/\s+/g, ' ').trim();
+    const backupGate = mockOpenBackupEffectGateResult(text);
+    if (backupGate) return backupGate;
+    const storage = getMockStorage().answer(text, params);
+    if (storage) return storage;
     if (/information_schema\.tables/i.test(text)) return { rows: [{ exists: true }], rowCount: 1 };
     // CRED-LIMITS-801: verifyMigrations cross-checks the ledger with an
     // independent COUNT (migrations.ts:151). The mock below used to answer that
@@ -359,11 +366,11 @@ jest.mock('pg', () => {
     return { rows: [], rowCount: 0 };
   }
   class ScriptedPool {
-    async query(sql: string) {
-      return answer(sql);
+    async query(sql: string, params?: unknown[]) {
+      return answer(sql, params ?? []);
     }
     async connect() {
-      return { query: (sql: string) => Promise.resolve(answer(sql)), release: () => undefined };
+      return { query: (sql: string, params?: unknown[]) => Promise.resolve(answer(sql, params ?? [])), release: () => undefined };
     }
     async end() {
       return undefined;

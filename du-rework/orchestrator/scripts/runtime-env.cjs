@@ -23,13 +23,28 @@ function serviceEnvironment(env, service) {
   return result;
 }
 
+function localConnectorManagementEnvironment(env, { services = 'all', connectorUrl } = {}) {
+  const result = { ...env };
+  if (!['all', 'orchestrator'].includes(services) || result.DU_CONNECTOR_BASE_URLS !== undefined) return result;
+  if (typeof connectorUrl !== 'string' || connectorUrl.trim() === '') {
+    throw new Error('CONNECTOR_URL is required to compose local Connector management');
+  }
+  result.DU_CONNECTOR_BASE_URLS = JSON.stringify({ '*': connectorUrl });
+  return result;
+}
+
 function validateRuntimeEnvironment(env, { services = 'all' } = {}) {
   const required = ['DATABASE_URL', 'REDIS_URL', 'SERVICE_IDENTITY_SECRET', 'INVOCATION_GRANT_SECRET'];
   if (services === 'all' || services === 'orchestrator') {
     required.push('RUNTIME_TOKEN', 'ADMIN_TOKEN', 'ENCRYPTION_KEY', 'ADMIN_SHELL_COOKIE_SECRET');
   }
   for (const key of required) {
-    if (!env[key]) throw new Error(`${key} is required`);
+    if (!env[key]) {
+      if (key === 'SERVICE_IDENTITY_SECRET') {
+        throw new Error('SERVICE_IDENTITY_SECRET is required; Orchestrator and Connector must share a Base64-encoded 32-byte secret');
+      }
+      throw new Error(`${key} is required`);
+    }
   }
   for (const key of ['SERVICE_IDENTITY_SECRET', 'CONNECTOR_ENCRYPTION_KEY']) {
     if (env[key] && Buffer.from(env[key], 'base64').length !== 32) {
@@ -75,6 +90,7 @@ function localSecrets(now = Date.now()) {
 
 module.exports = {
   serviceEnvironment,
+  localConnectorManagementEnvironment,
   validateRuntimeEnvironment,
   signedConnectorToken,
   localSecrets,

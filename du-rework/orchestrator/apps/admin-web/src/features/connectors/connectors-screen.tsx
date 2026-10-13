@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ConfirmDialog, Modal } from '@/components/ui/dialog';
+import { ConfirmDialog } from '@/components/ui/dialog';
 import { FormField } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { NativeSelect } from '@/components/ui/select';
@@ -14,8 +14,10 @@ import {
   TableContainer,
   TableHead,
   TableHeader,
+  TablePagination,
   TableRow,
 } from '@/components/ui/table';
+import { TabsList, TabsPanel, TabsRoot, TabsTab } from '@/components/ui/tabs';
 import {
   createAdminApiClient,
   type AdminApiProblem,
@@ -49,6 +51,7 @@ import {
 
 type ListState = { kind: 'idle' } | Loadable<ConnectorListPage>;
 type LookupState = { kind: 'idle' } | Loadable<ConnectorRevisionRead>;
+const TENANT_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const UNREADABLE_CAPABILITIES: AdminApiProblem = {
   status: 502,
@@ -106,7 +109,9 @@ export function ConnectorsScreen() {
   const [customConnectorIdMode, setCustomConnectorIdMode] = useState(false);
   const [revision, setRevision] = useState(() => new URLSearchParams(window.location.search).get('revision') ?? 'latest');
   const [lookup, setLookup] = useState<LookupState>({ kind: 'idle' });
-  const [importOpen, setImportOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'catalog' | 'inspector' | 'recipe' | 'curl-import'>('catalog');
+  const [catalogPage, setCatalogPage] = useState(0);
+  const [selectedCatalogKey, setSelectedCatalogKey] = useState<string | null>(null);
   const [importDraft, setImportDraft] = useState<ConnectorImportDraft | null>(null);
   const [draftConnectorId, setDraftConnectorId] = useState('');
   const [draftAdapter, setDraftAdapter] = useState('');
@@ -116,6 +121,8 @@ export function ConnectorsScreen() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+  const loadGeneration = useRef(0);
   const [confirmTarget, setConfirmTarget] = useState<{
     kind: 'disable' | 'retire';
     connectorId: string;
@@ -123,6 +130,7 @@ export function ConnectorsScreen() {
   } | null>(null);
 
   const refreshList = useCallback(async (): Promise<void> => {
+    setCatalogPage(0);
     setList({ kind: 'loading' });
     const result = await client.listConnectors();
     if (!result.ok) {
@@ -134,20 +142,24 @@ export function ConnectorsScreen() {
   }, [client]);
 
   const load = useCallback(async (): Promise<void> => {
+    const generation = ++loadGeneration.current;
     setCapabilities({ kind: 'loading' });
     setList({ kind: 'idle' });
     setSessionFailed(false);
+    setIsAdmin(false);
     // The client learns the server-issued CSRF proof from THIS read. Without it
     // the BFF rejects every mutation 403 CSRF_REJECTED, so the session read must
     // precede any write path (same bootstrap as the sibling admin screens).
     const sessionResult = await client.getSession();
+    if (generation !== loadGeneration.current) return;
     if (!sessionResult.ok) {
       setSessionFailed(true);
       setCapabilities({ kind: 'failed', problem: sessionResult.problem });
       return;
     }
-    setIsAdmin(sessionResult.data.role === 'admin');
+    setIsAdmin(sessionResult.data.role === 'admin' && sessionResult.data.principal.kind === 'platform');
     const capsResult = await client.getConnectorCapabilities();
+    if (generation !== loadGeneration.current) return;
     if (!capsResult.ok) {
       setCapabilities({ kind: 'failed', problem: capsResult.problem });
       return;
@@ -164,10 +176,21 @@ export function ConnectorsScreen() {
 
   useEffect(() => {
     void load();
+    return () => { loadGeneration.current += 1; };
   }, [load]);
 
   const caps = capabilities.kind === 'ready' ? capabilities.data : null;
   const gating = connectorActionGating(caps);
+  const validTenantSelected = typeof tenantId === 'string' && TENANT_UUID.test(tenantId);
+  const screenGating = {
+    ...gating,
+    upsert: gating.upsert && validTenantSelected,
+    activate: gating.activate && validTenantSelected,
+    disable: gating.disable && validTenantSelected,
+    retire: gating.retire && validTenantSelected,
+    test: gating.test && validTenantSelected,
+    reason: validTenantSelected ? gating.reason : 'Select a valid tenant before changing or testing connectors.',
+  };
 
   const fetchRevision = useCallback(
     async (id: string, rev: string): Promise<void> => {
@@ -186,7 +209,10 @@ export function ConnectorsScreen() {
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
     const id = query.get('connectorId');
-    if (id) void fetchRevision(id, query.get('revision') ?? 'latest');
+    if (id) {
+      setActiveTab('inspector');
+      void fetchRevision(id, query.get('revision') ?? 'latest');
+    }
   }, [fetchRevision]);
 
   /** Reload whatever is on screen after a mutation, so the UI shows new truth. */
@@ -200,7 +226,18 @@ export function ConnectorsScreen() {
   async function runAction(
     work: () => Promise<AdminApiResult<PostActionResult>>,
     notice: string,
+    required: 'upsert' | 'activate' | 'disable' | 'retire',
   ): Promise<void> {
+    if (!validTenantSelected) {
+      setActionProblem({ status: 409, code: 'TENANT_REQUIRED', title: 'Select a valid tenant before changing connectors.' });
+      return;
+    }
+    if (!screenGating[required]) {
+      setActionProblem({ status: 503, code: 'CONNECTOR_CAPABILITY_UNAVAILABLE', title: screenGating.reason || 'The required connector capability is unavailable.' });
+      return;
+    }
+    if (busyRef.current) return;
+    busyRef.current = true;
     setActionProblem(null);
     setActionNotice(null);
     setBusy(true);
@@ -213,6 +250,7 @@ export function ConnectorsScreen() {
       setActionNotice(notice);
       await refreshAfterMutation();
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   }
@@ -233,6 +271,7 @@ export function ConnectorsScreen() {
       target.kind === 'disable'
         ? `Disable requested for ${target.connectorId}.`
         : `Retire requested for ${target.connectorId}@${target.revision}.`,
+      target.kind,
     );
     setConfirmTarget(null);
   }
@@ -247,10 +286,21 @@ export function ConnectorsScreen() {
           crypto.randomUUID(),
         ),
       `Activate requested for ${id}@${rev}.`,
+      'activate',
     );
   }
 
   async function testConnection(id: string): Promise<void> {
+    if (!validTenantSelected) {
+      setActionProblem({ status: 409, code: 'TENANT_REQUIRED', title: 'Select a valid tenant before testing a connector.' });
+      return;
+    }
+    if (!screenGating.test) {
+      setActionProblem({ status: 503, code: 'CONNECTOR_CAPABILITY_UNAVAILABLE', title: screenGating.reason || 'Connector testing is unavailable.' });
+      return;
+    }
+    if (busyRef.current) return;
+    busyRef.current = true;
     setActionProblem(null);
     setActionNotice(null);
     setBusy(true);
@@ -271,6 +321,7 @@ export function ConnectorsScreen() {
           : `Connector ${id}: masked probe failed${probe.errorCode === undefined ? '' : ` (${probe.errorCode})`}.`,
       );
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   }
@@ -287,6 +338,7 @@ export function ConnectorsScreen() {
     await runAction(
       () => client.upsertConnector(params, crypto.randomUUID()),
       `Connector ${params.connectorId} saved (mode create, credential slot ${params.credentialRef}).`,
+      'upsert',
     );
   }
 
@@ -302,24 +354,36 @@ export function ConnectorsScreen() {
   const readRevisionNumber = read === null ? 0 : read.revision.revision;
   const activeRevision = read === null ? null : connectorActiveRevision(listRows, readConnectorId);
   const connectorSuggestions = connectorIdSuggestions(caps, listRows);
+  const catalogPageSize = 10;
+  const catalogPageCount = Math.max(1, Math.ceil(listRows.length / catalogPageSize));
+  const visibleListRows = listRows.slice(catalogPage * catalogPageSize, (catalogPage + 1) * catalogPageSize);
+  const catalogRangeStart = listRows.length === 0 ? 0 : catalogPage * catalogPageSize + 1;
+  const catalogRangeEnd = Math.min(listRows.length, (catalogPage + 1) * catalogPageSize);
+
+  useEffect(() => {
+    if (catalogPage >= catalogPageCount) setCatalogPage(Math.max(0, catalogPageCount - 1));
+  }, [catalogPage, catalogPageCount]);
+
+  function inspectCatalogRevision(id: string, rev: number): void {
+    if (busyRef.current) return;
+    setSelectedCatalogKey(`${id}@${rev}`);
+    setConnectorId(id);
+    setRevision(String(rev));
+    setActiveTab('inspector');
+    void fetchRevision(id, String(rev));
+  }
 
   return (
-    <section aria-labelledby="connectors-title" className="flex flex-col gap-5 min-w-0">
+    <section aria-labelledby="connectors-title" className="flex min-w-0 flex-col gap-5">
       <div className="flex flex-wrap items-center gap-3">
         <h1 id="connectors-title" className="text-lg font-semibold">
           Connectors
         </h1>
         <Badge variant={gating.upsert ? 'info' : 'neutral'}>{gating.upsert ? 'management' : 'read-only'}</Badge>
-        <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+        <Button variant="outline" size="sm" onClick={() => setActiveTab('curl-import')}>
           Import cURL
         </Button>
       </div>
-
-      <ParityConnectorEditor
-        key={tenantId ?? 'no-tenant'}
-        savedAttempt={savedParityAttempt}
-        onAttemptChange={(attempt) => { if (tenantId) rememberParityAttempt(tenantId, attempt); }}
-      />
 
       {capabilities.kind === 'loading' ? (
         <AlertBanner variant="info" title="Reading composition capabilities">
@@ -357,10 +421,16 @@ export function ConnectorsScreen() {
             <>
               {' '}
               — no connector management store is composed on this deployment (the platform answers
-              503 there), so only the lookup by id below is available and it returns the honest
+              503 there), so only the revision inspector is available and it returns the honest
               endpoint-only projection.
             </>
           )}
+        </AlertBanner>
+      ) : null}
+
+      {!validTenantSelected ? (
+        <AlertBanner variant="warning" title="Choose a valid tenant">
+          Connector writes and tests require a valid current tenant. Revision inspection and recipe export remain available.
         </AlertBanner>
       ) : null}
 
@@ -390,6 +460,16 @@ export function ConnectorsScreen() {
           {actionNotice}
         </AlertBanner>
       ) : null}
+
+      <TabsRoot value={activeTab} onValueChange={(value) => { if (value) setActiveTab(value as typeof activeTab); }} className="min-w-0">
+        <TabsList aria-label="Connector workspaces">
+          <TabsTab value="catalog">Catalog</TabsTab>
+          <TabsTab value="inspector">Revision inspector</TabsTab>
+          <TabsTab value="recipe">Recipe &amp; provider test</TabsTab>
+          <TabsTab value="curl-import">cURL import</TabsTab>
+        </TabsList>
+
+        <TabsPanel value="catalog" keepMounted className="space-y-4">
 
       {listState !== null ? (
         <Card>
@@ -434,9 +514,9 @@ export function ConnectorsScreen() {
                     counted here rather than repaired into looking valid.
                   </AlertBanner>
                 ) : null}
-                <TableContainer>
-                  <Table aria-label="Connectors">
-                    <TableHeader>
+                <TableContainer maxHeight={360} aria-label="Connector catalog revisions">
+                  <Table aria-label="Connectors" density="compact">
+                    <TableHeader sticky>
                       <TableRow>
                         <TableHead>Connector</TableHead>
                         <TableHead>Revision</TableHead>
@@ -448,13 +528,34 @@ export function ConnectorsScreen() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {listRows.map((row) => {
+                      {visibleListRows.map((row) => {
                         const head = connectorActiveRevision(listRows, row.connectorId);
                         const config = summarizeConnectorConfig(row.config);
+                        const rowKey = `${row.connectorId}@${row.revision}`;
                         return (
-                          <TableRow key={`${row.connectorId}@${row.revision}`}>
+                          <TableRow
+                            key={rowKey}
+                            data-state={selectedCatalogKey === rowKey ? 'selected' : undefined}
+                            aria-disabled={busy}
+                            onClick={() => {
+                              if (!busyRef.current) inspectCatalogRevision(row.connectorId, row.revision);
+                            }}
+                            title={`Inspect ${row.connectorId} revision ${row.revision}`}
+                          >
                             <TableCell className="font-medium">
-                              <code>{row.connectorId}</code>
+                              <Button
+                                type="button"
+                                variant="link"
+                                className="h-auto min-w-0 justify-start p-0 text-left font-medium"
+                                aria-label={`Inspect ${row.connectorId} revision ${row.revision}`}
+                                disabled={busy}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  inspectCatalogRevision(row.connectorId, row.revision);
+                                }}
+                              >
+                                <code className="break-all">{row.connectorId}</code>
+                              </Button>
                             </TableCell>
                             <TableCell>{row.revision}</TableCell>
                             <TableCell>
@@ -468,34 +569,33 @@ export function ConnectorsScreen() {
                             <TableCell className="text-xs">
                               {head === null ? '—' : `rev ${head}`}
                             </TableCell>
-                            <TableCell className="text-xs text-[var(--text-sub)]">
+                            <TableCell className="max-w-64 break-all text-xs text-[var(--text-sub)]">
                               {config.keys.length === 0 ? '—' : config.keys.join(', ')}
                             </TableCell>
-                            <TableCell>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                disabled={busy}
-                                onClick={() => {
-                                  setConnectorId(row.connectorId);
-                                  setRevision(String(row.revision));
-                                  void fetchRevision(row.connectorId, String(row.revision));
-                                }}
-                              >
-                                Load
-                              </Button>
-                            </TableCell>
+                            <TableCell className="text-xs text-[var(--text-sub)]">Select row to inspect</TableCell>
                           </TableRow>
                         );
                       })}
                     </TableBody>
                   </Table>
                 </TableContainer>
+                <TablePagination
+                  hasPreviousPage={catalogPage > 0}
+                  hasNextPage={catalogPage + 1 < catalogPageCount}
+                  onPreviousPage={() => setCatalogPage((page) => Math.max(0, page - 1))}
+                  onNextPage={() => setCatalogPage((page) => Math.min(catalogPageCount - 1, page + 1))}
+                  status={`Showing ${catalogRangeStart}–${catalogRangeEnd} of ${listRows.length} readable loaded revisions; ${listSkipped} unreadable row(s) omitted. Page ${catalogPage + 1} of ${catalogPageCount}.`}
+                  ariaLabel="Connector catalog pagination"
+                />
               </>
             ) : null}
           </CardContent>
         </Card>
       ) : null}
+
+        </TabsPanel>
+
+        <TabsPanel value="inspector" keepMounted className="space-y-4">
 
       <Card>
         <CardHeader>
@@ -506,8 +606,8 @@ export function ConnectorsScreen() {
             revision.
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-wrap items-end gap-3">
-          <div className="w-full max-w-xs flex flex-col gap-2">
+        <CardContent className="grid min-w-0 grid-cols-1 items-start gap-3 md:grid-cols-[minmax(0,1fr)_minmax(9rem,0.4fr)_auto]">
+          <div className="min-w-0 max-w-xl flex flex-col gap-2">
             {customConnectorIdMode ? (
               <FormField
                 id="custom-connector-id"
@@ -547,7 +647,7 @@ export function ConnectorsScreen() {
               {customConnectorIdMode ? 'Choose a suggested ID' : 'Enter a custom ID'}
             </Button>
           </div>
-          <div className="w-full max-w-[10rem]">
+          <div className="min-w-0 max-w-[10rem]">
             <FormField id="connector-revision" label="Revision">
               <Input
                 id="connector-revision"
@@ -563,6 +663,7 @@ export function ConnectorsScreen() {
             </FormField>
           </div>
           <Button
+            className="md:mt-6"
             onClick={() => void fetchRevision(connectorId.trim(), revision.trim() || 'latest')}
             disabled={connectorId.trim().length === 0}
           >
@@ -570,30 +671,6 @@ export function ConnectorsScreen() {
           </Button>
         </CardContent>
       </Card>
-
-      {importDraft === null ? null : (
-        <ImportedDraftCard
-          draft={importDraft}
-          planOk={upsertPlan?.ok === true}
-          missing={upsertPlan !== null && !upsertPlan.ok ? upsertPlan.missing : null}
-          gating={gating}
-          busy={busy}
-          target={{ connectorId: draftConnectorId, adapter: draftAdapter, credentialRef: draftCredentialRef }}
-          onTargetChange={(patch) => {
-            if (patch.connectorId !== undefined) setDraftConnectorId(patch.connectorId);
-            if (patch.adapter !== undefined) setDraftAdapter(patch.adapter);
-            if (patch.credentialRef !== undefined) setDraftCredentialRef(patch.credentialRef);
-          }}
-          onNameChange={(name) => setImportDraft({ ...importDraft, name })}
-          onSave={() => void saveDraft()}
-          onTest={() => void testConnection(draftConnectorId.trim())}
-          onDiscard={() => {
-            setImportDraft(null);
-            setActionNotice(null);
-            setActionProblem(null);
-          }}
-        />
-      )}
 
       {state === null ? (
         <EmptyState
@@ -699,11 +776,11 @@ export function ConnectorsScreen() {
               <Button
                 size="sm"
                 variant="outline"
-                disabled={!gating.test || busy}
+                disabled={!screenGating.test || busy}
                 title={
-                  gating.test
+                  screenGating.test
                     ? 'Masked probe over the management surface.'
-                    : gating.reason || 'The platform did not advertise the connector test capability (test:false).'
+                    : screenGating.reason || 'The platform did not advertise the connector test capability (test:false).'
                 }
                 onClick={() => void testConnection(readConnectorId)}
               >
@@ -712,12 +789,12 @@ export function ConnectorsScreen() {
               <Button
                 size="sm"
                 variant="outline"
-                disabled={!gating.activate || activeRevision === null || busy}
+                disabled={!screenGating.activate || activeRevision === null || busy}
                 title={
-                  !gating.activate
-                    ? gating.reason
+                  !screenGating.activate
+                    ? screenGating.reason
                     : activeRevision === null
-                      ? 'The ACTIVE head is not visible on this page; refresh the connector list before activating (CAS needs it).'
+                      ? 'The ACTIVE head is not visible in the loaded catalog; refresh the connector list before activating (CAS needs it).'
                       : `CAS on the current ACTIVE head (rev ${activeRevision}).`
                 }
                 onClick={() => void activateRevision(readConnectorId, readRevisionNumber)}
@@ -727,8 +804,8 @@ export function ConnectorsScreen() {
               <Button
                 size="sm"
                 variant="outline"
-                disabled={!gating.disable || busy}
-                title={gating.disable ? 'Disable this connector (reversible).' : gating.reason}
+                disabled={!screenGating.disable || busy}
+                title={screenGating.disable ? 'Disable this connector (reversible).' : screenGating.reason}
                 onClick={() =>
                   setConfirmTarget({
                     kind: 'disable',
@@ -742,11 +819,11 @@ export function ConnectorsScreen() {
               <Button
                 size="sm"
                 variant="destructive"
-                disabled={!gating.retire || busy}
+                disabled={!screenGating.retire || busy}
                 title={
-                  gating.retire
+                  screenGating.retire
                     ? 'Retire this revision (reference-safe; pinned operations keep it).'
-                    : gating.reason
+                    : screenGating.reason
                 }
                 onClick={() =>
                   setConfirmTarget({
@@ -768,21 +845,47 @@ export function ConnectorsScreen() {
         </Card>
       ) : null}
 
-      <Modal
-        open={importOpen}
-        onOpenChange={setImportOpen}
-        title="Import connection from cURL"
-        description="Parses the pasted command as text: nothing is executed and nothing is sent."
-        maxWidth="max-w-2xl"
-      >
-        <CurlImportPreview
-          onApply={(draft) => {
-            setImportDraft(draftFromCurlImport(draft));
-            setImportOpen(false);
-          }}
-          applyLabel="Accept draft"
-        />
-      </Modal>
+        </TabsPanel>
+
+        <TabsPanel value="recipe" keepMounted className="space-y-4">
+          <ParityConnectorEditor
+            key={tenantId ?? 'no-tenant'}
+            savedAttempt={savedParityAttempt}
+            onAttemptChange={(attempt) => { if (tenantId) rememberParityAttempt(tenantId, attempt); }}
+            capabilities={caps}
+          />
+        </TabsPanel>
+
+        <TabsPanel value="curl-import" keepMounted className="space-y-4">
+          <CurlImportPreview
+            onApply={(draft) => setImportDraft(draftFromCurlImport(draft))}
+            applyLabel="Accept draft"
+          />
+          {importDraft === null ? null : (
+            <ImportedDraftCard
+              draft={importDraft}
+              planOk={upsertPlan?.ok === true}
+              missing={upsertPlan !== null && !upsertPlan.ok ? upsertPlan.missing : null}
+              gating={screenGating}
+              busy={busy}
+              target={{ connectorId: draftConnectorId, adapter: draftAdapter, credentialRef: draftCredentialRef }}
+              onTargetChange={(patch) => {
+                if (patch.connectorId !== undefined) setDraftConnectorId(patch.connectorId);
+                if (patch.adapter !== undefined) setDraftAdapter(patch.adapter);
+                if (patch.credentialRef !== undefined) setDraftCredentialRef(patch.credentialRef);
+              }}
+              onNameChange={(name) => setImportDraft({ ...importDraft, name })}
+              onSave={() => void saveDraft()}
+              onTest={() => void testConnection(draftConnectorId.trim())}
+              onDiscard={() => {
+                setImportDraft(null);
+                setActionNotice(null);
+                setActionProblem(null);
+              }}
+            />
+          )}
+        </TabsPanel>
+      </TabsRoot>
 
       <ConfirmDialog
         open={confirmTarget !== null}
@@ -824,7 +927,7 @@ function ManageRevisionFacts({
         <code>{read.revision.adapter}</code>
       </dd>
       <dt className="text-[var(--text-sub)]">Active head</dt>
-      <dd>{activeRevision === null ? 'not visible on this page' : `rev ${activeRevision}`}</dd>
+      <dd>{activeRevision === null ? 'not visible in the loaded catalog' : `rev ${activeRevision}`}</dd>
       <dt className="text-[var(--text-sub)]">Config keys</dt>
       <dd className="min-w-0 break-words">{config.keys.length === 0 ? 'none reported' : config.keys.join(', ')}</dd>
       <dt className="text-[var(--text-sub)]">Header names</dt>

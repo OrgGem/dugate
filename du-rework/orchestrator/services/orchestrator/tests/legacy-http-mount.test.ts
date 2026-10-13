@@ -347,15 +347,43 @@ describe('legacy mount — operations', () => {
     expect(r?.body).toMatchObject({ title: 'Operation Not Found', requested_id: 'op-1' });
   });
 
-  it.each([
-    ['GET', '/api/v1/operations'], ['DELETE', '/api/v1/operations/op-1'],
-    ['POST', '/api/v1/operations/op-1/cancel'], ['POST', '/api/v1/operations/op-1/resume'],
-    ['POST', '/api/v1/operations/op-1/retry'], ['GET', '/api/v1/operations/op-1/result'],
-  ])('keeps %s %s internal without invoking management capabilities', async (method, pathname) => {
-    const mutate = jest.fn();
-    const response = await handleLegacyRoute(req({ method, pathname }), host({ cancelLegacy: mutate, resumeLegacy: mutate, softDeleteOperation: mutate, listLegacyOperations: mutate }));
-    expect(response?.status).toBe(404);
-    expect(mutate).not.toHaveBeenCalled();
+  it('serves the legacy paginated list to its authenticated API-key caller', async () => {
+    const list = jest.fn(async () => ({ rows: [toLegacyRow(row())], hasMore: false }));
+    const response = await handleLegacyRoute(req({ pathname: '/api/v1/operations' }), host({ listLegacyOperations: list }));
+    expect(response?.status).toBe(200);
+    expect(response?.body).toMatchObject({
+      operations: [{ name: 'operations/op-1', done: true }],
+      next_page_token: null,
+    });
+    expect(list).toHaveBeenCalledWith({ tenantId: 't-1', apiKeyId: 'k-1', pageSize: 20, pageToken: null, states: [], processors: [] });
+  });
+
+  it('does not let an admin bearer enter the API-key compatibility projection', async () => {
+    const list = jest.fn();
+    const resolvePrincipal = jest.fn(async () => ({ tenantId: 't-1', apiKeyId: 'k-1' }));
+    const response = await handleLegacyRoute(req({
+      pathname: '/api/v1/operations',
+      headers: { authorization: 'Bearer admin-token' },
+      resolvePrincipal,
+    }), host({ listLegacyOperations: list }));
+    expect(response).toBeNull();
+    expect(resolvePrincipal).not.toHaveBeenCalled();
+    expect(list).not.toHaveBeenCalled();
+  });
+
+  it('leaves unsupported retry and result paths to their closed or dedicated route owners', async () => {
+    expect(await handleLegacyRoute(req({ method: 'POST', pathname: '/api/v1/operations/op-1/retry' }), host())).toBeNull();
+    expect(await handleLegacyRoute(req({ pathname: '/api/v1/operations/op-1/result' }), host())).toBeNull();
+  });
+
+  it('honors the bounded legacy ?wait= poll and returns the latest tenant-owned row', async () => {
+    let reads = 0;
+    const response = await handleLegacyRoute(req({ searchParams: new URLSearchParams('wait=1') }), host({
+      loadOperation: async (id) => toLegacyRow(row({ id, state: ++reads < 2 ? 'RUNNING' : 'SUCCEEDED' })),
+    }));
+    expect(reads).toBe(2);
+    expect(response?.status).toBe(200);
+    expect(response?.body).toMatchObject({ name: 'operations/op-1', done: true });
   });
 
   it('409s a download of an unfinished operation', async () => {
@@ -381,6 +409,20 @@ describe('legacy mount — operations', () => {
     expect(r?.body).toBeUndefined();
     expect(r?.headers['content-length']).toBe('4');
     expect(r?.headers['content-type']).toBe('text/markdown; charset=utf-8');
+    expect(r?.headers['content-disposition']).toBe(`attachment; filename="output.md"; filename*=UTF-8''output.md`);
+  });
+
+  it('uses an escaped filename from the persisted output path without allowing header injection', async () => {
+    const r = await handleLegacyRoute(
+      req({ pathname: '/api/v1/operations/op-1/download' }),
+      host({
+        loadOperation: async (id) => toLegacyRow(row({ id, output_file_path: 'tenant/report\r\nX-Test: injected.json' })),
+      }),
+    );
+    expect(r?.status).toBe(200);
+    expect(r?.headers['content-disposition']).not.toMatch(/[\r\n]/);
+    expect(r?.headers['content-disposition']).toContain('filename="report__X-Test: injected.json"');
+    expect(r?.headers['content-disposition']).toContain("filename*=UTF-8''report__X-Test%3A%20injected.json");
   });
 });
 

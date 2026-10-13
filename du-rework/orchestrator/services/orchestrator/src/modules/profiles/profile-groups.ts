@@ -17,6 +17,7 @@ import { getBusinessFunctionCatalog } from '../admin-read/business-functions';
 import { dateToIso } from '../admin-read/keyset';
 import type { ProfileService } from './profiles';
 import { pinActiveRevision } from './publish';
+import { isActiveConnectorPin } from './connector-pin-validation';
 
 interface GroupRootRow extends QueryResultRow {
   group_id: string;
@@ -187,8 +188,7 @@ async function validateConnectorPins(
     if (!connectors) {
       throw new HttpError(503, 'TEMPORARY_UNAVAILABLE', 'connector management is required to validate explicit profile pins');
     }
-    const connector = await connectors.getRevision(pin.connectorId, pin.revision);
-    if (!connector || connector.state !== 'ACTIVE' || (connector.tenantId && connector.tenantId !== tenantId)) {
+    if (!await isActiveConnectorPin(connectors, tenantId, pin)) {
       throw new HttpError(422, 'INVALID_SCHEMA', 'connector revision is not ACTIVE or available in this tenant');
     }
   }

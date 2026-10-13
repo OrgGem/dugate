@@ -101,7 +101,7 @@ export async function getOperationsMetrics(
     } else {
       const profileIds = `$${params.push([...userScope.profileIds])}::uuid[]`;
       const apiKeyIds = `$${params.push([...userScope.apiKeyIds])}::uuid[]`;
-      grantClause = ` AND deleted_at IS NULL AND api_key_id = ANY(${apiKeyIds}) AND (profile_id IS NULL OR profile_id = ANY(${profileIds}))`;
+      grantClause = ` AND api_key_id = ANY(${apiKeyIds}) AND (profile_id IS NULL OR profile_id = ANY(${profileIds}))`;
     }
   }
   const queryStartedAt = Date.now();
@@ -127,7 +127,7 @@ export async function getOperationsMetrics(
               WHERE completed_at IS NOT NULL AND completed_at >= COALESCE(started_at, created_at)
             ) AS p95_ms
      FROM operations
-     WHERE created_at >= $1::timestamptz AND created_at <= $2::timestamptz${tenantClause}${grantClause}`,
+     WHERE deleted_at IS NULL AND created_at >= $1::timestamptz AND created_at <= $2::timestamptz${tenantClause}${grantClause}`,
     params,
   );
   const row = result.rows[0];

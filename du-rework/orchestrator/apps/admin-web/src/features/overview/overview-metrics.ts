@@ -39,7 +39,10 @@ export interface WorkerTelemetry {
   state: WorkerInstance['state'];
   status: WorkerInstance['health'];
   capacity: number;
+  reportedActiveTasks: number | null;
+  reportedObservedAt: string | null;
   activeLeases: number;
+  durableLeases: number;
   lastHeartbeatAt: string;
 }
 
@@ -276,7 +279,10 @@ export function computeWorkerTelemetry(
     state: worker.state,
     status: worker.health,
     capacity: worker.capacity,
+    reportedActiveTasks: worker.reportedActiveTasks,
+    reportedObservedAt: worker.reportedObservedAt,
     activeLeases: worker.activeLeases,
+    durableLeases: worker.durableLeases,
     lastHeartbeatAt: worker.lastSeenAt,
   }));
 }

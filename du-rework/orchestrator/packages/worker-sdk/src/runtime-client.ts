@@ -370,8 +370,22 @@ export class RuntimeClient {
       'PUT',
       `/workers/${encodeURIComponent(instanceId)}/heartbeat`,
       hb,
-      (raw) => HeartbeatAckSchema.parse(raw),
+      parseHeartbeatAck,
       { signal }
+    );
+  }
+
+  /** Retire this boot's exact registered identity after the consumer drains. */
+  async retireWorker(
+    instanceId: string,
+    identity: { businessId: string; businessVersion: string; manifestDigest: string }
+  ): Promise<void> {
+    await this.request(
+      'POST',
+      `/workers/${encodeURIComponent(instanceId)}/retire`,
+      identity,
+      () => undefined,
+      { ambiguousSafe: false }
     );
   }
 
@@ -379,9 +393,11 @@ export class RuntimeClient {
 
   async claimTask(taskId: string, req: ClaimTaskRequest): Promise<ClaimResult> {
     // Claim is idempotent per (taskId, deliveryId): a lost ACK replay returns
-    // the same lease or 409 if fenced — safe to retry transport failures.
+    // the same lease or a denial if no claim committed. Ambiguous responses
+    // are safe to reconcile with the exact same identity, including after a
+    // version cutover.
     return this.request('POST', `/tasks/${encodeURIComponent(taskId)}/claim`, req, (raw) =>
-      ClaimResultSchema.parse(raw), { ambiguousSafe: false });
+      ClaimResultSchema.parse(raw), { ambiguousSafe: true });
   }
 
   async heartbeatTask(taskId: string, leaseEpoch: number): Promise<TaskHeartbeatAck> {
@@ -493,6 +509,31 @@ export class RuntimeClient {
       InvocationGrantSchema.parse(raw)
     );
   }
+}
+
+/**
+ * Keep the established heartbeat controls usable when a server sends an
+ * unknown or malformed additive version-admission tuple. The worker will
+ * close new task admission until it receives a complete, valid tuple, while
+ * still applying the independently parsed control and backup-fence state to
+ * already-running work.
+ */
+function parseHeartbeatAck(raw: unknown): HeartbeatAck {
+  const parsed = HeartbeatAckSchema.safeParse(raw);
+  if (parsed.success) return parsed.data;
+
+  const base = HeartbeatAckSchema.omit({
+    activeVersion: true,
+    activationRevision: true,
+    admissionEligible: true,
+    admissionReason: true,
+  }).parse(raw);
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return base;
+
+  const revision = (raw as Record<string, unknown>).activationRevision;
+  return Number.isSafeInteger(revision) && (revision as number) >= 1
+    ? { ...base, activationRevision: revision as number }
+    : base;
 }
 
 function fallbackRuntimeCode(status: number): string {

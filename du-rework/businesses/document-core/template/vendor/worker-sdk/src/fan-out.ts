@@ -1,7 +1,3 @@
-// VENDORED from @du/worker-sdk @ b088eececcb5f3df0b4edbe073a29401dafda624 (worktree 2026-10-06)
-// source: packages/worker-sdk/src/fan-out.ts (lines=717) sha256=410EA97532106511F5A968A5A25B2CEC1DA637F85FB98C5F2AC9F371F66763FA
-// why: worker surface required by src/worker.ts, src/main.ts, types/context.ts, step-checkpoint, fanout
-
 import { createHash } from 'node:crypto';
 import { Readable } from 'node:stream';
 import {
@@ -355,10 +351,7 @@ export async function uploadArtifact(
       {
         method: 'PUT',
         headers: { 'content-type': options.mimeType },
-        // VENDOR PATCH (approved option a): @types/node undici-types and
-        // lib.dom disagree on BodyInit vs Buffer. Upstream compiles because
-        // its own lib set differs; behaviour is unchanged, types only.
-        body: buffer as unknown as BodyInit,
+        body: buffer,
       },
       opts.timeoutMs
     );

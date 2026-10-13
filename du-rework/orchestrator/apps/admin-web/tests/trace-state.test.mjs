@@ -6,8 +6,10 @@ import {
   buildTraceTimeline,
   findOperationByTaskId,
   getTracePayloadPreview,
+  legacyOperationsWorkspacePath,
   maskSensitivePayload,
   normalizeTraceLookup,
+  traceWorkspacePath,
 } from '../src/features/trace/state.ts';
 
 const operation = {
@@ -23,12 +25,18 @@ const operation = {
   retryOf: null,
   errorCode: 'PROVIDER_FAILED',
   deadlineAt: null,
+  progress: { percent: 63, message: 'Waiting for parallel checks' },
 };
 
 function detailFor(id, taskId = 'task-2') {
   return {
     operation: { ...operation, id },
-    tasks: [{ id: taskId, taskKey: 'root', kind: 'extract', state: 'FAILED', attempt: 2, maxAttempts: 3, errorCode: 'PROVIDER_FAILED' }],
+    tasks: [{
+      id: taskId, taskKey: 'root', kind: 'extract', state: 'FAILED', attempt: 2, maxAttempts: 3, errorCode: 'PROVIDER_FAILED',
+      spawnedBy: 'parent-task', leasedBy: 'worker-7', leaseExpiresAt: '2026-10-10T10:04:00.000Z', dueAt: null,
+      admissionParkedReason: 'VERSION_NOT_ACTIVE', admissionParkedAt: '2026-10-10T10:02:45.000Z',
+      awaitedChildren: [{ taskId: 'check-a', joinPolicy: 'all-success' }, { taskId: 'check-b', joinPolicy: 'all-success' }],
+    }],
     requestInput: { status: 'REDACTED', data: { document: 'private document', apiKey: 'secret-key' }, ruleCount: 1 },
     result: {
       usage: { inputTokens: 41, outputTokens: 12, costMicrousd: 900, measurement: 'measured' },
@@ -71,6 +79,8 @@ describe('trace state helpers', () => {
     const result = await findOperationByTaskId('task-target', 'tenant-a', api);
     assert.equal(result.kind, 'found');
     assert.equal(result.detail.operation?.id, 'operation-2');
+    assert.equal(result.detail.tasks?.[0]?.admissionParkedReason, 'VERSION_NOT_ACTIVE');
+    assert.equal(result.detail.tasks?.[0]?.admissionParkedAt, '2026-10-10T10:02:45.000Z');
     assert.deepEqual(detailsRequested, ['operation-1', 'operation-2']);
     assert.equal(queries[0].tenant, 'tenant-a');
     assert.equal(queries[0].limit, '100');
@@ -106,8 +116,18 @@ describe('trace state helpers', () => {
       prevCursor: null,
     });
 
-    assert.deepEqual(timeline.map((item) => item.source), ['operation', 'operation', 'audit', 'operation', 'task', 'usage']);
+    assert.deepEqual(timeline.map((item) => item.source), ['operation', 'operation', 'audit', 'operation', 'operation', 'task', 'usage']);
     assert.ok(timeline.some((item) => item.title === 'root snapshot'));
+    const progress = timeline.find((item) => item.title === 'Latest progress snapshot');
+    assert.match(progress?.summary ?? '', /63% · Waiting for parallel checks/);
+    const task = timeline.find((item) => item.source === 'task');
+    assert.match(task?.summary ?? '', /attempt 2\/3/);
+    assert.match(task?.summary ?? '', /spawned by parent-task/);
+    assert.match(task?.summary ?? '', /awaits child join check-a \(all-success\), check-b \(all-success\)/);
+    assert.match(task?.summary ?? '', /parked: VERSION_NOT_ACTIVE/);
+    assert.match(task?.summary ?? '', /parked since 2026-10-10T10:02:45.000Z/);
+    assert.doesNotMatch(task?.summary ?? '', /depends on/);
+    assert.match(task?.summary ?? '', /worker worker-7/);
     assert.ok(timeline.some((item) => item.title === 'Usage summary' && item.summary.includes('900 micro-USD')));
     assert.ok(!timeline.some((item) => item.title === 'other'));
   });
@@ -130,8 +150,17 @@ describe('trace state helpers', () => {
 
   it('builds tenant-aware deep links to the Operations and Audit screens', () => {
     const links = buildTraceLinks('op / 1', 'tenant-a');
-    assert.equal(links.operations, '/operations?id=op+%2F+1');
+    assert.equal(links.operations, '/trace?view=operations&id=op+%2F+1&tenantId=tenant-a');
     assert.equal(links.audit, '/audit?tenantId=tenant-a&resource=operation%3Aop+%2F+1');
+  });
+
+  it('keeps legacy Operations filters, cursors, detail links and hashes in the Trace workspace', () => {
+    assert.equal(
+      legacyOperationsWorkspacePath('?id=op-7&cursor=cursor-2&state=FAILED&operation=op-7', '#detail'),
+      '/trace?id=op-7&cursor=cursor-2&state=FAILED&operation=op-7&view=operations#detail',
+    );
+    assert.equal(traceWorkspacePath('?id=op-7&cursor=cursor-2&view=trace', 'operations'), '/trace?id=op-7&cursor=cursor-2&view=operations');
+    assert.equal(traceWorkspacePath('?operationId=op-7&tenantId=tenant-a&view=operations', 'trace'), '/trace?operationId=op-7&tenantId=tenant-a');
   });
 
   it('registers /trace and exposes it in workspace navigation', async () => {
@@ -143,6 +172,8 @@ describe('trace state helpers', () => {
     assert.match(router, /import \{ TraceRoute \} from '@\/routes\/trace'/);
     assert.match(router, /path: 'trace', Component: TraceRoute/);
     assert.match(shell, /\['Trace', '\/trace'\]/);
+    assert.doesNotMatch(shell, /\['Operations', '\/operations'\]/);
     assert.match(route, /TraceScreen/);
+    assert.match(route, /aria-label="Trace workspace views"/);
   });
 });

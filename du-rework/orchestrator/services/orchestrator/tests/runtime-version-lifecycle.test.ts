@@ -55,6 +55,23 @@ describe('W28-C: version activation / drain / rollback', () => {
   const V2 = '2.0.0';
   const V2_QUEUE = `du-business-${BIZ}-${V2}`;
 
+  async function currentActivationRevision(): Promise<number> {
+    const result = await app.db.query<{ activation_revision: number | string }>(
+      'SELECT activation_revision FROM business_catalog WHERE business_id=$1', [BIZ],
+    );
+    const revision = Number(result.rows[0]?.activation_revision);
+    if (!Number.isSafeInteger(revision) || revision < 1) throw new Error('business activation revision is invalid');
+    return revision;
+  }
+
+  async function versionAction(version: string, action: 'enable' | 'activate' | 'deactivate') {
+    return http(baseUrl, `/api/v1/admin/businesses/${BIZ}/versions/${version}/${action}`, {
+      method: 'PUT',
+      headers: adminHeaders(),
+      body: { expectedActivationRevision: await currentActivationRevision() },
+    });
+  }
+
   // A manifest for v2 — same actions, different version.
   const MANIFEST_V2 = { ...MANIFEST, version: V2 };
 
@@ -108,15 +125,9 @@ describe('W28-C: version activation / drain / rollback', () => {
     expect(opV1Row.rows[0]!.business_version).toBe(V1);
 
     // 2. Enable + activate v2.
-    const en = await http(baseUrl, `/api/v1/admin/businesses/${BIZ}/versions/${V2}/enable`, {
-      method: 'PUT',
-      headers: adminHeaders(),
-    });
+    const en = await versionAction(V2, 'enable');
     expect(en.status).toBe(200);
-    const act = await http(baseUrl, `/api/v1/admin/businesses/${BIZ}/versions/${V2}/activate`, {
-      method: 'PUT',
-      headers: adminHeaders(),
-    });
+    const act = await versionAction(V2, 'activate');
     expect(act.status).toBe(202);
     expect(act.body.active).toBe(true);
 
@@ -142,10 +153,7 @@ describe('W28-C: version activation / drain / rollback', () => {
 
   test('activate v1 rollback: re-activating v1 redirects new submissions back to v1', async () => {
     // v2 is currently active; activate v1 to roll back.
-    const act = await http(baseUrl, `/api/v1/admin/businesses/${BIZ}/versions/${V1}/activate`, {
-      method: 'PUT',
-      headers: adminHeaders(),
-    });
+    const act = await versionAction(V1, 'activate');
     expect(act.status).toBe(202);
     expect(act.body.active).toBe(true);
 
@@ -164,16 +172,10 @@ describe('W28-C: version activation / drain / rollback', () => {
 
   test('drain v2: fail-closed when sole active version is drained; explicit re-activate restores', async () => {
     // 1. Make v2 the sole active version (v1 gets implicitly deactivated).
-    await http(baseUrl, `/api/v1/admin/businesses/${BIZ}/versions/${V2}/activate`, {
-      method: 'PUT',
-      headers: adminHeaders(),
-    });
+    await versionAction(V2, 'activate');
 
     // 2. Deactivate v2 (drain). v2 stays ENABLED but is no longer active.
-    const deact = await http(baseUrl, `/api/v1/admin/businesses/${BIZ}/versions/${V2}/deactivate`, {
-      method: 'PUT',
-      headers: adminHeaders(),
-    });
+    const deact = await versionAction(V2, 'deactivate');
     expect(deact.status).toBe(202);
     expect(deact.body.active).toBe(false);
 
@@ -196,10 +198,7 @@ describe('W28-C: version activation / drain / rollback', () => {
     expect(blocked.body.code).toBe('NOT_FOUND');
 
     // 4. Activating v1 restores submissions.
-    const act = await http(baseUrl, `/api/v1/admin/businesses/${BIZ}/versions/${V1}/activate`, {
-      method: 'PUT',
-      headers: adminHeaders(),
-    });
+    const act = await versionAction(V1, 'activate');
     expect(act.status).toBe(202);
     expect(act.body.active).toBe(true);
 
@@ -217,10 +216,7 @@ describe('W28-C: version activation / drain / rollback', () => {
   });
 
   test('activate invalid version → 404', async () => {
-    const res = await http(baseUrl, `/api/v1/admin/businesses/${BIZ}/versions/99.99.99/activate`, {
-      method: 'PUT',
-      headers: adminHeaders(),
-    });
+    const res = await versionAction('99.99.99', 'activate');
     expect(res.status).toBe(404);
     expect(res.body.code).toBe('NOT_FOUND');
   });
@@ -239,21 +235,17 @@ describe('W28-C: version activation / drain / rollback', () => {
     // business_versions rows in deterministic (version ASC) order first, so
     // one wins and the other waits (no deadlock → no 500).
     const [resA, resB] = await Promise.all([
-      http(baseUrl, `/api/v1/admin/businesses/${BIZ}/versions/${V2}/activate`, {
-        method: 'PUT',
-        headers: adminHeaders(),
-      }),
-      http(baseUrl, `/api/v1/admin/businesses/${BIZ}/versions/${V1}/activate`, {
-        method: 'PUT',
-        headers: adminHeaders(),
-      }),
+      versionAction(V2, 'activate'),
+      versionAction(V1, 'activate'),
     ]);
     // Neither is a 500 (deadlock would show up as 500 or a PG abort).
     expect(resA.status).not.toBe(500);
     expect(resB.status).not.toBe(500);
     // Both are valid results (200 replay or 202).
-    expect([200, 202]).toContain(resA.status);
-    expect([200, 202]).toContain(resB.status);
+    expect([200, 202, 409]).toContain(resA.status);
+    expect([200, 202, 409]).toContain(resB.status);
+    if (resA.status === 409) expect(resA.body.code).toBe('STATE_CONFLICT');
+    if (resB.status === 409) expect(resB.body.code).toBe('STATE_CONFLICT');
 
     // Exactly one version is active — the partial unique index held.
     const activeCount = await app.db.query<{ n: string }>(
@@ -272,14 +264,8 @@ describe('W28-C: version activation / drain / rollback', () => {
 
   test('activate is idempotent: re-activating the active version returns 200 replayed', async () => {
     // Ensure v1 is active, then re-activate it — should be 200 replayed.
-    await http(baseUrl, `/api/v1/admin/businesses/${BIZ}/versions/${V1}/activate`, {
-      method: 'PUT',
-      headers: adminHeaders(),
-    });
-    const res = await http(baseUrl, `/api/v1/admin/businesses/${BIZ}/versions/${V1}/activate`, {
-      method: 'PUT',
-      headers: adminHeaders(),
-    });
+    await versionAction(V1, 'activate');
+    const res = await versionAction(V1, 'activate');
     expect(res.status).toBe(200);
     expect(res.body.replayed).toBe(true);
     expect(res.body.active).toBe(true);

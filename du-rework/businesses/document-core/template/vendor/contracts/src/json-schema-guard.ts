@@ -1,7 +1,3 @@
-// VENDORED from @du/contracts @ b088eececcb5f3df0b4edbe073a29401dafda624 (worktree 2026-10-06)
-// source: packages/contracts/src/json-schema-guard.ts (lines=95) sha256=FAB971307B5A3E9F595E30EE55BC109080C1B1C9265C2D4D09AC3D3078B021AD
-// why: transitive dep of manifest-validator.ts
-
 import { SCHEMA_LIMITS } from './version';
 
 /**

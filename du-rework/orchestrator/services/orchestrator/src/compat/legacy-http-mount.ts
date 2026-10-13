@@ -27,6 +27,7 @@
  */
 
 import { HttpError } from '../http/errors';
+import path from 'node:path';
 import type { LegacyWorkflowSchemaPin as ContractLegacyWorkflowSchemaPin } from '@du/contracts';
 import { readMultipartBody, type MultipartBody } from './legacy-multipart';
 import { LegacyFormData, legacyFieldsToRecord } from './legacy-form-bridge';
@@ -151,15 +152,56 @@ function hasAdminBearer(request: LegacyRouteRequest): boolean {
 
 /**
  * Legacy download content type. The old route derived it from
- * `outputFormat` for the inline branch and from the file extension for the
- * file branch; the compat surface always has the row's `outputFormat`, so
- * both backends use it.
+ * `outputFormat` for inline output and from the stored file's extension for
+ * file-backed output, matching the original route's two branches.
  */
-function legacyDownloadContentType(outputFormat: string | null | undefined): string {
-  if (outputFormat === 'csv') return 'text/csv; charset=utf-8';
-  if (outputFormat === 'html') return 'text/html; charset=utf-8';
-  if (outputFormat === 'json') return 'application/json; charset=utf-8';
+function legacyDownloadContentType(row: LegacyOperationRow): string {
+  const format = row.outputFilePath
+    ? path.posix.extname(row.outputFilePath.replace(/\\/g, '/')).slice(1)
+    : row.outputFormat;
+  if (format === 'csv') return 'text/csv; charset=utf-8';
+  if (format === 'html') return 'text/html; charset=utf-8';
+  if (format === 'json') return 'application/json; charset=utf-8';
   return 'text/markdown; charset=utf-8';
+}
+
+function downloadFilename(row: LegacyOperationRow): string {
+  const pathValue = row.outputFilePath ?? row.sourceFileName;
+  const normalized = typeof pathValue === 'string' ? pathValue.replace(/\\/g, '/') : '';
+  const base = normalized.split('/').filter(Boolean).at(-1) ?? 'output';
+  const inline = !row.outputFilePath;
+  const stem = inline ? base.slice(0, base.length - path.posix.extname(base).length) || 'output' : base;
+  const extension = inline
+    ? row.outputFormat === 'html' ? 'html' : row.outputFormat === 'json' ? 'json' : row.outputFormat === 'csv' ? 'csv' : 'md'
+    : path.posix.extname(base).slice(1) || 'bin';
+  // RFC 6266 filename is the conservative ASCII fallback; filename* preserves
+  // Unicode. Remove header controls and path separators before either value
+  // is serialized so an artifact name cannot inject response headers.
+  const safe = (inline ? `${stem}.${extension}` : base).replace(/[\u0000-\u001f\u007f"\\/]/g, '_');
+  const ascii = safe.replace(/[^\x20-\x7e]/g, '_').replace(/[%;`]/g, '_');
+  const encoded = encodeURIComponent(safe).replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encoded}`;
+}
+
+function terminalOperationError(): LegacyRouteResponse {
+  return {
+    status: 409,
+    body: {
+      type: `${LEGACY_ERROR_BASE}already-done`,
+      title: 'Already Completed',
+      status: 409,
+      detail: 'Cannot cancel a completed operation.',
+    },
+    headers: {},
+  };
+}
+
+function operationNotFoundError(): LegacyRouteResponse {
+  return {
+    status: 404,
+    body: { type: `${LEGACY_ERROR_BASE}not-found`, title: 'Not Found', status: 404 },
+    headers: {},
+  };
 }
 
 export interface LegacyRouteRequest {
@@ -494,12 +536,6 @@ export async function handleLegacyRoute(
   host: LegacyCompatHost,
 ): Promise<LegacyRouteResponse | null> {
   const { method, pathname } = request;
-  // Management is available only through the authenticated internal surface.
-  if (pathname === '/api/v1/operations' ||
-      /^\/api\/v1\/operations\/[^/]+\/(?:cancel|resume|retry|result|metrics)$/.test(pathname) ||
-      (/^\/api\/v1\/operations\/[^/]+$/.test(pathname) && method !== 'GET')) {
-    return legacyError(404, 'Not Found', 'Operation management is internal.', correlationIdOf(request));
-  }
   const correlationId = correlationIdOf(request);
 
   // ---- Submit: the six core actions -------------------------------------
@@ -677,6 +713,7 @@ export async function handleLegacyRoute(
   // the path and answer with the legacy body. Only an `x-api-key` caller is a
   // legacy client.
   if (hasAdminBearer(request)) return null;
+  if (pathname === '/api/v1/operations/metrics') return null;
 
   const read = /^\/api\/v1\/operations\/([^/]+)$/.exec(pathname);
   if (read !== null) {
@@ -687,7 +724,7 @@ export async function handleLegacyRoute(
       if (host.softDeleteOperation === undefined) return internalError(correlationId);
       const ok = await host.softDeleteOperation(id, principal.tenantId, principal.apiKeyId);
       if (!ok) {
-        return legacyError(404, 'Not Found', `Operation '${id}' not found.`, correlationId);
+        return operationNotFoundError();
       }
       // 204 with an empty body — not a JSON envelope.
       return { status: 204, body: {}, headers: {} };
@@ -697,7 +734,15 @@ export async function handleLegacyRoute(
     }
     const principal = await safePrincipal(request);
     if (principal === null) return legacyError(401, 'Unauthorized', 'A valid API key is required.', correlationId);
-    const row = await host.loadOperation(id, principal.tenantId, principal.apiKeyId);
+    let row = await host.loadOperation(id, principal.tenantId, principal.apiKeyId);
+    const rawWait = request.searchParams.get('wait');
+    const parsedWait = rawWait === null ? 0 : Number.parseInt(rawWait, 10);
+    const waitSeconds = Number.isFinite(parsedWait) ? Math.max(0, Math.min(parsedWait, 30)) : 0;
+    const waitDeadline = Date.now() + waitSeconds * 1000;
+    while (row !== null && !row.done && Date.now() < waitDeadline) {
+      await new Promise((resolve) => setTimeout(resolve, Math.min(500, waitDeadline - Date.now())));
+      row = await host.loadOperation(id, principal.tenantId, principal.apiKeyId);
+    }
     if (row === null) {
       return {
         status: 404,
@@ -752,27 +797,25 @@ export async function handleLegacyRoute(
   if (sub !== null) {
     const id = decodeURIComponent(sub[1]!);
     const which = sub[2]!;
+    const expectedMethod = which === 'download' ? 'GET' : 'POST';
+    if (method !== expectedMethod) {
+      return legacyError(405, 'Method Not Allowed', `${which} accepts ${expectedMethod} only`, correlationId);
+    }
     const principal = await safePrincipal(request);
     if (principal === null) return legacyError(401, 'Unauthorized', 'A valid API key is required.', correlationId);
 
     if (which === 'cancel') {
-      if (method !== 'POST') {
-        return legacyError(405, 'Method Not Allowed', 'cancel accepts POST only', correlationId);
-      }
       if (host.cancelLegacy === undefined) return internalError(correlationId);
       const outcome = await host.cancelLegacy(id, principal);
       if (!outcome.ok) {
         return outcome.status === 404
-          ? legacyError(404, 'Not Found', `Operation '${id}' not found.`, correlationId)
-          : legacyError(409, 'Already Completed', 'Cannot cancel a completed operation.', correlationId);
+          ? operationNotFoundError()
+          : terminalOperationError();
       }
       return { status: 200, body: toLegacyEnvelope(outcome.row), headers: {} };
     }
 
     if (which === 'resume') {
-      if (method !== 'POST') {
-        return legacyError(405, 'Method Not Allowed', 'resume accepts POST only', correlationId);
-      }
       if (host.resumeLegacy === undefined) return internalError(correlationId);
       const outcome = await host.resumeLegacy(id, principal, request.body);
       if (!outcome.ok) {
@@ -799,12 +842,9 @@ export async function handleLegacyRoute(
     }
 
     // download
-    if (method !== 'GET') {
-      return legacyError(405, 'Method Not Allowed', 'download accepts GET only', correlationId);
-    }
     const row = await host.loadOperation(id, principal.tenantId, principal.apiKeyId);
     if (row === null) {
-      return legacyError(404, 'Not Found', `Operation '${id}' not found.`, correlationId);
+      return operationNotFoundError();
     }
     if (!row.done || row.state !== 'SUCCEEDED') {
       return legacyError(409, 'Not Ready', 'Operation has not completed successfully.', correlationId);
@@ -820,8 +860,9 @@ export async function handleLegacyRoute(
       status: 200,
       raw: bytes,
       headers: {
-        'content-type': legacyDownloadContentType(row.outputFormat),
+        'content-type': legacyDownloadContentType(row),
         'content-length': String(bytes.length),
+        'content-disposition': downloadFilename(row),
       },
     };
   }

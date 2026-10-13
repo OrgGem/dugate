@@ -47,9 +47,14 @@ function makeDb() {
         return result<T>([{ name: 'synthetic', spending_limit: '0', total_used: '0', tenant_id: TENANT }]);
       }
       if (/FROM usage_events/i.test(statement)) return result<T>([]);
+      if (/FROM business_catalog/i.test(statement)) {
+        return result<T>([{ enabled: true, activation_revision: 1, submissions_paused: false, pre_drain_version: null }]);
+      }
       if (/business_versions/i.test(statement)) {
         return result<T>([{
           version: '1.0.0',
+          status: 'ENABLED',
+          is_active: true,
           digest: 'sha256:test',
           queue: 'q',
           manifest: {
@@ -83,6 +88,15 @@ function makeDb() {
           return result([{ name: 'synthetic', spending_limit: '0', total_used: '0', tenant_id: TENANT }]);
         }
         if (/FROM usage_events/i.test(statement)) return result([]);
+        if (/FROM business_catalog/i.test(statement)) {
+          return result([{ enabled: true, activation_revision: 1, submissions_paused: false, pre_drain_version: null }]);
+        }
+        if (/FROM business_versions/i.test(statement)) {
+          return result([{
+            version: '1.0.0', status: 'ENABLED', is_active: true, digest: 'sha256:test',
+            manifest: { actions: [{ name: 'ingest', inputSchema: { type: 'object' } }], runtime: { handlerKinds: ['root'] } },
+          }]);
+        }
         return result([]);
       },
     }),

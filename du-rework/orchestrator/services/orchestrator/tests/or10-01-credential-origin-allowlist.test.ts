@@ -31,6 +31,12 @@ function profileServiceHarness() {
       if (sql.includes('SELECT id, tenant_id FROM api_keys')) {
         return { rows: [{ id: apiKeyId, tenant_id: '10000000-0000-4000-8000-000000000001' }], rowCount: 1 };
       }
+      if (sql.includes('SELECT id, tenant_id, hash, prefix, status FROM api_keys WHERE id=$1 FOR SHARE')) {
+        return { rows: [{ id: apiKeyId, tenant_id: '10000000-0000-4000-8000-000000000001', hash: input.apiKeyHash, prefix: 'synthetic', status: 'ACTIVE' }], rowCount: 1 };
+      }
+      if (/SELECT b\.profile_id[\s\S]+FROM profile_active_revisions a/.test(sql)) {
+        return { rows: [], rowCount: 0 };
+      }
       if (sql.includes('SELECT max(revision) AS m')) {
         return { rows: [{ m: latestRevision }], rowCount: 1 };
       }

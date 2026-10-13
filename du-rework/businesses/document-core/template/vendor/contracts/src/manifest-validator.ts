@@ -1,7 +1,3 @@
-// VENDORED from @du/contracts @ b088eececcb5f3df0b4edbe073a29401dafda624 (worktree 2026-10-06)
-// source: packages/contracts/src/manifest-validator.ts (lines=122) sha256=F909EDA5ECBC6F71F68BD0EE0C05E2B7773AC0A9D908C34C19CD43BFCDC58FDB
-// why: validateManifest for vendored worker-sdk defineBusiness
-
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import {

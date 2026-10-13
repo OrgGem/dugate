@@ -2,35 +2,15 @@
  * STRICT legacy operation envelope — a field-for-field reproduction of
  * `lib/pipelines/format.ts` (`formatOperationResponse`) in the legacy repo.
  *
- * ## Why this exists next to `legacy-operation-serializers.ts`
- *
- * That module is a *deliberate* divergence, documented in its own header: it
- * refuses to fabricate terminal states and it flattens the state vocabulary.
- * Those are defensible product decisions, but they are NOT wire parity, and
- * the user requirement for this surface is byte-level compatibility with the
- * old system. Concretely it differs from the legacy formatter in five ways:
- *
- * | # | `format.ts` (legacy truth) | `legacy-operation-serializers.ts` |
- * |---|---|---|
- * | 1 | `metadata.state` is the row's own state, verbatim | mapped through `LEGACY_STATE_BY_CANONICAL`, so `CANCELLED` and `TIMED_OUT` both become `FAILED` |
- * | 2 | no `canonical_state` key | adds `metadata.canonical_state` |
- * | 3 | a FAILED operation also carries `result` (short usage) when `stepsResultJson` is set | emits no `result` for FAILED at all |
- * | 4 | `next_page_token` is the plain uuid of the last row | a 4-slot encoded cursor token |
- * | 5 | `metadata.pipeline` comes from parsing `pipelineJson` | supplied by the caller as an array |
- *
- * Item 4 is the one that breaks a client outright: the legacy `page_token` is
- * an operation id, and the old list route feeds it straight back into an
- * `eq(operations.id, pageToken)` lookup. A base64 dialect token matches no
- * row and silently collapses pagination to page 1 forever.
- *
- * This module therefore implements the legacy shape only. It is the compat
- * surface; the canonical surface in `packages/contracts` is untouched.
+ * The host adapter normalizes canonical lifecycle states and projects result
+ * artifacts before constructing this stable old-client response shape. This
+ * module intentionally contains no database or worker dependencies.
  */
 
 export interface LegacyOperationRow {
   readonly id: string;
   readonly done: boolean;
-  /** The row's own state string, passed through verbatim (defect 1 above). */
+  /** The host-normalized lifecycle token exposed to legacy pollers. */
   readonly state: string;
   /** Raw `pipelineJson`; parsed to a processor-name list. */
   readonly pipelineJson?: string | null;
@@ -45,6 +25,8 @@ export interface LegacyOperationRow {
   readonly outputContent?: string | null;
   /** File-backend output reference (legacy local OUTPUT_DIR path or S3 key). */
   readonly outputFilePath?: string | null;
+  /** Internal download name from the first operation-owned submitted artifact. */
+  readonly sourceFileName?: string | null;
   readonly extractedData?: string | null;
   readonly totalInputTokens?: number | null;
   readonly totalOutputTokens?: number | null;

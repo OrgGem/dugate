@@ -1,7 +1,3 @@
-// VENDORED from @du/worker-sdk @ b088eececcb5f3df0b4edbe073a29401dafda624 (worktree 2026-10-06)
-// source: packages/worker-sdk/src/source-ingestion.ts (lines=493) sha256=8E13F361FF50A7CA068570AC9F97E74D2DB93140FD73F2FEEB4009FD6B54FDE8
-// why: worker surface required by src/worker.ts, src/main.ts, types/context.ts, step-checkpoint, fanout
-
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import type { Readable } from 'node:stream';
@@ -10,6 +6,7 @@ import {
   acquireSourceUrl,
   SourceAcquisitionError,
   type AcquireSourceUrlOptions,
+  type AcquiredSource,
 } from './source-acquisition';
 import { createTempWorkspace, type TempWorkspace } from './artifact-streams';
 
@@ -141,6 +138,8 @@ export function assertIngestionReceipt(value: unknown): SourceIngestionReceipt {
 }
 
 export interface SourceIngestorOptions {
+  /** Trusted platform adapter for non-HTTP sources; never supplied by a request. */
+  acquireFile?: (workspace: TempWorkspace, fileName: string, source: string, policy: AcquireSourceUrlOptions) => Promise<AcquiredSource>;
   storage: PinnedSourceStorage;
   /**
    * The deterministic object key the receipt is pinned under. Owned by the
@@ -200,7 +199,7 @@ export function createSourceAcquisitionIngestor(options: SourceIngestorOptions):
       const measured = { sha256: '', sizeBytes: -1 };
       try {
         // 1. Bounded, SSRF-fenced acquisition down to verified local bytes.
-        const acquired = await acquireSourceUrl(workspace, fileName, sourceUrl, options.transfer);
+        const acquired = await (options.acquireFile ?? acquireSourceUrl)(workspace, fileName, sourceUrl, options.transfer);
 
         // 2. Stream that file into a NEW immutable version, measuring the bytes
         //    as they leave this process (never a whole-object heap buffer).
@@ -494,4 +493,3 @@ async function* measuring(
   sink.sha256 = hash.digest('hex');
   sink.sizeBytes = sizeBytes;
 }
-

@@ -31,6 +31,9 @@ export function isTerminal(state: string): boolean {
  */
 export function toOperationView(r: Record<string, unknown>) {
   const id = r.id as string;
+  const rawProgress = typeof r.progress_percent === 'number' || typeof r.progress_percent === 'string' ? Number(r.progress_percent) : Number.NaN;
+  const percent = Number.isFinite(rawProgress) ? Math.max(0, Math.min(100, Math.trunc(rawProgress))) : 0;
+  const progressMessage = typeof r.progress_message === 'string' && r.progress_message.trim() !== '' ? r.progress_message : String(r.state ?? '');
   return {
     id,
     name: `operations/${id}`,
@@ -46,7 +49,7 @@ export function toOperationView(r: Record<string, unknown>) {
     retryOf: r.retry_of ?? null,
     errorCode: r.error_code ?? null,
     deadlineAt: r.deadline_at ? new Date(r.deadline_at as string).toISOString() : null,
-    progress: { percent: 0, message: r.state as string },
+    progress: { percent, message: progressMessage },
     links: {
       self: `/api/v1/operations/${id}`,
       result: `/api/v1/operations/${id}`,

@@ -1,0 +1,14 @@
+▶ ORV15 admin navigation and operational page density
+  ✔ keeps the operations sidebar collapsed to a prefix-active parent while preserving every route tab (0.5547ms)
+  ✔ keeps access and documentation paths reachable through contextual route links and the platform API-key gate (0.125ms)
+  ✔ keeps operation filtering URL-driven while bounding the results and using server cursors for paging (0.1298ms)
+  ✔ keeps the incident keyset cursor while making the ledger region bounded and compact (0.103ms)
+✔ ORV15 admin navigation and operational page density (1.6566ms)
+ℹ tests 4
+ℹ suites 1
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 57.9108

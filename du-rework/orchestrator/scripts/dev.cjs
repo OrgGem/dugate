@@ -1,44 +1,150 @@
 #!/usr/bin/env node
 const { spawn, spawnSync } = require('node:child_process');
-const path = require('node:path');
+const { createRequire } = require('node:module');
 const fs = require('node:fs');
+const path = require('node:path');
 const net = require('node:net');
 const readline = require('node:readline');
+const { pathToFileURL } = require('node:url');
 const { parseEnv } = require('node:util');
-const { serviceEnvironment, validateRuntimeEnvironment, signedConnectorToken } = require('./runtime-env.cjs');
+const {
+  serviceEnvironment,
+  localConnectorManagementEnvironment,
+  validateRuntimeEnvironment,
+} = require('./runtime-env.cjs');
+const { createAdminWebDevServerOptions } = require('./dev-admin-web.cjs');
 
 const ROOT = path.resolve(__dirname, '..');
-const children = [];
+const WORKSPACE_ROOT = path.resolve(ROOT, '..');
+const ADMIN_WEB_ROOT = path.join(ROOT, 'apps/admin-web');
+const CHILD_SHIM = path.join(WORKSPACE_ROOT, 'scripts/dev-child.cjs');
+const buildCoordinator = require(path.join(WORKSPACE_ROOT, 'scripts/dev-build-coordinator.cjs'));
+const children = new Set();
+const activeServices = new Map();
+const sourceWatchers = [];
 let stopping = false;
+let shutdownPromise;
+let viteServer;
+let buildChild;
+let reloadTimer;
+let reloadPending = false;
+let reloadPromise;
+let reloadSequence = 0;
+let watchEnabled = true;
+let internalAdminShellPort;
 
-function shutdown(code = 0) {
-  if (stopping) return;
-  stopping = true;
-  console.log('\n[dev] Shutting down services...');
-  for (const child of children) {
-    if (!child.pid || child.exitCode !== null) continue;
-    if (process.platform === 'win32') {
-      spawnSync('taskkill', ['/F', '/T', '/PID', String(child.pid)], { stdio: 'ignore' });
-    } else {
-      try { process.kill(-child.pid, 'SIGTERM'); } catch {}
-    }
+function forceTerminate(child) {
+  if (!child?.pid || child.exitCode !== null || child.signalCode !== null) return;
+  if (process.platform === 'win32') {
+    spawnSync('taskkill', ['/F', '/T', '/PID', String(child.pid)], { stdio: 'ignore', windowsHide: true });
+    return;
   }
+  try { process.kill(-child.pid, 'SIGKILL'); } catch {
+    try { child.kill('SIGKILL'); } catch {}
+  }
+}
+
+function stopChild(child, timeoutMs = 45_000) {
+  if (!child?.pid || child.exitCode !== null || child.signalCode !== null) return Promise.resolve();
+  child.expectedExit = true;
+  return new Promise((resolve) => {
+    let finished = false;
+    let timer;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      child.removeListener('exit', finish);
+      resolve();
+    };
+    timer = setTimeout(() => {
+      console.warn(`[dev] ${child.devName || 'Child process'} did not stop cleanly; terminating its owned process tree.`);
+      forceTerminate(child);
+      setTimeout(finish, 1000).unref?.();
+    }, timeoutMs);
+    child.once('exit', finish);
+
+    if (process.platform === 'win32') {
+      if (!child.connected) forceTerminate(child);
+      else child.send('dugate:shutdown', (error) => { if (error) forceTerminate(child); });
+    } else {
+      try { process.kill(-child.pid, 'SIGTERM'); } catch {
+        try { child.kill('SIGTERM'); } catch {}
+      }
+    }
+  });
+}
+
+async function shutdown(code = 0) {
+  if (shutdownPromise) return shutdownPromise;
+  stopping = true;
   process.exitCode = code;
+  clearTimeout(reloadTimer);
+  for (const watcher of sourceWatchers) watcher.close();
+
+  shutdownPromise = (async () => {
+    if (buildChild) forceTerminate(buildChild);
+    if (reloadPromise) {
+      try { await reloadPromise; } catch {}
+    }
+    if (viteServer) {
+      try { await viteServer.close(); } catch (error) {
+        console.error('[dev] Admin Web shutdown failed:', error.message);
+        process.exitCode = 1;
+      }
+      viteServer = undefined;
+    }
+    await Promise.all([...activeServices.values()].map((child) => stopChild(child)));
+    for (const child of children) {
+      if (child.exitCode === null && child.signalCode === null) await stopChild(child);
+    }
+  })();
+  return shutdownPromise;
 }
 
 function runNode(args) {
-  const result = spawnSync(process.execPath, args, { cwd: ROOT, stdio: 'inherit', env: process.env });
+  const result = spawnSync(process.execPath, args, { cwd: ROOT, stdio: 'inherit', env: process.env, windowsHide: true });
   if (result.error || result.status !== 0) throw new Error(`Prerequisite command failed: node ${args.join(' ')}`);
+}
+
+function runNodeAsync(args) {
+  return new Promise((resolve, reject) => {
+    if (stopping) return reject(new Error('Development session is shutting down.'));
+    const child = spawn(process.execPath, args, {
+      cwd: ROOT,
+      stdio: 'inherit',
+      env: process.env,
+      detached: process.platform !== 'win32',
+      windowsHide: true,
+    });
+    buildChild = child;
+    child.once('error', (error) => {
+      if (buildChild === child) buildChild = undefined;
+      reject(error);
+    });
+    child.once('exit', (code, signal) => {
+      if (buildChild === child) buildChild = undefined;
+      if (stopping) return resolve(false);
+      if (code === 0) resolve(true);
+      else reject(new Error(`Build command failed (${code ?? signal ?? 'unknown exit'}): node ${args.join(' ')}`));
+    });
+  });
 }
 
 async function isPortAvailable(port) {
   return new Promise((resolve) => {
     const server = net.createServer();
     server.once('error', () => resolve(false));
-    server.listen(port, '127.0.0.1', () => {
-      server.close(() => resolve(true));
-    });
+    server.listen(port, '127.0.0.1', () => server.close(() => resolve(true)));
   });
+}
+
+async function findInternalAdminShellPort(start, excluded) {
+  for (let port = start; port <= 65535; port++) {
+    if (excluded.has(port)) continue;
+    if (await isPortAvailable(port)) return port;
+  }
+  throw new Error('No available loopback port for the Admin Shell behind the Vite dev server.');
 }
 
 async function waitForReady(url, name, maxWaitMs = 30000) {
@@ -48,80 +154,224 @@ async function waitForReady(url, name, maxWaitMs = 30000) {
       const res = await fetch(url, { signal: AbortSignal.timeout(1500) });
       if (res.status === 200) return true;
     } catch {}
-    await new Promise(resolve => setTimeout(resolve, 300));
+    await new Promise((resolve) => setTimeout(resolve, 300));
   }
   throw new Error(`Service ${name} failed to become ready at ${url}`);
 }
 
-function startProcess(name, relativeEntry, args = []) {
+function startProcess(name, relativeEntry, envOverrides = {}) {
   const entryPath = path.join(ROOT, relativeEntry);
-  const nodeArgs = process.argv.includes('--watch') ? ['--watch', entryPath, ...args] : [entryPath, ...args];
-  const child = spawn(process.execPath, nodeArgs, {
+  const child = spawn(process.execPath, ['--require', CHILD_SHIM, entryPath], {
     cwd: ROOT,
-    env: serviceEnvironment(process.env, name),
+    env: serviceEnvironment({ ...process.env, ...envOverrides }, name),
     detached: process.platform !== 'win32',
-    stdio: ['ignore', 'pipe', 'pipe']
+    stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+    windowsHide: true,
   });
-
-  children.push(child);
+  child.devName = name;
+  children.add(child);
+  activeServices.set(name, child);
 
   for (const stream of [child.stdout, child.stderr]) {
-    readline.createInterface({ input: stream }).on('line', (line) => {
-      console.log(`[${name}] ${line}`);
-    });
+    readline.createInterface({ input: stream }).on('line', (line) => console.log(`[${name}] ${line}`));
   }
-
-  child.once('error', (err) => {
-    console.error(`[${name}] Failed to start:`, err.message);
-    shutdown(1);
+  child.once('error', (error) => {
+    console.error(`[${name}] Failed to start:`, error.message);
+    void shutdown(1);
   });
-
   child.once('exit', (code, signal) => {
-    if (!stopping) {
+    children.delete(child);
+    if (activeServices.get(name) === child) activeServices.delete(name);
+    if (!stopping && !child.expectedExit) {
       console.error(`[${name}] Exited (${code ?? signal}); stopping dev session`);
-      shutdown(code || 1);
+      void shutdown(code || 1);
     }
   });
+  return child;
+}
+
+async function startServices() {
+  if (stopping) return;
+  console.log('\n[dev] Starting Orchestrator Backend...');
+  startProcess('orchestrator', 'services/orchestrator/dist/main.js', watchEnabled
+    ? { ADMIN_SHELL_PORT: String(internalAdminShellPort), ADMIN_SHELL_HOST: '127.0.0.1' }
+    : {});
+  console.log('[dev] Starting Connector Service...');
+  startProcess('connector', 'services/connector/dist/entrypoint.js');
+
+  console.log('[dev] Waiting for services to be ready...');
+  try {
+    await Promise.all([
+      waitForReady(`http://127.0.0.1:${Number(process.env.ORCHESTRATOR_INTERNAL_PORT)}/health`, 'orchestrator'),
+      waitForReady(`http://127.0.0.1:${Number(process.env.CONNECTOR_PORT)}/health/ready`, 'connector'),
+    ]);
+  } catch (error) {
+    if (!stopping) console.warn(`[dev] Warning: ${error.message}. (Services may still be starting up)`);
+  }
+}
+
+async function startAdminWebDevServer(portalPort) {
+  const proxyTarget = `http://127.0.0.1:${internalAdminShellPort}`;
+  const requireFromAdminWeb = createRequire(path.join(ADMIN_WEB_ROOT, 'package.json'));
+  const vitePath = requireFromAdminWeb.resolve('vite');
+  const { createServer } = await import(pathToFileURL(vitePath).href);
+  const server = await createServer({
+    root: ADMIN_WEB_ROOT,
+    configFile: path.join(ADMIN_WEB_ROOT, 'vite.config.ts'),
+    ...createAdminWebDevServerOptions({ host: process.env.ADMIN_SHELL_HOST, port: portalPort, internalAdminShellPort }),
+  });
+  await server.listen();
+  server.printUrls();
+  console.log(`[dev] Admin BFF/auth proxy target: ${proxyTarget}`);
+  return server;
+}
+
+function watchConfigDirectory(directory, filename) {
+  const expected = path.basename(filename);
+  const watcher = fs.watch(directory, (_eventType, changed) => {
+    if (changed === null || changed === undefined || String(changed) === expected) scheduleRuntimeReload();
+  });
+  watcher.on('error', (error) => {
+    console.error(`[dev] Config watcher failed for ${filename}: ${error.message}`);
+    void shutdown(1);
+  });
+  sourceWatchers.push(watcher);
+}
+
+function isBuildInput(filename) {
+  if (filename === null || filename === undefined) return true;
+  const relative = Buffer.isBuffer(filename) ? filename.toString() : String(filename);
+  const normalized = relative.replace(/\\/g, '/').replace(/^\/+/, '');
+  const parts = normalized.split('/');
+  if (parts.some((part) => ['dist', 'node_modules', 'coverage', 'tests', '__tests__'].includes(part))) return false;
+  return normalized === 'src'
+    || normalized.includes('/src/')
+    || normalized.endsWith('/src')
+    || /(^|\/)(package\.json|tsconfig(?:\.[^/]+)?\.json)$/.test(normalized);
+}
+
+function scheduleRuntimeReload() {
+  reloadPending = true;
+  clearTimeout(reloadTimer);
+  reloadTimer = setTimeout(() => {
+    if (!reloadPromise) {
+      reloadPromise = reloadRuntimeServices().finally(() => {
+        reloadPromise = undefined;
+        if (reloadPending && !stopping) scheduleRuntimeReload();
+      });
+    }
+  }, 450);
+}
+
+async function reloadRuntimeServices() {
+  if (stopping) return;
+  while (reloadPending && !stopping) {
+    reloadPending = false;
+    reloadSequence += 1;
+    console.log(`\n[dev] Runtime source change detected; rebuilding and restarting services (change ${reloadSequence})...`);
+    await Promise.all([...activeServices.values()].map((child) => stopChild(child)));
+    if (stopping) return;
+
+    try {
+      const result = await buildCoordinator.withBuildLock(WORKSPACE_ROOT, async () => {
+        buildCoordinator.publishBuildState(WORKSPACE_ROOT, 'building', { source: 'orchestrator', reason: 'watch-rebuild' });
+        try {
+          const built = await runNodeAsync(['scripts/build.cjs', '--backend-only']);
+          if (!built || stopping || reloadPending) return false;
+          buildCoordinator.publishBuildState(WORKSPACE_ROOT, 'ready', { source: 'orchestrator', reason: 'watch-rebuild' });
+          return true;
+        } catch (error) {
+          if (!stopping) buildCoordinator.publishBuildState(WORKSPACE_ROOT, 'failed', { source: 'orchestrator', reason: 'watch-rebuild' });
+          throw error;
+        }
+      }, { shouldStop: () => stopping });
+      if (!result || reloadPending || stopping) continue;
+      if (viteServer) {
+        console.log('[dev] Refreshing Admin Web dependency prebundle after the shared package build.');
+        await viteServer.restart(true);
+      }
+      if (stopping || reloadPending) continue;
+      await startServices();
+    } catch (error) {
+      console.error(`[dev] Runtime rebuild failed. Services remain stopped until a successful source rebuild: ${error.message}`);
+      if (reloadPending) continue;
+    }
+  }
+}
+
+function startRuntimeWatchers() {
+  for (const directory of ['packages', 'services']) {
+    const target = path.join(ROOT, directory);
+    const watcher = fs.watch(target, { recursive: true }, (_eventType, filename) => {
+      if (isBuildInput(filename)) scheduleRuntimeReload();
+    });
+    watcher.on('error', (error) => {
+      console.error(`[dev] Source watcher failed for ${directory}: ${error.message}`);
+      void shutdown(1);
+    });
+    sourceWatchers.push(watcher);
+  }
+  watchConfigDirectory(WORKSPACE_ROOT, path.join(WORKSPACE_ROOT, 'tsconfig.base.json'));
+  watchConfigDirectory(ROOT, path.join(ROOT, 'tsconfig.base.json'));
+}
+
+function printReadyBanner(publicPort, internalPort, portalPort, connectorPort) {
+  console.log('\n===============================================================');
+  console.log('   \x1b[32m✔ Orchestrator Platform is RUNNING (Standalone Dev)\x1b[0m');
+  console.log('===============================================================');
+  console.log(` • \x1b[1mPublic API:\x1b[0m           http://127.0.0.1:${publicPort}`);
+  console.log(` • \x1b[1mInternal API:\x1b[0m         http://127.0.0.1:${internalPort}`);
+  console.log(` • \x1b[1mOrchestrator Portal:\x1b[0m  http://127.0.0.1:${portalPort}/admin/`);
+  if (watchEnabled) console.log(` • \x1b[1mAdmin Shell BFF:\x1b[0m      http://127.0.0.1:${internalAdminShellPort} (proxied by Vite)`);
+  console.log(` • \x1b[1mConnector Service:\x1b[0m    http://127.0.0.1:${connectorPort}`);
+  if (watchEnabled) console.log(' • \x1b[1mReload:\x1b[0m                 Admin Web HMR; backend and Connector rebuild/restart');
+  console.log('===============================================================\n');
 }
 
 async function main() {
   const args = process.argv.slice(2);
   if (args.includes('--help')) {
-    console.log(`
-Usage: pnpm run dev [options]
-
-Options:
-  --env-file=PATH     Explicit path to environment file
-  --skip-build        Skip initial build of packages & services
-  --skip-migrate      Skip database migrations
-  --watch             Run node processes in watch mode
-  --help              Show this help message
-`);
+    console.log([
+      'Usage: pnpm run dev [options]',
+      '',
+      'Options:',
+      '  --env-file=PATH     Explicit path to environment file',
+      '  --skip-build        Skip initial build of packages & services',
+      '  --skip-migrate      Skip database migrations',
+      '  --no-watch          Build once and serve the built Admin Web bundle',
+      '  --watch             Alias for the default watch mode',
+      '  --help              Show this help message',
+      '',
+    ].join('\n'));
     return;
   }
+  if (args.includes('--no-watch') && args.includes('--watch')) throw new Error('Choose either --watch or --no-watch.');
+  watchEnabled = !args.includes('--no-watch');
+  for (const arg of args) {
+    if (!['--skip-build', '--skip-migrate', '--no-watch', '--watch'].includes(arg) && !arg.startsWith('--env-file=')) {
+      throw new Error(`Unknown option: ${arg}. Use --help for usage.`);
+    }
+  }
 
-  // 1. Locate environment file
+  // 1. Locate environment file.
   let envFile = '.env.local';
-  const customEnvArg = args.find(a => a.startsWith('--env-file='));
+  const customEnvArg = args.find((arg) => arg.startsWith('--env-file='));
   if (customEnvArg) {
     envFile = customEnvArg.slice('--env-file='.length);
   } else if (!fs.existsSync(path.join(ROOT, envFile))) {
-    if (fs.existsSync(path.join(ROOT, '.env'))) {
-      envFile = '.env';
-    } else if (fs.existsSync(path.join(ROOT, '../.env.orchestrator.local'))) {
-      envFile = '../.env.orchestrator.local';
-    } else {
+    if (fs.existsSync(path.join(ROOT, '.env'))) envFile = '.env';
+    else if (fs.existsSync(path.join(WORKSPACE_ROOT, '.env.orchestrator.local'))) envFile = '../.env.orchestrator.local';
+    else {
       const { initLocalEnv } = require('./init-local.cjs');
       envFile = path.relative(ROOT, initLocalEnv());
     }
   }
-
   const resolvedEnvFile = path.resolve(ROOT, envFile);
   console.log(`[dev] Using environment file: ${envFile}`);
   const configured = { ...parseEnv(fs.readFileSync(resolvedEnvFile, 'utf8')), ...process.env };
   Object.assign(process.env, configured);
 
-  // 2. Normalize and apply defaults
+  // 2. Normalize local defaults.
   const defaults = {
     ORCHESTRATOR_PORT: '3000',
     ORCHESTRATOR_INTERNAL_PORT: '3002',
@@ -136,12 +386,7 @@ Options:
     CONNECTOR_MIGRATION_DIRECTORY: path.join(ROOT, 'services/connector/src/db/migrations'),
     CONNECTOR_REDIS_PREFIX: 'du:connector:',
   };
-
-  for (const [key, value] of Object.entries(defaults)) {
-    process.env[key] ??= value;
-  }
-
-  // Handle case where CONNECTOR_MIGRATION_DIRECTORY had ./orchestrator/services/... from du-rework parent
+  for (const [key, value] of Object.entries(defaults)) process.env[key] ??= value;
   if (process.env.CONNECTOR_MIGRATION_DIRECTORY.includes('orchestrator/services/connector')) {
     process.env.CONNECTOR_MIGRATION_DIRECTORY = path.join(ROOT, 'services/connector/src/db/migrations');
   }
@@ -150,81 +395,85 @@ Options:
   const internalPort = Number(process.env.ORCHESTRATOR_INTERNAL_PORT);
   const portalPort = Number(process.env.ADMIN_SHELL_PORT);
   const connectorPort = Number(process.env.CONNECTOR_PORT);
-
   process.env.ORCHESTRATOR_INTERNAL_BASE_URL ??= `http://127.0.0.1:${internalPort}`;
   process.env.RUNTIME_URL ??= `${process.env.ORCHESTRATOR_INTERNAL_BASE_URL}/api/runtime/v1`;
   process.env.CONNECTOR_URL ??= `http://127.0.0.1:${connectorPort}`;
-
+  Object.assign(process.env, localConnectorManagementEnvironment(process.env, {
+    services: 'all',
+    connectorUrl: process.env.CONNECTOR_URL,
+  }));
   validateRuntimeEnvironment(process.env, { services: 'all' });
 
-  // 3. Port check
-  const ports = [publicPort, internalPort, portalPort, connectorPort];
-  for (const port of ports) {
-    const free = await isPortAvailable(port);
-    if (!free) {
-      throw new Error(`Port ${port} is currently in use. Stop the existing process or run "pnpm run stop".`);
-    }
+  const configuredPorts = [publicPort, internalPort, portalPort, connectorPort];
+  if (new Set(configuredPorts).size !== configuredPorts.length) throw new Error('Orchestrator, Runtime, Admin, and Connector ports must be distinct.');
+  for (const port of configuredPorts) {
+    if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error(`Invalid local service port: ${port}`);
+    if (!await isPortAvailable(port)) throw new Error(`Port ${port} is currently in use. Stop the existing process or run "pnpm run stop".`);
+  }
+  internalAdminShellPort = watchEnabled
+    ? await findInternalAdminShellPort(portalPort + 1, new Set(configuredPorts))
+    : portalPort;
+  if (watchEnabled && !await isPortAvailable(internalAdminShellPort)) {
+    throw new Error(`Admin Shell proxy port ${internalAdminShellPort} is currently in use.`);
   }
 
-  // 4. Build prerequisites
+  // 3. Build prerequisites.
   const requiredArtifacts = [
     'services/orchestrator/dist/main.js',
     'services/connector/dist/entrypoint.js',
     'apps/admin-web/dist/index.html',
   ];
-  const missingArtifacts = requiredArtifacts.some(f => !fs.existsSync(path.join(ROOT, f)));
-
-  if (!args.includes('--skip-build') && missingArtifacts) {
-    console.log('[dev] Missing build artifacts. Building orchestrator packages & services...');
-    runNode(['scripts/build.cjs']);
-  } else if (!args.includes('--skip-build')) {
-    console.log('[dev] Building all packages & services...');
-    runNode(['scripts/build.cjs']);
+  const missingArtifacts = requiredArtifacts.some((file) => !fs.existsSync(path.join(ROOT, file)));
+  if (!args.includes('--skip-build')) {
+    await buildCoordinator.withBuildLock(WORKSPACE_ROOT, async () => {
+      if (watchEnabled) buildCoordinator.publishBuildState(WORKSPACE_ROOT, 'building', { source: 'orchestrator', reason: 'initial-build' });
+      try {
+        runNode(['scripts/build.cjs']);
+        if (watchEnabled) buildCoordinator.publishBuildState(WORKSPACE_ROOT, 'ready', { source: 'orchestrator', reason: 'initial-build' });
+      } catch (error) {
+        if (watchEnabled) buildCoordinator.publishBuildState(WORKSPACE_ROOT, 'failed', { source: 'orchestrator', reason: 'initial-build' });
+        throw error;
+      }
+    }, { shouldStop: () => stopping });
+  } else if (missingArtifacts) {
+    throw new Error('Build artifacts are missing; remove --skip-build or run `pnpm run build` first.');
+  } else if (watchEnabled) {
+    buildCoordinator.publishBuildState(WORKSPACE_ROOT, 'ready', { source: 'orchestrator', reason: 'reused-build' });
   }
 
-  // 5. Database migrations
+  // 4. Database migrations.
+  if (stopping) return;
   if (!args.includes('--skip-migrate')) {
     try {
       runNode(['scripts/migrate.cjs', `--env-file=${resolvedEnvFile}`]);
-    } catch (e) {
+    } catch {
       console.warn('\x1b[33m[dev] Migration warning: Postgres may not be running yet. Proceeding with service startup...\x1b[0m');
       console.warn('\x1b[33m[dev] Run "pnpm run docker:up" to start PostgreSQL and Redis.\x1b[0m');
     }
   }
 
-  // 6. Launch services
-  console.log('\n[dev] Starting Orchestrator Backend...');
-  startProcess('orchestrator', 'services/orchestrator/dist/main.js');
-
-  console.log('[dev] Starting Connector Service...');
-  startProcess('connector', 'services/connector/dist/entrypoint.js');
-
-  // 7. Readiness check
-  console.log('[dev] Waiting for services to be ready...');
-  try {
-    await Promise.all([
-      waitForReady(`http://127.0.0.1:${internalPort}/health`, 'orchestrator'),
-      waitForReady(`http://127.0.0.1:${connectorPort}/health/ready`, 'connector'),
-    ]);
-  } catch (err) {
-    console.warn(`[dev] Warning: ${err.message}. (Services may still be starting up)`);
+  // 5. Start services, then put Vite in front of the Admin Shell in watch mode.
+  if (stopping) return;
+  await startServices();
+  if (stopping) return;
+  if (watchEnabled) {
+    const server = await startAdminWebDevServer(portalPort);
+    if (stopping) {
+      await server.close();
+      return;
+    }
+    viteServer = server;
+    startRuntimeWatchers();
   }
-
-  // 8. Ready banner
-  console.log('\n===============================================================');
-  console.log('   \x1b[32m✔ Orchestrator Platform is RUNNING (Standalone Dev)\x1b[0m');
-  console.log('===============================================================');
-  console.log(` • \x1b[1mPublic API:\x1b[0m           http://127.0.0.1:${publicPort}`);
-  console.log(` • \x1b[1mInternal API:\x1b[0m         http://127.0.0.1:${internalPort}`);
-  console.log(` • \x1b[1mOrchestrator Portal:\x1b[0m  http://127.0.0.1:${portalPort}/admin/`);
-  console.log(` • \x1b[1mConnector Service:\x1b[0m    http://127.0.0.1:${connectorPort}`);
-  console.log('===============================================================\n');
+  if (stopping) return;
+  printReadyBanner(publicPort, internalPort, portalPort, connectorPort);
 }
 
-process.on('SIGINT', () => shutdown(0));
-process.on('SIGTERM', () => shutdown(0));
+process.on('SIGINT', () => { void shutdown(0); });
+process.on('SIGTERM', () => { void shutdown(0); });
+process.on('message', (message) => { if (message === 'dugate:shutdown') void shutdown(0); });
 
-main().catch((err) => {
-  console.error('\x1b[31m[dev] Failed to start:\x1b[0m', err.message);
-  shutdown(1);
+main().catch((error) => {
+  console.error('\x1b[31m[dev] Failed to start:\x1b[0m', error.message);
+  void shutdown(1);
 });

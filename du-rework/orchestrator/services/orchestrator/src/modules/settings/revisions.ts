@@ -7,6 +7,7 @@ import { canonicalPayloadHash } from '../idempotency/idempotency';
 import type { MetadataCrypto } from '../runtime/metadata-crypto';
 import { compatibilityMetadataReader, type MetadataReader } from '../encryption/metadata-read-policy';
 import type { ConnectorManagementStore } from '../connectors/connector-management-store';
+import { isActiveConnectorPin } from '../profiles/connector-pin-validation';
 import { openPrompt, sealPrompt } from './prompt-crypto';
 import { CORE_ENDPOINTS } from './endpoints';
 
@@ -111,9 +112,7 @@ async function validate(payload:Payload,current:Snapshot,deps:SettingsRevisionDe
   checks.push('connector revision availability and tenant');
   if(!deps.connectorManagement)issues.push({code:'CONNECTOR_VALIDATION_UNAVAILABLE',message:'Connector management is required to validate changed provider/model revision pins.'});
   else for(const pin of Object.values(payload.next.connectorBindings)){
-   const target=await deps.connectorManagement.getRevision(pin.connectorId,pin.revision);
-   if(!target||target.state!=='ACTIVE')issues.push({code:'CONNECTOR_NOT_ACTIVE',message:'A proposed connector revision is unavailable or not ACTIVE.'});
-   else if(target.tenantId&&target.tenantId!==p.tenantId)issues.push({code:'CONNECTOR_TENANT_MISMATCH',message:'A proposed connector belongs to another tenant.'});
+   if(!await isActiveConnectorPin(deps.connectorManagement, p.tenantId, pin))issues.push({code:'CONNECTOR_NOT_ACTIVE',message:'A proposed connector revision is unavailable, not ACTIVE, or outside this tenant.'});
   }
  }
  return {valid:issues.length===0,issues,checks};

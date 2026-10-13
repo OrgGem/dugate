@@ -4,12 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { FormField } from '@/components/ui/field';
 import { AlertBanner, EmptyState } from '@/components/ui/state-panel';
-import { Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TablePagination, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 import { parseCurlImport, type CurlImportDraft, type CurlImportSummary } from './curl-import';
 
 const TEXTAREA_CLASS =
-  'min-h-40 w-full rounded-[var(--radius-sm)] border border-[var(--border-dark)] bg-[var(--bg-card)] p-3 font-mono text-xs';
+  'min-h-40 max-h-[45vh] max-w-full w-full overflow-auto rounded-[var(--radius-sm)] border border-[var(--border-dark)] bg-[var(--bg-card)] p-3 font-mono text-xs';
 
 const CURL_PLACEHOLDER = [
   'curl -X POST https://api.vendor.example/v1/extract \\',
@@ -139,12 +139,25 @@ interface PreviewRow {
   action?: ReactNode;
 }
 
+const PREVIEW_PAGE_SIZE = 8;
+
 function PreviewTable({ label, rows }: { label: string; rows: PreviewRow[] }) {
   const hasAction = rows.some((row) => row.action != null);
+  const [page, setPage] = useState(0);
+  const pageCount = Math.max(1, Math.ceil(rows.length / PREVIEW_PAGE_SIZE));
+  const visibleRows = rows.slice(page * PREVIEW_PAGE_SIZE, (page + 1) * PREVIEW_PAGE_SIZE);
+  const rangeStart = rows.length === 0 ? 0 : page * PREVIEW_PAGE_SIZE + 1;
+  const rangeEnd = Math.min(rows.length, (page + 1) * PREVIEW_PAGE_SIZE);
+
+  useEffect(() => {
+    if (page >= pageCount) setPage(Math.max(0, pageCount - 1));
+  }, [page, pageCount]);
+
   return (
-    <TableContainer>
-      <Table aria-label={label}>
-        <TableHeader>
+    <div className='space-y-2'>
+      <TableContainer maxHeight={240} aria-label={label}>
+        <Table aria-label={label} density='compact'>
+        <TableHeader sticky>
           <TableRow>
             <TableHead>Name</TableHead>
             <TableHead>Value</TableHead>
@@ -152,10 +165,10 @@ function PreviewTable({ label, rows }: { label: string; rows: PreviewRow[] }) {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.map((row, index) => (
+          {visibleRows.map((row, index) => (
             <TableRow key={row.name + ':' + index}>
-              <TableCell className='font-mono text-xs'>{row.name}</TableCell>
-              <TableCell className='text-xs text-[var(--text-sub)]'>
+              <TableCell className='max-w-64 break-all font-mono text-xs'>{row.name}</TableCell>
+              <TableCell className='max-w-[32rem] whitespace-pre-wrap break-all text-xs text-[var(--text-sub)]'>
                 {row.preview}
                 {row.badge}
               </TableCell>
@@ -163,8 +176,17 @@ function PreviewTable({ label, rows }: { label: string; rows: PreviewRow[] }) {
             </TableRow>
           ))}
         </TableBody>
-      </Table>
-    </TableContainer>
+        </Table>
+      </TableContainer>
+      <TablePagination
+        hasPreviousPage={page > 0}
+        hasNextPage={page + 1 < pageCount}
+        onPreviousPage={() => setPage((current) => Math.max(0, current - 1))}
+        onNextPage={() => setPage((current) => Math.min(pageCount - 1, current + 1))}
+        status={`Showing ${rangeStart}–${rangeEnd} of ${rows.length} loaded preview rows. Page ${page + 1} of ${pageCount}.`}
+        ariaLabel={`${label} pagination`}
+      />
+    </div>
   );
 }
 
@@ -196,14 +218,14 @@ export function CurlImportSummaryView({
         </dd>
         <dt className='text-[var(--text-sub)]'>URL</dt>
         <dd className='min-w-0 break-words'>
-          <code>{summary.endpointUrl}</code>
+          <code className='break-all'>{summary.endpointUrl}</code>
         </dd>
         <dt className='text-[var(--text-sub)]'>Authentication</dt>
         <dd className='flex flex-wrap items-center gap-2'>
           <Badge variant={summary.auth.type === 'NONE' ? 'neutral' : 'success'}>{summary.auth.type}</Badge>
           {summary.auth.secretPresent ? (
             <span className='text-xs text-[var(--text-sub)]'>
-              <code>{summary.auth.headerName}</code>: {summary.auth.preview}
+              <code className='break-all'>{summary.auth.headerName}</code>: <span className='break-all'>{summary.auth.preview}</span>
             </span>
           ) : null}
         </dd>

@@ -19,13 +19,16 @@ import {
   type AdminWebSession,
   type ProfileListRow,
   type ProviderTestRequest,
+  type ConnectorCapabilities,
 } from '@/lib/api';
 import { useTenant } from '@/lib/tenant-context';
 import { createImmutableAttempt, FileArtifactCache, markAttemptDispatched, retainAfterFailure, type ImmutableAttempt } from '@/features/submissions/immutable-attempt';
+import { createProviderRecipePreset, detectProviderPreset, type ProviderPreset, withDefaultProviderModel } from './provider-presets';
 
 type ParityConnectorEditorProps = {
   savedAttempt: ImmutableAttempt<ProviderTestRequest> | null;
   onAttemptChange: (attempt: ImmutableAttempt<ProviderTestRequest> | null) => void;
+  capabilities: ConnectorCapabilities | null;
 };
 
 type CredentialMode = 'keep' | 'replace' | 'clear' | 'vault-ref';
@@ -60,7 +63,8 @@ const EMPTY_RECIPE: ProviderRecipe = {
   responseBytes: 262_144,
 };
 
-const SECRET_HEADER_NAMES = new Set(['authorization', 'cookie', 'set-cookie', 'x-api-key', 'api-key']);
+const SECRET_HEADER_NAMES = new Set(['authorization', 'cookie', 'set-cookie', 'x-api-key', 'api-key', 'x-goog-api-key']);
+const TENANT_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const keyFor = () => globalThis.crypto?.randomUUID?.() ?? `connector-parity-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 function profileRowKey(input: { businessId: string; businessVersion: string; profileName: string }): string {
@@ -102,7 +106,7 @@ function errorText(problem: AdminApiProblem): string {
  * strict recipe; ordinary changes use bounded controls and retain every
  * mapping/session/header row already present in the loaded revision.
  */
-export function ParityConnectorEditor({ savedAttempt, onAttemptChange }: ParityConnectorEditorProps) {
+export function ParityConnectorEditor({ savedAttempt, onAttemptChange, capabilities }: ParityConnectorEditorProps) {
   const client = useMemo(() => createAdminApiClient(), []);
   const { tenantId } = useTenant();
   const activeTenantId = useRef(tenantId);
@@ -133,7 +137,9 @@ export function ParityConnectorEditor({ savedAttempt, onAttemptChange }: ParityC
   const [expectedHeadRevision, setExpectedHeadRevision] = useState(0);
   const [expectedActiveRevision, setExpectedActiveRevision] = useState(0);
   const [loadedRevision, setLoadedRevision] = useState<ConnectorParityRevision | null>(null);
+  const [providerPreset, setProviderPreset] = useState<ProviderPreset>('custom');
   const [recipe, setRecipe] = useState<ProviderRecipe>(EMPTY_RECIPE);
+  const [providerModel, setProviderModel] = useState('');
   const [advancedJson, setAdvancedJson] = useState(jsonText(EMPTY_RECIPE));
   const [advancedError, setAdvancedError] = useState<string | null>(null);
   const [credentialMode, setCredentialMode] = useState<CredentialMode>('keep');
@@ -163,10 +169,15 @@ export function ParityConnectorEditor({ savedAttempt, onAttemptChange }: ParityC
     setReconcileRequest(attempt && attempt.state !== 'ACCEPTED' ? attempt.request as ProviderTestRequest : null);
   }
 
-  const localUser = session?.localUser === true && session.role === 'operator';
+  const localUser = session?.localUser === true
+    && session.role === 'operator'
+    && session.principal.kind === 'tenant_operator'
+    && session.principal.tenantId === tenantId;
   const platformAdmin = session?.role === 'admin' && session.principal.kind === 'platform';
-  const mayRunProviderTest = platformAdmin || localUser;
-  const mayManageRecipes = platformAdmin;
+  const validTenantSelected = typeof tenantId === 'string' && TENANT_UUID.test(tenantId);
+  const mayRunProviderTest = (platformAdmin || localUser) && validTenantSelected && capabilities?.test === true;
+  const mayManageRecipes = platformAdmin && validTenantSelected && capabilities?.management === true;
+  const mayManageCredentials = mayManageRecipes && capabilities?.credentialWorkflow === true;
   const rowsLoading = !sessionReady || loadingRows;
 
   const loadProfileChoices = useCallback(async () => {
@@ -343,6 +354,9 @@ export function ParityConnectorEditor({ savedAttempt, onAttemptChange }: ParityC
   }, [client, localUser, platformAdmin, profileKey, selectedLocalProfiles, selectedProfileRow, session, tenantId]);
 
   const parsedRecipe = ConnectorRecipeSchema.safeParse(recipe);
+  const parsedRecipeProblem = parsedRecipe.success
+    ? null
+    : parsedRecipe.error.issues.map((issue) => issue.message).join('; ');
   const pendingCandidate = loadedRevision?.state === 'PENDING';
   const selectedAssignedBinding = localUser && profileChoice ? profileChoice.connectorBindings[bindingSlot] : undefined;
   const hasTestTarget = loadedRevision !== null || selectedAssignedBinding !== undefined;
@@ -350,45 +364,100 @@ export function ParityConnectorEditor({ savedAttempt, onAttemptChange }: ParityC
     && loadedRevision !== null
     && testedPin?.connectorId === loadedRevision.connectorId
     && testedPin.revision === loadedRevision.revision;
+  const providerTestUnavailableHint = capabilities === null
+    ? 'Connector test support is still loading or could not be read. Try again after capabilities load.'
+    : !validTenantSelected
+      ? 'Select a valid tenant to check provider-test availability for the correct scope.'
+      : capabilities.test !== true
+        ? 'This deployment has not enabled Connector provider tests (test: false).'
+        : session?.localUser === true
+          && session.role === 'operator'
+          && session.principal.kind === 'tenant_operator'
+          && session.principal.tenantId !== tenantId
+          ? 'This operator session is scoped to a different tenant. Select the tenant assigned to this session.'
+          : 'Sign in as a platform Admin, or use an assigned local USER Profile for an exact ACTIVE Connector pin.';
 
   function setRecipeValue(update: (current: ProviderRecipe) => ProviderRecipe): void {
-    setRecipe((current) => {
-      const next = update(current);
-      setAdvancedJson(jsonText(next));
-      setAdvancedError(null);
-      return next;
-    });
+    const next = update(recipe);
+    setRecipe(next);
+    setAdvancedJson(jsonText(next));
+    setAdvancedError(null);
+    setProviderPreset(detectProviderPreset(next));
+    setProviderModel(next.defaultModel ?? '');
+  }
+
+  function applyRecipe(next: ProviderRecipe): void {
+    setRecipe(next);
+    setAdvancedJson(jsonText(next));
+    setAdvancedError(null);
+    setProviderPreset(detectProviderPreset(next));
+    setProviderModel(next.defaultModel ?? '');
+  }
+
+  function selectProviderPreset(value: ProviderPreset): void {
+    setProviderPreset(value);
+    if (value === 'custom') return;
+    const next = createProviderRecipePreset(value, providerModel);
+    applyRecipe(next);
+    setProviderPreset(value);
+    setCredentialMode(next.auth.kind === 'none' || loadedRevision !== null || !mayManageCredentials ? 'keep' : 'replace');
+    setCredentialValue('');
+    setVaultReference('');
+    setResult(null);
+    setTestedPin(null);
+  }
+
+  function updateProviderModel(value: string): void {
+    setProviderModel(value);
+    setRecipeValue((current) => withDefaultProviderModel(current, value));
   }
 
   async function loadRevision(): Promise<void> {
-    if (!tenantId || !connectorId.trim() || !/^\d+$/.test(revisionText)) {
-      setError('Choose a tenant, Connector ID and exact revision number.');
+    if (!validTenantSelected || !connectorId.trim() || !/^\d+$/.test(revisionText)) {
+      setError('Choose a valid tenant, Connector ID and exact revision number.');
       return;
     }
     setError(null); setNotice(null); setBusy(true);
     try {
       const response = await client.getConnectorParityRevision(connectorId.trim(), Number(revisionText), tenantId);
       if (!response.ok) { setError(errorText(response.problem)); return; }
-      if (response.data.tenantId !== tenantId || response.data.connectorId !== connectorId.trim()) {
-        setError('The Connector response did not match the selected tenant and ID.'); return;
+      if (response.data.tenantId !== tenantId
+        || response.data.connectorId !== connectorId.trim()
+        || response.data.revision !== Number(revisionText)) {
+        setError('The Connector response did not match the selected tenant, ID and exact revision.'); return;
       }
       setLoadedRevision(response.data);
       setRevisionText(String(response.data.revision));
       setExpectedHeadRevision(response.data.expectedHeadRevision);
-      setRecipe(response.data.recipe);
-      setAdvancedJson(jsonText(response.data.recipe));
+      applyRecipe(response.data.recipe);
       setCredentialMode('keep'); setCredentialValue(''); setVaultReference(''); setResult((current) => current?.state === 'UNKNOWN' ? current : null);
       setNotice(`Loaded ${response.data.connectorId}@${response.data.revision} (${response.data.state}).`);
     } finally { setBusy(false); }
   }
 
   async function saveDraft(): Promise<void> {
-    if (!tenantId || !mayManageRecipes || !parsedRecipe.success) {
-      setError(parsedRecipe.success ? 'Platform Admin access and a selected tenant are required.' : parsedRecipe.error.issues.map((issue) => issue.message).join('; '));
+    if (!validTenantSelected || !mayManageRecipes || !parsedRecipe.success) {
+      setError(!validTenantSelected
+        ? 'Select a valid tenant before saving a Connector revision.'
+        : !mayManageRecipes
+          ? 'Connector recipe management is unavailable for this session or deployment.'
+          : parsedRecipeProblem ?? 'Correct the Connector recipe before saving.');
+      return;
+    }
+    if (credentialMode !== 'keep' && !mayManageCredentials) {
+      setError('Credential changes are unavailable until the credential workflow is configured. Choose “Keep existing credential” or retry after setup.');
       return;
     }
     const id = connectorId.trim();
     if (!id) { setError('Connector ID is required.'); return; }
+    if (loadedRevision !== null && id !== loadedRevision.connectorId) {
+      setError('The Connector ID changed after a revision was loaded. Load the exact target revision again before saving.');
+      return;
+    }
+    if (loadedRevision === null && recipe.auth.kind !== 'none' && credentialMode === 'keep') {
+      setError('Add a credential when creating a new authenticated Connector, or load an existing revision to keep its credential.');
+      return;
+    }
     let credentialChange: { action: 'keep' } | { action: 'replace'; secret: string } | { action: 'clear'; confirm: true } | { action: 'vault-ref'; reference: string };
     if (credentialMode === 'replace') {
       if (!credentialValue) { setError('Enter the replacement credential before saving.'); return; }
@@ -411,43 +480,58 @@ export function ParityConnectorEditor({ savedAttempt, onAttemptChange }: ParityC
       setLoadedRevision(response.data.revision);
       setRevisionText(String(response.data.revision.revision));
       setExpectedHeadRevision(response.data.expectedHeadRevision);
-      setRecipe(response.data.revision.recipe);
-      setAdvancedJson(jsonText(response.data.revision.recipe));
+      applyRecipe(response.data.revision.recipe);
       setCredentialMode('keep'); setCredentialValue(''); setVaultReference('');
       setNotice(`${id}@${response.data.revision.revision} saved as PENDING${response.data.replayed ? ' (idempotent replay)' : ''}. Test it before activation.`);
     } finally { setBusy(false); }
   }
 
   async function createRollbackDraft(): Promise<void> {
-    if (!tenantId || !mayManageRecipes || !loadedRevision) return;
-    const sourceRevision = Number(revisionText);
-    if (!Number.isSafeInteger(sourceRevision) || sourceRevision < 1) { setError('Select the exact source revision to clone.'); return; }
+    if (!validTenantSelected || !mayManageRecipes || !loadedRevision) {
+      setError(!validTenantSelected
+        ? 'Select a valid tenant before creating a rollback draft.'
+        : 'Connector recipe management is unavailable for this session or deployment.');
+      return;
+    }
+    const sourceRevision = loadedRevision.revision;
     setBusy(true); setError(null); setNotice(null); setResult((current) => current?.state === 'UNKNOWN' ? current : null);
     try {
-      const response = await client.rollbackConnectorRevision(connectorId.trim(), tenantId, sourceRevision, expectedHeadRevision, idempotencyKey());
+      const response = await client.rollbackConnectorRevision(loadedRevision.connectorId, tenantId, sourceRevision, expectedHeadRevision, idempotencyKey());
       if (!response.ok) { setError(errorText(response.problem)); return; }
       setLoadedRevision(response.data.revision);
       setRevisionText(String(response.data.revision.revision));
       setExpectedHeadRevision(response.data.expectedHeadRevision);
-      setRecipe(response.data.revision.recipe);
-      setAdvancedJson(jsonText(response.data.revision.recipe));
+      applyRecipe(response.data.revision.recipe);
       setCredentialMode('keep'); setResult((current) => current?.state === 'UNKNOWN' ? current : null);
       setNotice(`Rollback created PENDING revision ${response.data.revision.revision}; test it and activate separately.`);
     } finally { setBusy(false); }
   }
 
   async function activateDraft(): Promise<void> {
-    if (!tenantId || !mayManageRecipes || !loadedRevision || loadedRevision.state !== 'PENDING') return;
+    if (!validTenantSelected || !mayManageRecipes || !loadedRevision || loadedRevision.state !== 'PENDING') {
+      setError(!validTenantSelected
+        ? 'Select a valid tenant before activating a Connector revision.'
+        : 'Connector recipe management is unavailable for this session or deployment.');
+      return;
+    }
     if (!testSucceededForCurrentRevision) { setError('Run a successful actual provider test against this exact draft revision before activation.'); return; }
     if (!Number.isSafeInteger(expectedActiveRevision) || expectedActiveRevision < 0) { setError('Expected current ACTIVE revision must be a non-negative integer.'); return; }
+    const targetConnectorId = loadedRevision.connectorId;
+    const targetRevision = loadedRevision.revision;
     setBusy(true); setError(null); setNotice(null);
     try {
-      const response = await client.activateConnectorRevision(connectorId.trim(), loadedRevision.revision, tenantId, expectedActiveRevision, idempotencyKey());
+      const response = await client.activateConnectorRevision(targetConnectorId, targetRevision, tenantId, expectedActiveRevision, idempotencyKey());
       if (!response.ok) { setError(errorText(response.problem)); return; }
       if (!response.data.activated) { setError(`Activation CAS lost. Current ACTIVE revision is ${response.data.currentRevision ?? 'unknown'}; refresh and review before retrying.`); return; }
-      const reread = await client.getConnectorParityRevision(connectorId.trim(), loadedRevision.revision, tenantId);
-      if (reread.ok) { setLoadedRevision(reread.data); setRecipe(reread.data.recipe); setAdvancedJson(jsonText(reread.data.recipe)); setExpectedHeadRevision(reread.data.expectedHeadRevision); }
-      setNotice(`Revision ${loadedRevision.revision} activated. Profile bindings still require an explicit versioned publish.`);
+      const reread = await client.getConnectorParityRevision(targetConnectorId, targetRevision, tenantId);
+      if (reread.ok) {
+        if (reread.data.tenantId !== tenantId || reread.data.connectorId !== targetConnectorId || reread.data.revision !== targetRevision) {
+          setError('Activation completed, but the reread did not match the exact tenant and Connector revision.');
+          return;
+        }
+        setLoadedRevision(reread.data); applyRecipe(reread.data.recipe); setExpectedHeadRevision(reread.data.expectedHeadRevision);
+      }
+      setNotice(`Revision ${targetRevision} activated. Profile bindings still require an explicit versioned publish.`);
     } finally { setBusy(false); }
   }
 
@@ -457,7 +541,13 @@ export function ParityConnectorEditor({ savedAttempt, onAttemptChange }: ParityC
     const targetConnectorId = loadedRevision?.connectorId ?? assignedPin?.connectorId ?? connectorId.trim();
     const targetRevision = loadedRevision?.revision ?? assignedPin?.revision ?? Number(revisionText);
     const targetState = loadedRevision?.state ?? (localUser && assignedPin ? 'ACTIVE' : null);
-    if (!tenantId || !mayRunProviderTest || !profileChoice || !apiKeyId || !targetConnectorId || !Number.isSafeInteger(targetRevision) || targetRevision < 1 || !targetState) {
+    if (!validTenantSelected || !mayRunProviderTest) {
+      setError(!validTenantSelected
+        ? 'Select a valid tenant before running a Connector provider test.'
+        : 'Connector provider testing is unavailable for this session or deployment.');
+      return;
+    }
+    if (!profileChoice || !apiKeyId || !targetConnectorId || !Number.isSafeInteger(targetRevision) || targetRevision < 1 || !targetState) {
       setError('Select an assigned active Profile, API key and exact Connector revision first.'); return;
     }
     if (targetState === 'PENDING' && !platformAdmin) { setError('A PENDING candidate can only be tested by a platform Admin.'); return; }
@@ -543,7 +633,10 @@ export function ParityConnectorEditor({ savedAttempt, onAttemptChange }: ParityC
   }
 
   async function reconcileProviderTest(): Promise<void> {
-    if (!reconcileRequest || !testAttempt || testAttempt.tenantId !== tenantId) return;
+    if (!mayRunProviderTest || !reconcileRequest || !testAttempt || testAttempt.tenantId !== tenantId) {
+      setError('Connector provider-test reconciliation is unavailable for this session, tenant or deployment.');
+      return;
+    }
     setBusy(true); setError(null); setNotice(null);
     try {
       // Same request and idempotency key: the server checks Connector source
@@ -581,7 +674,7 @@ export function ParityConnectorEditor({ savedAttempt, onAttemptChange }: ParityC
       const value: unknown = JSON.parse(advancedJson);
       const parsed = ConnectorRecipeSchema.safeParse(value);
       if (!parsed.success) { setAdvancedError(parsed.error.issues.map((issue) => issue.message).join('; ')); return; }
-      setRecipe(parsed.data); setAdvancedJson(jsonText(parsed.data)); setAdvancedError(null); setNotice('Advanced recipe import validated; every supported recipe field and mapping is retained.');
+      applyRecipe(parsed.data); setNotice('Advanced recipe import validated; every supported recipe field and mapping is retained.');
     } catch {
       setAdvancedError('Advanced recipe must be valid JSON.');
     }
@@ -627,36 +720,56 @@ export function ParityConnectorEditor({ savedAttempt, onAttemptChange }: ParityC
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
-        {!tenantId ? <AlertBanner variant="warning" title="Choose a tenant">Select a tenant before reading or mutating tenant-owned Connector revisions.</AlertBanner> : null}
+        {!validTenantSelected ? <AlertBanner variant="warning" title="Choose a valid tenant">Select a valid tenant before reading or changing tenant-owned Connector revisions.</AlertBanner> : null}
         {!mayManageRecipes && !mayRunProviderTest ? <AlertBanner variant="warning" title="Admin or assigned local USER access required">Recipe management is platform Admin only. A validated local USER can run tests only against the exact ACTIVE revision in an assigned Profile; all calls are checked again by the server.</AlertBanner> : null}
+        {capabilities === null ? <AlertBanner variant="info" title="Connector capabilities are unavailable">The deployment has not confirmed Connector management or test support. Revision inspection stays available; write and test actions remain disabled until capabilities can be read.</AlertBanner> : null}
+        {validTenantSelected && capabilities?.management === false ? <AlertBanner variant="info" title="Connector revision changes are unavailable">This deployment has not enabled Connector management. You can still inspect a saved revision; creating, rolling back or activating revisions remains disabled.</AlertBanner> : null}
+        {mayManageRecipes && capabilities?.credentialWorkflow !== true ? <AlertBanner variant="info" title="Credential changes are unavailable">Connector revisions can be saved while keeping their existing credential. Replace, clear and Vault-reference actions stay disabled until credential workflow is configured.</AlertBanner> : null}
         {error ? <AlertBanner variant="error" title="Connector parity action failed">{error}</AlertBanner> : null}
         {notice ? <AlertBanner variant="success" title="Connector parity status">{notice}</AlertBanner> : null}
         {loadError ? <AlertBanner variant="error" title="Profile/key assignments unavailable">{loadError}</AlertBanner> : null}
 
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <FormField id="parity-connector-id" label="Connector ID" description="Create with a new stable ID or load an existing chain.">
+        <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+          <FormField id="parity-connector-id" label="Name (stable Connector ID)" description="Choose a stable name used by Profile bindings, or load an existing Connector chain.">
             <Input id="parity-connector-id" value={connectorId} onChange={(event) => setConnectorId(event.target.value)} maxLength={128} placeholder="provider-text" disabled={busy} />
           </FormField>
           <FormField id="parity-connector-revision" label="Exact revision" description="Load a persisted recipe revision by number.">
             <Input id="parity-connector-revision" inputMode="numeric" value={revisionText} onChange={(event) => setRevisionText(event.target.value)} placeholder="1" disabled={busy} />
           </FormField>
-          <div className="flex items-end gap-2"><Button variant="outline" disabled={!tenantId || busy || !connectorId.trim() || !revisionText.trim()} onClick={() => void loadRevision()}>Load revision</Button><Button variant="outline" disabled={busy} onClick={downloadRecipe}>Export recipe</Button></div>
+          <div className="flex flex-wrap gap-2 md:mt-6"><Button variant="outline" disabled={!validTenantSelected || busy || !connectorId.trim() || !revisionText.trim()} onClick={() => void loadRevision()}>Load revision</Button><Button variant="outline" disabled={busy} onClick={downloadRecipe}>Export recipe</Button></div>
         </div>
 
         <section aria-labelledby="recipe-editor-title" className="flex flex-col gap-4 border-t border-[var(--border-subtle)] pt-4">
-          <div className="flex flex-wrap items-center justify-between gap-2"><div><h3 id="recipe-editor-title" className="font-semibold">Provider recipe</h3><p className="text-xs text-[var(--text-sub)]">Structured fields cover normal provider setup. Advanced JSON import/export retains all typed mappings and session rules.</p></div>
-            <NativeSelect aria-label="Provider recipe preset" value={recipe.adapter} disabled={busy || !mayManageRecipes} onChange={(event) => {
-              const adapter = event.currentTarget.value as ProviderRecipe['adapter'];
-              setRecipeValue((current) => ({ ...current, adapter,
-                endpointUrl: adapter === 'gemini' ? 'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent' : adapter === 'openai-compatible' ? 'https://api.example.invalid/v1/chat/completions' : current.endpointUrl,
-                method: 'POST',
-                request: { ...current.request, promptField: adapter === 'gemini' ? 'contents' : adapter === 'openai-compatible' ? 'messages' : current.request.promptField },
-              }));
-            }}><option value="json-http">JSON HTTP</option><option value="multipart-http">Multipart HTTP</option><option value="openai-compatible">OpenAI compatible</option><option value="gemini">Gemini</option></NativeSelect>
+          <div><h3 id="recipe-editor-title" className="font-semibold">Provider setup</h3><p className="text-xs text-[var(--text-sub)]">Choose a validated provider preset, then enter the endpoint, model and write-only credential. Advanced recipe mappings remain available below.</p></div>
+
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <FormField id="provider-preset" label="Provider">
+              <NativeSelect id="provider-preset" value={providerPreset} disabled={busy || !mayManageRecipes} onChange={(event) => selectProviderPreset(event.currentTarget.value as ProviderPreset)}>
+                <option value="openai">OpenAI</option><option value="anthropic">Anthropic</option><option value="gemini">Gemini</option><option value="openai-compatible">OpenAI-compatible</option><option value="custom">Custom recipe</option>
+              </NativeSelect>
+            </FormField>
+            <FormField id="recipe-endpoint" label="Provider URL" description="The Connector enforces its configured egress policy at invocation time."><Input id="recipe-endpoint" value={recipe.endpointUrl} onChange={(event) => setRecipeValue((current) => ({ ...current, endpointUrl: event.target.value }))} maxLength={2048} disabled={busy || !mayManageRecipes} /></FormField>
+            <FormField id="provider-default-model" label="Model" description="Saved with the immutable recipe; the test request can supply an override."><Input id="provider-default-model" value={providerModel} onChange={(event) => updateProviderModel(event.target.value)} maxLength={256} disabled={busy || !mayManageRecipes} placeholder={providerPreset === 'gemini' ? 'gemini-2.5-flash' : providerPreset === 'anthropic' ? 'claude-sonnet-4-5' : 'model name'} /></FormField>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <FormField id="recipe-endpoint" label="Provider endpoint URL" description="The Connector enforces its configured egress policy at invocation time."><Input id="recipe-endpoint" value={recipe.endpointUrl} onChange={(event) => setRecipeValue((current) => ({ ...current, endpointUrl: event.target.value }))} maxLength={2048} disabled={busy || !mayManageRecipes} /></FormField>
+          {mayManageRecipes ? <div className="flex flex-col gap-3 rounded border border-[var(--border-subtle)] p-3">
+            <div><h4 className="font-medium">Credential</h4><p className="text-xs text-[var(--text-sub)]">Credential values are write-only and are never returned by revision reads.</p></div>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <FormField id="credential-change" label="Credential action"><NativeSelect id="credential-change" value={credentialMode} onChange={(event) => { setCredentialMode(event.currentTarget.value as CredentialMode); setCredentialValue(''); setVaultReference(''); }} disabled={busy}><option value="keep">Keep existing credential</option><option value="replace" disabled={!mayManageCredentials}>Enter credential</option><option value="clear" disabled={!mayManageCredentials}>Clear credential</option><option value="vault-ref" disabled={!mayManageCredentials}>Use approved Vault reference</option></NativeSelect></FormField>
+              {credentialMode === 'replace' ? <FormField id="credential-replacement" label="API credential" description="Sent only when saving this draft, then cleared from the form."><Input id="credential-replacement" type="password" autoComplete="new-password" value={credentialValue} onChange={(event) => setCredentialValue(event.target.value)} disabled={busy || !mayManageCredentials} maxLength={16_384} /></FormField> : null}
+              {credentialMode === 'vault-ref' ? <FormField id="credential-vault-reference" label="Secret Catalog reference ID" description="Enter the opaque UUID for an active tenant-owned Connector credential. The server verifies permission and imports it into a pinned revision."><Input id="credential-vault-reference" value={vaultReference} onChange={(event) => setVaultReference(event.target.value)} disabled={busy || !mayManageCredentials} maxLength={36} autoComplete="off" /></FormField> : null}
+              {credentialMode === 'clear' ? <p className="self-end text-sm text-[var(--badge-warning-text)]">Saving explicitly removes this credential from the new revision.</p> : null}
+            </div>
+            {loadedRevision === null && recipe.auth.kind !== 'none' && credentialMode === 'keep' ? <p className="text-xs text-[var(--badge-warning-text)]">A new authenticated Connector needs an entered credential or an approved Vault reference.</p> : null}
+            <div className="flex flex-wrap gap-2"><Button disabled={busy || !validTenantSelected || !mayManageRecipes || !parsedRecipe.success || (credentialMode !== 'keep' && !mayManageCredentials) || (loadedRevision === null && recipe.auth.kind !== 'none' && credentialMode === 'keep')} isLoading={busy} onClick={() => void saveDraft()}>{loadedRevision ? 'Save PENDING draft' : 'Create PENDING Connector'}</Button>
+              {loadedRevision ? <Button variant="outline" disabled={busy || !mayManageRecipes} onClick={() => void createRollbackDraft()}>Create rollback draft</Button> : null}
+            </div>
+          </div> : null}
+
+          <details open={advancedOpen} onToggle={(event) => setAdvancedOpen(event.currentTarget.open)} className="rounded border border-[var(--border-subtle)] p-3">
+            <summary className="cursor-pointer font-medium">Advanced recipe configuration</summary>
+            <p className="mt-2 text-xs text-[var(--text-sub)]">Adjust HTTP details, mappings, response paths, headers and session rules. Advanced JSON below imports and exports the complete strict recipe.</p>
+          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
             <FormField id="recipe-method" label="HTTP method"><NativeSelect id="recipe-method" value={recipe.method} disabled={busy || !mayManageRecipes} onChange={(event) => setRecipeValue((current) => ({ ...current, method: event.currentTarget.value as ProviderRecipe['method'] }))}><option value="POST">POST</option><option value="PUT">PUT</option></NativeSelect></FormField>
             <FormField id="recipe-timeout" label="Provider timeout (ms)"><Input id="recipe-timeout" type="number" min={100} max={60000} value={recipe.timeoutMs} onChange={(event) => setRecipeValue((current) => ({ ...current, timeoutMs: Number(event.target.value) }))} disabled={busy || !mayManageRecipes} /></FormField>
             <FormField id="recipe-response-bytes" label="Response byte limit"><Input id="recipe-response-bytes" type="number" min={1024} max={2000000} value={recipe.responseBytes} onChange={(event) => setRecipeValue((current) => ({ ...current, responseBytes: Number(event.target.value) }))} disabled={busy || !mayManageRecipes} /></FormField>
@@ -692,7 +805,7 @@ export function ParityConnectorEditor({ savedAttempt, onAttemptChange }: ParityC
                 updateMapping(index, next);
               }}><option value="prompt">Prompt</option><option value="input">Input parameter</option><option value="model">Model</option><option value="static">Static value</option><option value="session">Captured session</option></NativeSelect></FormField>
               {field.source === 'static' ? <FormField id={`mapping-value-${index}`} label="Static value"><Input id={`mapping-value-${index}`} value={String(field.value ?? '')} onChange={(event) => updateMapping(index, { value: event.target.value })} disabled={busy || !mayManageRecipes} /></FormField> : <FormField id={`mapping-source-name-${index}`} label={field.source === 'input' ? 'Input parameter name' : field.source === 'session' ? 'Session path' : 'Mapping note'}><Input id={`mapping-source-name-${index}`} value={field.source === 'session' ? (field.sessionPath ?? '') : field.source === 'input' ? field.name : ''} onChange={(event) => field.source === 'session' ? updateMapping(index, { sessionPath: event.target.value }) : field.source === 'input' ? updateMapping(index, { name: event.target.value }) : undefined} disabled={busy || !mayManageRecipes || field.source === 'prompt' || field.source === 'model'} /></FormField>}
-              <div className="flex items-end"><Button size="sm" variant="destructive" disabled={busy || !mayManageRecipes} onClick={() => setRecipeValue((current) => ({ ...current, request: { ...current.request, fields: current.request.fields.filter((_, position) => position !== index) } }))}>Remove</Button></div>
+              <div className="flex items-start md:pt-6"><Button size="sm" variant="destructive" disabled={busy || !mayManageRecipes} onClick={() => setRecipeValue((current) => ({ ...current, request: { ...current.request, fields: current.request.fields.filter((_, position) => position !== index) } }))}>Remove</Button></div>
             </div>)}
             {recipe.request.fields.length === 0 ? <p className="text-xs text-[var(--text-sub)]">No extra mapped fields. Add an input, static form field or session-derived field when the provider recipe needs one.</p> : null}
           </div>
@@ -707,42 +820,30 @@ export function ParityConnectorEditor({ savedAttempt, onAttemptChange }: ParityC
 
           <div className="flex flex-col gap-2">
             <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="font-medium">Static request headers</h4><Button size="sm" variant="outline" disabled={busy || !mayManageRecipes || recipe.headers.length >= 64} onClick={() => setRecipeValue((current) => ({ ...current, headers: [...current.headers, { name: '', value: '' }] }))}>Add header</Button></div>
-            {recipe.headers.map((header, index) => <div key={`header-${index}`} className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_2fr_auto]"><FormField id={`header-name-${index}`} label="Header name"><Input id={`header-name-${index}`} value={header.name} onChange={(event) => updateHeader(index, { name: event.target.value })} disabled={busy || !mayManageRecipes} /></FormField><FormField id={`header-value-${index}`} label="Non-secret header value"><Input id={`header-value-${index}`} value={header.value} onChange={(event) => updateHeader(index, { value: event.target.value })} disabled={busy || !mayManageRecipes || SECRET_HEADER_NAMES.has(header.name.toLowerCase())} /></FormField><div className="flex items-end"><Button size="sm" variant="destructive" disabled={busy || !mayManageRecipes} onClick={() => setRecipeValue((current) => ({ ...current, headers: current.headers.filter((_, position) => position !== index) }))}>Remove</Button></div></div>)}
+            {recipe.headers.map((header, index) => <div key={`header-${index}`} className="grid min-w-0 grid-cols-1 gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto]"><FormField id={`header-name-${index}`} label="Header name"><Input id={`header-name-${index}`} value={header.name} onChange={(event) => updateHeader(index, { name: event.target.value })} disabled={busy || !mayManageRecipes} /></FormField><FormField id={`header-value-${index}`} label="Non-secret header value"><Input id={`header-value-${index}`} value={header.value} onChange={(event) => updateHeader(index, { value: event.target.value })} disabled={busy || !mayManageRecipes || SECRET_HEADER_NAMES.has(header.name.toLowerCase())} /></FormField><div className="flex items-start md:pt-6"><Button size="sm" variant="destructive" disabled={busy || !mayManageRecipes} onClick={() => setRecipeValue((current) => ({ ...current, headers: current.headers.filter((_, position) => position !== index) }))}>Remove</Button></div></div>)}
             <p className="text-xs text-[var(--text-sub)]">Authorization, cookie and API-key headers are rejected by the schema and must use a write-only credential slot.</p>
           </div>
 
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {(['capture', 'inject'] as const).map((kind) => <div key={kind} className="flex flex-col gap-2 rounded border border-[var(--border-subtle)] p-3">
               <div className="flex items-center justify-between gap-2"><h4 className="font-medium">Session {kind === 'capture' ? 'capture' : 'injection'}</h4><Button size="sm" variant="outline" disabled={busy || !mayManageRecipes || recipe.session[kind].length >= 32} onClick={() => setRecipeValue((current) => ({ ...current, session: { ...current.session, [kind]: [...current.session[kind], { name: '', path: '' }] } }))}>Add</Button></div>
-              {recipe.session[kind].map((field, index) => <div key={`${kind}-${index}`} className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_2fr_auto]"><FormField id={`${kind}-name-${index}`} label="Session name"><Input id={`${kind}-name-${index}`} value={field.name} onChange={(event) => updateSession(kind, index, { name: event.target.value })} disabled={busy || !mayManageRecipes} /></FormField><FormField id={`${kind}-path-${index}`} label="Mapped response/input path"><Input id={`${kind}-path-${index}`} value={field.path} onChange={(event) => updateSession(kind, index, { path: event.target.value })} disabled={busy || !mayManageRecipes} /></FormField><div className="flex items-end"><Button size="sm" variant="destructive" disabled={busy || !mayManageRecipes} onClick={() => setRecipeValue((current) => ({ ...current, session: { ...current.session, [kind]: current.session[kind].filter((_, position) => position !== index) } }))}>Remove</Button></div></div>)}
+              {recipe.session[kind].map((field, index) => <div key={`${kind}-${index}`} className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto]"><FormField id={`${kind}-name-${index}`} label="Session name"><Input id={`${kind}-name-${index}`} value={field.name} onChange={(event) => updateSession(kind, index, { name: event.target.value })} disabled={busy || !mayManageRecipes} /></FormField><FormField id={`${kind}-path-${index}`} label="Mapped response/input path"><Input id={`${kind}-path-${index}`} value={field.path} onChange={(event) => updateSession(kind, index, { path: event.target.value })} disabled={busy || !mayManageRecipes} /></FormField><div className="flex items-start sm:pt-6"><Button size="sm" variant="destructive" disabled={busy || !mayManageRecipes} onClick={() => setRecipeValue((current) => ({ ...current, session: { ...current.session, [kind]: current.session[kind].filter((_, position) => position !== index) } }))}>Remove</Button></div></div>)}
             </div>)}
           </div>
 
           {parsedRecipe.success ? null : <AlertBanner variant="warning" title="Recipe needs correction">{parsedRecipe.error.issues.map((issue) => issue.message).join('; ')}</AlertBanner>}
-          <details open={advancedOpen} onToggle={(event) => setAdvancedOpen(event.currentTarget.open)} className="rounded border border-[var(--border-subtle)] p-3">
-            <summary className="cursor-pointer font-medium">Advanced JSON import/export</summary>
+          <div className="mt-4 rounded border border-[var(--border-subtle)] p-3">
+            <h4 className="font-medium">Advanced JSON import/export</h4>
             <p className="mt-2 text-xs text-[var(--text-sub)]">The editor accepts the complete strict recipe schema. It preserves every supported advanced mapping and rejects unsupported keys visibly instead of dropping them.</p>
-            <textarea aria-label="Advanced Connector recipe JSON" className="mt-3 min-h-64 w-full rounded border border-[var(--border-dark)] bg-[var(--bg-subtle)] p-3 font-mono text-xs" value={advancedJson} onChange={(event) => setAdvancedJson(event.target.value)} disabled={busy || !mayManageRecipes} />
+            <textarea aria-label="Advanced Connector recipe JSON" className="mt-3 min-h-64 max-h-[60vh] max-w-full w-full overflow-auto rounded border border-[var(--border-dark)] bg-[var(--bg-subtle)] p-3 font-mono text-xs" value={advancedJson} onChange={(event) => setAdvancedJson(event.target.value)} disabled={busy || !mayManageRecipes} />
             {advancedError ? <AlertBanner variant="error" title="Advanced recipe not applied">{advancedError}</AlertBanner> : null}
             <div className="mt-2 flex flex-wrap gap-2"><Button variant="outline" size="sm" disabled={busy || !mayManageRecipes} onClick={applyAdvancedJson}>Validate and apply JSON</Button><Button variant="outline" size="sm" disabled={busy} onClick={() => setAdvancedJson(jsonText(recipe))}>Discard JSON edits</Button><Button variant="outline" size="sm" disabled={busy} onClick={downloadRecipe}>Export current recipe</Button></div>
+          </div>
           </details>
         </section>
 
-        {mayManageRecipes ? <section aria-labelledby="credential-stage-title" className="flex flex-col gap-3 border-t border-[var(--border-subtle)] pt-4">
-          <div><h3 id="credential-stage-title" className="font-semibold">Write-only credential lifecycle</h3><p className="text-xs text-[var(--text-sub)]">Keep, replace, clear or reference a managed Vault credential. Secret values are sent only on explicit Replace and are cleared from the form after save.</p></div>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_2fr]">
-            <FormField id="credential-change" label="Credential action"><NativeSelect id="credential-change" value={credentialMode} onChange={(event) => { setCredentialMode(event.currentTarget.value as CredentialMode); setCredentialValue(''); setVaultReference(''); }} disabled={busy}><option value="keep">Keep existing credential</option><option value="replace">Replace with new credential</option><option value="clear">Clear credential (explicit)</option><option value="vault-ref">Use approved Vault reference</option></NativeSelect></FormField>
-            {credentialMode === 'replace' ? <FormField id="credential-replacement" label="New credential value" description="Write-only. It is not returned by revision reads and is cleared after the request."><Input id="credential-replacement" type="password" autoComplete="new-password" value={credentialValue} onChange={(event) => setCredentialValue(event.target.value)} disabled={busy} maxLength={16_384} /></FormField> : null}
-            {credentialMode === 'vault-ref' ? <FormField id="credential-vault-reference" label="Secret Catalog reference ID" description="Enter the opaque UUID for an active tenant-owned connector credential. The server verifies its Connector service permission and imports it into a new pinned Connector credential revision; Vault paths and values are never shown here."><Input id="credential-vault-reference" value={vaultReference} onChange={(event) => setVaultReference(event.target.value)} disabled={busy} maxLength={36} autoComplete="off" /></FormField> : null}
-            {credentialMode === 'clear' ? <p className="self-end text-sm text-[var(--badge-warning-text)]">Saving explicitly removes this credential from the new revision.</p> : null}
-          </div>
-          <div className="flex flex-wrap gap-2"><Button disabled={busy || !tenantId || !mayManageRecipes || !parsedRecipe.success} isLoading={busy} onClick={() => void saveDraft()}>{loadedRevision ? 'Save new PENDING draft revision' : 'Create PENDING Connector revision'}</Button>
-            {loadedRevision ? <Button variant="outline" disabled={busy || !mayManageRecipes} onClick={() => void createRollbackDraft()}>Create rollback draft from this revision</Button> : null}
-          </div>
-        </section> : null}
-
         <section aria-labelledby="provider-test-title" className="flex flex-col gap-3 border-t border-[var(--border-subtle)] pt-4">
-          <div><h3 id="provider-test-title" className="font-semibold">Actual provider test</h3><p className="text-xs text-[var(--text-sub)]">The server performs normal key/Profile/action/locked-parameter/spend/artifact admission, signs a one-use exact-revision test grant, reserves budgets before transport, and reconciles UNKNOWN from Connector evidence without retrying the provider call.</p></div>
+          <div><h3 id="provider-test-title" className="font-semibold">Test and activate</h3><p className="text-xs text-[var(--text-sub)]">Save a PENDING recipe, then run the actual audited provider request against its exact revision. Activation requires a successful test and compare-and-swap; testing never publishes the recipe.</p></div>
           {testAttempt ? <AlertBanner variant="warning" title="Saved Connector test needs resolution">
             The exact request and idempotency key remain saved for tenant <code>{testAttempt.tenantId}</code>, connector <code>{String(testAttempt.request.connectorId)}@{String(testAttempt.request.revision)}</code>. A tenant switch keeps this request with its original tenant. Check its source evidence before starting another provider test.
           </AlertBanner> : null}
@@ -754,19 +855,19 @@ export function ParityConnectorEditor({ savedAttempt, onAttemptChange }: ParityC
               {profileChoice.actions.length > 1 ? <FormField id="provider-test-action" label="Action"><NativeSelect id="provider-test-action" value={profileChoice.action} onChange={(event) => setProfileChoice({ ...profileChoice, action: event.currentTarget.value, endpointSlug: event.currentTarget.value })} disabled={busy}>{profileChoice.actions.map((action) => <option key={action} value={action}>{action}</option>)}</NativeSelect></FormField> : <FormField id="provider-test-action" label="Action"><Input id="provider-test-action" value={profileChoice.action} onChange={(event) => setProfileChoice({ ...profileChoice, action: event.target.value })} disabled={busy || localUser} /></FormField>}
               <FormField id="provider-test-endpoint" label="Endpoint slug"><Input id="provider-test-endpoint" value={profileChoice.endpointSlug} onChange={(event) => setProfileChoice({ ...profileChoice, endpointSlug: event.target.value })} disabled={busy || localUser} /></FormField>
               <FormField id="provider-test-binding-slot" label="Connector binding slot" description={pendingCandidate ? 'Required for a PENDING candidate; server verifies it against the exact action manifest.' : localUser ? 'Choose the exact ACTIVE pin from the assigned Profile.' : 'Filled from the selected Profile pin.'}>{localUser ? <NativeSelect id="provider-test-binding-slot" value={bindingSlot} onChange={(event) => { const slot = event.currentTarget.value; setBindingSlot(slot); const pin = profileChoice.connectorBindings[slot]; if (pin) { setConnectorId(pin.connectorId); setRevisionText(String(pin.revision)); } setResult(null); setTestedPin(null); }} disabled={busy}><option value="">Select assigned pin</option>{Object.entries(profileChoice.connectorBindings).map(([slot, pin]) => <option key={slot} value={slot}>{slot} · {pin.connectorId}@{pin.revision}</option>)}</NativeSelect> : <Input id="provider-test-binding-slot" value={bindingSlot} onChange={(event) => setBindingSlot(event.target.value)} disabled={busy || !pendingCandidate} maxLength={128} placeholder="for example: text" />}</FormField>
-              <FormField id="provider-test-model" label="Model (optional)"><Input id="provider-test-model" value={model} onChange={(event) => setModel(event.target.value)} maxLength={256} disabled={busy} placeholder="use the admitted Profile model" /></FormField>
+              <FormField id="provider-test-model" label="Test model override (optional)"><Input id="provider-test-model" value={model} onChange={(event) => setModel(event.target.value)} maxLength={256} disabled={busy} placeholder="use the recipe or admitted Profile model" /></FormField>
               <FormField id="provider-test-timeout" label="Test deadline (ms)"><Input id="provider-test-timeout" type="number" min={100} max={60000} value={timeoutMs} onChange={(event) => setTimeoutMs(Number(event.target.value))} disabled={busy} /></FormField>
-              <FormField id="provider-test-prompt" label="Prompt"><textarea id="provider-test-prompt" className="min-h-20 w-full rounded border border-[var(--border-dark)] bg-[var(--bg-card)] p-2 text-sm" value={prompt} onChange={(event) => setPrompt(event.target.value)} disabled={busy} maxLength={32_000} /></FormField>
-              <FormField id="provider-test-parameters" label="Admitted action parameters (JSON)" description="Values are checked against the selected action schema and locked Profile values before a provider call."><textarea id="provider-test-parameters" className="min-h-32 w-full rounded border border-[var(--border-dark)] bg-[var(--bg-subtle)] p-2 font-mono text-xs" value={parametersText} onChange={(event) => setParametersText(event.target.value)} disabled={busy} /></FormField>
+              <FormField id="provider-test-prompt" label="Prompt"><textarea id="provider-test-prompt" className="min-h-20 max-h-[35vh] max-w-full w-full overflow-auto rounded border border-[var(--border-dark)] bg-[var(--bg-card)] p-2 text-sm" value={prompt} onChange={(event) => setPrompt(event.target.value)} disabled={busy} maxLength={32_000} /></FormField>
+              <FormField id="provider-test-parameters" label="Admitted action parameters (JSON)" description="Values are checked against the selected action schema and locked Profile values before a provider call."><textarea id="provider-test-parameters" className="min-h-32 max-h-[45vh] max-w-full w-full overflow-auto rounded border border-[var(--border-dark)] bg-[var(--bg-subtle)] p-2 font-mono text-xs" value={parametersText} onChange={(event) => setParametersText(event.target.value)} disabled={busy} /></FormField>
               <FormField id="provider-test-files" label="Tenant-owned test files (up to 4)" description="Files are uploaded as tenant artifacts under the selected API key before the bounded invocation."><input id="provider-test-files" type="file" multiple onChange={onFilesChanged} disabled={busy || !apiKeyId} className="block w-full text-sm" /></FormField>
             </div> : null}
             {selectedFiles.length > 0 ? <p className="text-xs text-[var(--text-sub)]">Selected: {selectedFiles.map((file) => file.name).join(', ')}. Files will be uploaded under the selected tenant/key and the server derives their metadata.</p> : null}
-            <div className="flex flex-wrap gap-2"><Button disabled={busy || Boolean(testAttempt) || Boolean(reconcileRequest) || !tenantId || !profileChoice || !apiKeyId || !hasTestTarget || !prompt.trim()} isLoading={busy} onClick={() => void runProviderTest()}>Run actual provider test</Button>
-              {reconcileRequest ? <Button variant="outline" disabled={busy} isLoading={busy} onClick={() => void reconcileProviderTest()}>Check saved Connector evidence</Button> : null}
-              {mayManageRecipes && loadedRevision?.state === 'PENDING' ? <><FormField id="activate-expected-head" label="Expected ACTIVE revision CAS"><Input id="activate-expected-head" type="number" min={0} value={expectedActiveRevision} onChange={(event) => setExpectedActiveRevision(Number(event.target.value))} disabled={busy} /></FormField><Button variant="outline" disabled={busy || !testSucceededForCurrentRevision} onClick={() => void activateDraft()}>Activate tested draft</Button></> : null}
+            <div className="flex flex-wrap gap-2"><Button disabled={busy || !mayRunProviderTest || Boolean(testAttempt) || Boolean(reconcileRequest) || !validTenantSelected || !profileChoice || !apiKeyId || !hasTestTarget || !prompt.trim()} isLoading={busy} onClick={() => void runProviderTest()}>Run actual provider test</Button>
+              {reconcileRequest ? <Button variant="outline" disabled={busy || !mayRunProviderTest} isLoading={busy} onClick={() => void reconcileProviderTest()}>Check saved Connector evidence</Button> : null}
             </div>
-            {result ? <div className="rounded border border-[var(--border-subtle)] p-3" role="status"><div className="flex flex-wrap items-center gap-2"><strong>Persisted provider test</strong><Badge variant={result.state === 'SUCCEEDED' ? 'success' : result.state === 'UNKNOWN' ? 'warning' : 'neutral'}>{result.state}</Badge></div><dl className="mt-2 grid grid-cols-1 gap-x-3 gap-y-1 text-xs sm:grid-cols-[max-content_1fr]"><dt>Status code</dt><dd>{result.statusCode ?? 'unreported'}</dd><dt>Latency</dt><dd>{result.latencyMs} ms</dd><dt>Input/output tokens</dt><dd>{result.inputTokens ?? 'unreported'} / {result.outputTokens ?? 'unreported'}</dd><dt>Usage event</dt><dd className="break-all">{result.usageEventId ?? 'not linked'}</dd><dt>Invocation ID</dt><dd className="break-all">{result.invocationId}</dd><dt>Provider response body</dt><dd>{result.contentSanitized === true && result.content !== null ? <><pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded bg-[var(--surface-muted)] p-2">{result.content}</pre>{result.contentTruncated ? <span className="mt-1 block">The sanitized response was truncated.</span> : null}</> : 'Unavailable or redacted because the Connector did not provide a sanitized response.'}</dd></dl></div> : null}
-          </> : <AlertBanner variant="info" title="Provider test is unavailable">Sign in as a platform Admin, or use an assigned local USER Profile for an exact ACTIVE Connector pin. Recipe writes remain platform Admin only.</AlertBanner>}
+            {mayManageRecipes && loadedRevision?.state === 'PENDING' ? <div className="flex flex-col gap-2 sm:flex-row sm:items-start"><div className="w-full max-w-xs"><FormField id="activate-expected-head" label="Expected ACTIVE revision CAS"><Input id="activate-expected-head" type="number" min={0} value={expectedActiveRevision} onChange={(event) => setExpectedActiveRevision(Number(event.target.value))} disabled={busy} /></FormField></div><Button className="sm:mt-6" variant="outline" disabled={busy || !testSucceededForCurrentRevision} onClick={() => void activateDraft()}>Activate tested draft</Button></div> : null}
+            {result ? <div className="rounded border border-[var(--border-subtle)] p-3" role="status"><div className="flex flex-wrap items-center gap-2"><strong>Persisted provider test</strong><Badge variant={result.state === 'SUCCEEDED' ? 'success' : result.state === 'UNKNOWN' ? 'warning' : 'neutral'}>{result.state}</Badge></div><dl className="mt-2 grid grid-cols-1 gap-x-3 gap-y-1 text-xs sm:grid-cols-[max-content_1fr]"><dt>Status code</dt><dd>{result.statusCode ?? 'unreported'}</dd><dt>Latency</dt><dd>{result.latencyMs} ms</dd><dt>Input/output tokens</dt><dd>{result.inputTokens ?? 'unreported'} / {result.outputTokens ?? 'unreported'}</dd><dt>Usage event</dt><dd className="break-all">{result.usageEventId ?? 'not linked'}</dd><dt>Invocation ID</dt><dd className="break-all">{result.invocationId}</dd><dt>Provider response body</dt><dd className="min-w-0">{result.contentSanitized === true && result.content !== null ? <><pre className="max-h-64 max-w-full overflow-auto whitespace-pre-wrap break-all rounded bg-[var(--surface-muted)] p-2">{result.content}</pre>{result.contentTruncated ? <span className="mt-1 block">The sanitized response was truncated.</span> : null}</> : 'Unavailable or redacted because the Connector did not provide a sanitized response.'}</dd></dl></div> : null}
+          </> : <AlertBanner variant="info" title="Provider test is unavailable">{providerTestUnavailableHint} Recipe writes remain platform Admin only.</AlertBanner>}
         </section>
       </CardContent>
     </Card>

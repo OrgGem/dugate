@@ -1,7 +1,3 @@
-// VENDORED from @du/contracts @ b088eececcb5f3df0b4edbe073a29401dafda624 (worktree 2026-10-05)
-// source: packages/contracts/src/operations.ts (lines=403) sha256=34454DD2AB549A47D7732DDE6ED81E187EEC94C61199963B417F743EDC803817
-// why: ArtifactRef, IngestionReceiptSchema, resolveIngestionSource (+private INGESTION_HANDLE_REGEX) for src/types/context.ts, src/types/actions.ts, src/validation/input-normalizer.ts
-
 import { z } from 'zod';
 import { adjudicateUrlDestination, DESTINATION_DENIED } from './ip-policy';
 import { RecipientDeliveryEnvelopeSchema } from './encryption';
@@ -140,6 +136,10 @@ export const OperationViewSchema = z.object({
   stateVersion: z.number().int().min(0),
   createdAt: z.string(), // RFC3339 UTC
   updatedAt: z.string(),
+  startedAt: z.string().nullable().optional(),
+  completedAt: z.string().nullable().optional(),
+  retryOf: z.string().uuid().nullable().optional(),
+  errorCode: z.string().nullable().optional(),
   deadlineAt: z.string().nullable(),
   replayOf: z.string().uuid().nullable().optional(),
   progress: ProgressSchema,
@@ -157,6 +157,9 @@ export const UsageSchema = z.object({
   inputTokens: z.number().int().min(0),
   outputTokens: z.number().int().min(0),
   costMicrousd: z.number().int().min(0),
+  costStatus: z.enum(['measured', 'estimated', 'unpriced', 'pending']).optional(),
+  pages: z.number().int().min(0).optional(),
+  model: z.string().optional(),
   measurement: UsageMeasurementSchema,
 });
 export type Usage = z.infer<typeof UsageSchema>;
@@ -286,7 +289,7 @@ export type CallbackConfig = z.infer<typeof CallbackConfigSchema>;
 export const SubmissionSchema = z
   .object({
     input: z.record(z.string(), z.unknown()),
-    sourceUrl: z.string().max(2048).optional(),
+    sourceUrl: z.string().max(2048).optional().describe('HTTPS source URL or tenant-authorized s3://bucket/key?versionId=...; requires S3 artifact storage. Credentials are deployment-owned.'),
     artifacts: z
       .array(z.object({ artifactId: z.string().uuid(), role: z.string().min(1) }))
       .optional(),

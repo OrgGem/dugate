@@ -383,13 +383,44 @@ describe('AWEB-06 BFF operations/usage/business routes', () => {
 
     const ok = await httpRequest(`${baseUrl}/admin/api/businesses/doc-core/versions/3/enable`, {
       method: 'PUT',
-      headers: { cookie: adminCookie, 'x-csrf-token': csrfToken },
+      headers: { cookie: adminCookie, 'x-csrf-token': csrfToken, 'content-type': 'application/json' },
+      body: JSON.stringify({ expectedActivationRevision: 4 }),
     });
     expect(ok.status).toBe(200);
     const upstream = last();
     expect(upstream?.method).toBe('PUT');
     expect(upstream?.path).toBe('/api/v1/admin/businesses/doc-core/versions/3/enable');
+    expect(upstream?.body).toBe(JSON.stringify({ expectedActivationRevision: 4 }));
     expect(upstream?.auth).toBe(`Bearer ${ADMIN_TOKEN}`);
+  });
+
+  it('activation and pre-drain actions require and forward the current activation revision', async () => {
+    const base = '/admin/api/businesses/doc-core/versions/3';
+    for (const action of ['enable', 'activate']) {
+      const missing = await httpRequest(`${baseUrl}${base}/${action}`, {
+        method: 'PUT',
+        headers: { cookie: adminCookie, 'x-csrf-token': csrfToken, 'content-type': 'application/json' },
+        body: '{}',
+      });
+      expect(missing.status).toBe(422);
+    }
+    expect(stub.requests).toHaveLength(0);
+
+    for (const action of ['enable', 'activate', 'deactivate', 'pre-drain', 'pre-drain/cancel']) {
+      const body = JSON.stringify({ expectedActivationRevision: 12 });
+      const response = await httpRequest(`${baseUrl}${base}/${action}`, {
+        method: 'PUT',
+        headers: { cookie: adminCookie, 'x-csrf-token': csrfToken, 'content-type': 'application/json' },
+        body,
+      });
+      expect(response.status).toBe(200);
+      expect(last()).toMatchObject({
+        method: 'PUT',
+        path: `/api/v1/admin/businesses/doc-core/versions/3/${action}`,
+        body,
+        auth: `Bearer ${ADMIN_TOKEN}`,
+      });
+    }
   });
 
   it('logical business enable: validates CAS body, requires CSRF, and forwards only the platform route', async () => {

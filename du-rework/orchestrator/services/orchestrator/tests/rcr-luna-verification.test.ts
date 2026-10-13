@@ -60,6 +60,12 @@ function makeRuntimeWorld(options: {
     last_delivery_id: null,
     leased_by: null,
     attempt: 1,
+    max_attempts: 4,
+  };
+  const currentTaskRow = () => {
+    const expiry = task['lease_expires_at'];
+    const leaseExpiresAt = expiry instanceof Date ? expiry.getTime() : new Date(String(expiry)).getTime();
+    return { ...task, lease_active: leaseExpiresAt > Date.now() };
   };
   let storedCheckpoints: Row[] = options.checkpoint ? [options.checkpoint] : [];
 
@@ -70,17 +76,42 @@ function makeRuntimeWorld(options: {
     if (/^(INSERT|UPDATE|DELETE)/i.test(normalized)) attemptedWrites.push(call);
 
     if (/^SELECT/.test(normalized)) {
+      if (normalized.includes('FROM worker_instances wi') && normalized.includes('WHERE wi.business_id=$1 AND wi.instance_id=$2')) {
+        return result([{
+          business_version: '1.0.0',
+          heartbeat_manifest_digest: 'sha256:manifest',
+          registered_manifest_digest: 'sha256:manifest',
+          state: 'ONLINE',
+          capacity: 4,
+          heartbeat_fresh: true,
+          control_revision: 1,
+          control_state: 'OPEN',
+          desired_control_revision: 1,
+          desired_control_state: 'OPEN',
+        }]);
+      }
       if (normalized.includes('FROM tasks t JOIN operations') || normalized.includes('FROM tasks t\n')) {
-        return result([{ ...task }]);
+        return result([currentTaskRow()]);
+      }
+      if (normalized.includes('FROM business_catalog WHERE business_id=$1')) {
+        return result([{
+          enabled: true,
+          activation_revision: 1,
+          submissions_paused: false,
+          pre_drain_version: null,
+        }]);
       }
       if (normalized.includes('FROM tasks WHERE id=$1') || normalized.includes('FROM tasks WHERE id = $1')) {
-        return result([{ ...task }]);
+        return result([currentTaskRow()]);
       }
       if (normalized.includes('FROM tasks t') && normalized.includes('FOR UPDATE')) {
-        return result([{ ...task }]);
+        return result([currentTaskRow()]);
       }
       if (normalized.includes('FROM business_versions')) {
         return result([{
+          version: '1.0.0',
+          status: 'ENABLED',
+          is_active: true,
           manifest: { runtime: { handlerKinds: ['child'] }, actions: [{ name: 'extract', defaultLimits: { maxParallelTasks: 10 } }] },
           digest: 'sha256:manifest',
           queue: 'document-core',

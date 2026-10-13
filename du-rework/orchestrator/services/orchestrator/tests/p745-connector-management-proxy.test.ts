@@ -108,6 +108,22 @@ describe('CONNECTOR-WIRE-A management store', () => {
     expect(withHeaders.calls.some((call) => call.headers?.['x-service-identity'] !== undefined)).toBe(false);
   });
 
+  it('reads typed-chain shadow state through the tenant-fenced management route', async () => {
+    const tenantId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const chain = scriptedFetch((url) =>
+      url.endsWith(`/internal/admin/connector-revisions/mock-connector/chain?tenantId=${tenantId}`)
+        ? jsonResponse(200, { hasTypedChain: true })
+        : jsonResponse(404, { error: 'not found' }),
+    );
+    await expect(store(chain.fetchImpl).hasRecipeChain({ tenantId, connectorId: 'mock-connector' })).resolves.toBe(true);
+    expect(chain.calls[0]?.headers?.authorization).toBe('Bearer offline-management-token');
+    expect(chain.calls[0]?.url).toContain(`/mock-connector/chain?tenantId=${tenantId}`);
+
+    const malformed = scriptedFetch(() => jsonResponse(200, { hasTypedChain: 'yes' }));
+    await expect(store(malformed.fetchImpl).hasRecipeChain({ tenantId, connectorId: 'mock-connector' }))
+      .rejects.toMatchObject({ status: 502, code: 'CONNECTOR_API_ERROR' });
+  });
+
   it('transport failure is 503 TEMPORARY_UNAVAILABLE (reconcile — never assume no-write)', async () => {
     const fetchImpl = (async () => {
       throw new Error('ECONNREFUSED');
@@ -181,6 +197,7 @@ describe('CONNECTOR-WIRE-A admin routes (thin reads + capability advertisement)'
           connectorBaseUrls: {
             'vendor-alpha': 'https://user:do-not-leak@private.example/api?token=hidden',
             'vendor-beta': 'http://another-private.example:9003',
+            '*': 'http://127.0.0.1:8088',
           },
         },
       }),

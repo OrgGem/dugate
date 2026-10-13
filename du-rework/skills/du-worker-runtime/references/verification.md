@@ -8,7 +8,10 @@ Use this checklist only for features the worker advertises. Keep the result tied
 - Confirm the manifest validates, the registry digest matches, and the queue name uses the exact business version.
 - Confirm the queue decoder rejects unknown fields and that the worker never expects business input or secrets in a delivery.
 - Exercise worker heartbeat admission for `OPEN`, `PAUSED`, `DRAINING`, and an absent/unknown or unacknowledged backup fence. Only the acknowledged open state may start new work.
+- Exercise missing/unknown version-admission fields, exact-version eligibility, lower-revision late ACKs, same-revision tuple conflicts, and a v1→v2→v1 cutover. A cutover must defer new v1 claims while already-claimed v1 work can still heartbeat, checkpoint, request a Connector grant, invoke Connector, and complete under its valid lease.
 - Exercise claim identity checks for wrong business, version, and manifest digest. Unknown claim refusal codes must remain deferred.
+- Exercise `VERSION_NOT_ACTIVE`, `NO_ACTIVE_VERSION`, `VERSION_NOT_ENABLED`, `BUSINESS_SUBMISSIONS_PAUSED`, and `WORKER_CAPACITY_EXHAUSTED` as deferred claim outcomes with no attempt consumption or hot loop. Confirm `TASK_ATTEMPTS_EXHAUSTED` is ACK-safe only for HTTP 410 after durable task and operation terminalization; a nonterminal response remains deferred.
+- Simulate a claim committed by Runtime with its HTTP response lost, then close version admission before returning the transport error. Verify one exact `(taskId, deliveryId, workerInstanceId)` replay retrieves the existing lease and completes the task, while a different delivery remains unclaimed.
 - Exercise a task heartbeat cancellation, stale `leaseEpoch`, lease timeout, idempotent checkpoint/report replay, and worker restart with the same durable task.
 - Exercise shutdown with both a drained consumer and a still-running task; retirement must preserve the server’s running-task recovery path.
 

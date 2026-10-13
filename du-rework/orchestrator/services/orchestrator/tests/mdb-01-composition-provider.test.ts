@@ -12,9 +12,12 @@ const adapterModule = require('../scripts/ldba-03-production-adapter.cjs') as {
   loadContextProvider: (env: Record<string, string | undefined>) => Record<string, unknown>;
 };
 
-function fakePool() {
+function fakePool(identity: { database_name: string; database_oid: string; system_identifier: string } = {
+  database_name: 'offline-source', database_oid: '11', system_identifier: '111',
+}) {
   return {
-    async query() {
+    async query(sql: string) {
+      if (/SELECT current_database\(\)/i.test(sql)) return { rows: [identity] };
       return { rows: [] };
     },
     async end() {},
@@ -33,7 +36,8 @@ describe('MDB-01 LDBA03 context provider composition', () => {
 
     const adapter = adapterModule.createAdapter({
       sourcePool: fakePool(),
-      targetPool: fakePool(),
+      targetPool: fakePool({ database_name: 'offline-orchestrator', database_oid: '22', system_identifier: '222' }),
+      connectorTargetPool: fakePool({ database_name: 'offline-connector', database_oid: '33', system_identifier: '333' }),
       env,
     });
     // MDB-POLICY-05: prepareConnector is no longer a fail-closed stub. An empty
@@ -48,7 +52,8 @@ describe('MDB-01 LDBA03 context provider composition', () => {
   test('an explicitly configured missing provider fails closed with a stable adapter error', () => {
     expect(() => adapterModule.createAdapter({
       sourcePool: fakePool(),
-      targetPool: fakePool(),
+      targetPool: fakePool({ database_name: 'offline-orchestrator', database_oid: '22', system_identifier: '222' }),
+      connectorTargetPool: fakePool({ database_name: 'offline-connector', database_oid: '33', system_identifier: '333' }),
       env: { LDBA03_CONTEXT_MODULE: 'scripts/mdb-01-provider-that-does-not-exist.cjs' },
     })).toThrow(expect.objectContaining({
       name: 'AdapterConfigurationError',

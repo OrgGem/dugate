@@ -99,6 +99,9 @@ class FakePg {
     const n = normalize(sql);
     this.calls.push(n);
     const p = params as (string | number | null)[];
+    if (n === 'SELECT fence_id,fence_revision,state FROM connector_backup_effect_gate WHERE singleton_id=1 FOR SHARE') {
+      return { rows: [{ fence_id: null, fence_revision: 0, state: 'OPEN' }], rowCount: 1 };
+    }
     if (n.startsWith('SELECT revision FROM connector_revisions')) {
       const hit = this.rows
         .filter((r) => r.connector_id === p[0] && r.tenant_id === String(p[1]))

@@ -176,7 +176,7 @@ function startStub(port: number): Promise<Stub> {
         res.end(JSON.stringify({ ...EFFECTIVE_SETTINGS_VIEW, storage: { ...EFFECTIVE_SETTINGS_VIEW.storage, secretValue: SECRET_VALUE } }));
         return;
       }
-      if (url.pathname === '/api/v1/admin/identity' || url.pathname === '/api/v1/admin/identity/users') {
+      if (url.pathname === '/api/internal/parity/identity' || url.pathname === '/api/internal/parity/identity/users') {
         if (stub.mode === 'version-conflict') {
           res.statusCode = 409;
           res.end(JSON.stringify({ code: 'IDENTITY_VERSION_CONFLICT' }));
@@ -186,7 +186,7 @@ function startStub(port: number): Promise<Stub> {
         res.end(JSON.stringify(IDENTITY_SNAPSHOT));
         return;
       }
-      if (url.pathname.startsWith('/api/v1/admin/identity/users/')) {
+      if (url.pathname.startsWith('/api/internal/parity/identity/users/')) {
         if (stub.mode === 'version-conflict') {
           res.statusCode = 409;
           res.end(JSON.stringify({ code: 'IDENTITY_VERSION_CONFLICT' }));
@@ -436,7 +436,7 @@ describe('BFF-SETTINGS-IDENTITY — routes', () => {
 
   // ---- identity read + CAS -----------------------------------------------
   it('identity GET: relays the snapshot, no-store, admin bearer', async () => {
-    const res = await httpRequest(`${baseUrl}/admin/api/identity`, { headers: { cookie: adminCookie } });
+    const res = await httpRequest(`${baseUrl}/admin/api/identity?tenantId=${TENANT_A}`, { headers: { cookie: adminCookie } });
     expect(res.status).toBe(200);
     expect(IdentitySnapshotSchema.safeParse(JSON.parse(res.body)).success).toBe(true);
     expect(last()?.auth).toBe(`Bearer ${ADMIN_TOKEN}`);
@@ -444,19 +444,19 @@ describe('BFF-SETTINGS-IDENTITY — routes', () => {
   });
 
   it('identity POST create: forwards username/password/role, rejects a bad role', async () => {
-    const ok = await httpRequest(`${baseUrl}/admin/api/identity/users`, {
+    const ok = await httpRequest(`${baseUrl}/admin/api/identity/users?tenantId=${TENANT_A}`, {
       method: 'POST',
       headers: { cookie: adminCookie, 'content-type': 'application/json', 'x-csrf-token': csrfToken },
       body: JSON.stringify({ username: 'new-user', password: SECRET_VALUE, role: 'VIEWER' }),
     });
     expect(ok.status).toBe(200);
     expect(last()?.method).toBe('POST');
-    expect(last()?.path).toBe('/api/v1/admin/identity/users');
+    expect(last()?.path).toBe(`/api/internal/parity/identity/users?tenantId=${TENANT_A}`);
     const forwarded = JSON.parse(last()?.body ?? '{}') as Record<string, unknown>;
     expect(forwarded).toEqual({ username: 'new-user', password: SECRET_VALUE, role: 'VIEWER' });
 
     stub.requests.length = 0;
-    const bad = await httpRequest(`${baseUrl}/admin/api/identity/users`, {
+    const bad = await httpRequest(`${baseUrl}/admin/api/identity/users?tenantId=${TENANT_A}`, {
       method: 'POST',
       headers: { cookie: adminCookie, 'content-type': 'application/json', 'x-csrf-token': csrfToken },
       body: JSON.stringify({ username: 'new-user', password: 'x', role: 'SUPERUSER' }),
@@ -467,7 +467,7 @@ describe('BFF-SETTINGS-IDENTITY — routes', () => {
   });
 
   it('identity PATCH without expectedVersion → 422, no blind write', async () => {
-    const res = await httpRequest(`${baseUrl}/admin/api/identity/users/u-1`, {
+    const res = await httpRequest(`${baseUrl}/admin/api/identity/users/u-1?tenantId=${TENANT_A}`, {
       method: 'PATCH',
       headers: { cookie: adminCookie, 'content-type': 'application/json', 'x-csrf-token': csrfToken },
       body: JSON.stringify({ role: 'USER', enabled: true }),
@@ -478,17 +478,17 @@ describe('BFF-SETTINGS-IDENTITY — routes', () => {
   });
 
   it('identity PATCH with expectedVersion → forwarded; stale version relays 409', async () => {
-    const ok = await httpRequest(`${baseUrl}/admin/api/identity/users/u-1`, {
+    const ok = await httpRequest(`${baseUrl}/admin/api/identity/users/u-1?tenantId=${TENANT_A}`, {
       method: 'PATCH',
       headers: { cookie: adminCookie, 'content-type': 'application/json', 'x-csrf-token': csrfToken },
       body: JSON.stringify({ role: 'USER', enabled: false, expectedVersion: 7 }),
     });
     expect(ok.status).toBe(200);
-    expect(last()?.path).toBe('/api/v1/admin/identity/users/u-1');
+    expect(last()?.path).toBe(`/api/internal/parity/identity/users/u-1?tenantId=${TENANT_A}`);
     expect(JSON.parse(last()?.body ?? '{}')).toEqual({ role: 'USER', enabled: false, expectedVersion: 7 });
 
     stub.mode = 'version-conflict';
-    const stale = await httpRequest(`${baseUrl}/admin/api/identity/users/u-1`, {
+    const stale = await httpRequest(`${baseUrl}/admin/api/identity/users/u-1?tenantId=${TENANT_A}`, {
       method: 'PATCH',
       headers: { cookie: adminCookie, 'content-type': 'application/json', 'x-csrf-token': csrfToken },
       body: JSON.stringify({ role: 'USER', enabled: false, expectedVersion: 1 }),
@@ -498,7 +498,7 @@ describe('BFF-SETTINGS-IDENTITY — routes', () => {
   });
 
   it('identity mutation without CSRF → 403, upstream untouched', async () => {
-    const res = await httpRequest(`${baseUrl}/admin/api/identity/users/u-1`, {
+    const res = await httpRequest(`${baseUrl}/admin/api/identity/users/u-1?tenantId=${TENANT_A}`, {
       method: 'PATCH',
       headers: { cookie: adminCookie, 'content-type': 'application/json' },
       body: JSON.stringify({ role: 'USER', enabled: true, expectedVersion: 7 }),

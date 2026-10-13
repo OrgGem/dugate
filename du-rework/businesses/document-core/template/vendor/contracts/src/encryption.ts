@@ -1,7 +1,3 @@
-// VENDORED from @du/contracts @ b088eececcb5f3df0b4edbe073a29401dafda624 (worktree 2026-10-05)
-// source: packages/contracts/src/encryption.ts (lines=299) sha256=395E08800E3E7D6B2131C36AE85B41B70289F6C38B1970803101F266EBB7342E
-// why: transitive dep of operations.ts + runtime.ts (RecipientDeliveryEnvelopeSchema, StorageEnvelopeRefSchema)
-
 /**
  * W-ENC-01-SCHEMA (ADR-18, tasks/APP-ENCRYPTION-2026-09-27.md):
  * Application-layer envelope encryption wire-format schemas.

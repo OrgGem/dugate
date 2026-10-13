@@ -1,3 +1,4 @@
+import path from 'node:path';
 import {
   buildIsolatedRestoreServerConfig,
   parseIsolatedOrchestratorRuntimeConfig,
@@ -78,6 +79,19 @@ describe('Orchestrator isolated restore bootstrap', () => {
     expect(() => parseIsolatedRestoreBootstrapArgs([...args, '--config', '/tmp/other']))
       .toThrow('RESTORE_BOOTSTRAP_ARGUMENTS_INVALID');
     expect(() => parseIsolatedRestoreBootstrapArgs(args.slice(0, -2)))
+      .toThrow('RESTORE_BOOTSTRAP_ARGUMENTS_INVALID');
+  });
+
+  test('validates Linux target paths independently from the test host and rejects traversal', () => {
+    expect(parseIsolatedRestoreBootstrapArgs(args).configFile).toBe('/run/du-restore/runtime-config.json');
+    const replaceConfigPath = (value: string): string[] => {
+      const updated = [...args];
+      updated[updated.indexOf('--config') + 1] = value;
+      return updated;
+    };
+    expect(() => parseIsolatedRestoreBootstrapArgs(replaceConfigPath(path.win32.join('C:\\restore', 'runtime-config.json'))))
+      .toThrow('RESTORE_BOOTSTRAP_ARGUMENTS_INVALID');
+    expect(() => parseIsolatedRestoreBootstrapArgs(replaceConfigPath('/run/du-restore/../etc/passwd')))
       .toThrow('RESTORE_BOOTSTRAP_ARGUMENTS_INVALID');
   });
 

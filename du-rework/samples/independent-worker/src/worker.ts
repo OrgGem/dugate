@@ -26,6 +26,9 @@ import {
 const DEFAULT_HEARTBEAT_INTERVAL_MS = 15_000;
 const DEFAULT_LEASE_SAFETY_MARGIN_MS = 5_000;
 const MAX_TIMER_DELAY_MS = 2_147_000_000;
+const CLAIM_DEFER_INITIAL_MS = 250;
+const CLAIM_DEFER_MAX_MS = 30_000;
+const AMBIGUOUS_CLAIM_MAX_KEYS = 10_000;
 
 export interface QueueDeliveryControl {
   defer(delayMs: number): Promise<never>;
@@ -216,7 +219,7 @@ export async function startWorker(manifest: BusinessManifest, config: WorkerConf
 
   let stopped = false;
   let retired = false;
-  let admissionOpen = false;
+  let claimAdmissionOpen = false;
   let workerHeartbeatInFlight: Promise<HeartbeatAck> | undefined;
   let heartbeatTimer: ReturnType<typeof setInterval> | undefined;
   let workerControlRevision = -1;
@@ -224,12 +227,38 @@ export async function startWorker(manifest: BusinessManifest, config: WorkerConf
   let backupFenceRevision = -1;
   let backupFenceState: 'OPEN' | 'HELD' | 'UNKNOWN' = 'UNKNOWN';
   let backupFenceAcknowledged = false;
+  let activationRevision = -1;
+  let versionAdmission: {
+    activeVersion: string | null;
+    admissionEligible: boolean;
+    admissionReason: NonNullable<HeartbeatAck['admissionReason']>;
+  } | undefined;
+  let versionAdmissionKnown = false;
+  let admissionConflictRevision = -1;
   let observedBackupFenceRevision: number | undefined;
   let activeTaskCount = 0;
   let stopPromise: Promise<void> | undefined;
   const activeTasks = new Set<ActiveTaskContext>();
   const taskReservations = new Set<string>();
   const inFlight = new Set<Promise<void>>();
+  const claimDeferrals = new Map<string, number>();
+  const ambiguousClaimKeys = new Set<string>();
+  const rememberAmbiguousClaim = (claimKey: string): void => {
+    if (!ambiguousClaimKeys.has(claimKey) && ambiguousClaimKeys.size >= AMBIGUOUS_CLAIM_MAX_KEYS) {
+      const oldest = ambiguousClaimKeys.values().next().value as string | undefined;
+      if (oldest !== undefined) ambiguousClaimKeys.delete(oldest);
+    }
+    ambiguousClaimKeys.add(claimKey);
+  };
+
+  function claimDeferralDelayMs(deliveryId: string, retryAfterMs = 0): number {
+    const attempt = claimDeferrals.get(deliveryId) ?? 0;
+    const ceiling = Math.min(CLAIM_DEFER_MAX_MS, CLAIM_DEFER_INITIAL_MS * (2 ** Math.min(attempt, 7)));
+    const floor = Math.max(1, Math.floor(ceiling / 2));
+    const jittered = floor + Math.floor(Math.random() * (ceiling - floor + 1));
+    claimDeferrals.set(deliveryId, Math.min(attempt + 1, 8));
+    return Math.min(CLAIM_DEFER_MAX_MS, Math.max(jittered, retryAfterMs));
+  }
 
   const heartbeatBody = (): JsonRecord => ({
     businessId: manifest.businessId,
@@ -237,17 +266,72 @@ export async function startWorker(manifest: BusinessManifest, config: WorkerConf
     manifestDigest: digest,
     imageDigest: manifest.imageDigest,
     ...(config.deploymentRevision ? { deploymentRevision: config.deploymentRevision } : {}),
-    capacity: admissionOpen ? concurrency : 0,
+    capacity: claimAdmissionOpen ? concurrency : 0,
     activeTasks: activeTaskCount,
     ...(observedBackupFenceRevision === undefined ? {} : { observedBackupFenceRevision }),
   });
 
   async function updateAdmission(nextOpen: boolean): Promise<void> {
     if (stopped) nextOpen = false;
-    if (admissionOpen === nextOpen) return;
-    admissionOpen = nextOpen;
+    if (claimAdmissionOpen === nextOpen) return;
+    claimAdmissionOpen = nextOpen;
     if (nextOpen) await consumer.resume();
     else await consumer.pause();
+  }
+
+  function applyVersionAdmission(ack: HeartbeatAck): boolean {
+    const revision = ack.activationRevision;
+    if (typeof revision !== 'number' || !Number.isSafeInteger(revision) || revision < 1) {
+      versionAdmissionKnown = false;
+      return false;
+    }
+    if (revision < activationRevision) {
+      return versionAdmissionKnown
+        && admissionConflictRevision !== activationRevision
+        && versionAdmission?.admissionEligible === true
+        && versionAdmission.activeVersion === manifest.version
+        && versionAdmission.admissionReason === 'ELIGIBLE';
+    }
+
+    const activeVersion = ack.activeVersion;
+    const admissionEligible = ack.admissionEligible;
+    const admissionReason = ack.admissionReason;
+    const validTuple = (typeof activeVersion === 'string' || activeVersion === null)
+      && typeof admissionEligible === 'boolean'
+      && admissionReason !== undefined
+      && (admissionEligible
+        ? admissionReason === 'ELIGIBLE' && activeVersion === manifest.version
+        : admissionReason !== 'ELIGIBLE');
+
+    if (revision > activationRevision) {
+      activationRevision = revision;
+      admissionConflictRevision = -1;
+      versionAdmission = undefined;
+      versionAdmissionKnown = false;
+    }
+    if (!validTuple) {
+      versionAdmissionKnown = false;
+      return false;
+    }
+
+    const next = { activeVersion, admissionEligible, admissionReason };
+    if (revision === activationRevision && versionAdmission) {
+      const same = versionAdmission.activeVersion === next.activeVersion
+        && versionAdmission.admissionEligible === next.admissionEligible
+        && versionAdmission.admissionReason === next.admissionReason;
+      if (!same) {
+        admissionConflictRevision = revision;
+        versionAdmissionKnown = false;
+        process.stderr.write('independent-worker: version admission changed without a new revision\n');
+        return false;
+      }
+    }
+    if (admissionConflictRevision === revision) return false;
+    versionAdmission = next;
+    versionAdmissionKnown = true;
+    return next.admissionEligible
+      && next.activeVersion === manifest.version
+      && next.admissionReason === 'ELIGIBLE';
   }
 
   async function applyHeartbeatAck(ack: HeartbeatAck): Promise<void> {
@@ -279,8 +363,10 @@ export async function startWorker(manifest: BusinessManifest, config: WorkerConf
       observedBackupFenceRevision = backup.revision;
     }
 
+    const versionEligible = applyVersionAdmission(ack);
     await updateAdmission(
-      workerControlState === 'OPEN'
+      versionEligible
+      && workerControlState === 'OPEN'
       && backupFenceState === 'OPEN'
       && backupFenceAcknowledged,
     );
@@ -322,8 +408,13 @@ export async function startWorker(manifest: BusinessManifest, config: WorkerConf
       if (job.businessId !== manifest.businessId || job.businessVersion !== manifest.version) {
         throw new Error('queue delivery does not match this exact business version');
       }
-      if (stopped || !admissionOpen) await deferDelivery(delivery, 'worker admission is closed', 1_000);
-      if (taskReservations.has(job.taskId)) await deferDelivery(delivery, 'task already active in this process', 1_000);
+      const claimKey = `${job.taskId}\u0000${job.deliveryId}`;
+      if (stopped || !claimAdmissionOpen && !ambiguousClaimKeys.has(claimKey)) {
+        await deferDelivery(delivery, 'worker admission is closed', claimDeferralDelayMs(job.deliveryId));
+      }
+      if (taskReservations.has(job.taskId)) {
+        await deferDelivery(delivery, 'task already active in this process', claimDeferralDelayMs(job.deliveryId));
+      }
       taskReservations.add(job.taskId);
       try {
         await processDelivery(job, delivery);
@@ -337,21 +428,49 @@ export async function startWorker(manifest: BusinessManifest, config: WorkerConf
   };
 
   async function processDelivery(job: BusinessJobV1, delivery?: QueueDeliveryControl): Promise<void> {
-    if (stopped) await deferDelivery(delivery, 'worker is stopping', 1_000);
-    if (!admissionOpen) await deferDelivery(delivery, 'worker admission is closed', 1_000);
-
     let claim: ClaimResult;
-    try {
-      claim = await runtime.claimTask(job.taskId, {
-        deliveryId: job.deliveryId,
-        workerInstanceId,
-        businessId: manifest.businessId,
-      });
-    } catch (error) {
-      if (error instanceof RuntimeHttpError && isAckSafeClaimError(error)) return;
-      const delay = error instanceof RuntimeHttpError && error.status === 429 ? 5_000 : 1_000;
-      return await deferDelivery(delivery, 'claim was not confirmed', delay);
+    const claimKey = `${job.taskId}\u0000${job.deliveryId}`;
+    let ambiguousReplayCount = 0;
+    for (;;) {
+      if (stopped) await deferDelivery(delivery, 'worker is stopping', 1_000);
+      const reconcilingAmbiguousClaim = ambiguousClaimKeys.has(claimKey);
+      if (!claimAdmissionOpen && !reconcilingAmbiguousClaim) {
+        await deferDelivery(delivery, 'worker admission is closed', claimDeferralDelayMs(job.deliveryId));
+      }
+      try {
+        claim = await runtime.claimTask(job.taskId, {
+          deliveryId: job.deliveryId,
+          workerInstanceId,
+          businessId: manifest.businessId,
+        });
+        ambiguousClaimKeys.delete(claimKey);
+        break;
+      } catch (error) {
+        if (error instanceof RuntimeHttpError && isAckSafeClaimError(error)) {
+          claimDeferrals.delete(job.deliveryId);
+          ambiguousClaimKeys.delete(claimKey);
+          return;
+        }
+        if (error instanceof RuntimeHttpError && error.ambiguous) {
+          // Reconcile this exact idempotent claim once while the callback is
+          // still active; a cutover may have paused queue redelivery already.
+          rememberAmbiguousClaim(claimKey);
+          if (ambiguousReplayCount < 1) {
+            ambiguousReplayCount += 1;
+            continue;
+          }
+        } else {
+          ambiguousClaimKeys.delete(claimKey);
+        }
+        const retryAfterMs = error instanceof RuntimeHttpError && error.status === 429 ? 5_000 : 0;
+        return await deferDelivery(
+          delivery,
+          error instanceof RuntimeHttpError ? `claim deferred (${error.code})` : 'claim was not confirmed',
+          claimDeferralDelayMs(job.deliveryId, retryAfterMs),
+        );
+      }
     }
+    claimDeferrals.delete(job.deliveryId);
 
     if (
       claim.taskId !== job.taskId
@@ -372,8 +491,7 @@ export async function startWorker(manifest: BusinessManifest, config: WorkerConf
       safetyMarginMs: configuredSafetyMarginMs,
       heartbeatIntervalMs,
       runtime,
-      isEffectAdmissionOpen: () => admissionOpen
-        && workerControlState === 'OPEN'
+      isEffectAdmissionOpen: () => workerControlState === 'OPEN'
         && backupFenceState === 'OPEN'
         && backupFenceAcknowledged,
     });
@@ -439,7 +557,7 @@ export async function startWorker(manifest: BusinessManifest, config: WorkerConf
     );
     return operation;
   });
-  if (admissionOpen) await consumer.resume();
+  if (claimAdmissionOpen) await consumer.resume();
   heartbeatTimer = setInterval(() => { void heartbeat(false); }, heartbeatIntervalMs);
   heartbeatTimer.unref?.();
 
@@ -453,7 +571,7 @@ export async function startWorker(manifest: BusinessManifest, config: WorkerConf
       stopped = true;
       const deadline = Date.now() + Math.max(0, graceMs);
       stopPromise = (async () => {
-        admissionOpen = false;
+        claimAdmissionOpen = false;
         await withTimeout(Promise.resolve().then(() => consumer.pause()), 1_000);
         while (inFlight.size > 0 && Date.now() < deadline) {
           await Promise.race([

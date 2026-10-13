@@ -283,6 +283,7 @@ async function registerManifestForStartup(
 }
 
 function isAckSafeClaimError(err: RuntimeError): boolean {
+  if (err.code === 'TASK_ATTEMPTS_EXHAUSTED') return err.status === 410;
   return RUNTIME_CLAIM_ERROR_DISPOSITION[err.code as keyof typeof RUNTIME_CLAIM_ERROR_DISPOSITION] === 'ACK_SAFE';
 }
 
@@ -379,6 +380,14 @@ export async function startWorker(
   const activeContexts = new Set<DefaultTaskContext>();
   const shutdownWaiters = new Set<() => void>();
   const claimDeferrals = new Map<string, number>();
+  const ambiguousClaimKeys = new Set<string>();
+  const rememberAmbiguousClaim = (claimKey: string): void => {
+    if (!ambiguousClaimKeys.has(claimKey) && ambiguousClaimKeys.size >= CLAIM_DEFER_MAP_MAX_ENTRIES) {
+      const oldest = ambiguousClaimKeys.values().next().value as string | undefined;
+      if (oldest !== undefined) ambiguousClaimKeys.delete(oldest);
+    }
+    ambiguousClaimKeys.add(claimKey);
+  };
   let activeTaskCount = 0;
   let observedBackupFenceRevision: number | undefined;
   const heartbeatBody = () => ({
@@ -386,19 +395,101 @@ export async function startWorker(
     activeTasks: activeTaskCount,
     ...(observedBackupFenceRevision === undefined ? {} : { observedBackupFenceRevision }),
   });
-  let admissionOpen = false;
+  // Version eligibility controls only new queue claims. Existing task
+  // contexts stay lease-fenced and may finish after a version cutover.
+  let claimAdmissionOpen = false;
+  let appliedConsumerAdmission: boolean | undefined;
   let controlRevision = -1;
   let controlState: 'OPEN' | 'PAUSED' | 'DRAINING' = 'DRAINING';
   let backupFenceRevision = -1;
   let backupFenceState: 'OPEN' | 'HELD' | 'UNKNOWN' = 'UNKNOWN';
   let backupFenceAcknowledged = false;
+  let activationRevision = -1;
+  let versionAdmission: {
+    activeVersion: string | null;
+    admissionEligible: boolean;
+    admissionReason: NonNullable<Awaited<ReturnType<RuntimeClient['heartbeatWorker']>>['admissionReason']>;
+  } | undefined;
+  let versionAdmissionKnown = false;
+  let admissionConflictRevision = -1;
   let consumer: QueueConsumer | undefined;
   const admissionWaiters = new Set<() => void>();
-  const waitForAdmission = async (): Promise<boolean> => {
-    if (admissionOpen) return true;
+  const waitForClaimAdmission = async (): Promise<boolean> => {
+    if (claimAdmissionOpen) return true;
     if (stopped) return false;
     await new Promise<void>((resolve) => admissionWaiters.add(resolve));
-    return admissionOpen && !stopped;
+    return claimAdmissionOpen && !stopped;
+  };
+  const setClaimAdmission = async (nextOpen: boolean): Promise<void> => {
+    if (stopped) nextOpen = false;
+    claimAdmissionOpen = nextOpen;
+    if (nextOpen) {
+      for (const resolve of admissionWaiters) resolve();
+      admissionWaiters.clear();
+    }
+    if (appliedConsumerAdmission === nextOpen) return;
+    appliedConsumerAdmission = nextOpen;
+    if (nextOpen) await consumer?.resume?.();
+    else await consumer?.pause?.();
+  };
+  const applyVersionAdmission = (
+    ack: Awaited<ReturnType<RuntimeClient['heartbeatWorker']>>
+  ): boolean => {
+    const revision = ack.activationRevision;
+    if (typeof revision !== 'number' || !Number.isSafeInteger(revision) || revision < 1) {
+      versionAdmissionKnown = false;
+      return false;
+    }
+    if (revision < activationRevision) {
+      return versionAdmissionKnown
+        && admissionConflictRevision !== activationRevision
+        && versionAdmission?.admissionEligible === true
+        && versionAdmission.activeVersion === definition.manifest.version
+        && versionAdmission.admissionReason === 'ELIGIBLE';
+    }
+
+    const activeVersion = ack.activeVersion;
+    const admissionEligible = ack.admissionEligible;
+    const admissionReason = ack.admissionReason;
+    const validTuple = (typeof activeVersion === 'string' || activeVersion === null)
+      && typeof admissionEligible === 'boolean'
+      && admissionReason !== undefined
+      && (admissionEligible
+        ? admissionReason === 'ELIGIBLE' && activeVersion === definition.manifest.version
+        : admissionReason !== 'ELIGIBLE');
+
+    if (revision > activationRevision) {
+      activationRevision = revision;
+      admissionConflictRevision = -1;
+      versionAdmission = undefined;
+      versionAdmissionKnown = false;
+    }
+    if (!validTuple) {
+      versionAdmissionKnown = false;
+      return false;
+    }
+
+    const next = { activeVersion, admissionEligible, admissionReason };
+    if (revision === activationRevision && versionAdmission) {
+      const same = versionAdmission.activeVersion === next.activeVersion
+        && versionAdmission.admissionEligible === next.admissionEligible
+        && versionAdmission.admissionReason === next.admissionReason;
+      if (!same) {
+        admissionConflictRevision = revision;
+        versionAdmissionKnown = false;
+        logger.error('runtime changed version admission without advancing its revision', {
+          activationRevision: revision,
+          code: 'WORKER_COMPATIBILITY_REQUIRED',
+        });
+        return false;
+      }
+    }
+    if (admissionConflictRevision === revision) return false;
+    versionAdmission = next;
+    versionAdmissionKnown = true;
+    return next.admissionEligible
+      && next.activeVersion === definition.manifest.version
+      && next.admissionReason === 'ELIGIBLE';
   };
   const applyAdmissionAck = async (
     ack: Awaited<ReturnType<RuntimeClient['heartbeatWorker']>>
@@ -416,11 +507,10 @@ export async function startWorker(
       backupFenceState = 'UNKNOWN';
       backupFenceAcknowledged = false;
       observedBackupFenceRevision = undefined;
-      admissionOpen = false;
+      await setClaimAdmission(false);
       for (const resolve of admissionWaiters) resolve();
       admissionWaiters.clear();
       for (const ctx of activeContexts) ctx.abort('compatibility');
-      await consumer?.pause?.();
       logger.error('runtime heartbeat omitted backupEffectFence; worker admission fails closed', {
         code: 'WORKER_COMPATIBILITY_REQUIRED',
       });
@@ -438,18 +528,12 @@ export async function startWorker(
       backupFenceAcknowledged ||= backupAck.acknowledged;
       observedBackupFenceRevision = backupAck.revision;
     }
-    const nextOpen = controlState === 'OPEN'
+    const versionEligible = applyVersionAdmission(ack);
+    const nextOpen = versionEligible
+      && controlState === 'OPEN'
       && backupFenceState === 'OPEN'
       && backupFenceAcknowledged;
-    if (admissionOpen === nextOpen) return true;
-    admissionOpen = nextOpen;
-    if (nextOpen) {
-      for (const resolve of admissionWaiters) resolve();
-      admissionWaiters.clear();
-      await consumer?.resume?.();
-    } else {
-      await consumer?.pause?.();
-    }
+    await setClaimAdmission(nextOpen);
     return true;
   };
   let heartbeatTimer: ReturnType<typeof setInterval> | undefined;
@@ -464,7 +548,13 @@ export async function startWorker(
       .then(async (ack) => {
         if (!stopped) await applyAdmissionAck(ack);
       })
-      .catch((err) => {
+      .catch(async (err) => {
+        // A 2xx response that cannot be parsed is not a current admission
+        // acknowledgement. Close only new claims; active contexts retain
+        // their ordinary lease and Runtime-side security fences.
+        if (err instanceof RuntimeError && err.status >= 200 && err.status < 300) {
+          await setClaimAdmission(false);
+        }
         logger.warn('worker heartbeat failed', { error: String(err) });
       })
       .finally(() => {
@@ -574,7 +664,7 @@ export async function startWorker(
   ): Promise<void> {
     if (delivery) await deferCurrentDelivery(job, delivery, reason, delayMs);
     if (stopped) throw new DeliveryRescheduleUnavailableError(reason);
-    if (!admissionOpen && !await waitForAdmission()) {
+    if (!claimAdmissionOpen && !await waitForClaimAdmission()) {
       throw new DeliveryRescheduleUnavailableError(reason);
     }
     if (!await waitForRetryDelay(delayMs)) {
@@ -607,9 +697,12 @@ export async function startWorker(
       },
       async () => {
         let claim: Awaited<ReturnType<RuntimeClient['claimTask']>>;
+        const claimKey = `${job.taskId}\u0000${job.deliveryId}`;
+        let ambiguousReplayCount = 0;
         for (;;) {
           if (stopped) throw new DeliveryRescheduleUnavailableError('worker shutdown');
-          if (!admissionOpen) {
+          const reconcilingAmbiguousClaim = ambiguousClaimKeys.has(claimKey);
+          if (!claimAdmissionOpen && !reconcilingAmbiguousClaim) {
             const delayMs = claimDeferralDelayMs(job.deliveryId, claimDeferrals);
             await waitOrDeferClaim(job, delivery, 'WORKER_ADMISSION_CLOSED', delayMs);
             continue;
@@ -628,15 +721,29 @@ export async function startWorker(
               await deferClaimAfterLeaseExpiry(job, delivery, 'WORKER_SHUTDOWN', claim.leaseExpiresAt);
             }
             claimDeferrals.delete(job.deliveryId);
+            ambiguousClaimKeys.delete(claimKey);
             break;
           } catch (err) {
             if (err instanceof RuntimeError && isAckSafeClaimError(err)) {
               claimDeferrals.delete(job.deliveryId);
+              ambiguousClaimKeys.delete(claimKey);
               logger.info('delivery is already terminal or safely owned elsewhere', {
                 status: err.status,
                 code: err.code,
               });
               return;
+            }
+            if (err instanceof RuntimeError && err.isAmbiguous) {
+              // Claim is idempotent for this exact tuple. Reconcile once even
+              // if a version cutover closed admission while the first request
+              // was in flight. A second lost response is delayed below.
+              rememberAmbiguousClaim(claimKey);
+              if (ambiguousReplayCount < 1) {
+                ambiguousReplayCount += 1;
+                continue;
+              }
+            } else {
+              ambiguousClaimKeys.delete(claimKey);
             }
             const code = err instanceof RuntimeError ? err.code : 'TEMPORARY_UNAVAILABLE';
             const retryAfterMs = err instanceof RuntimeError && err.status === 429 ? 5_000 : undefined;

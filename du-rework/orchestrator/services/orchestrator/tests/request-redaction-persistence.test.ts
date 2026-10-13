@@ -7,8 +7,14 @@ const input = { profileId: 'profile-privacy', apiKeyHash: 'hash', businessId: 'd
 
 function harness(previous: unknown) {
   const writes: unknown[][] = [];
+  const apiKey = { id: 'key', tenant_id: 'tenant', hash: 'hash', prefix: 'du_test', status: 'ACTIVE' };
   const client = { query: async (sql: string, params: unknown[] = []) => {
-    if (sql.includes('FROM api_keys')) return { rows: [{ id: 'key', tenant_id: 'tenant' }], rowCount: 1 };
+    if (sql.includes('FROM api_keys')) {
+      const matches = sql.includes('WHERE hash=$1')
+        ? params[0] === apiKey.hash && params[1] === apiKey.status
+        : sql.includes('WHERE id=$1') && params[0] === apiKey.id;
+      return { rows: matches ? [apiKey] : [], rowCount: matches ? 1 : 0 };
+    }
     if (sql.includes('max(revision)')) return { rows: [{ m: previous ? 1 : 0 }], rowCount: 1 };
     if (sql.includes('SELECT enabled')) return { rows: previous ? [previous] : [], rowCount: previous ? 1 : 0 };
     if (sql.includes('INSERT INTO profile_bindings')) writes.push(params);

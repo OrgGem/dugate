@@ -69,6 +69,7 @@ export const ENFORCED_METADATA_PURPOSES = [
   'global_settings.tenant_revision',
   'operations.tenant_defaults_ref',
   'operations.connector_recipe_pins_ref',
+  'connector_secret_imports.resolved_payload',
 ] as const;
 
 /** Storage purpose the crypto-storage facade applies when none is named. */

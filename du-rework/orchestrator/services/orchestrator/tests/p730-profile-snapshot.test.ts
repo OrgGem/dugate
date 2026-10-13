@@ -48,9 +48,14 @@ function makeSubmissionDb(artifactFileName?: string) {
 
   const query = async <T extends QueryResultRow = QueryResultRow>(sql: string, params: unknown[] = []) => {
     calls.push({ sql, params });
+    if (/FROM business_catalog/i.test(sql)) {
+      return queryResult<T>([{ enabled: true, activation_revision: 1, submissions_paused: false, pre_drain_version: null }]);
+    }
     if (/FROM business_versions/i.test(sql)) {
       return queryResult<T>([{
         version: '1.0.0',
+        status: 'ENABLED',
+        is_active: true,
         digest: 'sha256:p730-offline',
         queue: 'document-core',
         manifest: {
@@ -71,6 +76,15 @@ function makeSubmissionDb(artifactFileName?: string) {
     tx: async <T>(fn: (client: never) => Promise<T>): Promise<T> => fn({
       query: async <R extends QueryResultRow = QueryResultRow>(sql: string, params: unknown[] = []) => {
         calls.push({ sql, params });
+        if (/FROM business_catalog/i.test(sql)) {
+          return queryResult<R>([{ enabled: true, activation_revision: 1, submissions_paused: false, pre_drain_version: null }]);
+        }
+        if (/FROM business_versions/i.test(sql)) {
+          return queryResult<R>([{
+            version: '1.0.0', status: 'ENABLED', is_active: true, digest: 'sha256:p730-offline',
+            manifest: { actions: [{ name: 'extract', inputSchema: { type: 'object', additionalProperties: true } }], runtime: { handlerKinds: ['root'] } },
+          }]);
+        }
         if (sql.includes('FROM api_keys k')) return queryResult<R>([{ name: 'profile-fixture', spending_limit: '0', total_used: '0', new_cost: '0' }]);
         if (/FROM artifacts/i.test(sql)) return queryResult<R>(artifactRows);
         if (/INSERT INTO operations/i.test(sql)) {
@@ -158,6 +172,7 @@ function makeRuntimeWorld(options: RuntimeWorldOptions) {
     payload_ref: {},
     state: 'READY',
     attempt: 0,
+    max_attempts: 3,
     lease_epoch: 0,
     lease_expires_at: null,
     leased_by: null,
@@ -185,6 +200,24 @@ function makeRuntimeWorld(options: RuntimeWorldOptions) {
       const pendingWrites: string[] = [];
       const client = {
         query: async <R extends QueryResultRow = QueryResultRow>(sql: string): Promise<QueryResult<R>> => {
+          if (/FROM business_catalog/i.test(sql)) {
+            return queryResult<R>([{ enabled: true, activation_revision: 1, submissions_paused: false, pre_drain_version: null }]);
+          }
+          if (/FROM business_versions/i.test(sql)) {
+            return queryResult<R>([{ version: '1.0.0', status: 'ENABLED', is_active: true, digest: 'sha256:p730-offline' }]);
+          }
+          if (/FROM worker_instances wi/i.test(sql)) return queryResult<R>([{
+            business_version: '1.0.0', heartbeat_manifest_digest: 'sha256:p730-offline',
+            registered_manifest_digest: 'sha256:p730-offline', state: 'ONLINE', capacity: 4,
+            heartbeat_fresh: true, control_revision: 1, control_state: 'OPEN',
+            desired_control_revision: 1, desired_control_state: 'OPEN',
+          }]);
+          if (/INSERT INTO runtime_control_scopes/i.test(sql)) return queryResult<R>([], 'INSERT');
+          if (/FROM runtime_control_scopes/i.test(sql)) return queryResult<R>([
+            { scope_kind: 'platform', scope_id: 'all', desired_state: 'OPEN', revision: 1 },
+            { scope_kind: 'tenant', scope_id: TENANT_ID, desired_state: 'OPEN', revision: 1 },
+            { scope_kind: 'business', scope_id: BUSINESS_ID, desired_state: 'OPEN', revision: 1 },
+          ]);
           if (/FROM tasks t/i.test(sql) && /JOIN operations o/i.test(sql)) {
             return queryResult<R>([taskRow]);
           }

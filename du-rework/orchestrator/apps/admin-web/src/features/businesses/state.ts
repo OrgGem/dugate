@@ -13,6 +13,26 @@ function revision(value: unknown): number | null {
   return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : null;
 }
 
+function count(value: unknown): number | null {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
+}
+
+function countsByReason(value: unknown): Record<string, number> | null {
+  if (!isRecord(value)) return null;
+  return Object.fromEntries(Object.entries(value).flatMap(([reason, rawCount]) => {
+    const parsedCount = count(rawCount);
+    return reason.length > 0 && parsedCount !== null ? [[reason, parsedCount]] : [];
+  }));
+}
+
+export function activationRevisionMatches(
+  displayedRevision: number | null | undefined,
+  refreshedRevision: number | null | undefined,
+): displayedRevision is number {
+  return typeof displayedRevision === 'number' && Number.isSafeInteger(displayedRevision)
+    && displayedRevision > 0 && refreshedRevision === displayedRevision;
+}
+
 export function parseBusinessPage(value: unknown): BusinessPage | null {
   if (!isRecord(value) || !Array.isArray(value['items'])) return null;
   const items: BusinessRow[] = [];
@@ -23,6 +43,11 @@ export function parseBusinessPage(value: unknown): BusinessPage | null {
     items.push({
       businessId,
       activeVersion: str(raw['activeVersion']),
+      activationRevision: revision(raw['activationRevision']),
+      admissionEligible: typeof raw['admissionEligible'] === 'boolean' ? raw['admissionEligible'] : null,
+      admissionReason: str(raw['admissionReason']),
+      submissionsPaused: typeof raw['submissionsPaused'] === 'boolean' ? raw['submissionsPaused'] : null,
+      preDrainVersion: str(raw['preDrainVersion']),
       version: str(raw['version']),
       status: str(raw['status']) ?? '—',
       updatedAt: str(raw['updatedAt']),
@@ -52,12 +77,21 @@ export function parseBusinessVersions(value: unknown): BusinessVersions | null {
       version,
       status: str(raw['status']) ?? '—',
       isActive: raw['isActive'] === true || raw['is_active'] === true,
+      admissionEligible: typeof raw['admissionEligible'] === 'boolean' ? raw['admissionEligible'] : null,
+      admissionReason: str(raw['admissionReason']),
+      parkedTaskCount: count(raw['parkedTaskCount']),
+      drainingTaskCount: count(raw['drainingTaskCount']),
+      parkedReasons: countsByReason(raw['parkedReasons']),
       updatedAt: str(raw['updatedAt']),
     });
   }
   return {
     businessId,
     activeVersion: str(value['activeVersion']),
+    activationRevision: revision(value['activationRevision']),
+    submissionsPaused: typeof value['submissionsPaused'] === 'boolean' ? value['submissionsPaused'] : null,
+    preDrainVersion: str(value['preDrainVersion']),
+    remainingOperations: count(value['remainingOperations']),
     rows,
     enabled: typeof value['enabled'] === 'boolean' ? value['enabled'] : null,
     lifecycleRevision: revision(value['lifecycleRevision']),

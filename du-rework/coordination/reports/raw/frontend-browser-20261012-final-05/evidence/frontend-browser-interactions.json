@@ -1,0 +1,140 @@
+[
+  {
+    "scenario": "long-account-display-name-at-320px",
+    "passed": true,
+    "details": {
+      "documentWidth": 320,
+      "viewportWidth": 320,
+      "headerWidth": 320,
+      "accountWidth": 219.234375,
+      "accountRight": 235.234375,
+      "logoutLeft": 243.234375,
+      "logoutRight": 304,
+      "displayNameClientWidth": 161,
+      "displayNameScrollWidth": 161,
+      "displayNameText": "Operations Administrator with a deliberately long account display name for 320 pixel phones · Profile"
+    }
+  },
+  {
+    "scenario": "trace-invalid-query-error-input-action-alignment",
+    "passed": true,
+    "details": {
+      "inputTop": 338,
+      "actionTop": 338,
+      "verticalDelta": 0,
+      "errorHeight": 16,
+      "documentWidth": 1440,
+      "viewportWidth": 1440
+    }
+  },
+  {
+    "scenario": "secrets-next-first-tenant-reset-and-mobile-bounds",
+    "passed": true,
+    "details": {
+      "viewport": 320,
+      "requestOrder": [
+        "11111111-1111-4111-8111-111111111111:first",
+        "11111111-1111-4111-8111-111111111111:Tenant A-next",
+        "11111111-1111-4111-8111-111111111111:first",
+        "22222222-2222-4222-8222-222222222222:first"
+      ],
+      "firstPageRows": 50,
+      "pageTwoRowVisible": "Tenant A secret 51",
+      "changedTenantFirstRow": "Tenant B secret 01",
+      "regionBounds": {
+        "clientHeight": 518,
+        "scrollHeight": 6178,
+        "maxHeight": 520
+      }
+    }
+  },
+  {
+    "scenario": "secrets-pending-mutation-tenant-scope-race",
+    "passed": true,
+    "details": {
+      "requestOrder": [
+        "11111111-1111-4111-8111-111111111111:first",
+        "22222222-2222-4222-8222-222222222222:first"
+      ],
+      "dialogDismissedWhileMutationPending": true,
+      "visibleTenantBRowAfterMutationAResolved": "Tenant B secret 01",
+      "tenantBRequestsHaveNoCursor": true
+    }
+  },
+  {
+    "scenario": "business-next-cursor-failure-retry-and-workflow-profile-paging-persistence",
+    "passed": true,
+    "details": {
+      "businessRequestOrder": [
+        "first",
+        "business-next",
+        "business-next",
+        "first"
+      ],
+      "profileRequestOrder": [
+        "first",
+        "profiles-next"
+      ],
+      "failedNextKeptOnPageOne": true,
+      "retryUsedSameCursor": "business-next",
+      "selectedWorkflowProfileAfterProfilesPageTwo": "beta",
+      "selectedProfileWorkflowSlug": "wf-for-beta"
+    }
+  },
+  {
+    "scenario": "connector-catalog-selection-locked-during-pending-mutation",
+    "passed": true,
+    "details": {
+      "action": "connector.activate",
+      "selectedRowDuringBusy": "alpha@1",
+      "betaNameButtonDisabledDuringBusy": true,
+      "testOnlyBusyRowEventDidNotChangeSelection": true,
+      "selectedRowAfterRelease": "beta@1",
+      "connectorRequests": [
+        "GET /admin/api/connectors/capabilities",
+        "GET /admin/api/connectors",
+        "GET /admin/api/connectors/alpha/revisions/1",
+        "GET /admin/api/connectors",
+        "GET /admin/api/connectors/alpha/revisions/1",
+        "GET /admin/api/connectors/beta/revisions/1"
+      ]
+    }
+  },
+  {
+    "scenario": "settings-local-prompt-draft-survives-tab-return",
+    "passed": true,
+    "details": {
+      "draftPreserved": true,
+      "serverMutationSent": false,
+      "selectedScope": "11111111-1111-4111-8111-111111111111:settings-key-ux:extract:invoice"
+    }
+  },
+  {
+    "scenario": "workflow-connector-mapping-bounded-accessible-overflow",
+    "passed": true,
+    "details": {
+      "clientHeight": 547,
+      "scrollHeight": 7308,
+      "clientWidth": 314,
+      "scrollWidth": 314,
+      "maxHeight": 548.6,
+      "documentWidth": 390,
+      "viewportWidth": 390
+    }
+  },
+  {
+    "scenario": "profiles-delayed-old-filter-next-response-ignored",
+    "passed": true,
+    "details": {
+      "profileRequestOrder": [
+        "all:first",
+        "business-a:first",
+        "business-a:a-next",
+        "business-b:first"
+      ],
+      "delayedRequest": "business-a:a-next",
+      "currentFilter": "business-b",
+      "visibleRowAfterOldResponseReleased": "business-b-first"
+    }
+  }
+]

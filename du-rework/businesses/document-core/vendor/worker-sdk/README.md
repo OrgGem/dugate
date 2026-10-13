@@ -70,6 +70,26 @@ finishing. Shutdown waits for the local request to settle before retirement,
 but a late server completion can recreate an inventory row; the 24-hour cleanup
 is the fallback for that ambiguous transport case.
 
+## Version admission and task drain
+
+The worker heartbeat keeps version eligibility separate from control state and
+the backup-effect fence. The SDK requires a complete current admission tuple:
+`activeVersion`, positive `activationRevision`, `admissionEligible`, and
+`admissionReason`. Missing or unknown values close new claims. A lower revision
+cannot reopen the consumer, and conflicting tuples at the same revision remain
+closed until a higher revision is observed. Version cutover pauses new claims
+without aborting already-claimed task contexts; those tasks continue their
+lease heartbeats and lease-bound checkpoints, grants, effects, and settlement.
+Existing cancellation, lease, control, and backup-fence rules remain in force.
+
+Admission and capacity claim refusals are deferred with bounded backoff and do
+not consume attempts. `TASK_ATTEMPTS_EXHAUSTED` is settled only when the Runtime
+has committed terminal state and returns the ACK-safe terminal response.
+If a claim response is ambiguous, the SDK makes one exact-identity replay while
+the delivery callback is still active, even if admission closed meanwhile.
+Runtime may return the existing valid lease for that replay; the retry cannot
+claim a different delivery or start new work for the inactive version.
+
 Document Core's local dev runner consumes prebuilt workspace dependency
 artifacts and does not watch SDK source. After changing the SDK lifecycle, stop
 the current Document Core dev process, rebuild the SDK from `orchestrator/`,

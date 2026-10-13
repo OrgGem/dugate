@@ -9,7 +9,8 @@
  * correctly WITHIN each sort and could not see a cross-sort replay at all.
  *
  * W-ADMUX02-SORT-CURSOR-BIND-1 binds the ordering into the token
- * (`<ISO>|<uuid>|<field>:<direction>[|p]`) and rejects a mismatch. These tests
+ * (`<ISO>|<uuid>|<field>:<direction>|<population fingerprint>[|p]`) and rejects
+ * a mismatch. These tests
  * drive the real route with a recording fake db — offline: no PG, no Redis, no
  * sockets — and pin what the finding demands: every minted token names its
  * ordering; a mismatch is a 422 raised before any query runs; tokens written
@@ -95,7 +96,8 @@ function ctxFor(search: string, calls: Call[]): RouteContext {
   };
   return {
     method: 'GET',
-    pathname: '/api/v1/operations',
+    pathname: '/api/internal/operations',
+    ingressAudience: 'internal',
     searchParams: new URLSearchParams(search),
     headers: { authorization: 'Bearer ' + ADMIN_TOKEN },
     config: { adminToken: ADMIN_TOKEN },
@@ -148,8 +150,8 @@ async function run(search: string, calls: Call[] = []): Promise<Outcome> {
   }
 }
 
-async function mint(sortSpec: string | null, extra = ''): Promise<string> {
-  const search = 'limit=1' + (sortSpec === null ? '' : '&sort=' + sortSpec) + extra;
+async function mint(sortSpec: string | null, extra = '', limit = 1): Promise<string> {
+  const search = `limit=${limit}` + (sortSpec === null ? '' : '&sort=' + sortSpec) + extra;
   const out = await run(search);
   if (!out.ok) throw new Error('minting request was rejected: ' + out.status + ' ' + out.code);
   const cursor = out.body['nextCursor'];
@@ -162,9 +164,11 @@ async function mint(sortSpec: string | null, extra = ''): Promise<string> {
 describe('T140-A1: a minted cursor names the ordering it is a position in', () => {
   it.each([...OPERATIONS_LIST_SORT_VALUES])('%s carries its own spec in the token', async (sort) => {
     const parts = tokenParts(await mint(sort));
-    // [key, uuid, ordering]: the third slot is the whole point of the packet.
-    expect(parts).toHaveLength(3);
+    // [key, uuid, ordering, population fingerprint] bind the position to both
+    // the sort and the authorized query population.
+    expect(parts).toHaveLength(4);
     expect(parts[2]).toBe(sort);
+    expect(parts[3]).toMatch(/^[A-Za-z0-9_-]{11}$/);
   });
 
   it('the boundary key moves with the sort instead of always being created_at', async () => {
@@ -181,14 +185,19 @@ describe('T140-A1: a minted cursor names the ordering it is a position in', () =
     const prevParts = tokenParts(out.body['prevCursor'] as string);
     expect(nextParts[2]).toBe('deadline_at:asc');
     expect(prevParts[2]).toBe('deadline_at:asc');
-    // The backward marker is a fourth slot, after the ordering: one ?cursor=
+    expect(nextParts[3]).toMatch(/^[A-Za-z0-9_-]{11}$/);
+    expect(prevParts[3]).toBe(nextParts[3]);
+    // The backward marker follows the population fingerprint; one ?cursor=
     // parameter still serves both hops.
-    expect(prevParts).toHaveLength(4);
-    expect(prevParts[3]).toBe('p');
+    expect(prevParts).toHaveLength(5);
+    expect(prevParts[4]).toBe('p');
   });
 
   it('the walk direction and the sort direction are separate axes', async () => {
-    const backward = buildToken('2026-12-01T00:00:00.000Z', POPULATION[0]!.id, 'deadline_at:asc', true);
+    const forward = await mint('deadline_at:asc');
+    const secondPage = await run(`limit=1&sort=deadline_at:asc&cursor=${encodeURIComponent(forward)}`);
+    const backward = secondPage.body['prevCursor'] as string;
+    expect(tokenParts(backward).at(-1)).toBe('p');
     const same: Call[] = [];
     expect((await run('limit=1&sort=deadline_at:asc&cursor=' + backward, same)).ok).toBe(true);
     expect(same.length).toBeGreaterThan(0);
@@ -315,7 +324,7 @@ describe('T140-A1 compatibility: tokens written before the sort parameter existe
     const out = await run('limit=1&cursor=' + LEGACY, calls);
     expect(out.ok).toBe(true);
     const page = pageCall(calls);
-    expect(page.sql).toContain('WHERE (created_at, id) < ($1::timestamptz, $2::uuid)');
+    expect(page.sql).toContain('WHERE deleted_at IS NULL AND (created_at, id) < ($1::timestamptz, $2::uuid)');
     // The whole bind list rather than a contains-check: the token's key and id
     // land first and the LIMIT probe last, exactly as they did before the sort
     // parameter existed and before the ordering slot was added.
@@ -331,7 +340,7 @@ describe('T140-A1 compatibility: tokens written before the sort parameter existe
     // the new slot parsing mistook |p for an ordering (or an ordering for the
     // marker), this is where a previous-page link silently becomes a forward
     // page — the failure W-ADMUX02-SRV-1-FIX was written for.
-    expect(page.sql).toContain('WHERE (created_at, id) > ($1::timestamptz, $2::uuid)');
+    expect(page.sql).toContain('WHERE deleted_at IS NULL AND (created_at, id) > ($1::timestamptz, $2::uuid)');
     expect(page.sql).toContain('ORDER BY created_at ASC, id ASC');
   });
 
@@ -339,7 +348,7 @@ describe('T140-A1 compatibility: tokens written before the sort parameter existe
     const calls: Call[] = [];
     await run('limit=1&cursor=' + LEGACY, calls);
     expect(pageCall(calls).sql).toBe(
-      `SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations WHERE (created_at, id) < ($1::timestamptz, $2::uuid) ORDER BY created_at DESC, id DESC LIMIT $3`
+      `SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations WHERE deleted_at IS NULL AND (created_at, id) < ($1::timestamptz, $2::uuid) ORDER BY created_at DESC, id DESC LIMIT $3`
     );
   });
 
@@ -369,19 +378,29 @@ describe('companion finding: every emitted page statement is one a database can 
   // Every cursor here names the ordering its own request asks for, so the
   // binding guard is not what these cases exercise: the only question is
   // whether the assembled statement is one a database can parse.
-  const combos: { label: string; search: string; cursor: string }[] = [
-    { label: 'no filter, forward cursor', search: '', cursor: LEGACY },
-    { label: 'no filter, backward cursor', search: '', cursor: LEGACY_BACK },
-    { label: 'no filter, no cursor', search: '', cursor: '' },
-    { label: 'state filter with a cursor', search: 'state=RUNNING&', cursor: LEGACY },
-    { label: 'tenant and id filters with a cursor', search: 'tenant=' + TENANT_A + '&id=2222&', cursor: LEGACY },
-    { label: 'nullable sort key with a cursor', search: 'sort=deadline_at:desc&', cursor: buildToken('2026-12-01T00:00:00.000Z', POPULATION[0]!.id, 'deadline_at:desc') },
-    { label: 'ascending nullable key backward', search: 'sort=deadline_at:asc&', cursor: buildToken('2026-11-01T00:00:00.000Z', POPULATION[1]!.id, 'deadline_at:asc', true) },
+  const combos: { label: string; extra: string; sort: string | null; legacy?: 'next' | 'prev'; noCursor?: boolean }[] = [
+    { label: 'no filter, forward legacy cursor', extra: '', sort: null, legacy: 'next' },
+    { label: 'no filter, backward legacy cursor', extra: '', sort: null, legacy: 'prev' },
+    { label: 'no filter, no cursor', extra: '', sort: null, noCursor: true },
+    { label: 'state filter with matching population cursor', extra: '&state=RUNNING', sort: null },
+    { label: 'tenant and id filters with matching population cursor', extra: '&tenant=' + TENANT_A + '&id=2222', sort: null },
+    { label: 'nullable sort key with matching population cursor', extra: '', sort: 'deadline_at:desc' },
+    { label: 'ascending nullable key backward', extra: '', sort: 'deadline_at:asc', legacy: 'prev' },
   ];
 
-  it.each(combos)('$label', async ({ search, cursor }) => {
+  it.each(combos)('$label', async ({ extra, sort, legacy, noCursor }) => {
+    const limit = 2;
+    let cursor: string | null = null;
+    if (legacy === 'next') cursor = LEGACY;
+    else if (legacy === 'prev' && sort === null) cursor = LEGACY_BACK;
+    else if (legacy === 'prev' && sort !== null) {
+      const forward = await mint(sort, extra, limit);
+      const page = await run(`limit=${limit}&sort=${sort}${extra}&cursor=${encodeURIComponent(forward)}`);
+      cursor = String(page.body['prevCursor']);
+    } else if (!noCursor) cursor = await mint(sort, extra, limit);
     const calls: Call[] = [];
-    const request = 'limit=2&' + search + (cursor.length === 0 ? '' : 'cursor=' + cursor);
+    const request = `limit=${limit}` + (sort === null ? '' : `&sort=${sort}`) + extra
+      + (cursor === null ? '' : `&cursor=${encodeURIComponent(cursor)}`);
     expect((await run(request, calls)).ok).toBe(true);
     const page = pageCall(calls);
     // Whatever sits between the table name and the ORDER BY is the predicate
@@ -392,7 +411,7 @@ describe('companion finding: every emitted page statement is one a database can 
     if (middle.length > 0) expect(middle.startsWith(' WHERE ')).toBe(true);
     expect(page.sql).not.toMatch(/operations\s+AND\b/i);
     // Placeholder numbering stays dense and ends at the bind list: filters,
-    // then the NULL sentinel, then the boundary key and id, then LIMIT. A gap
+    // then the boundary key and id, then LIMIT. A gap
     // or a repeat means two builders disagree about who pushed what, and pg
     // would silently bind the wrong value into the boundary.
     const numbers = [...page.sql.matchAll(/\$(\d+)/g)].map((m) => Number(m[1]));
@@ -400,6 +419,12 @@ describe('companion finding: every emitted page statement is one a database can 
     expect(unique).toEqual(Array.from({ length: unique.length }, (_, i) => i + 1));
     expect(unique[unique.length - 1]).toBe(page.params.length);
     expect(page.params[page.params.length - 1]).toBe(3);
+    if (cursor && legacy === undefined && !noCursor) {
+      const boundary = /\) [<>] \(\$(\d+)::timestamptz, \$(\d+)::uuid\)/.exec(page.sql);
+      expect(boundary).not.toBeNull();
+      expect(page.params[Number(boundary?.[1]) - 1]).toBe(tokenParts(cursor)[0]);
+      expect(page.params[Number(boundary?.[2]) - 1]).toBe(tokenParts(cursor)[1]);
+    }
   });
 });
 
@@ -453,35 +478,46 @@ describe('T140-A1: an ordering slot this route never minted is invalid, never a 
   });
 });
 
-describe('T140-A1 scope: the cursor is bound to the ordering, to nothing else', () => {
-  it('filters may change under a cursor: a position is not a query', async () => {
+describe('T140-A1 scope: a cursor is bound to its ordering and authorized population', () => {
+  it('a cursor is rejected when a filter changes the population', async () => {
     const token = await mint('created_at:desc', '&state=RUNNING');
     const calls: Call[] = [];
     const out = await run('limit=1&state=FAILED&cursor=' + encodeURIComponent(token), calls);
-    expect(out.ok).toBe(true);
-    expect(pageCall(calls).sql).toContain('state = ANY(');
-    // Same keyset position, different population: legal by design. The
-    // boundary is still a row the caller has seen, and binding filters into
-    // the token would break every deep link that changes a filter while
-    // staying on a page.
-    expect(pageCall(calls).params[pageCall(calls).params.length - 3]).toBe('2026-09-25T12:00:01.000Z');
+    expect(out.status).toBe(422);
+    expect(out.code).toBe('INVALID_SCHEMA');
+    expect(out.detail).toContain('another authorized scope or filter population');
+    expect(calls).toHaveLength(0);
   });
 
-  it('the page size may change under a cursor', async () => {
+  it('a cursor is rejected when replayed under another tenant scope', async () => {
+    const token = await mint('created_at:desc');
+    const calls: Call[] = [];
+    const out = await run(
+      `limit=1&sort=created_at:desc&tenant=${TENANT_A}&cursor=${encodeURIComponent(token)}`,
+      calls,
+    );
+    expect(out.status).toBe(422);
+    expect(out.code).toBe('INVALID_SCHEMA');
+    expect(out.detail).toContain('another authorized scope or filter population');
+    expect(calls).toHaveLength(0);
+  });
+
+  it('a cursor is rejected when the page size changes', async () => {
     const token = await mint('updated_at:desc');
     const calls: Call[] = [];
-    expect((await run('limit=3&sort=updated_at:desc&cursor=' + encodeURIComponent(token), calls)).ok).toBe(true);
-    expect(pageCall(calls).params).toContain(4);
+    const out = await run('limit=3&sort=updated_at:desc&cursor=' + encodeURIComponent(token), calls);
+    expect(out.status).toBe(422);
+    expect(out.code).toBe('INVALID_SCHEMA');
+    expect(out.detail).toContain('another authorized scope or filter population');
+    expect(calls).toHaveLength(0);
   });
 
-  it('the ordering slot is normalised the same way the query parameter is', async () => {
-    // The slot is read by the contract parser, which trims and lowercases, so
-    // an upper-case slot from a hand-built URL binds to the same ordering.
-    const token = buildToken('2026-12-01T00:00:00.000Z', UUID, 'DEADLINE_AT:DESC');
-    const calls: Call[] = [];
-    expect((await run('limit=1&sort=deadline_at:desc&cursor=' + token, calls)).ok).toBe(true);
-    expect(calls.length).toBeGreaterThan(0);
-    const other: Call[] = [];
-    expect((await run('limit=1&sort=deadline_at:asc&cursor=' + token, other)).status).toBe(422);
+  it('the ordering slot is normalised by the parser', () => {
+    const token = rawToken(`${KEY}|${UUID}|DEADLINE_AT:DESC|AAAAAAAAAAA`);
+    const parsed = parseOperationsListQuery(new URLSearchParams(
+      'sort=deadline_at:desc&cursor=' + encodeURIComponent(token),
+    ));
+    expect(parsed.cursor?.sort).toEqual({ field: 'deadline_at', direction: 'desc' });
+    expect(parsed.sort).toEqual(parsed.cursor?.sort);
   });
 });

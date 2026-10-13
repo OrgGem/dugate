@@ -81,7 +81,11 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
             {leftIcon}
           </span>
         )}
-        {children && <span>{children}</span>}
+        {children && (
+          <span className="inline-flex min-w-0 shrink-0 items-center gap-2 whitespace-nowrap [&>svg]:shrink-0">
+            {children}
+          </span>
+        )}
         {!isLoading && rightIcon && (
           <span className="shrink-0" aria-hidden="true">
             {rightIcon}

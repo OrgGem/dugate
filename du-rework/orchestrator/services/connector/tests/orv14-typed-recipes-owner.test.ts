@@ -22,7 +22,9 @@ class ClaimSql implements SqlClient {
     const sql = text.replace(/\s+/g, ' ').trim().toLowerCase();
     const params = values;
     let rows: object[] = [];
-    if (sql.includes('pg_advisory_xact_lock')) {
+    if (sql.startsWith('select fence_id,fence_revision,state from connector_backup_effect_gate')) {
+      rows = [{ fence_id: null, fence_revision: 0, state: 'OPEN' }];
+    } else if (sql.includes('pg_advisory_xact_lock')) {
       rows = [];
     } else if (sql.startsWith('select tenant_id from connector_parity_chains where connector_id=$1')) {
       const owner = this.owners.get(String(params[0]));

@@ -39,10 +39,10 @@ describe('AWEB-12 tenant-fenced profile list', () => {
 
     expect(page).toMatchObject({ rows: [], total: 0, nextCursor: null, prevCursor: null });
     expect(calls).toHaveLength(2);
-    expect(calls[0]?.sql).toContain('n.tenant_id = $1 AND n.business_id = $2');
+    expect(calls[0]?.sql).toContain('n.tenant_id = $1 AND n.group_id IS NULL AND n.business_id = $2');
     expect(calls[0]?.params).toEqual([TENANT_ID, 'document-core', 26]);
     expect(calls[1]?.sql).toContain('FROM profile_names n');
-    expect(calls[1]?.sql).toContain('n.tenant_id = $1 AND n.business_id = $2');
+    expect(calls[1]?.sql).toContain('n.tenant_id = $1 AND n.group_id IS NULL AND n.business_id = $2');
     expect(calls[1]?.params).toEqual([TENANT_ID, 'document-core']);
     expect(calls[0]?.sql).not.toContain('raw_key');
   });

@@ -18,7 +18,7 @@ function newIdempotencyKey(): string {
 /** Platform-admin key lifecycle surface. Secrets exist only in the mutation response and this short-lived view. */
 export function ApiKeysScreen() {
   const client = useMemo(() => createAdminApiClient(), []);
-  const { tenantId, tenant, loading: tenantLoading, tenantLoadError } = useTenant();
+  const { tenantId, loading: tenantLoading, tenantLoadError } = useTenant();
   const [session, setSession] = useState<AdminWebSession | null>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
   const [page, setPage] = useState<PageState>({ kind: 'loading' });
@@ -117,7 +117,6 @@ export function ApiKeysScreen() {
       </header>
       {tenantLoadError ? <AlertBanner variant="error" title="Tenant roster unavailable">{tenantLoadError}</AlertBanner> : null}
       {!tenantId ? <AlertBanner variant="warning" title="Choose a tenant">Select a tenant in the app header before managing its keys.</AlertBanner> : null}
-      {tenant ? <p className="text-sm">Managing <strong>{tenant.name}</strong> · <code>{tenant.id}</code></p> : null}
       {error ? <AlertBanner variant="error" title="API key change failed">{error}</AlertBanner> : null}
       {notice ? <AlertBanner variant="success" title="API key status">{notice}</AlertBanner> : null}
       {secretOnce ? (
@@ -150,8 +149,8 @@ export function ApiKeysScreen() {
           {page.kind === 'loading' ? <LoadingState title="Loading API keys…" /> : null}
           {page.kind === 'failed' ? <AlertBanner variant="error" title={page.problem.title ?? 'API key inventory unavailable'}>{page.problem.status} · {page.problem.code ?? 'ERROR'}</AlertBanner> : null}
           {page.kind === 'ready' && page.items.length === 0 ? <EmptyState title="No API keys found" description="Try another search or issue a key for this tenant." /> : null}
-          {page.kind === 'ready' && page.items.length > 0 ? <div className="flex flex-col divide-y divide-[var(--border-subtle)] rounded border border-[var(--border-subtle)]">
-            {page.items.map((key) => <article key={key.id} className="flex flex-col gap-3 p-4">
+          {page.kind === 'ready' && page.items.length > 0 ? <div className="max-h-[min(65dvh,40rem)] min-w-0 overflow-auto rounded border border-[var(--border-subtle)] divide-y divide-[var(--border-subtle)]" role="region" aria-label="Loaded API keys" tabIndex={0}>
+            {page.items.map((key) => <article key={key.id} className="flex min-w-0 flex-col gap-3 p-3">
               <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><strong>{key.note || 'Untitled key'}</strong><Badge variant={key.status === 'ACTIVE' ? 'success' : 'neutral'}>{key.status}</Badge>{key.protected ? <Badge variant="warning">protected</Badge> : null}</div><p className="mt-1 text-xs text-[var(--text-sub)]">Prefix <code>{key.prefix}</code> · ID <code>{key.id}</code> · version {key.version} · updated {key.updatedAt}</p><p className="mt-1 text-xs text-[var(--text-sub)]">Profiles: {key.profileIds.length ? key.profileIds.join(', ') : 'none'}</p></div>
                 <div className="flex flex-wrap gap-2">{key.status === 'ACTIVE' ? <><Button size="sm" variant="outline" disabled={saving || key.protected} onClick={() => setConfirm({ kind: 'rotate', key })}>Rotate</Button><Button size="sm" variant="destructive" disabled={saving || key.protected} onClick={() => setConfirm({ kind: 'revoke', key })}>Revoke</Button></> : null}</div>
               </div>

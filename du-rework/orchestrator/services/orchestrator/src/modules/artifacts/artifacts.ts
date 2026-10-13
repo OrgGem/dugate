@@ -88,7 +88,12 @@ export interface ArtifactService {
   /** Exact-version deletion for the audited maintenance engine. This claims
    * an unreferenced row before touching storage and never deletes active or
    * operation/task-pinned content. Ambiguous physical deletion is UNKNOWN. */
-  expireForMaintenance(artifactId: string, mode?: 'orphan' | 'retention'): Promise<{ status: 'DELETED' | 'SKIPPED' | 'UNKNOWN'; code: string | null }>;
+  expireForMaintenance(artifactId: string, mode?: 'orphan'): Promise<{ status: 'DELETED' | 'SKIPPED' | 'UNKNOWN'; code: string | null }>;
+  expireForMaintenance(
+    artifactId: string,
+    mode: 'retention',
+    fence: MaintenanceRetentionFence,
+  ): Promise<{ status: 'DELETED' | 'SKIPPED' | 'UNKNOWN'; code: string | null }>;
   /** Read ciphertext plus its exact encryption sidecar for the internal
    * checksummed maintenance bundle. The caller already holds the immutable
    * metadata snapshot; this helper resolves the pinned generation only. */
@@ -130,6 +135,12 @@ export interface ArtifactService {
   cleanupUnlinkedPublicArtifacts(tenantId: string, artifactIds: readonly string[]): Promise<{ deleted: number; deferred: number }>;
   /** Retry durable compensation intents; safe to call from the recovery loop. */
   sweepPublicArtifactCleanup(limit?: number): Promise<{ scanned: number; deleted: number; deferred: number }>;
+}
+
+export interface MaintenanceRetentionFence {
+  expectedRevision: number;
+  /** The oldest operation completion time authorized by the preview. */
+  cutoff: string;
 }
 
 /** Authenticated integrity facts keep logical content distinct from immutable
@@ -1655,10 +1666,19 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
       return { contents, pins };
     },
 
-    async expireForMaintenance(artifactId: string, mode: 'orphan' | 'retention' = 'orphan'): Promise<{ status: 'DELETED' | 'SKIPPED' | 'UNKNOWN'; code: string | null }> {
+    async expireForMaintenance(
+      artifactId: string,
+      mode: 'orphan' | 'retention' = 'orphan',
+      retentionFence?: MaintenanceRetentionFence,
+    ): Promise<{ status: 'DELETED' | 'SKIPPED' | 'UNKNOWN'; code: string | null }> {
       const effects = options.backupArtifactEffects;
       const writeGate = options.backupSnapshotWriteGate;
       if (!effects || !writeGate) return { status: 'UNKNOWN', code: 'BACKUP_EFFECTS_UNAVAILABLE' };
+      if (mode === 'retention' && (!retentionFence
+        || !Number.isSafeInteger(retentionFence.expectedRevision) || retentionFence.expectedRevision < 0
+        || typeof retentionFence.cutoff !== 'string' || !Number.isFinite(Date.parse(retentionFence.cutoff)))) {
+        return { status: 'SKIPPED', code: 'RETENTION_FENCE_INVALID' };
+      }
 
       interface MaintenanceArtifactRow {
         id: string; tenantId: string | null; state: string; purpose: string; operationId: string | null; taskId: string | null;
@@ -1708,12 +1728,52 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
       if (effect.state === 'COMPLETED') return { status: 'DELETED', code: null };
       if (effect.state !== 'PREPARED') return { status: 'UNKNOWN', code: 'CLEANUP_RECONCILIATION_REQUIRED' };
 
-      let preparation: { status: 'ELIGIBLE'; row: MaintenanceArtifactRow } | { status: 'INELIGIBLE' | 'FENCE_BLOCKED' };
+      let preparation: { status: 'ELIGIBLE'; row: MaintenanceArtifactRow }
+        | { status: 'INELIGIBLE' | 'FENCE_BLOCKED' | 'POLICY_CHANGED' | 'RETENTION_WINDOW_OPEN' };
       try {
         preparation = await db.tx(async (client) => {
           await writeGate.assertWriteAllowed(client, {
             tenantId: initial.tenantId, domain: 'artifact-metadata', requestKey: effectKey,
           });
+          if (mode === 'retention') {
+            const fence = retentionFence!;
+            const policy = await client.query<{
+              active_revision: number | string;
+              policy_revision: number | string | null;
+              cutoff_allowed: boolean | null;
+            }>(
+              `SELECT h.active_revision,r.revision AS policy_revision,
+                      CASE WHEN r.revision IS NULL THEN false
+                           ELSE $1::timestamptz <= clock_timestamp()
+                             - ((r.settings->>'outputRetentionDays')::int * interval '1 day') END AS cutoff_allowed
+                 FROM global_settings_retention_head h
+                 LEFT JOIN global_settings_retention_revisions r
+                   ON r.revision=h.active_revision AND r.state='PUBLISHED'
+                WHERE h.singleton=true FOR SHARE OF h`,
+              [fence.cutoff],
+            );
+            const active = policy.rows[0];
+            if (!active || Number(active.active_revision) !== fence.expectedRevision
+              || active.policy_revision === null || Number(active.policy_revision) !== fence.expectedRevision) {
+              return { status: 'POLICY_CHANGED' } as const;
+            }
+            if (active.cutoff_allowed !== true) return { status: 'RETENTION_WINDOW_OPEN' } as const;
+            if ((initial.purpose !== 'output' && initial.purpose !== 'intermediate') || !initial.operationId) {
+              return { status: 'INELIGIBLE' } as const;
+            }
+            const owner = await client.query<{ withinCutoff: boolean }>(
+              `SELECT (o.completed_at IS NOT NULL AND o.completed_at <= $2::timestamptz) AS "withinCutoff"
+                 FROM operations o
+                WHERE o.id=$1 AND o.state IN ('SUCCEEDED','FAILED','CANCELLED','TIMED_OUT')
+                  AND NOT COALESCE(o.cancel_requested,false) AND o.result_ref IS NULL
+                  AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.operation_id=o.id AND t.state IN ('READY','QUEUED','RUNNING','RETRY_PENDING','WAITING_INPUT','WAITING_CHILDREN'))
+                  AND NOT EXISTS (SELECT 1 FROM human_waits w WHERE w.operation_id=o.id AND w.status='OPEN')
+                FOR SHARE OF o`,
+              [initial.operationId, fence.cutoff],
+            );
+            if (!owner.rowCount) return { status: 'INELIGIBLE' } as const;
+            if (owner.rows[0]!.withinCutoff !== true) return { status: 'RETENTION_WINDOW_OPEN' } as const;
+          }
           const found = await client.query<MaintenanceArtifactRow>(
             `SELECT id,tenant_id AS "tenantId",state,purpose,operation_id AS "operationId",task_id AS "taskId",
                     storage_key AS "storageKey",storage_backend AS "storageBackend",
@@ -1726,20 +1786,9 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
           if (!item || item.state !== 'READY' || item.multipartUploadId !== null
             || item.storageGenerationId !== initial.storageGenerationId || item.storageKey !== initial.storageKey
             || item.storageVersionId !== initial.storageVersionId || item.manifestVersionId !== initial.manifestVersionId
-            || item.storageBackend !== initial.storageBackend) return { status: 'INELIGIBLE' } as const;
+            || item.storageBackend !== initial.storageBackend || item.operationId !== initial.operationId
+            || item.purpose !== initial.purpose) return { status: 'INELIGIBLE' } as const;
           if (mode === 'orphan' && (item.operationId !== null || item.taskId !== null)) return { status: 'INELIGIBLE' } as const;
-          if (mode === 'retention') {
-            if ((item.purpose !== 'output' && item.purpose !== 'intermediate') || !item.operationId) return { status: 'INELIGIBLE' } as const;
-            const owner = await client.query(
-              `SELECT 1 FROM operations o
-                WHERE o.id=$1 AND o.state IN ('SUCCEEDED','FAILED','CANCELLED','TIMED_OUT')
-                  AND NOT COALESCE(o.cancel_requested,false) AND o.result_ref IS NULL
-                  AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.operation_id=o.id AND t.state IN ('READY','QUEUED','RUNNING','RETRY_PENDING','WAITING_INPUT','WAITING_CHILDREN'))
-                  AND NOT EXISTS (SELECT 1 FROM human_waits w WHERE w.operation_id=o.id AND w.status='OPEN')
-                LIMIT 1`, [item.operationId],
-            );
-            if (!owner.rowCount) return { status: 'INELIGIBLE' } as const;
-          }
           const refs = await client.query(
             `SELECT 1 FROM operations o
               WHERE COALESCE(o.submit_artifacts,'[]'::jsonb) @> jsonb_build_array(jsonb_build_object('artifactId',$1::text))
@@ -1763,10 +1812,17 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
         return { status: 'UNKNOWN', code: 'CLEANUP_PREPARE_OUTCOME_UNKNOWN' };
       }
       if (preparation.status !== 'ELIGIBLE') {
-        await effects.cancelPrepared(effect.effectId, preparation.status === 'FENCE_BLOCKED' ? 'BACKUP_EFFECT_FENCE_ACTIVE' : 'CLEANUP_INELIGIBLE').catch(() => false);
+        const cancelReason = preparation.status === 'FENCE_BLOCKED' ? 'BACKUP_EFFECT_FENCE_ACTIVE'
+          : preparation.status === 'POLICY_CHANGED' ? 'RETENTION_POLICY_CHANGED'
+            : preparation.status === 'RETENTION_WINDOW_OPEN' ? 'RETENTION_WINDOW_OPEN' : 'CLEANUP_INELIGIBLE';
+        await effects.cancelPrepared(effect.effectId, cancelReason).catch(() => false);
         return preparation.status === 'FENCE_BLOCKED'
           ? { status: 'SKIPPED', code: 'BACKUP_EFFECT_FENCE_ACTIVE' }
-          : { status: 'SKIPPED', code: 'REFERENCED_OR_INELIGIBLE' };
+          : preparation.status === 'POLICY_CHANGED'
+            ? { status: 'SKIPPED', code: 'RETENTION_POLICY_CHANGED' }
+            : preparation.status === 'RETENTION_WINDOW_OPEN'
+              ? { status: 'SKIPPED', code: 'RETENTION_WINDOW_OPEN' }
+              : { status: 'SKIPPED', code: 'REFERENCED_OR_INELIGIBLE' };
       }
       const row = preparation.row;
       try {

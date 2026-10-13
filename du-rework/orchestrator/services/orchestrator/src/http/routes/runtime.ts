@@ -15,7 +15,11 @@ import {
   isAuthorizedRuntimeBearer,
   resolveWorkerBusinessIdentity,
 } from '../../modules/runtime/worker-identity';
-import { recordWorkerHeartbeat, WORKER_HEARTBEAT_FRESH_FOR_MS } from '../../modules/runtime/worker-instances';
+import {
+  recordWorkerHeartbeat,
+  retireWorkerInstance,
+  WORKER_HEARTBEAT_FRESH_FOR_MS,
+} from '../../modules/runtime/worker-instances';
 import { decryptStoredArtifact } from '../../modules/encryption/artifact-read-decrypt';
 import type { RouteContext, RouteResult } from '../route-context';
 
@@ -383,6 +387,47 @@ export async function handleRuntimeRoutes(ctx: RouteContext): Promise<RouteResul
     }
   }
 
+  // Runtime: POST /api/runtime/v1/workers/:instanceId/retire
+  {
+    const m = /^\/api\/runtime\/v1\/workers\/([^/]+)\/retire$/.exec(pathname);
+    if (m && method === 'POST') {
+      const workerBusinessId = assertRuntimeAuth(ctx);
+      const instanceId = decodeRegistrationPathSegment(m[1]!, 'worker instance id');
+      const body = ctx.body as {
+        businessId?: unknown;
+        businessVersion?: unknown;
+        manifestDigest?: unknown;
+      } | null;
+      if (
+        !body
+        || typeof body.businessId !== 'string'
+        || body.businessId.length === 0
+        || body.businessId.length > 256
+        || /[\u0000-\u001f\u007f/]/.test(body.businessId)
+        || typeof body.businessVersion !== 'string'
+        || body.businessVersion.length === 0
+        || body.businessVersion.length > 256
+        || typeof body.manifestDigest !== 'string'
+        || !/^sha256:[a-f0-9]{64}$/.test(body.manifestDigest)
+      ) {
+        throw new HttpError(422, 'INVALID_SCHEMA', 'worker retirement identity is invalid');
+      }
+      if (workerBusinessId) {
+        authorizeWorkerBusiness(ctx.config, ctx.headers['authorization'], body.businessId);
+      }
+      await retireWorkerInstance(
+        ctx.db,
+        body.businessId,
+        instanceId,
+        body.businessVersion,
+        body.manifestDigest,
+      );
+      // Missing rows and stale generations are successful no-ops so shutdown
+      // remains idempotent and cannot reveal another version's inventory.
+      return { status: 200, body: { retired: true } };
+    }
+  }
+
   // Runtime: PUT /api/runtime/v1/workers/:instanceId/heartbeat
   {
     const m = /^\/api\/runtime\/v1\/workers\/([^/]+)\/heartbeat$/.exec(pathname);
@@ -419,6 +464,10 @@ export async function handleRuntimeRoutes(ctx: RouteContext): Promise<RouteResul
         capacity: parsed.data.capacity,
         controlRevision: recorded.controlRevision,
         controlState: recorded.controlState,
+        activeVersion: recorded.activeVersion,
+        activationRevision: recorded.activationRevision,
+        admissionEligible: recorded.admissionEligible,
+        admissionReason: recorded.admissionReason,
         backupEffectFence: recorded.backupEffectFence,
       });
       return { status: 200, body: ack };

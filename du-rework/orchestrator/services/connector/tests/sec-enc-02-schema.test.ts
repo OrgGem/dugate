@@ -47,8 +47,8 @@ describe('SEC-ENC-02 schema/source pins', () => {
   });
 
   test('the production composition injects the sealing options into the ledger', () => {
-    expect(COMPOSITION).toMatch(/resolveInvocationStorageCryptoFromEnv\(process\.env\)/);
-    expect(COMPOSITION).toMatch(/new PostgresInvocationLedger\(\s*database,\s*config\.invocationStorageCrypto/);
+    expect(COMPOSITION).toMatch(/const invocationCrypto = config\.invocationStorageCrypto \?\? resolveInvocationStorageCryptoFromEnv\(process\.env\)/);
+    expect(COMPOSITION).toMatch(/new PostgresInvocationLedger\(\s*database,\s*\{\s*\.\.\.invocationCrypto,/);
   });
 
   test('the format reuses existing columns: request/result jsonb + session_ref text', () => {

@@ -102,10 +102,12 @@ function patternSlice(start: number, len: number): Buffer {
 
 function patternDigest(start: number, len: number): string {
   const h = createHash('sha256');
+  const scratch = Buffer.alloc(Math.min(1 << 16, len));
   let done = 0;
   while (done < len) {
     const n = Math.min(1 << 16, len - done);
-    h.update(patternSlice(start + done, n));
+    for (let i = 0; i < n; i += 1) scratch[i] = patternByte(start + done + i);
+    h.update(scratch.subarray(0, n));
     done += n;
   }
   return h.digest('hex');
@@ -567,6 +569,13 @@ describe('direct band RSS (zero sockets, in-data-path sampling)', () => {
   it('streams the 64 MiB band maximum without retaining the object', async () => {
     const sizeBytes = DIRECT_ARTIFACT_MAX_BYTES;
     const chunkBytes = 64 * KiB;
+    const forceGc = (globalThis as typeof globalThis & { gc?: () => void }).gc;
+    if (typeof forceGc !== 'function') throw new Error('direct-band RSS witness requires Jest to run with --expose-gc');
+    // Keep expected-hash setup outside the measured transfer and bounded to
+    // one scratch chunk; otherwise the witness counts its own 64 MiB of
+    // temporary digest buffers as if the upload retained them.
+    const expectedSha256 = patternDigest(0, sizeBytes);
+    forceGc();
     const { fetcher, consumed } = drainingFetcher();
 
     const pre: number[] = [];
@@ -579,8 +588,11 @@ describe('direct band RSS (zero sockets, in-data-path sampling)', () => {
 
     const traj: number[] = [];
     const sampled = (function* (): Generator<Buffer> {
+      let chunkIndex = 0;
       for (const chunk of patternChunks(sizeBytes, chunkBytes)) {
+        if (chunkIndex % 16 === 0) forceGc();
         traj.push(process.memoryUsage().external - baseline);
+        chunkIndex += 1;
         yield chunk;
       }
     })();
@@ -590,17 +602,21 @@ describe('direct band RSS (zero sockets, in-data-path sampling)', () => {
       mimeType: 'application/octet-stream',
       sizeBytes,
       maxBytes: DIRECT_ARTIFACT_MAX_BYTES,
-      expectedSha256: patternDigest(0, sizeBytes),
+      expectedSha256,
       fetcher,
     });
 
     // Fidelity first: an empty sample series must never pass vacuously.
     expect(traj.length).toBeGreaterThanOrEqual(sizeBytes / chunkBytes);
     expect(consumed()).toBe(sizeBytes);
-    expect(integrity).toEqual({ sizeBytes, sha256: patternDigest(0, sizeBytes) });
+    expect(integrity).toEqual({ sizeBytes, sha256: expectedSha256 });
 
     const peak = Math.max(...traj);
-    const resident = traj[traj.length - 1] ?? 0;
+    // external includes finalized Buffer allocations until V8 collects their
+    // wrappers. Collect after transfer so resident measures live references,
+    // while in-path samples catch buffers still retained by the stream queue.
+    forceGc();
+    const resident = process.memoryUsage().external - baseline;
     const mib = (n: number) => (n / MiB).toFixed(2);
     console.log(
       'DIRECT-BAND-RSS total=64MiB chunk=64KiB samples=' + traj.length +

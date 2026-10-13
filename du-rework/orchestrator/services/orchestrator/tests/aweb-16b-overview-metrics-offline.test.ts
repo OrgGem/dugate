@@ -120,6 +120,7 @@ describe('AWEB-16b Overview metrics aggregation (offline)', () => {
 
     expect(calls).toHaveLength(1);
     expect(calls[0]!.sql).not.toContain('tenant_id =');
+    expect(calls[0]!.sql).toContain('WHERE deleted_at IS NULL');
     expect(calls[0]!.params).toEqual([FROM, TO]);
     expect(result.tenantId).toBeNull();
   });

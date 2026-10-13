@@ -10,12 +10,12 @@ describe('ORV14 cost policy revision history scroll regions', () => {
     ['Price revision history'],
   ])('%s is named and keyboard focusable', (accessibleName) => {
     const region = new RegExp(
-      `<div className="overflow-x-auto rounded border border-\\[var\\(--border-subtle\\)\\]" role="region" aria-label="${accessibleName}" tabIndex=\\{0\\}>`,
+      `<div className="max-h-\\[min\\(65dvh,32rem\\)\\] overflow-auto rounded border border-\\[var\\(--border-subtle\\)\\]" role="region" aria-label="${accessibleName}" tabIndex=\\{0\\}>`,
     );
     expect(panelSource).toMatch(region);
   });
 
   test('both revision tables remain horizontally scrollable', () => {
-    expect(panelSource.match(/className="overflow-x-auto rounded border border-\[var\(--border-subtle\)\]" role="region" aria-label="(?:Budget|Price) revision history" tabIndex=\{0\}>/g)).toHaveLength(2);
+    expect(panelSource.match(/className="max-h-\[min\(65dvh,32rem\)\] overflow-auto rounded border border-\[var\(--border-subtle\)\]" role="region" aria-label="(?:Budget|Price) revision history" tabIndex=\{0\}>/g)).toHaveLength(2);
   });
 });

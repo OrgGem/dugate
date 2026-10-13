@@ -84,6 +84,7 @@ interface WorldOptions {
 
 function makeDeps(opts: WorldOptions = {}) {
   const calls = {
+    enable: 0,
     activate: 0,
     deactivate: 0,
     sweep: 0,
@@ -99,6 +100,9 @@ function makeDeps(opts: WorldOptions = {}) {
   const client = {
     query: async (text: string, params: unknown[] = []) => {
       const sql = text.replace(/\s+/g, ' ').trim();
+      if (sql.startsWith('SELECT enabled,activation_revision,submissions_paused,pre_drain_version')) {
+        return { rows: [{ enabled: true, activation_revision: 1, submissions_paused: false, pre_drain_version: null }], rowCount: 1 };
+      }
       if (sql.startsWith('UPDATE business_versions')) {
         const hit = opts.updateMatches ?? true;
         return { rows: [], rowCount: hit ? 1 : 0 };
@@ -143,14 +147,19 @@ function makeDeps(opts: WorldOptions = {}) {
     db,
     audit,
     registry: {
-      // minimal structural stubs for the two methods the dispatcher uses
+      enableVersion: async (_businessId: string, version: string, expectedActivationRevision: number) => {
+        calls.enable += 1;
+        if (opts.updateMatches === false) throw new HttpError(404, 'NOT_FOUND', `business b@${version} not registered`);
+        return { businessId: 'b', version, status: 'ENABLED' as const,
+          activationRevision: expectedActivationRevision + 1, replayed: false };
+      },
       activateVersion: async () => {
         calls.activate += 1;
-        return { businessId: 'biz', version: '1.0.0', active: true, replayed: false };
+        return { businessId: 'biz', version: '1.0.0', active: true, activationRevision: 2, previousVersion: null, replayed: false };
       },
       deactivateVersion: async () => {
         calls.deactivate += 1;
-        return { businessId: 'biz', version: '1.0.0', active: false, replayed: false };
+        return { businessId: 'biz', version: '1.0.0', active: false, activationRevision: 2, previousVersion: '1.0.0', replayed: false };
       },
     } as unknown as AdminActionDeps['registry'],
     profiles: {
@@ -279,7 +288,7 @@ describe('ADM-BASE-02 dispatchAdminAction: denials have ZERO side effects', () =
       403,
       'PERMISSION_DENIED'
     );
-    expect(calls).toEqual({ activate: 0, deactivate: 0, sweep: 0, createRevision: 0, auditRecord: 0, keyLookups: 0, cancel: 0, resume: 0 });
+    expect(calls).toEqual({ enable: 0, activate: 0, deactivate: 0, sweep: 0, createRevision: 0, auditRecord: 0, keyLookups: 0, cancel: 0, resume: 0 });
   });
 
   it('cookie missing CSRF -> bind: 403, profiles/audit untouched', async () => {
@@ -338,7 +347,7 @@ describe('ADM-BASE-02 dispatchAdminAction: denials have ZERO side effects', () =
   it('business.enable on an unregistered version: 404 from the UPDATE gate', async () => {
     const { deps, calls } = makeDeps({ updateMatches: false });
     await expectDenied(
-      dispatchAdminAction(deps, bearerPlatform(), { action: 'business.enable', params: { businessId: 'b', version: '9' } }),
+      dispatchAdminAction(deps, bearerPlatform(), { action: 'business.enable', params: { businessId: 'b', version: '9', expectedActivationRevision: 1 } }),
       404,
       'NOT_FOUND'
     );
@@ -349,11 +358,11 @@ describe('ADM-BASE-02 dispatchAdminAction: denials have ZERO side effects', () =
 describe('ADM-BASE-02 dispatchAdminAction happy paths (statuses + audit actor)', () => {
   it('platform: enable 200, activate 202, drain 202, sweep 200 {timedOut:2}, bind 201', async () => {
     const { deps, calls } = makeDeps({ keyTenantId: TENANT_A });
-    expect(await dispatchAdminAction(deps, bearerPlatform(), { action: 'business.enable', params: { businessId: 'b', version: '1' } }))
+    expect(await dispatchAdminAction(deps, bearerPlatform(), { action: 'business.enable', params: { businessId: 'b', version: '1', expectedActivationRevision: 1 } }))
       .toMatchObject({ status: 200, body: { status: 'ENABLED' } });
-    expect(await dispatchAdminAction(deps, bearerPlatform(), { action: 'business.activate', params: { businessId: 'b', version: '1' } }))
+    expect(await dispatchAdminAction(deps, bearerPlatform(), { action: 'business.activate', params: { businessId: 'b', version: '1', expectedActivationRevision: 1 } }))
       .toMatchObject({ status: 202 });
-    expect(await dispatchAdminAction(deps, bearerPlatform(), { action: 'business.drain', params: { businessId: 'b', version: '1' } }))
+    expect(await dispatchAdminAction(deps, bearerPlatform(), { action: 'business.drain', params: { businessId: 'b', version: '1', expectedActivationRevision: 1 } }))
       .toMatchObject({ status: 202 });
     expect(await dispatchAdminAction(deps, bearerPlatform(), { action: 'operations.sweep-deadlines', params: {} }))
       .toMatchObject({ status: 200, body: { timedOut: 2 } });
@@ -368,7 +377,7 @@ describe('ADM-BASE-02 dispatchAdminAction happy paths (statuses + audit actor)',
     const { deps, auditRows } = makeDeps();
     const r = await dispatchAdminAction(deps, cookie('admin', true), {
       action: 'business.enable',
-      params: { businessId: 'b', version: '1' },
+      params: { businessId: 'b', version: '1', expectedActivationRevision: 1 },
     });
     expect(r.status).toBe(200);
     expect(auditRows[0]!.actor).toBe('shell:admin');
@@ -376,7 +385,7 @@ describe('ADM-BASE-02 dispatchAdminAction happy paths (statuses + audit actor)',
 
   it('bearer audit actor stays the stable id admin', async () => {
     const { deps, auditRows } = makeDeps();
-    await dispatchAdminAction(deps, bearerPlatform(), { action: 'business.drain', params: { businessId: 'b', version: '1' } });
+    await dispatchAdminAction(deps, bearerPlatform(), { action: 'business.drain', params: { businessId: 'b', version: '1', expectedActivationRevision: 1 } });
     expect(auditRows[0]!.actor).toBe('admin');
   });
 });
@@ -386,7 +395,7 @@ describe('AUDIT-EXT: every OLD action writes the server principal (Δ8-EXT)', ()
     const { deps, auditRows } = makeDeps();
     const r = await dispatchAdminAction(deps, cookieP('admin', true, 'user-42', 'https://idp.example'), {
       action: 'business.enable',
-      params: { businessId: 'b', version: '1' },
+      params: { businessId: 'b', version: '1', expectedActivationRevision: 1 },
     });
     expect(r.status).toBe(200);
     expect(auditRows[0]!.actor).toBe('shell:admin');
@@ -399,7 +408,7 @@ describe('AUDIT-EXT: every OLD action writes the server principal (Δ8-EXT)', ()
     const { deps, auditRows } = makeDeps();
     await dispatchAdminAction(deps, cookie('admin', true), {
       action: 'business.drain',
-      params: { businessId: 'b', version: '1' },
+      params: { businessId: 'b', version: '1', expectedActivationRevision: 1 },
     });
     expect(auditRows[0]!.actor).toBe('shell:admin');
     expect(auditRows[0]!.actorRole).toBe('admin');
@@ -411,7 +420,7 @@ describe('AUDIT-EXT: every OLD action writes the server principal (Δ8-EXT)', ()
     const { deps, auditRows } = makeDeps();
     await dispatchAdminAction(deps, bearerPlatform(), {
       action: 'business.enable',
-      params: { businessId: 'b', version: '1' },
+      params: { businessId: 'b', version: '1', expectedActivationRevision: 1 },
     });
     expect(auditRows[0]!.actorRole).toBe('platform');
     expect(auditRows[0]!.actorSub).toBeUndefined();

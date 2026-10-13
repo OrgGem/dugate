@@ -23,6 +23,7 @@ function makeOfflineDb(
   businessEnabled = true,
   currentOutboxDeliveryId = DELIVERY_ID,
   currentOutboxDeliveryType: 'task.dispatch' | 'task.continuation' = 'task.dispatch',
+  activeVersion = '1.0.0',
 ) {
   const task: Record<string, unknown> = {
     id: TASK_ID,
@@ -34,6 +35,7 @@ function makeOfflineDb(
     leased_by: 'worker-a',
     last_delivery_id: DELIVERY_ID,
     attempt: 2,
+    max_attempts: 3,
     tenant_id: 'tenant-a',
     business_id: BUSINESS_ID,
     business_version: '1.0.0',
@@ -67,6 +69,7 @@ function makeOfflineDb(
     control_state: 'OPEN',
     desired_control_revision: 1,
     desired_control_state: 'OPEN',
+    capacity: 4,
     ...registeredOverrides,
   };
   const workerInstances = new Map(['worker-a', 'worker-b'].map((instanceId) => [instanceId, { ...registered }]));
@@ -86,6 +89,20 @@ function makeOfflineDb(
           sql: string,
           params: unknown[] = [],
         ): Promise<QueryResult<R>> => {
+          if (/^\s*SELECT o\.business_id,o\.business_version/i.test(sql)) {
+            return queryResult<R>([{ business_id: BUSINESS_ID, business_version: task.business_version }]);
+          }
+          if (/^\s*SELECT enabled,activation_revision,submissions_paused,pre_drain_version\s+FROM business_catalog/i.test(sql)) {
+            return queryResult<R>([{ enabled: businessEnabled, activation_revision: 1,
+              submissions_paused: false, pre_drain_version: null }]);
+          }
+          if (/^\s*SELECT version,status,is_active FROM business_versions/i.test(sql)) {
+            const targetVersion = String(params[1] ?? '1.0.0');
+            const versions: Record<string, unknown>[] = [];
+            if (activeVersion !== null) versions.push({ version: activeVersion, status: 'ENABLED', is_active: true });
+            if (targetVersion !== activeVersion) versions.push({ version: targetVersion, status: 'ENABLED', is_active: false });
+            return queryResult<R>(versions);
+          }
           if (/^\s*SELECT/i.test(sql) && /FROM tasks t\s+JOIN operations o/i.test(sql)) {
             taskReadSqls.push(sql);
             return queryResult<R>([{ ...task }]);
@@ -113,11 +130,15 @@ function makeOfflineDb(
               heartbeat_fresh: worker.heartbeat_fresh,
             }]);
           }
-          if (/^\s*SELECT enabled FROM business_catalog/i.test(sql)) {
-            return queryResult<R>([{ enabled: businessEnabled }]);
-          }
           if (/^\s*SELECT state FROM operations WHERE id=\$1/i.test(sql)) {
             return queryResult<R>([{ state: 'RUNNING' }]);
+          }
+          if (/^\s*SELECT count\(\*\)::int AS count FROM tasks/i.test(sql)) {
+            return queryResult<R>([{ count: 0 }]);
+          }
+          if (/^\s*UPDATE tasks SET admission_parked_reason=/i.test(sql)
+              || /^\s*UPDATE outbox SET parked_reason=/i.test(sql)) {
+            return queryResult<R>([], 'UPDATE');
           }
           if (/^\s*SELECT/i.test(sql) && /FROM step_checkpoints/i.test(sql)) {
             return queryResult<R>([]);
@@ -164,8 +185,8 @@ function makeOfflineDb(
 }
 
 describe('OR10-03 runtime delivery replay lease ownership', () => {
-  it('replays the same delivery only for its owner while the RUNNING lease is active', async () => {
-    const fixture = makeOfflineDb();
+  it('replays a valid v1 lease after v2 cutover only for its owner', async () => {
+    const fixture = makeOfflineDb({}, {}, true, DELIVERY_ID, 'task.dispatch', '2.0.0');
     const runtime = createRuntimeService(fixture.db);
 
     const claim = await runtime.claimTask(TASK_ID, DELIVERY_ID, 'worker-a', BUSINESS_ID);

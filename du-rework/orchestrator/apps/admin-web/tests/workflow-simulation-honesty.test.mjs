@@ -70,10 +70,10 @@ const simulationPanelSource = findSimulationPanelExpression();
 const stageCountSource = findWorkflowStageCountExpression();
 
 function createSimulationResult(stages) {
-  const selectedWorkflow = { slug: 'invoice-flow', stages };
+  const workflow = { slug: 'invoice-flow', stages };
   const testInputVariables = { documentId: 'doc-17' };
-  return new Function('selectedWorkflow', 'testInputVariables', `return (${simulationPayloadSource});`)(
-    selectedWorkflow,
+  return new Function('workflow', 'testInputVariables', `return (${simulationPayloadSource});`)(
+    workflow,
     testInputVariables,
   );
 }

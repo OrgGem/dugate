@@ -1,7 +1,3 @@
-// VENDORED from @du/contracts @ b088eececcb5f3df0b4edbe073a29401dafda624 (worktree 2026-10-06)
-// source: packages/contracts/src/manifest.ts (lines=114) sha256=64C823443654ED8324F9D18BE77DD1519A9C1D3FD815680D53A6B81F382D68F7
-// why: BusinessManifest, ActionManifest, ConnectorSlotManifest for src/manifest/document-core.manifest.ts
-
 import { z } from 'zod';
 import { WIRE_CONTRACT_VERSION, SCHEMA_LIMITS } from './version';
 

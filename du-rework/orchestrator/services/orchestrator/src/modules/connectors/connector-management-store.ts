@@ -129,6 +129,8 @@ export interface ConnectorManagementStore {
   test(connectorId: string): Promise<ConnectorTestResult>;
   /** Typed tenant-owned immutable recipe revision management. */
   getRecipeRevision(input: { tenantId: string; connectorId: string; revision: number }): Promise<ConnectorParityRevision | undefined>;
+  /** Whether a typed chain shadows all legacy revisions for this tenant/connector ID. */
+  hasRecipeChain(input: { tenantId: string; connectorId: string }): Promise<boolean>;
   upsertRecipeDraft(input: {
     tenantId: string;
     connectorId: string;
@@ -313,6 +315,18 @@ export function createConnectorManagementStore(
         throw new HttpError(502, 'CONNECTOR_API_ERROR', 'Connector returned a recipe revision outside the requested tenant pin');
       }
       return parsed.data;
+    },
+    async hasRecipeChain(input) {
+      const path = `/internal/admin/connector-revisions/${encodeURIComponent(input.connectorId)}/chain?tenantId=${encodeURIComponent(input.tenantId)}`;
+      const res = await call(input.connectorId, 'GET', path, undefined, 'connector:management');
+      if (res.status !== 200) unexpected();
+      const body = await res.json();
+      if (typeof body !== 'object' || body === null || Array.isArray(body)
+          || Object.keys(body as Record<string, unknown>).join(',') !== 'hasTypedChain'
+          || typeof (body as Record<string, unknown>).hasTypedChain !== 'boolean') {
+        throw new HttpError(502, 'CONNECTOR_API_ERROR', 'Connector returned an invalid recipe-chain status');
+      }
+      return (body as { hasTypedChain: boolean }).hasTypedChain;
     },
     async claimRecipeDraft(input) {
       const res = await call(input.connectorId, 'POST',

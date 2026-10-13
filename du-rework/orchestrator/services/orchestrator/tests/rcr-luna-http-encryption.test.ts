@@ -177,9 +177,9 @@ describe('RCR-06: legacy raw download follows tenant delivery policy', () => {
     const h = makeContext({ policyEnabled: true, apiKeyActive: false });
     const result = await handlePublicRoutes(h.ctx);
 
-    // The legacy facade keeps its pre-existing error envelope for auth failure.
-    // The relevant privacy invariant is that no output or delivery policy is read.
-    expect(result?.status).toBe(500);
+    // Invalid API keys use the standardized legacy 401 response; more
+    // importantly, no output or delivery policy is read before that denial.
+    expect(result?.status).toBe(401);
     expect(result?.raw).toBeUndefined();
     expect(h.calls.some((call) => /SELECT \* FROM operations/i.test(call.sql))).toBe(false);
     expect(h.policyCalls).toHaveLength(0);

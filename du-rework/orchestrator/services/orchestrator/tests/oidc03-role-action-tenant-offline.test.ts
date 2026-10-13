@@ -38,8 +38,17 @@ import {
 const TENANT_A = 'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa';
 const TENANT_B = 'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb';
 const ALL_ACTIONS = Object.keys(ADMIN_ACTIONS);
-const OPS = ['operations.cancel', 'operations.resume'];
-const ADMIN_ONLY = ALL_ACTIONS.filter((a) => !OPS.includes(a));
+// Keep this independent from ADMIN_ACTIONS so an accidental role-table
+// widening cannot silently change the expected authorization matrix.
+const TENANT_OPERATOR_ACTIONS = [
+  'operations.cancel',
+  'operations.resume',
+  'operations.callback.retry',
+  'workflow.provision',
+  'workflow.retire',
+  'workflow.test',
+];
+const ADMIN_ONLY = ALL_ACTIONS.filter((action) => !TENANT_OPERATOR_ACTIONS.includes(action));
 
 function bearerPlatform(): AdminActionAuth {
   return { kind: 'bearer', principal: { role: 'platform' } };
@@ -210,7 +219,7 @@ describe('W-OIDC03-RBAC-1 assertRoleActionTenant — parity + tenant dimension (
   });
 
   it('tenant binding ALLOW: a tenant-scoped caller passes on ITS OWN tenant for every admitted action', () => {
-    for (const action of OPS) {
+    for (const action of TENANT_OPERATOR_ACTIONS) {
       expect(assertRoleActionTenant(bearerOpA(), action, TENANT_A)).toEqual({ ok: true });
       expect(assertRoleActionTenant(cookieOp(true, TENANT_A), action, TENANT_A)).toEqual({ ok: true });
     }
@@ -265,6 +274,15 @@ describe('W-OIDC03-RBAC-1 assertRoleActionTenant — parity + tenant dimension (
         expect(d.status).toBe(403);
         expect(d.message).toContain('platform');
       }
+    }
+  });
+
+  it('tenant-operator workflow and operation actions remain tenant-bound', () => {
+    for (const action of TENANT_OPERATOR_ACTIONS) {
+      expect(assertRoleActionTenant(bearerOpA(), action, TENANT_A)).toEqual({ ok: true });
+      const foreign = assertRoleActionTenant(bearerOpA(), action, TENANT_B);
+      expect(foreign.ok).toBe(false);
+      if (!foreign.ok) expect(foreign.status).toBe(403);
     }
   });
 });

@@ -64,6 +64,7 @@ export function createTypedRecipeAdapter(
     buildRequest(request): ProviderRequest {
       const body = buildBody(recipe, request, overrides);
       const headers = { ...providerHeaders };
+      const requestUrl = endpointForRequest(recipe, request, endpoint);
       const isMultipart = recipe.adapter === 'multipart-http';
       if (!isMultipart) headers['content-type'] = 'application/json';
       if (isMultipart) {
@@ -79,7 +80,7 @@ export function createTypedRecipeAdapter(
           if (value !== null && typeof value === 'object') form.append(name, JSON.stringify(value));
           else form.append(name, String(value));
         }
-        return { url: endpoint.toString(), method: recipe.method, headers, body: form };
+        return { url: requestUrl, method: recipe.method, headers, body: form };
       }
       if ((request.input.artifacts?.length ?? 0) > 0 && recipe.request.fileField) {
         body[recipe.request.fileField] = request.input.artifacts!.map((artifact) => {
@@ -87,7 +88,7 @@ export function createTypedRecipeAdapter(
           return artifact;
         });
       }
-      return { url: endpoint.toString(), method: recipe.method, headers, body: JSON.stringify(body) };
+      return { url: requestUrl, method: recipe.method, headers, body: JSON.stringify(body) };
     },
     normalizeResponse(response: ProviderResponse): NormalizedProviderResult {
       if (response.status >= 400) {
@@ -155,7 +156,7 @@ function addCredentialHeader(
   }
   if (recipe.auth.kind === 'api-key-header') {
     const name = recipe.auth.headerName;
-    if (forbiddenHeaderName(name.toLowerCase())) throw unsupportedRecipe();
+    if (forbiddenCredentialHeaderName(name.toLowerCase())) throw unsupportedRecipe();
     headers.set(name.toLowerCase(), { name, value: secret });
     return;
   }
@@ -170,6 +171,17 @@ function addCredentialHeader(
   throw new ConnectorError('CAPABILITY_UNSUPPORTED', 'This typed recipe authentication mode is not supported by the Connector runtime.');
 }
 
+function endpointForRequest(recipe: ConnectorRecipe, request: LocalInvocationRequest, checked: URL): string {
+  if (!recipe.endpointUrl.includes('{model}')) return checked.toString();
+  const model = request.options?.model ?? recipe.defaultModel;
+  if (recipe.adapter !== 'gemini' || typeof model !== 'string' || model.trim().length === 0 || model.length > 256 || /[\r\n\u0000]/.test(model)) {
+    throw new ConnectorError('INVALID_INPUT', 'Gemini recipe requires a valid model for its endpoint path.');
+  }
+  const resolved = checkedEndpoint(recipe.endpointUrl.replace('{model}', encodeURIComponent(model.trim())));
+  if (resolved.origin !== checked.origin) throw unsupportedRecipe();
+  return resolved.toString();
+}
+
 function buildBody(recipe: ConnectorRecipe, request: LocalInvocationRequest, overrides?: ConnectorWorkflowOverrides): Record<string, unknown> {
   const body: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
   const reservedNames = new Set([
@@ -182,9 +194,10 @@ function buildBody(recipe: ConnectorRecipe, request: LocalInvocationRequest, ove
   if (recipe.request.fields.some((field) => reservedNames.has(field.name))) throw unsupportedRecipe();
   const staticOverrides = new Map((overrides?.staticFormFields ?? []).map((field) => [field.name, field.value]));
   const prompt = request.input.prompt ?? request.input.text;
+  const model = request.options?.model ?? recipe.defaultModel;
   if (prompt !== undefined) setSafePath(body, recipe.request.promptField, prompt);
-  if (recipe.request.modelField && request.options?.model !== undefined) {
-    setSafePath(body, recipe.request.modelField, request.options.model);
+  if (recipe.request.modelField && model !== undefined) {
+    setSafePath(body, recipe.request.modelField, model);
   }
   if (recipe.request.inputField && request.input.parameters !== undefined) {
     setSafePath(body, recipe.request.inputField, request.input.parameters);
@@ -194,7 +207,7 @@ function buildBody(recipe: ConnectorRecipe, request: LocalInvocationRequest, ove
     switch (field.source) {
       case 'prompt': value = prompt; break;
       case 'input': value = readSafePath(request.input.parameters ?? {}, field.name); break;
-      case 'model': value = request.options?.model; break;
+      case 'model': value = model; break;
       case 'static': value = staticOverrides.get(field.name) ?? field.value; break;
       case 'session': value = readSessionPath(request.sessionRef, field.sessionPath!); break;
     }
@@ -290,6 +303,13 @@ function forbiddenHeaderName(name: string): boolean {
   return FORBIDDEN_HEADERS.has(name) || name.startsWith('proxy-') || name.startsWith('x-forwarded-')
     || name.startsWith('x-original-') || name.startsWith('x-rewrite-')
     || name.startsWith('x-auth-') || name.startsWith('x-provider-');
+}
+
+function forbiddenCredentialHeaderName(name: string): boolean {
+  return forbiddenHeaderName(name)
+    && name !== 'x-api-key'
+    && name !== 'api-key'
+    && name !== 'x-goog-api-key';
 }
 
 function unsupportedRecipe(): ConnectorError {

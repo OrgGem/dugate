@@ -1,0 +1,24 @@
+▶ ORV15 Business and Profile configuration UI owner checks
+  ✔ keeps business detail in three tabs and nests worker inventory under version groups (1.1902ms)
+  ✔ pages the profile catalog and role-sensitive assigned endpoints with their own server cursors (0.3023ms)
+  ✔ keeps profile mutation actions outside mounted editor panels and leaves Groups platform-only (0.351ms)
+  ✔ uses responsive control rows instead of bottom-aligning form actions with field messages (0.2164ms)
+✔ ORV15 Business and Profile configuration UI owner checks (2.8636ms)
+ℹ tests 4
+ℹ suites 1
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 63.8313
+focused_test_exit=0
+diff_check_exit=0
+294D2D14600FF75D6F9A305A0BCE2F139993C39694AE20DE940BAAD211B054E5  D:\Git\dugate\du-rework\orchestrator\apps\admin-web\src\features\businesses\businesses-screen.tsx
+340EF0F52CB57D0A32821DAC07C4FA3B9F8179E1095819812496FCBA62E35F8B  D:\Git\dugate\du-rework\orchestrator\apps\admin-web\src\features\businesses\business-detail-cockpit.tsx
+6B24AF17388270250B90CD2F61B125408AE19D90636B1CC58F23B00471CF0E77  D:\Git\dugate\du-rework\orchestrator\apps\admin-web\src\features\profiles\profiles-screen.tsx
+77C97083B705D9D6036FEB495EC64B51F01BB24DA176D8C00FC5C45419CD4181  D:\Git\dugate\du-rework\orchestrator\apps\admin-web\src\features\profiles\initial-bindings.tsx
+566681C46B265076CF1964E2FC4960258A1E0F21253338BAD200ED5CFA7D29B7  D:\Git\dugate\du-rework\orchestrator\apps\admin-web\src\features\profiles\callback-policy-editor.tsx
+584A6C8666E024DAC3993E9B9C2C3E1B3698DD933B75BB407C2928C5326BD47D  D:\Git\dugate\du-rework\orchestrator\apps\admin-web\src\features\profiles\request-redaction-editor.tsx
+C81CA578DB1276823A35CAAE56455F31851F2E7E78185F1A41EFA0C3E87E2992  D:\Git\dugate\du-rework\orchestrator\apps\admin-web\src\features\profiles\profile-group-editor.tsx
+CEAA03D2AA333E9539AF339CB0BE6222B67417A06703B217789221B828DDDD38  D:\Git\dugate\du-rework\orchestrator\apps\admin-web\tests\orv15-business-profiles-config-ui-owner.test.mjs

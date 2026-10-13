@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { chmod, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { chmod, chown, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { Readable } from 'node:stream';
@@ -18,6 +18,8 @@ const storageKey = `${tenantId}/artifacts/${artifactId}`;
 const plaintext = Buffer.from('restored artifact pinned to old generation and old transit version');
 
 function sha256(bytes: Uint8Array): string { return createHash('sha256').update(bytes).digest('hex'); }
+const itOnPosixHost = typeof process.getuid === 'function' ? it : it.skip;
+const itWithNativeSymlinks = process.platform === 'win32' ? it.skip : it;
 
 function xor(bytes: Uint8Array, key: Uint8Array): Buffer {
   return Buffer.from(bytes.map((value, index) => value ^ (key[index % key.length] ?? 0)));
@@ -127,17 +129,30 @@ describe('ORV15 independent trusted restore pins and readers', () => {
     expect(() => verifyNftPolicy(changed, fixture.host)).toThrow('RESTORE_RUNTIME_NETWORK_POLICY_INVALID');
   });
 
-  it('rejects a user-owned manifest and a symlink at the public root-pinned identity boundary', async () => {
+  itOnPosixHost('rejects a user-owned manifest at the public root-pinned identity boundary', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'orv15-vfy-host-pin-'));
     try {
       const manifest = path.join(root, 'manifest.json');
       const bytes = Buffer.from('{"schemaVersion":1,"hostId":"synthetic-host"}');
       await writeFile(manifest, bytes, { mode: 0o400 });
       await chmod(manifest, 0o400);
+      if (process.getuid?.() === 0) await chown(manifest, 1001, 1001);
       const digest = sha256(bytes);
       await expect(readTrustedMaintenanceHostIdentity({ manifestPath: manifest, expectedManifestSha256: digest }))
         .rejects.toThrow('BACKUP_MANIFEST_UNTRUSTED');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 
+  itWithNativeSymlinks('rejects a symlink at the public root-pinned identity boundary', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'orv15-vfy-host-pin-link-'));
+    try {
+      const manifest = path.join(root, 'manifest.json');
+      const bytes = Buffer.from('{"schemaVersion":1,"hostId":"synthetic-host"}');
+      await writeFile(manifest, bytes, { mode: 0o400 });
+      await chmod(manifest, 0o400);
+      const digest = sha256(bytes);
       const link = path.join(root, 'manifest-link.json');
       await symlink(manifest, link);
       await expect(readTrustedMaintenanceHostIdentity({ manifestPath: link, expectedManifestSha256: digest }))

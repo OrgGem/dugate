@@ -11,6 +11,12 @@ test('tenant control lookup compares UUID tenant IDs as text and never casts arb
     if (sql.includes('FROM maintenance_backup_effect_gate')) {
       return result([{ state: 'OPEN', fence_revision: 3 }]);
     }
+    if (sql.includes('FROM business_catalog')) {
+      return result([{ enabled: true, activation_revision: 1, submissions_paused: false, pre_drain_version: null }]);
+    }
+    if (sql.includes('SELECT version,status,is_active FROM business_versions')) {
+      return result([{ version: '1.2.3', status: 'ENABLED', is_active: true }]);
+    }
     if (sql.includes('SELECT scope_kind,scope_id,desired_state,revision')) {
       return result([
         { scope_kind: 'platform', scope_id: 'all', desired_state: 'OPEN', revision: 1 },
@@ -31,6 +37,7 @@ test('tenant control lookup compares UUID tenant IDs as text and never casts arb
   await expect(recordWorkerHeartbeat(db, 'worker-a', {
     businessId: 'document-core', businessVersion: '1.2.3', imageDigest: 'sha256:abc123', capacity: 4,
   })).resolves.toMatchObject({ state: 'ONLINE', controlRevision: 2, controlState: 'OPEN',
+    activeVersion: '1.2.3', activationRevision: 1, admissionEligible: true, admissionReason: 'ELIGIBLE',
     backupEffectFence: { state: 'OPEN', revision: 3, acknowledged: false } });
 
   await expect(recordWorkerHeartbeat(db, 'worker-a', {

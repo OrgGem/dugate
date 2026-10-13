@@ -28,6 +28,7 @@ import {
 } from '@du/contracts';
 import { normalizeCorrelationId } from '@du/observability';
 import type { MetadataCrypto, MetadataSlot } from '../runtime/metadata-crypto';
+import { readBusinessAdmission } from '../registry/version-admission';
 import { z } from 'zod';
 import { Db } from '../../db/db';
 import { RegistryService } from '../registry/registry';
@@ -762,7 +763,7 @@ export function createSubmissionService(
       // Resolve the registered+enabled version (slice submits against the
       // single enabled version per business/action).
       const enabled = await resolveEnabledVersion(db, ctx.businessId, canonicalAction);
-      const { version, manifest, digest, queue } = enabled;
+      const { version, manifest, digest, queue, activationRevision } = enabled;
 
       const actionDef = manifest.actions.find((a) => a.name === canonicalAction);
       if (!actionDef) {
@@ -956,21 +957,6 @@ export function createSubmissionService(
             requestKey: `submission:${requestKey}`,
           });
         }
-        // Recheck under row locks inside the write transaction so an artifact
-        // cannot expire or leave READY between preflight validation and the
-        // operation/outbox commit.
-        const lockedArtifacts = await assertReadyTenantArtifacts(
-          (ids, tenantId) => client.query<SubmissionArtifactRow>(ARTIFACT_REFERENCE_QUERY, [ids, tenantId, ctx.apiKeyId]),
-          referencedArtifactIds,
-          ctx.tenantId
-        );
-
-        if (ctx.legacyEndpointSlug !== undefined) {
-          const totalArtifactBytes = lockedArtifacts.reduce((sum, artifact) => sum + Number(artifact.sizeBytes), 0);
-          if (!Number.isSafeInteger(totalArtifactBytes) || totalArtifactBytes > maxBlobBytes) {
-            throw new HttpError(413, 'PAYLOAD_TOO_LARGE', 'Legacy input artifacts exceed the aggregate byte budget');
-          }
-        }
 
         // Re-check idempotency inside the tx to close the concurrent-submit race
         // (unique constraint is the ultimate authority; this avoids a duplicate
@@ -992,15 +978,47 @@ export function createSubmissionService(
           }
         }
 
-        // Serialize new admissions with logical business disable. Existing
-        // idempotent submissions replay above; a fresh operation must hold a
-        // shared catalog-row lock through commit so disable has a clear order.
-        const businessGate = await client.query<{ enabled: boolean }>(
-          'SELECT enabled FROM business_catalog WHERE business_id=$1 FOR SHARE',
-          [ctx.businessId],
+        // Revalidate the exact version and activation revision selected by
+        // preflight. This shared root lock is held through the durable writes;
+        // activation takes the conflicting root lock FOR UPDATE first. A
+        // version switch during profile/schema resolution therefore refuses
+        // this request instead of silently repinning its validated input.
+        const businessAdmission = await readBusinessAdmission(client, ctx.businessId, version, 'SHARE');
+        if (!businessAdmission) throw notFound(`business ${ctx.businessId} is not registered`);
+        if (!businessAdmission.enabled) throw conflict('STATE_CONFLICT', `business ${ctx.businessId} is disabled`);
+        if (businessAdmission.submissionsPaused) {
+          throw conflict('BUSINESS_SUBMISSIONS_PAUSED', `new submissions are paused while ${businessAdmission.preDrainVersion ?? version} drains`);
+        }
+        if (businessAdmission.activeVersion !== version
+          || businessAdmission.targetStatus !== 'ENABLED'
+          || businessAdmission.activationRevision !== activationRevision) {
+          throw conflict('VERSION_NOT_ACTIVE', 'active business version changed during admission; retry the request');
+        }
+        const versionPin = await client.query<{ digest: string; manifest: BusinessManifest }>(
+          `SELECT digest,manifest FROM business_versions WHERE business_id=$1 AND version=$2`,
+          [ctx.businessId, version],
         );
-        if (!businessGate.rows[0]) throw notFound(`business ${ctx.businessId} is not registered`);
-        if (!businessGate.rows[0].enabled) throw conflict('STATE_CONFLICT', `business ${ctx.businessId} is disabled`);
+        if (!versionPin.rows[0] || versionPin.rows[0].digest !== digest) {
+          throw conflict('VERSION_NOT_ACTIVE', 'registered business version changed during admission; reload and retry');
+        }
+        if (!versionPin.rows[0].manifest.actions.some((candidate) => candidate.name === canonicalAction)) {
+          throw badRequest(`action ${canonicalAction} is no longer offered by ${ctx.businessId}@${version}`);
+        }
+
+        // Recheck artifact state under row locks after idempotency and business
+        // admission have been decided. This keeps the common lock order rooted
+        // at business_catalog while preserving accepted-operation replays.
+        const lockedArtifacts = await assertReadyTenantArtifacts(
+          (ids, tenantId) => client.query<SubmissionArtifactRow>(ARTIFACT_REFERENCE_QUERY, [ids, tenantId, ctx.apiKeyId]),
+          referencedArtifactIds,
+          ctx.tenantId,
+        );
+        if (ctx.legacyEndpointSlug !== undefined) {
+          const totalArtifactBytes = lockedArtifacts.reduce((sum, artifact) => sum + Number(artifact.sizeBytes), 0);
+          if (!Number.isSafeInteger(totalArtifactBytes) || totalArtifactBytes > maxBlobBytes) {
+            throw new HttpError(413, 'PAYLOAD_TOO_LARGE', 'Legacy input artifacts exceed the aggregate byte budget');
+          }
+        }
 
         await assertKeySpendAvailable(client, ctx.apiKeyId, ctx.tenantId);
 
@@ -1820,12 +1838,20 @@ function base64ByteLength(value: string): number {
 }
 
 async function resolveEnabledVersion(db: Db, businessId: string, action: string) {
-  const logicalBusiness = await db.query<{ enabled: boolean }>(
-    'SELECT enabled FROM business_catalog WHERE business_id=$1 LIMIT 1',
+  const logicalBusiness = await db.query<{
+    enabled: boolean;
+    activation_revision: number | string;
+    submissions_paused: boolean;
+    pre_drain_version: string | null;
+  }>(
+    'SELECT enabled,activation_revision,submissions_paused,pre_drain_version FROM business_catalog WHERE business_id=$1 LIMIT 1',
     [businessId],
   );
   if (!logicalBusiness.rowCount) throw notFound(`business ${businessId} is not registered`);
   if (!logicalBusiness.rows[0]!.enabled) throw conflict('STATE_CONFLICT', `business ${businessId} is disabled`);
+  if (logicalBusiness.rows[0]!.submissions_paused) {
+    throw conflict('BUSINESS_SUBMISSIONS_PAUSED', `new submissions are paused while ${logicalBusiness.rows[0]!.pre_drain_version ?? 'the active version'} drains`);
+  }
   // New submissions target the explicitly ACTIVE enabled version (W28-C).
   // The admin activate/deactivate routes and enableVersionForTest maintain
   // the active pointer. Fail-closed: if no version is active, the business
@@ -1833,7 +1859,7 @@ async function resolveEnabledVersion(db: Db, businessId: string, action: string)
   // This prevents a drained version from being silently re-selected by a
   // "newest ENABLED" ordering heuristic (W27-A Case 10 / W28-C review).
   const res = await db.query(
-    `SELECT version, manifest, digest, queue FROM business_versions
+    `SELECT version,manifest,digest,queue,status FROM business_versions
      WHERE business_id=$1 AND is_active=true
      LIMIT 1`,
     [businessId]
@@ -1841,11 +1867,16 @@ async function resolveEnabledVersion(db: Db, businessId: string, action: string)
   if (!res.rowCount || res.rowCount === 0) {
     throw new HttpError(404, 'NOT_FOUND', `no active version for business ${businessId}; activate one via the admin API`);
   }
-  const row = res.rows[0] as { version: string; manifest: BusinessManifest; digest: string; queue: string };
+  const row = res.rows[0] as { version: string; manifest: BusinessManifest; digest: string; queue: string; status: string };
+  if (row.status !== 'ENABLED') throw conflict('VERSION_NOT_ENABLED', `active version ${businessId}@${row.version} is not enabled`);
   if (!row.manifest.actions.some((a) => a.name === action)) {
     throw badRequest(`action ${action} not offered by ${businessId}@${row.version}`);
   }
-  return { version: row.version, manifest: row.manifest, digest: row.digest, queue: row.queue };
+  const activationRevision = Number(logicalBusiness.rows[0]!.activation_revision);
+  if (!Number.isSafeInteger(activationRevision) || activationRevision < 1) {
+    throw new Error('business activation revision is invalid');
+  }
+  return { version: row.version, manifest: row.manifest, digest: row.digest, queue: row.queue, activationRevision };
 }
 
 async function findSubmissionKey(

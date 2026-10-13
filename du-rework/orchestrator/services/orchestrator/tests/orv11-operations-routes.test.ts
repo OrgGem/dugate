@@ -17,18 +17,44 @@ function context(pathname: string, extra: Partial<RouteContext> = {}): RouteCont
 
 beforeEach(() => jest.clearAllMocks());
 
-describe('ORV11 operation audience contract', () => {
-  test.each(['/api/v1/operations', '/api/v1/operations/metrics', '/api/v1/operations/op/result', '/api/v1/operations/op/cancel', '/api/v1/operations/op/resume', '/api/v1/operations/op/retry'])('retired public route %s rejects API key and admin before service', async (path) => {
+describe('operations audience contract', () => {
+  test.each([
+    '/api/v1/operations',
+    '/api/v1/operations/op',
+    '/api/v1/operations/op/result',
+    '/api/v1/operations/op/download',
+    '/api/v1/operations/op/cancel',
+    '/api/v1/operations/op/resume',
+  ])('the published API-key operation path %s is allowed through public ingress', (path) => {
+    expect(isPublicIngressAllowed(path)).toBe(true);
+  });
+  test.each([
+    '/api/v1/operations/metrics',
+    '/api/v1/operations/op/retry',
+    '/api/v1/operations/op/deliveries',
+  ])('admin-only or unsupported public path %s stays closed', async (path) => {
     expect(isPublicIngressAllowed(path)).toBe(false);
-    for (const headers of ([{ 'x-api-key': 'legacy' }, { authorization: 'Bearer admin' }] as Record<string, string>[])) {
-      await expect(handlePublicRoutes(context(path, { headers }))).rejects.toMatchObject({ status: 404 });
-    }
+    await expect(handlePublicRoutes(context(path, { headers: { 'x-api-key': 'legacy' } }))).rejects.toMatchObject({ status: 404 });
   });
-  test.each(['POST', 'PUT', 'DELETE'])('public by-id denies %s', async (method) => {
-    await expect(handlePublicRoutes(context('/api/v1/operations/op', { method }))).rejects.toMatchObject({ status: 404 });
+  test('an admin bearer alone cannot claim the public operations list', async () => {
+    await expect(handlePublicRoutes(context('/api/v1/operations'))).resolves.toBeNull();
   });
-  test('legacy by-id and download retrieval paths remain public', () => {
+  test.each(['POST', 'PUT'])('public by-id preserves legacy method rejection %s', async (method) => {
+    const response = await handlePublicRoutes(context('/api/v1/operations/op', { method, headers: { 'x-api-key': 'legacy' } }));
+    expect(response?.status).toBe(405);
+  });
+  test('legacy by-id DELETE remains available to an API-key caller', async () => {
+    const db = { query: jest.fn(async () => ({ rowCount: 1, rows: [] })) };
+    const response = await handlePublicRoutes(context('/api/v1/operations/op', {
+      method: 'DELETE',
+      headers: { 'x-api-key': 'legacy' },
+      db: { ...db, query: jest.fn(async (sql: string) => sql.includes('UPDATE operations') ? { rowCount: 1, rows: [] } : { rowCount: 1, rows: [{ id: 'key-id', tenant_id: 'tenant-a' }] }) } as unknown as RouteContext['db'],
+    }));
+    expect(response?.status).toBe(204);
+  });
+  test('legacy by-id and result/download retrieval paths remain public', () => {
     expect(isPublicIngressAllowed('/api/v1/operations/op')).toBe(true);
+    expect(isPublicIngressAllowed('/api/v1/operations/op/result')).toBe(true);
     expect(isPublicIngressAllowed('/api/v1/operations/op/download')).toBe(true);
   });
   test.each(['', '/metrics', '/op', '/op/cancel', '/op/resume', '/op/retry', '/op/result', '/op/download'])('internal %s never accepts API keys', async (suffix) => {

@@ -114,6 +114,8 @@ describe('W36-C: operations status & result facade', () => {
       updated_at: now,
       deadline_at: null,
       result_ref: 's3://r.json',
+      progress_percent: 48,
+      progress_message: 'Parsing pages',
     };
     const v = toOperationView(row);
     expect(v.id).toBe('test-op-1');
@@ -122,7 +124,7 @@ describe('W36-C: operations status & result facade', () => {
     expect(v.stateVersion).toBe(3);
     expect(v.links.self).toBe('/api/v1/operations/test-op-1');
     expect(v.links.result).toBe('/api/v1/operations/test-op-1/result');
-    expect(v.progress).toEqual({ percent: 0, message: 'SUCCEEDED' });
+    expect(v.progress).toEqual({ percent: 48, message: 'Parsing pages' });
     expect(v.businessId).toBe('doc-core');
     expect(v.businessVersion).toBe('1.0.0');
     expect(v.action).toBe('extract');

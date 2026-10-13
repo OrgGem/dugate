@@ -1,12 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { FormField } from '@/components/ui/field';
-import { Input } from '@/components/ui/input';
 import { AlertBanner, DeniedState, ErrorState, LoadingState } from '@/components/ui/state-panel';
 import { useTenant } from '@/lib/tenant-context';
 import { createAdminApiClient, type AdminApiProblem, type AdminWebSession } from '@/lib/api';
+import { cryptoFingerprintPreview, parseCryptoConfigPresentationView } from './security-presentation';
 
 type CryptoLoadable =
   | { kind: 'idle' }
@@ -21,7 +21,7 @@ type CryptoLoadable =
  * deployment" and is shown as the honest unavailable state.
  */
 export function SecurityScreen() {
-  const { tenantId: globalTenantId, tenant } = useTenant();
+  const { tenantId: globalTenantId } = useTenant();
   const tenantId = globalTenantId ?? '';
   const client = useMemo(() => createAdminApiClient(), []);
   const [session, setSession] = useState<AdminWebSession | null>(null);
@@ -32,37 +32,85 @@ export function SecurityScreen() {
   const [notice, setNotice] = useState<string | null>(null);
   const [saveProblem, setSaveProblem] = useState<AdminApiProblem | null>(null);
   const [busy, setBusy] = useState(false);
+  const loadGeneration = useRef(0);
+  const tenantScopeRef = useRef(tenantId.trim());
+  const tenantScopeGeneration = useRef(0);
+  if (tenantScopeRef.current !== tenantId.trim()) {
+    tenantScopeRef.current = tenantId.trim();
+    tenantScopeGeneration.current += 1;
+  }
 
   const load = useCallback(async (): Promise<void> => {
+    const requestedTenant = tenantId.trim();
+    if (requestedTenant !== tenantScopeRef.current) return;
+    const requestedScopeGeneration = tenantScopeGeneration.current;
+    const generation = ++loadGeneration.current;
+    const isCurrent = (): boolean => generation === loadGeneration.current
+      && tenantScopeGeneration.current === requestedScopeGeneration
+      && tenantScopeRef.current === requestedTenant;
     setNotice(null);
     setSaveProblem(null);
+    setSession(null);
+    if (!requestedTenant) {
+      setState({ kind: 'idle' });
+      return;
+    }
     setState({ kind: 'loading' });
     const sessionResult = await client.getSession();
+    if (!isCurrent()) return;
     if (sessionResult.ok) {
       setSession(sessionResult.data);
     }
-    const result = await client.getCryptoConfig(tenantId.trim());
+    const result = await client.getCryptoConfig(requestedTenant);
+    if (!isCurrent()) return;
     if (!result.ok) {
       setState({ kind: 'failed', problem: result.problem });
       return;
+    }
+    const view = parseCryptoConfigPresentationView(result.data);
+    if (view) {
+      setStorageKeyRef(view.state.storageKeyRef ?? '');
+      setDeliveryEncryption(view.state.deliveryEncryption);
+      setRecipientKeyVersion(view.state.pinnedRecipientKeyVersion === null ? '' : String(view.state.pinnedRecipientKeyVersion));
     }
     setState({ kind: 'ready', body: result.data });
   }, [client, tenantId]);
 
   useEffect(() => {
     void load();
+    return () => {
+      loadGeneration.current += 1;
+      tenantScopeGeneration.current += 1;
+    };
   }, [load]);
 
   async function save(): Promise<void> {
+    const view = state.kind === 'ready' ? parseCryptoConfigPresentationView(state.body) : null;
+    const requestedTenant = tenantId.trim();
+    const requestedScopeGeneration = tenantScopeGeneration.current;
+    const requestedLoadGeneration = loadGeneration.current;
+    const isCurrentSaveScope = (): boolean => tenantScopeRef.current === requestedTenant
+      && tenantScopeGeneration.current === requestedScopeGeneration
+      && loadGeneration.current === requestedLoadGeneration;
+    if (!view || view.tenantId !== requestedTenant || !requestedTenant || session?.role !== 'admin' || session.principal.kind !== 'platform' || busy) return;
     setBusy(true);
     setNotice(null);
     setSaveProblem(null);
     try {
-      const mutation: Record<string, unknown> = {};
-      if (storageKeyRef.trim().length > 0) mutation.storageKeyRef = storageKeyRef.trim();
-      mutation.deliveryEncryption = deliveryEncryption;
-      if (recipientKeyVersion.trim().length > 0) mutation.recipientKeyVersion = Number(recipientKeyVersion);
+      const mutation: Record<string, unknown> = { tenantId: tenantId.trim() };
+      const storedStorageKeyRef = view.state.storageKeyRef ?? '';
+      if (storageKeyRef !== storedStorageKeyRef) mutation.storageKeyRef = storageKeyRef || null;
+      if (deliveryEncryption !== view.state.deliveryEncryption) mutation.deliveryEncryption = deliveryEncryption;
+      const storedRecipientVersion = view.state.pinnedRecipientKeyVersion === null ? '' : String(view.state.pinnedRecipientKeyVersion);
+      if (recipientKeyVersion !== storedRecipientVersion) {
+        mutation.recipientKeyVersion = recipientKeyVersion === '' ? null : Number(recipientKeyVersion);
+      }
+      if (Object.keys(mutation).length === 1) {
+        setNotice('No configuration changes to apply.');
+        return;
+      }
       const result = await client.updateCryptoConfig(mutation, crypto.randomUUID());
+      if (!isCurrentSaveScope()) return;
       if (!result.ok) {
         setSaveProblem(result.problem);
         return;
@@ -70,17 +118,31 @@ export function SecurityScreen() {
       const changed = Array.isArray(result.data['changedFields'])
         ? (result.data['changedFields'] as unknown[]).join(', ')
         : '—';
-      setStorageKeyRef('');
-      setRecipientKeyVersion('');
       // Reload first (it resets the notice), then report the applied change.
-      await load();
+      const refresh = load();
+      const refreshGeneration = loadGeneration.current;
+      await refresh;
+      if (
+        tenantScopeRef.current !== requestedTenant
+        || tenantScopeGeneration.current !== requestedScopeGeneration
+        || loadGeneration.current !== refreshGeneration
+      ) return;
       setNotice(`Applied. Changed fields: ${changed}`);
     } finally {
       setBusy(false);
     }
   }
 
-  const isAdmin = session?.role === 'admin';
+  const isAdmin = session?.role === 'admin' && session.principal.kind === 'platform';
+  const presentationView = state.kind === 'ready' ? parseCryptoConfigPresentationView(state.body) : null;
+  const viewMatchesTenant = presentationView !== null && presentationView.tenantId === tenantId.trim();
+  const storageKeyRefChanged = viewMatchesTenant && storageKeyRef !== (presentationView.state.storageKeyRef ?? '');
+  const deliveryEncryptionChanged = viewMatchesTenant && deliveryEncryption !== presentationView.state.deliveryEncryption;
+  const currentPinnedVersion = presentationView?.state.pinnedRecipientKeyVersion === null || !presentationView
+    ? ''
+    : String(presentationView.state.pinnedRecipientKeyVersion);
+  const recipientKeyVersionChanged = viewMatchesTenant && recipientKeyVersion !== currentPinnedVersion;
+  const hasPendingChanges = storageKeyRefChanged || deliveryEncryptionChanged || recipientKeyVersionChanged;
 
   return (
     <section aria-labelledby="security-title" className="flex flex-col gap-5 min-w-0">
@@ -90,32 +152,6 @@ export function SecurityScreen() {
         </h1>
         <Badge variant="neutral">crypto configuration</Badge>
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Tenant scope</CardTitle>
-          <CardDescription>GET /admin/api/crypto-config?tenantId — the view projects key refs/previews only.</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap items-end gap-3">
-          <div className="w-full max-w-sm">
-            <div className="flex flex-col gap-1.5">
-              <span className="text-xs font-semibold text-[var(--text-sub)]">Active Tenant</span>
-              <div className="flex items-center gap-2 p-2 rounded border border-[var(--border-subtle)] bg-[var(--surface-muted)] text-sm">
-                <span className="font-medium text-[var(--text-main)] truncate">
-                  {tenant?.name || (tenantId ? `Tenant (${tenantId.slice(0, 8)}...)` : 'No Tenant Selected')}
-                </span>
-                {tenant && (
-                  <Badge variant={tenant.state === 'ACTIVE' ? 'success' : 'neutral'} className="text-[10px] py-0 px-1.5 ml-auto">
-                    {tenant.state}
-                  </Badge>
-                )}
-              </div>
-              <p className="text-xs text-[var(--text-sub)]">Configured via Global Tenant in Left Navigator.</p>
-            </div>
-          </div>
-          <Button onClick={() => void load()}>Reload configuration</Button>
-        </CardContent>
-      </Card>
 
       {notice !== null ? (
         <AlertBanner variant="success" title="Crypto configuration">
@@ -128,8 +164,86 @@ export function SecurityScreen() {
         </AlertBanner>
       ) : null}
 
+      <Card className="min-w-0">
+        <CardHeader>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <CardTitle>Apply a change</CardTitle>
+              <CardDescription>
+                Changes apply to the tenant selected in the left navigation. The server still enforces platform-admin access, CSRF, the storage-ref allowlist, and recipient-key validity.
+              </CardDescription>
+            </div>
+            <Button type="button" variant="outline" onClick={() => void load()} disabled={!tenantId.trim() || state.kind === 'loading' || busy}>
+              {state.kind === 'loading' ? 'Reloading…' : 'Reload configuration'}
+            </Button>
+          </div>
+        </CardHeader>
+          <CardContent>
+            {viewMatchesTenant ? (
+              <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(13rem,1fr)_minmax(13rem,1fr)]">
+                <FormField id="crypto-keyref" label="Vault storage key ref" description="Allowlisted reference only; no key material is displayed.">
+                  <select
+                    id="crypto-keyref"
+                    aria-label="Vault storage key ref"
+                    className="h-9 w-full min-w-0 rounded border border-[var(--border-dark)] bg-[var(--bg-card)] px-2 text-sm"
+                    value={storageKeyRef}
+                    onChange={(event) => setStorageKeyRef(event.target.value)}
+                    disabled={!isAdmin || busy}
+                  >
+                    <option value="">No app-managed storage key</option>
+                    {presentationView.allowedKeyRefs.map((keyRef) => <option key={keyRef} value={keyRef}>{keyRef}</option>)}
+                    {presentationView.state.storageKeyRef && !presentationView.allowedKeyRefs.includes(presentationView.state.storageKeyRef) ? (
+                      <option value={presentationView.state.storageKeyRef}>Stored ref · not currently allowlisted</option>
+                    ) : null}
+                  </select>
+                </FormField>
+                <FormField id="crypto-version" label="Recipient key selection" description="Choose a registered version or follow the current active key.">
+                  <select
+                    id="crypto-version"
+                    aria-label="Recipient key selection"
+                    className="h-9 w-full min-w-0 rounded border border-[var(--border-dark)] bg-[var(--bg-card)] px-2 text-sm"
+                    value={recipientKeyVersion}
+                    onChange={(event) => setRecipientKeyVersion(event.target.value)}
+                    disabled={!isAdmin || busy}
+                  >
+                    <option value="">Follow current active key</option>
+                    {presentationView.recipientKeys.map((key) => (
+                      <option key={key.version} value={String(key.version)} disabled={key.revokedAt !== null}>
+                        v{key.version} · {cryptoFingerprintPreview(key.fingerprint)} · {key.revokedAt === null ? 'not revoked' : 'revoked'}
+                      </option>
+                    ))}
+                    {presentationView.state.pinnedRecipientKeyVersion !== null
+                      && !presentationView.recipientKeys.some((key) => key.version === presentationView.state.pinnedRecipientKeyVersion) ? (
+                      <option value={String(presentationView.state.pinnedRecipientKeyVersion)}>
+                        v{presentationView.state.pinnedRecipientKeyVersion} · missing from registry
+                      </option>
+                    ) : null}
+                  </select>
+                </FormField>
+                <label className="flex min-h-9 items-center gap-2 text-sm lg:col-span-2">
+                  <input type="checkbox" checked={deliveryEncryption} disabled={!isAdmin || busy} onChange={(event) => setDeliveryEncryption(event.target.checked)} />
+                  Enable recipient-encrypted delivery
+                </label>
+                <div className="flex min-w-0 flex-wrap items-center gap-3 lg:col-span-2">
+                  <Button type="button" onClick={() => void save()} isLoading={busy} disabled={!isAdmin || busy || !hasPendingChanges}>
+                    Apply change
+                  </Button>
+                  {!isAdmin ? <Badge variant="warning" dot>platform admin required</Badge> : null}
+                  {isAdmin && !hasPendingChanges ? <span className="text-xs text-[var(--text-sub)]">No unapplied changes.</span> : null}
+                </div>
+              </div>
+            ) : (
+              <div className="flex min-h-24 flex-wrap items-center gap-2 text-sm text-[var(--text-sub)]">
+                <span>Load the selected tenant’s configuration before applying changes.</span>
+                {!isAdmin ? <Badge variant="warning" dot>platform admin required</Badge> : null}
+              </div>
+            )}
+          </CardContent>
+      </Card>
+
       {state.kind === 'loading' ? <LoadingState title="Loading crypto configuration…" /> : null}
-      {state.kind === 'idle' ? <LoadingState title="Preparing…" /> : null}
+      {state.kind === 'idle' && !tenantId.trim() ? <AlertBanner variant="warning" title="Choose a tenant">Select a tenant in the left navigator to load its crypto configuration.</AlertBanner> : null}
+      {state.kind === 'idle' && tenantId.trim() ? <LoadingState title="Preparing…" /> : null}
       {state.kind === 'failed' ? (
         state.problem.status === 403 ? (
           <DeniedState
@@ -165,47 +279,73 @@ export function SecurityScreen() {
         <>
           <Card>
             <CardHeader>
-              <CardTitle>Effective view</CardTitle>
-              <CardDescription>Configuration is shown for the selected tenant scope; secrets never ride this wire.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <pre className="max-h-72 overflow-auto rounded-[var(--radius-sm)] bg-[var(--bg-subtle)] p-3 text-xs">
-                {JSON.stringify(state.body['crypto'] ?? state.body, null, 2)}
-              </pre>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Apply a change</CardTitle>
+              <CardTitle>Crypto policy and projected delivery readiness</CardTitle>
               <CardDescription>
-                POST /admin/api/crypto-config (platform admin + session CSRF). Secret material is never
-                accepted or displayed here — only key REFS and version numbers.
+                Saved configuration and registered recipient keys for this tenant. Effective key and readiness are calculated by the API; this view is not an observation of an individual delivery.
               </CardDescription>
             </CardHeader>
-            <CardContent className="flex flex-wrap items-end gap-3">
-              <div className="w-full max-w-sm">
-                <FormField id="crypto-keyref" label="Storage key ref (write-only)">
-                  <Input id="crypto-keyref" value={storageKeyRef} onChange={(e) => setStorageKeyRef(e.target.value)} disabled={!isAdmin} placeholder="ref name (never a secret)" />
-                </FormField>
-              </div>
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={deliveryEncryption} disabled={!isAdmin} onChange={(e) => setDeliveryEncryption(e.target.checked)} />
-                delivery encryption
-              </label>
-              <div className="w-full max-w-[10rem]">
-                <FormField id="crypto-version" label="Recipient key version">
-                  <Input id="crypto-version" value={recipientKeyVersion} onChange={(e) => setRecipientKeyVersion(e.target.value)} disabled={!isAdmin} placeholder="1" />
-                </FormField>
-              </div>
-              <Button onClick={() => void save()} isLoading={busy} disabled={!isAdmin}>
-                Apply change
-              </Button>
-              {!isAdmin ? (
-                <Badge variant="warning" dot>
-                  platform admin required
-                </Badge>
-              ) : null}
+            <CardContent className="space-y-5">
+              {viewMatchesTenant ? (
+                <>
+                  <dl className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    <div className="min-w-0 rounded border border-[var(--border-subtle)] p-3">
+                      <dt className="text-xs text-[var(--text-sub)]">Tenant</dt>
+                      <dd className="mt-1 break-all font-mono text-sm">{presentationView.tenantId}</dd>
+                    </div>
+                    <div className="min-w-0 rounded border border-[var(--border-subtle)] p-3">
+                      <dt className="text-xs text-[var(--text-sub)]">Storage key ref</dt>
+                      <dd className="mt-1 break-all font-mono text-sm">{presentationView.state.storageKeyRef ?? 'None configured'}</dd>
+                      <p className="mt-1 text-xs text-[var(--text-sub)]">Configured ref for app-managed artifact storage encryption.</p>
+                    </div>
+                    <div className="min-w-0 rounded border border-[var(--border-subtle)] p-3">
+                      <dt className="text-xs text-[var(--text-sub)]">Recipient-encrypted delivery</dt>
+                      <dd className="mt-1 text-sm font-medium">{presentationView.state.deliveryEncryption ? 'Enabled in saved configuration' : 'Disabled in saved configuration'}</dd>
+                    </div>
+                    <div className="min-w-0 rounded border border-[var(--border-subtle)] p-3">
+                      <dt className="text-xs text-[var(--text-sub)]">Recipient key pin</dt>
+                      <dd className="mt-1 text-sm font-medium">{presentationView.state.pinnedRecipientKeyVersion === null ? 'Follow current active key' : `Pinned to v${presentationView.state.pinnedRecipientKeyVersion}`}</dd>
+                      {presentationView.pinInvalid ? <p role="status" className="mt-1 text-xs text-[var(--badge-warning-text)]">Pinned v{presentationView.pinInvalid.version}: {presentationView.pinInvalid.reason === 'version_revoked' ? 'revoked' : 'not registered'}.</p> : null}
+                    </div>
+                    <div className="min-w-0 rounded border border-[var(--border-subtle)] p-3">
+                      <dt className="text-xs text-[var(--text-sub)]">Effective recipient key (calculated)</dt>
+                      <dd className="mt-1 text-sm font-medium">{presentationView.effectiveRecipientKeyVersion === null ? 'No usable version' : `v${presentationView.effectiveRecipientKeyVersion}`}</dd>
+                      <p className="mt-1 text-xs text-[var(--text-sub)]">Derived from the configured pin and current non-revoked key registry.</p>
+                    </div>
+                    <div className="min-w-0 rounded border border-[var(--border-subtle)] p-3">
+                      <dt className="text-xs text-[var(--text-sub)]">Delivery readiness (calculated)</dt>
+                      <dd className="mt-1 text-sm font-medium">{!presentationView.state.deliveryEncryption ? 'Encryption is disabled' : presentationView.deliveryReady ? 'Ready according to the current registry' : 'Blocked'}</dd>
+                      {presentationView.state.deliveryEncryption && !presentationView.deliveryReady ? <p role="status" className="mt-1 text-xs text-[var(--badge-warning-text)]">{presentationView.deliveryBlockedReason === 'no_recipient_key' ? 'No recipient public key is registered.' : 'The pinned recipient key cannot be used.'}</p> : null}
+                    </div>
+                  </dl>
+
+                  <section aria-labelledby="crypto-allowed-refs-title" className="space-y-2">
+                    <h3 id="crypto-allowed-refs-title" className="text-sm font-semibold">Allowed storage key refs</h3>
+                    {presentationView.allowedKeyRefs.length > 0 ? (
+                      <ul className="flex flex-wrap gap-2">{presentationView.allowedKeyRefs.map((keyRef) => <li key={keyRef} className="max-w-full"><code className="block max-w-full break-all rounded border border-[var(--border-subtle)] px-2 py-1 text-xs">{keyRef}</code></li>)}</ul>
+                    ) : <p className="text-sm text-[var(--text-sub)]">No storage key refs are currently allowlisted.</p>}
+                  </section>
+
+                  <section aria-labelledby="crypto-recipient-keys-title" className="space-y-2">
+                    <h3 id="crypto-recipient-keys-title" className="text-sm font-semibold">Registered recipient keys</h3>
+                    {presentationView.recipientKeys.length > 0 ? (
+                      <div className="max-w-full overflow-x-auto rounded border border-[var(--border-subtle)]">
+                        <table className="w-full min-w-[34rem] border-collapse text-left text-xs">
+                          <caption className="sr-only">Recipient key versions registered for the selected tenant</caption>
+                          <thead className="bg-[var(--bg-subtle)] text-[var(--text-sub)]"><tr><th scope="col" className="px-3 py-2 font-medium">Version</th><th scope="col" className="px-3 py-2 font-medium">Fingerprint preview</th><th scope="col" className="px-3 py-2 font-medium">Revocation</th><th scope="col" className="px-3 py-2 font-medium">Effective at</th></tr></thead>
+                          <tbody className="divide-y divide-[var(--border-subtle)]">{presentationView.recipientKeys.map((key) => <tr key={key.version}><th scope="row" className="px-3 py-2 font-medium">v{key.version}</th><td className="px-3 py-2 font-mono">{cryptoFingerprintPreview(key.fingerprint)}</td><td className="px-3 py-2">{key.revokedAt === null ? 'Not revoked' : `Revoked · ${key.revokedAt}`}</td><td className="px-3 py-2">{key.effectiveAt}</td></tr>)}</tbody>
+                        </table>
+                      </div>
+                    ) : <p className="text-sm text-[var(--text-sub)]">No recipient public keys are registered for this tenant.</p>}
+                  </section>
+                </>
+              ) : (
+                <AlertBanner variant="warning" title="Crypto response could not be interpreted">The API response did not match the crypto-config view fields. Inspect the raw JSON before making changes.</AlertBanner>
+              )}
+
+              <details className="rounded border border-[var(--border-subtle)] p-3">
+                <summary className="cursor-pointer text-sm font-medium">Raw API JSON</summary>
+                <pre className="mt-3 max-h-80 overflow-auto rounded-[var(--radius-sm)] bg-[var(--bg-subtle)] p-3 text-xs">{JSON.stringify(state.body, null, 2)}</pre>
+              </details>
             </CardContent>
           </Card>
         </>

@@ -81,10 +81,29 @@ jest.mock('pg', () => {
     if (text.includes('INSERT INTO tasks')) return write();
     if (text.includes('INSERT INTO submission_keys')) return write();
     if (text.includes('INSERT INTO outbox')) return write();
+    // createApp initializes storage generations through the fail-closed backup
+    // write gate. This composition test models the initialized OPEN row so it
+    // can exercise acquisition wiring without bypassing the production gate.
+    if (/FROM maintenance_backup_effect_gate/i.test(text)) {
+      return { rows: [{ state: 'OPEN', fence_id: null, fence_revision: 0 }], rowCount: 1 };
+    }
+    if (/FROM storage_generation_state s JOIN storage_generations g/i.test(text)) {
+      return {
+        rows: [{
+          generation_id: '64000000-0000-4000-8000-000000000001', revision: 0,
+          backend: 'postgres', endpoint: '', bucket: '', region: '', force_path_style: false,
+          credential_version_ref: null, credential_owner_tenant_id: null, url_ttl_seconds: 900,
+          state: 'ACTIVE', tested_at: null, test_result: null, activated_at: new Date(0).toISOString(), control_revision: 1,
+        }],
+        rowCount: 1,
+      };
+    }
     if (/FROM business_versions/i.test(text)) {
       return {
         rows: [{
           version: '1.0.0',
+          status: 'ENABLED',
+          is_active: true,
           manifest: {
             actions: [{ name: 'extract', inputSchema: { type: 'object', additionalProperties: true } }],
             runtime: { handlerKinds: ['root'] },

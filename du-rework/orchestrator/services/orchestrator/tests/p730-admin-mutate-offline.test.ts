@@ -101,6 +101,8 @@ function makeStatefulDb(seed?: { apiKeys?: ApiKeySeed[] }) {
     else committed.push({ sql, params, via });
     if (failOn?.(sql)) throw new Error(`injected failure: ${sql.trim().slice(0, 48)}`);
 
+    if (/pg_advisory_xact_lock/.test(sql)) return { rows: [], rowCount: 0 };
+
     // --- idempotency markers ---
     if (/SELECT key, route, payload_hash/.test(sql)) {
       const row = state.markers.get(String(params[0]));
@@ -128,13 +130,17 @@ function makeStatefulDb(seed?: { apiKeys?: ApiKeySeed[] }) {
       const hit = keyBy(sql, params);
       return { rows: hit ? [{ id: hit.id, tenant_id: hit.tenant_id, hash: hit.hash }] : [], rowCount: hit ? 1 : 0 };
     }
+    if (/SELECT id, tenant_id, hash, prefix, status FROM api_keys/.test(sql)) {
+      const hit = keyBy(sql, params);
+      return { rows: hit ? [{ id: hit.id, tenant_id: hit.tenant_id, hash: hit.hash, prefix: 'test', status: hit.status ?? 'ACTIVE' }] : [], rowCount: hit ? 1 : 0 };
+    }
     if (/SELECT id, tenant_id FROM api_keys/.test(sql)) {
       const hit = keyBy(sql, params);
       return { rows: hit ? [{ id: hit.id, tenant_id: hit.tenant_id }] : [], rowCount: hit ? 1 : 0 };
     }
 
     // --- profile_names registry ---
-    if (/SELECT profile_id FROM profile_names/.test(sql)) {
+    if (/SELECT (?:n\.)?profile_id FROM profile_names/.test(sql)) {
       const [tenant, keyId, biz, ver, action, name] = params;
       const hit = state.names.find(
         (n) =>
@@ -146,6 +152,46 @@ function makeStatefulDb(seed?: { apiKeys?: ApiKeySeed[] }) {
           n.profile_name === name
       );
       return { rows: hit ? [{ profile_id: hit.profile_id }] : [], rowCount: hit ? 1 : 0 };
+    }
+    if (/SELECT group_id FROM profile_names/.test(sql)) {
+      return { rows: [], rowCount: 0 };
+    }
+    if (/SELECT api_key_id, tenant_id FROM profile_api_keys/.test(sql)) {
+      const profileId = String(params[0]);
+      const rows = state.names
+        .filter((name) => name.profile_id === profileId)
+        .map((name) => ({ api_key_id: name.api_key_id, tenant_id: name.tenant_id }));
+      return { rows, rowCount: rows.length };
+    }
+    if (/INSERT INTO profile_api_keys/.test(sql)) {
+      return { rows: [], rowCount: 1 };
+    }
+    if (/SELECT b\.business_id, b\.business_version, b\.action, b\.endpoint_slug[\s\S]*FROM profile_active_revisions a/i.test(sql)) {
+      const profileId = String(params[0]);
+      const revision = state.pointers.get(profileId);
+      const exists = revision !== undefined && state.bindings.some((row) => row.profile_id === profileId && row.revision === revision);
+      return {
+        rows: exists ? [{ business_id: 'document-core', business_version: '1.0.0', action: 'extract', endpoint_slug: null }] : [],
+        rowCount: exists ? 1 : 0,
+      };
+    }
+    if (/SELECT p\.connector_bindings FROM profile_active_revisions/.test(sql)) {
+      return { rows: [{ connector_bindings: {} }], rowCount: 1 };
+    }
+    if (/SELECT business_id, business_version, action, endpoint_slug[\s\S]*FROM profile_bindings WHERE profile_id=\$1 AND revision=\$2/i.test(sql)) {
+      const exists = state.bindings.some((row) => row.profile_id === params[0] && row.revision === Number(params[1]));
+      return {
+        rows: exists ? [{ business_id: 'document-core', business_version: '1.0.0', action: 'extract', endpoint_slug: null }] : [],
+        rowCount: exists ? 1 : 0,
+      };
+    }
+    if (/SELECT revision, business_id, business_version, action, endpoint_slug[\s\S]*FROM profile_bindings WHERE profile_id=\$1 ORDER BY revision DESC LIMIT 1/i.test(sql)) {
+      const rows = state.bindings.filter((row) => row.profile_id === params[0]).sort((left, right) => right.revision - left.revision);
+      const hit = rows[0];
+      return {
+        rows: hit ? [{ revision: hit.revision, business_id: 'document-core', business_version: '1.0.0', action: 'extract', endpoint_slug: null }] : [],
+        rowCount: hit ? 1 : 0,
+      };
     }
     if (/INSERT INTO profile_names/.test(sql)) {
       const [profileId, tenant, keyId, biz, ver, action, name] = params as [
@@ -183,6 +229,9 @@ function makeStatefulDb(seed?: { apiKeys?: ApiKeySeed[] }) {
     }
 
     // --- pointer ---
+    if (/SELECT b\.profile_id[\s\S]*FROM profile_active_revisions a/i.test(sql)) {
+      return { rows: [], rowCount: 0 };
+    }
     if (/SELECT revision FROM profile_active_revisions WHERE profile_id=\$1 FOR UPDATE/.test(sql)) {
       const rev = state.pointers.get(String(params[0]));
       return { rows: rev === undefined ? [] : [{ revision: rev }], rowCount: rev === undefined ? 0 : 1 };
@@ -319,11 +368,25 @@ function makeStatefulDb(seed?: { apiKeys?: ApiKeySeed[] }) {
 }
 
 function makeDeps(f: ReturnType<typeof makeStatefulDb>): AdminActionDeps {
+  const connectorManagement = {
+    getRecipeRevision: async () => undefined,
+    hasRecipeChain: async () => false,
+    getRevision: async (connectorId: string, revision: number) => ({
+      connectorId,
+      revision,
+      state: 'ACTIVE',
+      tenantId: TENANT,
+    }),
+  } as never;
   return {
     db: f.db,
     audit: createAuditService(f.db),
     registry: {} as never,
-    profiles: createProfileService(f.db, { cryptoEnv: { ENCRYPTION_KEY: 'test-encryption-key' } }),
+    profiles: createProfileService(f.db, {
+      cryptoEnv: { ENCRYPTION_KEY: 'test-encryption-key' },
+      connectorManagement,
+    }),
+    connectorManagement,
     lifecycle: {} as never,
     runtime: { resumeOperation: async () => ({}) },
     hashApiKey: (raw: string) => raw,

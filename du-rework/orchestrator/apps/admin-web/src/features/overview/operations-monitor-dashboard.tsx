@@ -197,7 +197,7 @@ export function OperationsMonitorDashboard({
             </div>
             <div className="mt-2 flex items-baseline justify-between">
               <span className="text-2xl font-bold text-[var(--text-main)]">
-                {workerInstances === null ? 'Unknown' : `${workerList.length} recorded`}
+                {workerInstances === null ? 'Unknown' : `${workerInstances.total.toLocaleString()} recorded`}
               </span>
               <Badge variant={health === null ? 'neutral' : healthStale ? 'warning' : health.status === 'ok' ? 'success' : health.status === 'degraded' ? 'danger' : 'neutral'} className="text-xs">
                 {health === null ? 'Health unknown' : healthStale ? `Stale · last ${health.status}` : health.status}
@@ -237,7 +237,7 @@ export function OperationsMonitorDashboard({
                 <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
                 <span>Refresh</span>
               </Button>
-              <Link to="/operations">
+              <Link to="/trace?view=operations">
                 <Button size="sm" variant="outline" className="text-xs">
                   View the full list →
                 </Button>
@@ -453,9 +453,9 @@ export function OperationsMonitorDashboard({
             <h4 className="text-xs font-semibold uppercase tracking-wider text-[var(--text-sub)]">
               Loaded sample by time bucket ({timeframeLabels[timeframe].label})
             </h4>
-            <TableContainer className="border border-[var(--border-subtle)] rounded-md max-h-56 overflow-y-auto">
-              <Table>
-                <TableHeader>
+            <TableContainer maxHeight={224} aria-label="Loaded operations by time bucket" className="border border-[var(--border-subtle)] rounded-md">
+              <Table density="compact">
+                <TableHeader sticky>
                   <TableRow className="bg-[var(--surface-muted)]">
                     <TableHead className="text-xs">Time bucket</TableHead>
                     <TableHead className="text-xs text-right">Sample rows</TableHead>
@@ -525,7 +525,7 @@ export function OperationsMonitorDashboard({
                   Worker instances
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  Platform-wide worker instances have reported a heartbeat; status is derived from heartbeat freshness.
+                  Worker active count is the worker self-report; DB at heartbeat is the stored sample, and current DB leases are unexpired RUNNING task leases. Capacity is the worker's declared limit. Status is derived from heartbeat freshness.
                   {workerInstances ? ` Sampled ${new Date(workerInstances.sampledAt).toLocaleString()}.` : ''}
                 </CardDescription>
               </div>
@@ -550,14 +550,16 @@ export function OperationsMonitorDashboard({
                 No worker heartbeat instances are recorded in this response. Businesses without heartbeats are not represented as offline rows.
               </div>
             ) : (
-              <TableContainer className="border border-[var(--border-subtle)] rounded-md">
-                <Table>
-                  <TableHeader>
+              <TableContainer maxHeight="65dvh" aria-label="Loaded worker heartbeat inventory" className="border border-[var(--border-subtle)] rounded-md">
+                <Table density="compact">
+                  <TableHeader sticky>
                     <TableRow className="bg-[var(--surface-muted)]">
                       <TableHead className="text-xs">Worker instance</TableHead>
                       <TableHead className="text-xs">Business / version</TableHead>
                       <TableHead className="text-xs">Health status</TableHead>
-                      <TableHead className="text-xs text-right">Active leases</TableHead>
+                      <TableHead className="text-xs text-right">Reported active</TableHead>
+                      <TableHead className="text-xs text-right">DB at heartbeat</TableHead>
+                      <TableHead className="text-xs text-right">Current DB leases</TableHead>
                       <TableHead className="text-xs text-right">Capacity</TableHead>
                       <TableHead className="text-xs text-right">Last seen</TableHead>
                     </TableRow>
@@ -584,8 +586,10 @@ export function OperationsMonitorDashboard({
                           </div>
                         </TableCell>
                         <TableCell className="text-xs text-right font-semibold">
-                          {worker.activeLeases.toLocaleString()}
+                          <span title={worker.reportedObservedAt ?? 'No worker self-report'}>{worker.reportedActiveTasks?.toLocaleString() ?? 'Not reported'}</span>
                         </TableCell>
+                        <TableCell className="text-xs text-right">{worker.activeLeases.toLocaleString()}</TableCell>
+                        <TableCell className="text-xs text-right font-semibold">{worker.durableLeases.toLocaleString()}</TableCell>
                         <TableCell className="text-xs text-right">
                           {worker.capacity.toLocaleString()}
                         </TableCell>
@@ -603,7 +607,7 @@ export function OperationsMonitorDashboard({
             {workerInventoryFailed && workerInstances !== null ? <p role="status" className="mt-2 text-xs text-[var(--badge-warning-text)]">The latest inventory refresh failed; showing the last successful sample from {new Date(workerInstances.sampledAt).toLocaleString()}.</p> : null}
             {workerInstances?.truncated ? (
               <p className="mt-2 text-[10px] text-[var(--text-sub)]">
-                Showing the latest 500 worker instances; the inventory response is truncated.
+                Showing {workerInstances.items.length.toLocaleString()} of {workerInstances.total.toLocaleString()} worker instances; the inventory response is truncated.
               </p>
             ) : null}
           </CardContent>
@@ -698,7 +702,7 @@ export function OperationsMonitorDashboard({
                 The most recently processed document tasks
               </CardDescription>
             </div>
-            <Link to="/operations">
+            <Link to="/trace?view=operations">
               <Button size="sm" variant="outline" className="text-xs">
                 Open the Operations screen →
               </Button>
@@ -718,9 +722,9 @@ export function OperationsMonitorDashboard({
             <>
             {operationsFailed ? <p role="status" className="mb-2 text-xs text-[var(--badge-warning-text)]">The latest refresh failed; showing the previous page sample.</p> : null}
             <p className="mb-2 text-xs text-[var(--text-sub)]">Showing up to the latest 100 operations. This table is not an all-history list.</p>
-            <TableContainer className="border border-[var(--border-subtle)] rounded-md">
-              <Table>
-                <TableHeader>
+            <TableContainer maxHeight="65dvh" aria-label="Latest loaded operations" className="border border-[var(--border-subtle)] rounded-md">
+              <Table density="compact">
+                <TableHeader sticky>
                   <TableRow className="bg-[var(--surface-muted)]">
                     <TableHead className="text-xs">ID</TableHead>
                     <TableHead className="text-xs">Action</TableHead>
@@ -741,7 +745,7 @@ export function OperationsMonitorDashboard({
                       <TableRow key={op.id}>
                         <TableCell className="text-xs font-mono">
                           <Link
-                            to={`/operations?${new URLSearchParams({ operation: op.id }).toString()}`}
+                            to={`/trace?${new URLSearchParams({ view: 'operations', operation: op.id }).toString()}`}
                             className="text-[var(--cf-blue)] hover:underline font-semibold"
                             title={op.id}
                           >

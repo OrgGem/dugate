@@ -1,0 +1,14 @@
+Command: node --test tests/orv15-connectors-settings-workspaces.test.mjs
+Result: PASS
+
+▶ ORV15 connector and settings workspaces
+  ✔ keeps connector workspaces mounted and pages only the fully loaded catalog locally
+  ✔ preserves the provider-test reconciliation owner while bounding long editor content
+  ✔ keeps the settings editors mounted in their requested tabs and bounds loaded histories
+  ✔ retains exact-request retry guards for unknown storage mutations and tests
+  ✔ blocks connector catalog selection during a pending action and labels legacy disposition as future handling
+✔ ORV15 connector and settings workspaces
+ℹ tests 5
+ℹ suites 1
+ℹ pass 5
+ℹ fail 0

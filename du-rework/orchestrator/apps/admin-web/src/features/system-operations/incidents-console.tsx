@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Modal } from '@/components/ui/dialog';
 import { AlertBanner, DeniedState, EmptyState, ErrorState, LoadingState } from '@/components/ui/state-panel';
+import { Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TablePagination, TableRow } from '@/components/ui/table';
 import { createAdminApiClient, type AdminWebSession } from '@/lib/api';
 import { useTenant } from '@/lib/tenant-context';
 import { canReadIncidentLedger, isLocalUserSession } from './state';
@@ -355,16 +356,24 @@ export function IncidentsConsole({ session }: { session: AdminWebSession | null 
             {page.kind === 'error' ? <ErrorState title="Incident ledger unavailable" description={page.message} onRetry={() => void loadPage()} /> : null}
             {page.kind === 'ready' && page.data.items.length === 0 ? <EmptyState title="No incidents match these filters" description="A zero-row page means no ledger rows matched this server query. It does not mean every source is healthy." /> : null}
             {page.kind === 'ready' && page.data.items.length > 0 ? (
-              <div className="overflow-x-auto rounded-md border border-[var(--border-subtle)]" role="region" aria-label="Incident results" tabIndex={0}>
-                <table className="w-full min-w-[720px] border-collapse text-left text-sm">
-                  <thead><tr className="border-b border-[var(--border-subtle)] bg-[var(--bg-subtle)]"><th className="px-3 py-2">Severity / state</th><th className="px-3 py-2">Incident</th><th className="px-3 py-2">Source</th><th className="px-3 py-2">Owner</th><th className="px-3 py-2">Last seen</th><th className="px-3 py-2">Resource</th></tr></thead>
-                  <tbody>
+              <TableContainer maxHeight="65dvh" role="region" aria-label="Incident results">
+                <Table aria-label="Incidents" density="compact" className="min-w-[720px]">
+                  <TableHeader sticky><TableRow><TableHead>Severity / state</TableHead><TableHead>Incident</TableHead><TableHead>Source</TableHead><TableHead>Owner</TableHead><TableHead>Last seen</TableHead><TableHead>Resource</TableHead></TableRow></TableHeader>
+                  <TableBody>
                     {page.data.items.map((incident) => <IncidentRow key={incident.id} incident={incident} selected={incidentId === incident.id} onOpen={() => updateSearch((params) => params.set('incident', incident.id))} />)}
-                  </tbody>
-                </table>
-              </div>
+                  </TableBody>
+                </Table>
+              </TableContainer>
             ) : null}
-            {page.kind === 'ready' ? <div className="flex flex-wrap items-center justify-between gap-2 text-sm"><span className="text-xs text-[var(--text-sub)]">Server search · keyset cursor · 50 rows per page</span><Button size="sm" variant="outline" disabled={!cursor} onClick={() => updateSearch((params) => params.delete('cursor'))}>First page</Button><Button size="sm" variant="outline" disabled={!page.data.nextCursor} onClick={() => updateSearch((params) => params.set('cursor', page.data.nextCursor!))}>Next page</Button></div> : null}
+            {page.kind === 'ready' ? <TablePagination
+              ariaLabel="Incident list pagination"
+              hasPreviousPage={Boolean(cursor)}
+              hasNextPage={Boolean(page.data.nextCursor)}
+              onPreviousPage={() => updateSearch((params) => params.delete('cursor'))}
+              onNextPage={() => updateSearch((params) => params.set('cursor', page.data.nextCursor!))}
+              previousLabel="First page"
+              status={`${page.data.items.length} rows · server keyset cursor · 50 rows per page · sample ${formatTime(page.data.sampledAt)}`}
+            /> : null}
           </CardContent>
         </Card>
 
@@ -420,14 +429,14 @@ function ConnectorSignalBanner({ snapshot }: { snapshot: NonNullable<IncidentLis
 
 function IncidentRow({ incident, selected, onOpen }: { incident: Incident; selected: boolean; onOpen: () => void }) {
   const primary = incident.affectedResources[0];
-  return <tr className={`border-b border-[var(--border-subtle)] align-top ${selected ? 'bg-[var(--cf-blue-light)]' : ''}`}>
-    <td className="whitespace-nowrap px-3 py-3"><div className="flex flex-col items-start gap-1"><Badge variant={severityVariant(incident.severity)}>{incident.severity}</Badge><Badge variant={statusVariant(incident.status)}>{incident.status}</Badge>{incident.suppressed ? <Badge variant="warning">Suppressed · history retained</Badge> : null}</div></td>
-    <td className="min-w-[18rem] px-3 py-3"><button onClick={onOpen} className="text-left font-medium text-[var(--cf-blue)] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]">{incident.summary}</button><p className="mt-1 text-xs text-[var(--text-sub)]">First {formatTime(incident.firstSeenAt)} · {incident.occurrenceCount.toLocaleString()} observations · v{incident.stateVersion}</p><p className="text-xs text-[var(--text-sub)]">Source state {incident.sourceState} · threshold {incident.thresholdRevision}</p></td>
-    <td className="px-3 py-3"><span className="font-medium">{incident.source}</span><p className="break-all font-mono text-xs text-[var(--text-sub)]">{incident.sourceRef} · {incident.signalCode}</p></td>
-    <td className="px-3 py-3">{incident.ownerId ? <span className="break-all font-mono text-xs">{incident.ownerId}</span> : <span className="text-[var(--text-sub)]">Unassigned</span>}</td>
-    <td className="whitespace-nowrap px-3 py-3"><time dateTime={incident.lastSeenAt}>{formatTime(incident.lastSeenAt)}</time><p className="text-xs text-[var(--text-sub)]">Sampled {formatTime(incident.lastSampledAt)}</p></td>
-    <td className="px-3 py-3">{primary ? resourceHref(primary.kind, primary.ref) ? <Link className="text-[var(--cf-blue)] underline" to={resourceHref(primary.kind, primary.ref)!}>{primary.label}</Link> : <span>{primary.label}</span> : <span className="text-[var(--text-sub)]">No affected resource reference</span>}</td>
-  </tr>;
+  return <TableRow className={selected ? 'bg-[var(--cf-blue-light)]' : ''}>
+    <TableCell className="whitespace-nowrap align-top"><div className="flex flex-col items-start gap-1"><Badge variant={severityVariant(incident.severity)}>{incident.severity}</Badge><Badge variant={statusVariant(incident.status)}>{incident.status}</Badge>{incident.suppressed ? <Badge variant="warning">Suppressed · history retained</Badge> : null}</div></TableCell>
+    <TableCell className="min-w-[18rem] align-top"><button onClick={onOpen} className="text-left font-medium text-[var(--cf-blue)] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]">{incident.summary}</button><p className="mt-1 text-xs text-[var(--text-sub)]">First {formatTime(incident.firstSeenAt)} · {incident.occurrenceCount.toLocaleString()} observations · v{incident.stateVersion}</p><p className="text-xs text-[var(--text-sub)]">Source state {incident.sourceState} · threshold {incident.thresholdRevision}</p></TableCell>
+    <TableCell className="align-top"><span className="font-medium">{incident.source}</span><p className="break-all font-mono text-xs text-[var(--text-sub)]">{incident.sourceRef} · {incident.signalCode}</p></TableCell>
+    <TableCell className="align-top">{incident.ownerId ? <span className="break-all font-mono text-xs">{incident.ownerId}</span> : <span className="text-[var(--text-sub)]">Unassigned</span>}</TableCell>
+    <TableCell className="whitespace-nowrap align-top"><time dateTime={incident.lastSeenAt}>{formatTime(incident.lastSeenAt)}</time><p className="text-xs text-[var(--text-sub)]">Sampled {formatTime(incident.lastSampledAt)}</p></TableCell>
+    <TableCell className="align-top">{primary ? resourceHref(primary.kind, primary.ref) ? <Link className="text-[var(--cf-blue)] underline" to={resourceHref(primary.kind, primary.ref)!}>{primary.label}</Link> : <span>{primary.label}</span> : <span className="text-[var(--text-sub)]">No affected resource reference</span>}</TableCell>
+  </TableRow>;
 }
 
 function IncidentDetailCard(props: {

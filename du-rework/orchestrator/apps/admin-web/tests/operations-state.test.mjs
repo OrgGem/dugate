@@ -8,6 +8,7 @@ import {
   operationsPopulation,
   operationsTimeWindow,
   operationsWindowInvalid,
+  parseOperationDetail,
   parseOperationsPage,
 } from '../src/features/operations/state.ts';
 
@@ -22,8 +23,19 @@ import {
 const baseInput = {
   limit: '50',
   state: 'ALL',
+  sort: 'created_at:desc',
   tenantId: 'tenant-a',
   id: '',
+  business: '',
+  action: '',
+  apiKey: '',
+  profile: '',
+  correlation: '',
+  provider: '',
+  model: '',
+  usage: 'any',
+  reservation: 'any',
+  attention: 'any',
   cursor: null,
   fromDate: '',
   toDate: '',
@@ -106,16 +118,88 @@ describe('buildOperationsQuery', () => {
   });
 });
 
+describe('operation progress and task graph parsing', () => {
+  it('keeps reported progress, spawn ancestry, retries, and parent child-join semantics', () => {
+    const detail = parseOperationDetail({
+      operation: { id: 'op-1', state: 'RUNNING', progress: { percent: 42, message: 'Parsing pages' } },
+      tasks: [{
+        id: 'task-parent', taskKey: 'split', kind: 'workflow', state: 'WAITING_CHILDREN',
+        spawnedBy: null, leasedBy: 'worker-a', leaseExpiresAt: '2026-10-13T00:00:30Z', dueAt: null,
+        attempt: 1, maxAttempts: 4, errorCode: null,
+        awaitedChildren: [{ taskId: 'task-east', joinPolicy: 'all-success' }, { taskId: 'task-west', joinPolicy: 'all-success' }],
+      }, {
+        id: 'task-child', taskKey: 'check-east', kind: 'check', state: 'READY',
+        spawnedBy: 'task-parent', leasedBy: null, leaseExpiresAt: null, dueAt: null,
+        admissionParkedReason: 'VERSION_NOT_ACTIVE', admissionParkedAt: '2026-10-13T00:02:30.000Z',
+        attempt: 0, maxAttempts: 4, errorCode: null, awaitedChildren: [],
+      }],
+    });
+
+    assert.equal(detail?.operation?.progress?.percent, 42);
+    assert.equal(detail?.operation?.progress?.message, 'Parsing pages');
+    assert.deepEqual(detail?.tasks?.[0], {
+      id: 'task-parent', taskKey: 'split', kind: 'workflow', state: 'WAITING_CHILDREN',
+      spawnedBy: null, leasedBy: 'worker-a', leaseExpiresAt: '2026-10-13T00:00:30Z', dueAt: null,
+      awaitedChildren: [{ taskId: 'task-east', joinPolicy: 'all-success' }, { taskId: 'task-west', joinPolicy: 'all-success' }],
+      attempt: 1, maxAttempts: 4, errorCode: null,
+    });
+    assert.equal(detail?.tasks?.[1]?.spawnedBy, 'task-parent');
+    assert.equal(detail?.tasks?.[1]?.admissionParkedReason, 'VERSION_NOT_ACTIVE');
+    assert.equal(detail?.tasks?.[1]?.admissionParkedAt, '2026-10-13T00:02:30.000Z');
+    assert.deepEqual(detail?.tasks?.[1]?.awaitedChildren, []);
+    assert.equal('dependsOn' in (detail?.tasks?.[1] ?? {}), false);
+  });
+
+  it('distinguishes explicit unparked state from an older response with no admission fields', () => {
+    const explicit = parseOperationDetail({ tasks: [{ id: 'task-a', admissionParkedReason: null, admissionParkedAt: null }] });
+    const older = parseOperationDetail({ tasks: [{ id: 'task-b' }] });
+    assert.equal(explicit?.tasks?.[0]?.admissionParkedReason, null);
+    assert.equal(explicit?.tasks?.[0]?.admissionParkedAt, null);
+    assert.equal(older?.tasks?.[0]?.admissionParkedReason, undefined);
+    assert.equal(older?.tasks?.[0]?.admissionParkedAt, undefined);
+  });
+
+  it('ignores invalid progress instead of displaying an impossible percent', () => {
+    const detail = parseOperationDetail({ operation: { id: 'op-1', state: 'RUNNING', progress: { percent: 101 } } });
+    assert.equal(detail?.operation?.progress, undefined);
+  });
+});
+
 // AWEB-20: a keyset cursor addresses one population. The route cannot detect
 // a changed tenant/state/window because the token carries only position and
 // sort (list-query.ts encodeOperationsListCursor), so the screen has to drop it.
 const baseFilters = {
   state: 'ALL',
+  sort: 'created_at:desc',
   tenantId: 'tenant-a',
   id: '',
+  business: '',
+  action: '',
+  apiKey: '',
+  profile: '',
+  correlation: '',
+  provider: '',
+  model: '',
+  usage: 'any',
+  reservation: 'any',
+  attention: 'any',
   fromDate: '',
   toDate: '',
   limit: '50',
+};
+
+const screenFilterBindings = {
+  sort: 'created_at:desc',
+  businessFilter: '',
+  actionFilter: '',
+  apiKeyFilter: '',
+  profileFilter: '',
+  correlationFilter: '',
+  providerFilter: '',
+  modelFilter: '',
+  usageFilter: 'any',
+  reservationFilter: 'any',
+  attentionFilter: 'any',
 };
 
 describe('operations population fingerprint', () => {
@@ -255,6 +339,15 @@ function makeOperationsLoad(compiled, bindings) {
 }
 
 describe('Operations screen request wiring', () => {
+  it('shows durable admission parking reason and timestamp in the task table', async () => {
+    const source = await readFile(new URL('../src/features/operations/operations-screen.tsx', import.meta.url), 'utf8');
+    assert.match(source, /<TableHead className="text-xs">Admission<\/TableHead>/);
+    assert.match(source, /task\.admissionParkedReason/);
+    assert.match(source, /task\.admissionParkedAt/);
+    assert.match(source, /Parked · \{task\.admissionParkedReason\}/);
+    assert.match(source, /Not parked/);
+  });
+
   it('sends the selected date window as ISO UTC bounds and tracks it in load dependencies', async () => {
     const { compiled, dependencies } = await readOperationsLoad();
     for (const dependency of ['fromDate', 'toDate', 'globalTenantId', 'selectedPopulation']) {
@@ -263,7 +356,10 @@ describe('Operations screen request wiring', () => {
 
     let requestedQuery;
     const population = operationsPopulation({
-      state: 'ALL', tenantId: 'tenant-a', id: '', fromDate: '2026-10-01', toDate: '2026-10-10', limit: '20',
+      ...baseFilters,
+      fromDate: '2026-10-01',
+      toDate: '2026-10-10',
+      limit: '20',
     });
     const load = makeOperationsLoad(compiled, {
       fromDate: '2026-10-01',
@@ -283,10 +379,13 @@ describe('Operations screen request wiring', () => {
           return { ok: true, data: { items: [], nextCursor: null } };
         },
       },
+      ...screenFilterBindings,
       limit: '20',
       stateFilter: 'ALL',
       globalTenantId: 'tenant-a',
       idFilter: '',
+      invalidSearchLabel: null,
+      updateSearch: () => {},
       operationsWindowInvalid,
       operationsCursorIsStale,
       buildOperationsQuery,
@@ -306,12 +405,8 @@ describe('Operations screen request wiring', () => {
   it('drops a cursor from a previous population before making a list request', async () => {
     const { compiled, dependencies } = await readOperationsLoad();
     assert.ok(dependencies.includes('cursor'), 'load must refresh when the cursor is reset');
-    const oldPopulation = operationsPopulation({
-      state: 'ALL', tenantId: 'tenant-a', id: '', fromDate: '', toDate: '', limit: '20',
-    });
-    const newPopulation = operationsPopulation({
-      state: 'ALL', tenantId: 'tenant-b', id: '', fromDate: '', toDate: '', limit: '20',
-    });
+    const oldPopulation = operationsPopulation({ ...baseFilters, limit: '20' });
+    const newPopulation = operationsPopulation({ ...baseFilters, tenantId: 'tenant-b', limit: '20' });
     const resets = [];
     let requestCount = 0;
     const load = makeOperationsLoad(compiled, {
@@ -332,10 +427,13 @@ describe('Operations screen request wiring', () => {
           return { ok: true, data: { items: [], nextCursor: null } };
         },
       },
+      ...screenFilterBindings,
       limit: '20',
       stateFilter: 'ALL',
       globalTenantId: 'tenant-b',
       idFilter: '',
+      invalidSearchLabel: null,
+      updateSearch: () => {},
       operationsWindowInvalid,
       operationsCursorIsStale,
       buildOperationsQuery,

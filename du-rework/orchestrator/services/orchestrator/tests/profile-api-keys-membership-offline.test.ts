@@ -107,13 +107,15 @@ describe('0039: the request path resolves membership, not the revision author', 
     const svc = createProfileService(db);
 
     // Legacy path walks all three queries: the active row, the pointer
-    // cross-check, then the any-membership probe.
+    // cross-check, then the historical-membership probe.
     expect(await svc.resolveBinding(KEY_A, BUSINESS, VERSION, ACTION)).toEqual({ mode: 'legacy' });
     expect(queries).toHaveLength(3);
-    for (const entry of queries) {
+    for (const entry of queries.slice(0, 2)) {
       expect(entry.sql).toContain(MEMBERSHIP_TABLE);
       expect(squeeze(entry.sql)).toContain(squeeze(ACTIVE_GATE));
     }
+    expect(queries[2]?.sql).toContain(MEMBERSHIP_TABLE);
+    expect(squeeze(queries[2]?.sql)).not.toContain(squeeze(ACTIVE_GATE));
     // The pre-0038 author filter must be gone: a REVOKED or absent
     // membership can no longer be bypassed by binding rows alone.
     expect(queries[0]?.sql).not.toContain('p.api_key_id');
@@ -136,6 +138,21 @@ describe('0039: the request path resolves membership, not the revision author', 
     const failure = await svc.resolveBinding(KEY_A, BUSINESS, VERSION, ACTION).catch((e: unknown) => e);
     expect(failure).toBeInstanceOf(HttpError);
     expect(failure).toMatchObject({ status: 403, code: 'PERMISSION_DENIED' });
+  });
+
+  it('a key whose Profile membership was revoked stays out of legacy mode', async () => {
+    // Historical rows remain after a group/key reassignment. The API key may
+    // still be ACTIVE for its independent key lifecycle, but no longer falls
+    // through to manifest/deployment legacy connector authorization.
+    const { db, queries } = world({ anyHits: true });
+    const svc = createProfileService(db);
+
+    await expect(svc.resolveBinding(KEY_A, BUSINESS, VERSION, ACTION)).rejects.toMatchObject({
+      status: 403,
+      code: 'PERMISSION_DENIED',
+    });
+    expect(queries[2]?.sql).toContain(MEMBERSHIP_TABLE);
+    expect(squeeze(queries[2]?.sql)).not.toContain(squeeze(ACTIVE_GATE));
   });
 
   it('a key with no membership at all keeps the legacy path', async () => {

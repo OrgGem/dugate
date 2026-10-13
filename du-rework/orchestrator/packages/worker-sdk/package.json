@@ -7,7 +7,7 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "jest --runInBand",
+    "test": "node --expose-gc ./node_modules/jest/bin/jest.js --runInBand",
     "lint": "tsc --noEmit -p tsconfig.json",
     "clean": "rimraf dist *.tsbuildinfo"
   },

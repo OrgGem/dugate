@@ -25,12 +25,12 @@ describe('ORV14 independently pinned backup recovery key', () => {
 
   test('pins a shared recovery registry by one exact root-owned file digest', () => {
     expect(secretCatalogRecoveryKeyRegistryPinFromEnv({
-      DU_MAINTENANCE_RECOVERY_KEY_REGISTRY_FILE: '/run/du/recovery-keys.json',
+      DU_MAINTENANCE_RECOVERY_KEY_REGISTRY_FILE: path.resolve(os.tmpdir(), 'du-recovery', 'recovery-keys.json'),
       DU_MAINTENANCE_RECOVERY_KEY_REGISTRY_SHA256: 'b'.repeat(64),
-    })).toEqual({ filePath: '/run/du/recovery-keys.json', sha256: 'b'.repeat(64) });
+    })).toEqual({ filePath: path.resolve(os.tmpdir(), 'du-recovery', 'recovery-keys.json'), sha256: 'b'.repeat(64) });
     expect(() => secretCatalogRecoveryKeyRegistryPinFromEnv({
-      DU_MAINTENANCE_RECOVERY_KEY_REGISTRY_FILE: '/run/du/recovery-keys.json',
-      DU_MAINTENANCE_SECRET_CATALOG_KEYS_FILE: '/run/du/legacy-keys.json',
+      DU_MAINTENANCE_RECOVERY_KEY_REGISTRY_FILE: path.resolve(os.tmpdir(), 'du-recovery', 'recovery-keys.json'),
+      DU_MAINTENANCE_SECRET_CATALOG_KEYS_FILE: path.resolve(os.tmpdir(), 'du-recovery', 'legacy-keys.json'),
       DU_MAINTENANCE_RECOVERY_KEY_REGISTRY_SHA256: 'b'.repeat(64),
     })).toThrow(/only one/);
   });

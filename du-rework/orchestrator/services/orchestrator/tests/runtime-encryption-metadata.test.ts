@@ -272,14 +272,15 @@ describe('ENC-META-01 semantics: hashing stays stable so idempotency survives se
 describe('ENC-META-01 slot inventory', () => {
   it('covers the currently declared encrypted metadata columns', () => {
     expect([...METADATA_SLOTS].sort()).toEqual([
+      'connector_prompt_overrides.prompt_override',
+      'connector_secret_imports.resolved_payload',
+      'global_settings.tenant_revision',
       'human_waits.response_ref',
       'legacy_workflow_schemas.schema_ref',
+      'operations.connector_recipe_pins_ref',
       'operations.input_ref',
       'operations.prompt_overrides_ref',
       'operations.result_ref',
-      'connector_prompt_overrides.prompt_override',
-      'global_settings.tenant_revision',
-      'operations.connector_recipe_pins_ref',
       'operations.tenant_defaults_ref',
       'settings_revisions.payload_ref',
       'step_checkpoints.output_ref',
@@ -667,6 +668,29 @@ describe('Δ72 gap closure: openMetadata allowPlaintext, driven through claimTas
     const client = {
       query: async (sql: string, params: unknown[] = []) => {
         queries.push(sql.replace(/\s+/g, ' ').trim().slice(0, 60));
+        if (/SELECT o\.business_id,o\.business_version FROM tasks t/i.test(sql)) {
+          return res<Row>([{ business_id: BUSINESS, business_version: '1.0.0' }]);
+        }
+        if (/FROM business_catalog WHERE business_id=\$1/i.test(sql)) {
+          return res<Row>([{ enabled: true, activation_revision: 1, submissions_paused: false, pre_drain_version: null }]);
+        }
+        if (/SELECT version,status,is_active FROM business_versions/i.test(sql)) {
+          return res<Row>([{ version: '1.0.0', status: 'ENABLED', is_active: true }]);
+        }
+        if (/FROM worker_instances wi/i.test(sql)) {
+          return res<Row>([{
+            business_version: '1.0.0', heartbeat_manifest_digest: 'sha256:test', registered_manifest_digest: 'sha256:test',
+            state: 'ONLINE', capacity: 1, heartbeat_fresh: true, control_revision: 1,
+            control_state: 'OPEN', desired_control_revision: 1, desired_control_state: 'OPEN',
+          }]);
+        }
+        if (/INSERT INTO runtime_control_scopes/i.test(sql)) return res<Row>([]);
+        if (/FROM runtime_control_scopes/i.test(sql)) {
+          return res<Row>([
+            { scope_kind: 'platform', scope_id: 'all', desired_state: 'OPEN', revision: 1 },
+            { scope_kind: 'business', scope_id: BUSINESS, desired_state: 'OPEN', revision: 1 },
+          ]);
+        }
         if (/FROM tasks t/.test(sql)) return res<Row>([taskRow]);
         if (/SELECT state FROM operations WHERE id=\$1/.test(sql)) {
           return res<Row>([{ state: 'ACCEPTED' }]);
@@ -680,10 +704,13 @@ describe('Δ72 gap closure: openMetadata allowPlaintext, driven through claimTas
       operation_id: OP_ID,
       task_key: 'root-1',
       kind: 'root',
-      state: 'READY',
+      state: 'RUNNING',
       attempt: 1,
+      max_attempts: 8,
       lease_epoch: 3,
       lease_expires_at: '2999-01-01T00:00:00.000Z',
+      lease_active: true,
+      leased_by: 'w-72',
       last_delivery_id: DELIVERY,
       // The two slots under test.
       input_ref: inputRef,
@@ -698,7 +725,7 @@ describe('Δ72 gap closure: openMetadata allowPlaintext, driven through claimTas
       connector_bindings: {},
       cancel_requested: false,
       op_cancel_requested: false,
-      op_state: 'ACCEPTED',
+      op_state: 'RUNNING',
       deadline_at: null,
     };
     const db = {

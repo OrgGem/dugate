@@ -19,6 +19,7 @@ const catalogKeySha256 = digest(catalogKey);
 const connectorCredentialConfig = Buffer.from(Buffer.alloc(32,9).toString('base64'),'utf8');
 const connectorCredentialSha256 = digest(connectorCredentialConfig);
 const rootOnly = process.getuid?.() === 0 ? it : it.skip;
+const itOnPosixHost = typeof process.getuid === 'function' ? it : it.skip;
 
 function digest(bytes: Buffer): string { return createHash('sha256').update(bytes).digest('hex'); }
 function canonical(value: unknown): string {
@@ -352,7 +353,7 @@ describe('ORV14 Host trusted backup adapter', () => {
     expect(db.query).not.toHaveBeenCalled();
   });
 
-  it('rejects a manifest owned by an untrusted non-root process', async () => {
+  itOnPosixHost('rejects a manifest owned by an untrusted non-root process', async () => {
     if (process.getuid?.() === 0) return;
     await expect(adapter.listTargets()).rejects.toThrow('BACKUP_MANIFEST_UNTRUSTED');
     expect(db.query).not.toHaveBeenCalled();

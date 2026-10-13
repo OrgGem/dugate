@@ -24,10 +24,9 @@ describe('P9-03 doc-compare registration', () => {
     expect(action!.connectorSlots.every((slot) => !slot.required)).toBe(true);
     expect(DEFAULT_DOC_COMPARE_BINDING.slot).toBe('reasoning');
 
-    expect((action!.inputSchema as { required: string[] }).required).toEqual([
-      'inputVersion',
-      'left',
-      'right',
+    expect((action!.inputSchema as { anyOf: Array<{ required: string[] }> }).anyOf).toEqual([
+      { required: ['inputVersion', 'left', 'right'] },
+      { required: ['legacyWorkflow', 'variables', 'artifactIds', 'fileNames', 'artifacts'] },
     ]);
     expect(action!.outputSchema.required).toEqual([
       'resultVersion',

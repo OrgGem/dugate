@@ -43,7 +43,22 @@ function routeContext(options: {
   taskBusinessId?: string;
   artifactBusinessId?: string;
 } = {}): RouteContext {
-  const query = jest.fn(async <T extends QueryResultRow = QueryResultRow>(sql: string) => {
+  const query = jest.fn(async <T extends QueryResultRow = QueryResultRow>(sql: string, params: unknown[] = []) => {
+      if (/FROM business_catalog WHERE business_id=\$1/i.test(sql)) {
+        return result<T>([{
+          enabled: true,
+          activation_revision: 1,
+          submissions_paused: false,
+          pre_drain_version: null,
+        }]);
+      }
+      if (/SELECT version,status,is_active FROM business_versions/i.test(sql)) {
+        return result<T>([{
+          version: String(params[1] ?? '1.0.0'),
+          status: 'ENABLED',
+          is_active: true,
+        }]);
+      }
       if (/FROM tasks t JOIN operations o ON o\.id=t\.operation_id WHERE t\.id=\$1/i.test(sql)) {
         return result<T>([{ business_id: options.taskBusinessId ?? 'business-a' }]);
       }
@@ -187,10 +202,17 @@ describe('BR-12 offline business isolation', () => {
     const capturedQueries: string[] = [];
     const published: Array<{ queueName: string; data: unknown }> = [];
     const txClient = {
-      query: async <T extends QueryResultRow = QueryResultRow>(sql: string): Promise<QueryResult<T>> => {
+        query: async <T extends QueryResultRow = QueryResultRow>(sql: string, params: unknown[] = []): Promise<QueryResult<T>> => {
         capturedQueries.push(sql);
-        if (/SELECT id, aggregate_id, type, delivery_id, payload, attempts\s+FROM outbox/i.test(sql)) {
-          return result<T>([outboxRow]);
+        if (/SELECT ob\.id,ob\.aggregate_id,ob\.delivery_id,ob\.type,ob\.payload,ob\.attempts/i.test(sql)) {
+          return result<T>([{
+            ...outboxRow,
+            claim_token: params[1],
+            business_id: params[2],
+            business_version: params[3],
+            tenant_id: params[4],
+            queue_name: params[5],
+          }]);
         }
         if (/INSERT INTO runtime_control_scopes/i.test(sql)) return result<T>([], 'INSERT');
         if (/SELECT scope_kind,scope_id,desired_state,revision/i.test(sql)) {
@@ -203,13 +225,36 @@ describe('BR-12 offline business isolation', () => {
         if (/SELECT o\.tenant_id, o\.business_id, o\.business_version, bv\.queue/i.test(sql)) {
           return result<T>([{ business_id: 'business-b', business_version: '1.0.0', queue: null }]);
         }
-        if (/SELECT enabled FROM business_catalog/i.test(sql)) return result<T>([{ enabled: true }]);
-        if (/UPDATE outbox SET dispatched_at/i.test(sql)) return result<T>([], 'UPDATE');
+        if (/FROM business_catalog WHERE business_id=\$1/i.test(sql)) {
+          return result<T>([{
+            enabled: true,
+            activation_revision: 1,
+            submissions_paused: false,
+            pre_drain_version: null,
+          }]);
+        }
+        if (/SELECT version,status,is_active FROM business_versions/i.test(sql)) {
+          return result<T>([{ version: String(params[1] ?? '1.0.0'), status: 'ENABLED', is_active: true }]);
+        }
+        if (/UPDATE outbox SET claim_token=/i.test(sql)) return result<T>([], 'UPDATE');
+        if (/UPDATE outbox SET dispatched_at/i.test(sql)) return result<T>([{ id: outboxRow.id }], 'UPDATE');
         throw new Error(`unexpected dispatcher SQL: ${sql}`);
       },
     };
     const db = {
-      query: async () => { throw new Error('dispatcher must use only its supplied transaction client'); },
+      query: async <T extends QueryResultRow = QueryResultRow>(sql: string): Promise<QueryResult<T>> => {
+        if (/SELECT t\.id AS task_id,o\.business_id,o\.business_version/i.test(sql)) return result<T>([]);
+        if (/SELECT ob\.id,ob\.aggregate_id,ob\.delivery_id,ob\.type,ob\.payload/i.test(sql)) {
+          return result<T>([{
+            ...outboxRow,
+            business_id: 'business-b',
+            business_version: '1.0.0',
+            tenant_id: TENANT_ID,
+            queue_name: businessQueueName('business-b', '1.0.0'),
+          }]);
+        }
+        throw new Error(`unexpected dispatcher read SQL: ${sql}`);
+      },
       tx: async <T>(fn: (client: never) => Promise<T>): Promise<T> => fn(txClient as never),
       close: async () => undefined,
     } as unknown as Db;
@@ -239,7 +284,7 @@ describe('BR-12 offline business isolation', () => {
       workerAClaims.push(delivery.data);
     }
     expect(workerAClaims).toEqual([]);
-    expect(capturedQueries.some((sql) => /SELECT enabled FROM business_catalog/i.test(sql))).toBe(true);
+    expect(capturedQueries.some((sql) => /FROM business_catalog WHERE business_id=\$1/i.test(sql))).toBe(true);
   });
 
   it('rejects a business-A worker claiming business-B before lease mutation or snapshot disclosure', async () => {
@@ -273,6 +318,20 @@ describe('BR-12 offline business isolation', () => {
         params: unknown[] = []
       ): Promise<QueryResult<T>> => {
         claimQueries.push({ sql, params });
+        if (/SELECT o\.business_id,o\.business_version FROM tasks t/i.test(sql)) {
+          return result<T>([{ business_id: 'business-b', business_version: '1.0.0' }]);
+        }
+        if (/FROM business_catalog WHERE business_id=\$1/i.test(sql)) {
+          return result<T>([{
+            enabled: true,
+            activation_revision: 1,
+            submissions_paused: false,
+            pre_drain_version: null,
+          }]);
+        }
+        if (/SELECT version,status,is_active FROM business_versions/i.test(sql)) {
+          return result<T>([{ version: '1.0.0', status: 'ENABLED', is_active: true }]);
+        }
         if (/SELECT t\.\*, o\.tenant_id, o\.business_id, o\.business_version/i.test(sql)) {
           return result<T>([taskRow]);
         }
@@ -304,8 +363,12 @@ describe('BR-12 offline business isolation', () => {
     expect(denied).toMatchObject({ status: 403, code: 'PERMISSION_DENIED' });
     expect(denied).not.toHaveProperty('executionSnapshot');
     expect(claimQueries.find(({ sql }) => /SELECT t\.\*, o\.tenant_id/i.test(sql))?.params).toEqual([TASK_ID]);
+    expect(claimQueries).toHaveLength(4);
+    expect(claimQueries[0]?.sql).toMatch(/SELECT o\.business_id,o\.business_version FROM tasks/i);
+    expect(claimQueries[1]?.sql).toMatch(/FROM business_catalog WHERE business_id=\$1 FOR SHARE/i);
+    expect(claimQueries[2]?.sql).toMatch(/SELECT version,status,is_active FROM business_versions/i);
+    expect(claimQueries[3]?.sql).toMatch(/SELECT t\.\*, o\.tenant_id/i);
     expect(claimQueries.some(({ sql }) => /UPDATE (tasks|operations)/i.test(sql))).toBe(false);
-    expect(claimQueries).toHaveLength(1);
   });
 
   it('rejects cross-business binding use before creating an operation, task, or outbox row', async () => {
@@ -319,10 +382,19 @@ describe('BR-12 offline business isolation', () => {
         params: unknown[] = []
       ): Promise<QueryResult<T>> => {
         queries.push({ sql, params });
-        if (/SELECT enabled FROM business_catalog/i.test(sql)) return result<T>([{ enabled: true }]);
-        if (/FROM business_versions\s+WHERE business_id=\$1 AND is_active=true/i.test(sql)) {
+        if (/FROM business_catalog WHERE business_id=\$1/i.test(sql)) {
+          return result<T>([{
+            enabled: true,
+            activation_revision: 1,
+            submissions_paused: false,
+            pre_drain_version: null,
+          }]);
+        }
+        if (/SELECT version,status,is_active FROM business_versions/i.test(sql)) {
           return result<T>([{
             version: '1.0.0',
+            status: 'ENABLED',
+            is_active: true,
             // BR12-FIX: the action fixture must carry inputSchema — the
             // manifest contract REQUIRES it (ActionManifestSchema, validated
             // before registration) and the admission seam reads it
@@ -331,6 +403,15 @@ describe('BR-12 offline business isolation', () => {
             manifest: { actions: [{ name: 'extract', inputSchema: { type: 'object', properties: { text: { type: 'string' } } } }] },
             digest: 'sha256:test',
             queue: 'du-business-business-b-1.0.0',
+          }]);
+        }
+        if (/FROM business_versions/i.test(sql)) {
+          return result<T>([{
+            version: '1.0.0',
+            manifest: { actions: [{ name: 'extract', inputSchema: { type: 'object', properties: { text: { type: 'string' } } } }] },
+            digest: 'sha256:test',
+            queue: 'du-business-business-b-1.0.0',
+            status: 'ENABLED',
           }]);
         }
         if (/SELECT p\.profile_id, p\.revision, p\.connector_bindings/i.test(sql)) {
@@ -343,7 +424,7 @@ describe('BR-12 offline business isolation', () => {
           // business-b either (so this is 'not-authorized', not 'pointer-missing').
           return result<T>([]);
         }
-        if (/SELECT 1 FROM profile_api_keys WHERE api_key_id=\$1 AND state='ACTIVE'/i.test(sql)) {
+        if (/SELECT 1 FROM profile_api_keys WHERE api_key_id=\$1 LIMIT 1/i.test(sql)) {
           return result<T>([{ '?column?': 1 }]);
         }
         throw new Error(`unexpected profile/submission SQL: ${sql}`);

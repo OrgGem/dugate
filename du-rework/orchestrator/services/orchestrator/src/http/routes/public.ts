@@ -5,7 +5,8 @@
  * they are now module-level and only this family calls them.
  */
 import { Readable } from 'node:stream';
-import { resultHttpStatus } from '../../modules/operations/facade';
+import { resultHttpStatus, toOperationView } from '../../modules/operations/facade';
+import { listOperationsPage, parseOperationsListQuery } from '../../modules/operations/list-query';
 import { compatibilityMetadataReader } from '../../modules/encryption/metadata-read-policy';
 import { HttpError, zodIssuesToProblem } from '../errors';
 import { MULTIPART_MIN_TOTAL_BYTES, UsageEventDrilldownQuerySchema } from '@du/contracts';
@@ -103,15 +104,72 @@ async function requireOwnedUpload(ctx: RouteContext, artifactId: string, key: { 
   if (!owned.rowCount) throw new HttpError(404, 'NOT_FOUND', 'upload not found');
 }
 
+type PublicResumeBodyKind = 'legacy' | 'cas' | 'mixed';
+
+function publicResumeBodyKind(body: unknown): PublicResumeBodyKind {
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) return 'legacy';
+  const value = body as Record<string, unknown>;
+  const hasCasField = ['waitId', 'input', 'expectedStateVersion'].some((key) => Object.hasOwn(value, key));
+  const hasLegacyField = ['step', 'extracted_data'].some((key) => Object.hasOwn(value, key));
+  if (hasCasField && hasLegacyField) return 'mixed';
+  return hasCasField ? 'cas' : 'legacy';
+}
+
+async function handlePublicCasResume(
+  ctx: RouteContext,
+  operationId: string,
+  apiKey: { id: string; tenantId: string },
+): Promise<RouteResult> {
+  const result = await ctx.db.tx(async (client) => {
+    return ctx.runtime.resumeOperation(
+      operationId,
+      apiKey.tenantId,
+      ctx.body as { waitId: string; input: unknown; expectedStateVersion: number },
+      client,
+      apiKey.id,
+    );
+  });
+  return { status: result.replayed ? 200 : 202, body: result };
+}
+
 export async function handlePublicRoutes(ctx: RouteContext): Promise<RouteResult | null> {
   const { method, pathname } = ctx;
 
-  // Only legacy by-id result reads (and their download representation) remain
-  // public. Deny retired management paths before the compatibility mount.
+  // Preserve the published API-key operation flow. Unsupported management
+  // extensions (metrics/retry) remain absent; admin operations live under the
+  // internal prefix and are not selected by a bearer on this public surface.
   if (pathname === '/api/v1/operations' || pathname.startsWith('/api/v1/operations/')) {
-    const publicRead = method === 'GET'
-      && /^\/api\/v1\/operations\/(?!metrics$)[^/]+(?:\/download)?$/.test(pathname);
-    if (!publicRead) throw new HttpError(404, 'NOT_FOUND', 'Not Found');
+    const legacyOperationPath = pathname === '/api/v1/operations'
+      || /^\/api\/v1\/operations\/[^/]+(?:\/(?:result|download|cancel|resume))?$/.test(pathname);
+    if (pathname === '/api/v1/operations/metrics' || !legacyOperationPath) {
+      throw new HttpError(404, 'NOT_FOUND', 'Not Found');
+    }
+  }
+
+  // The published rework API accepted a CAS resume body and returned the
+  // runtime acknowledgement (202 fresh / 200 replay). The original
+  // compatibility facade also accepts `{step, extracted_data}` and keeps its
+  // legacy success envelope. Dispatch only the CAS shape here; reject a body
+  // that combines both dialects instead of silently discarding its CAS fields.
+  const publicResumeMatch = /^\/api\/v1\/operations\/([^/]+)\/resume$/.exec(pathname);
+  if (method === 'POST' && publicResumeMatch !== null) {
+    const bodyKind = publicResumeBodyKind(ctx.body);
+    if (bodyKind !== 'legacy') {
+      const apiKey = await resolveApiKey(ctx);
+      if (bodyKind === 'mixed') {
+        throw new HttpError(422, 'INVALID_SCHEMA', 'resume body must use either the CAS or legacy input fields');
+      }
+      let operationId: string;
+      try {
+        operationId = decodeURIComponent(publicResumeMatch[1]!);
+      } catch {
+        throw new HttpError(404, 'NOT_FOUND', 'operation not found');
+      }
+      if (!operationId || operationId.includes('/') || operationId.includes('\\')) {
+        throw new HttpError(404, 'NOT_FOUND', 'operation not found');
+      }
+      return handlePublicCasResume(ctx, operationId, apiKey);
+    }
   }
 
 
@@ -319,6 +377,32 @@ export async function handlePublicRoutes(ctx: RouteContext): Promise<RouteResult
   // the facade does not own returns null and falls through unchanged. The
   // facade reproduces the old wire verbatim (status, headers, envelope) while
   // taking identity only from the API key — see compat/legacy-http-mount.ts.
+  // The published rework list query (`limit`/`cursor` and its filters) is an
+  // additional API-key dialect. Keep it separate from the original
+  // `filter`/`page_size`/`page_token` contract so both response projections and
+  // pagination tokens remain wire-compatible. Admin bearer lists stay closed
+  // on this public route.
+  if (method === 'GET' && pathname === '/api/v1/operations'
+      && !((ctx.headers['authorization'] ?? '').trim().toLowerCase().startsWith('bearer '))) {
+    const canonicalListParameters = new Set([
+      'limit', 'cursor', 'state', 'tenant', 'id', 'sort', 'from', 'to',
+      'business', 'action', 'apiKey', 'profile', 'correlation', 'provider',
+      'model', 'usage', 'reservation', 'attention',
+    ]);
+    const usesCanonicalQuery = Array.from(ctx.searchParams.keys()).some((key) => canonicalListParameters.has(key));
+    if (usesCanonicalQuery) {
+      const apiKey = await resolveApiKey(ctx);
+      const query = parseOperationsListQuery(ctx.searchParams);
+      if (query.tenantId !== null && query.tenantId !== apiKey.tenantId) {
+        throw new HttpError(403, 'PERMISSION_DENIED', 'admin reads are scoped to the caller tenant');
+      }
+      return {
+        status: 200,
+        body: await listOperationsPage(ctx, query, apiKey.tenantId, toOperationView, null, apiKey.id),
+      };
+    }
+  }
+
   {
     let legacyTenantId: string | undefined;
     const legacy = await handleLegacyRoute(
@@ -388,6 +472,38 @@ export async function handlePublicRoutes(ctx: RouteContext): Promise<RouteResult
         headers: legacy.headers,
         ...(legacy.raw ? { raw: legacy.raw } : {}),
       };
+    }
+  }
+
+  // Public ResultEnvelope path retained for clients of the published rework
+  // API. Resolve an ACTIVE API key first, then scope the operation read by both
+  // tenant and key before projecting any result or artifact metadata. A bearer
+  // token alone never authorizes this public route.
+  {
+    const match = /^\/api\/v1\/operations\/([^/]+)\/result$/.exec(pathname);
+    if (method === 'GET' && match) {
+      const authorization = ctx.headers['authorization'];
+      if (typeof authorization === 'string' && authorization.trim().toLowerCase().startsWith('bearer ')) {
+        return null;
+      }
+      const apiKey = await resolveApiKey(ctx);
+      let operationId: string;
+      try {
+        operationId = decodeURIComponent(match[1]!);
+      } catch {
+        throw new HttpError(404, 'NOT_FOUND', 'operation not found');
+      }
+      if (!operationId || operationId.includes('/') || operationId.includes('\\')) {
+        throw new HttpError(404, 'NOT_FOUND', 'operation not found');
+      }
+      const operation = await ctx.db.query(
+        `SELECT id, tenant_id, api_key_id, state, result_ref, endpoint_slug
+           FROM operations
+          WHERE id=$1 AND tenant_id=$2 AND api_key_id=$3 AND deleted_at IS NULL`,
+        [operationId, apiKey.tenantId, apiKey.id],
+      );
+      if (!operation.rowCount) throw new HttpError(404, 'NOT_FOUND', 'operation not found');
+      return buildOperationResult(ctx, operation.rows[0] as Record<string, unknown>);
     }
   }
 

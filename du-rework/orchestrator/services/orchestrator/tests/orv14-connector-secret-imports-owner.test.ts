@@ -3,6 +3,7 @@ import type { Db } from '../src/db/db';
 import { createMetadataCrypto, type MetadataCrypto } from '../src/modules/runtime/metadata-crypto';
 import { encryptSecretValue } from '../src/modules/secrets/secret-catalog-store';
 import type { SecretCatalogKeyring } from '../src/modules/secrets/secret-revision-resolver';
+import type { BackupSnapshotWriteGate } from '../src/modules/maintenance/backup-effect-fence';
 import {
   createConnectorSecretImportService,
   type ConnectorSecretImportActor,
@@ -159,6 +160,10 @@ function audit() {
   return { record: jest.fn(async () => ({ id: randomUUID() })) } as never;
 }
 
+function allowSnapshotWrites(): BackupSnapshotWriteGate {
+  return { assertWriteAllowed: async () => undefined };
+}
+
 describe('ORV14 Connector secret import journal', () => {
   test('seals before network, retries the same exact Catalog revision, and replays the masked result', async () => {
     const fixture = fakeDb();
@@ -169,7 +174,7 @@ describe('ORV14 Connector secret import journal', () => {
       claimed: true, expectedHeadRevision: input.expectedHeadRevision,
     }));
     const service = createConnectorSecretImportService({
-      db: fixture.db, audit: audit(), metadataCrypto: metadataCrypto(), catalogKeyring: keyring(),
+      db: fixture.db, audit: audit(), metadataCrypto: metadataCrypto(), catalogKeyring: keyring(), backupSnapshotWriteGate: allowSnapshotWrites(),
       connector: { claimRecipeDraft: claim, upsertResolvedRecipeDraft: submit },
     });
 
@@ -209,7 +214,7 @@ describe('ORV14 Connector secret import journal', () => {
       claimed: true, expectedHeadRevision: input.expectedHeadRevision,
     }));
     const service = createConnectorSecretImportService({
-      db: fixture.db, audit: audit(), metadataCrypto: metadataCrypto(), catalogKeyring: keyring(),
+      db: fixture.db, audit: audit(), metadataCrypto: metadataCrypto(), catalogKeyring: keyring(), backupSnapshotWriteGate: allowSnapshotWrites(),
       connector: { claimRecipeDraft: claim, upsertResolvedRecipeDraft: submit },
     });
     await service.importCredential(CONNECTOR_ID, request(), actor);
@@ -226,7 +231,7 @@ describe('ORV14 Connector secret import journal', () => {
     const submit = jest.fn().mockResolvedValue(result());
     const claim = jest.fn().mockResolvedValue({ claimed: false, expectedHeadRevision: 0 });
     const service = createConnectorSecretImportService({
-      db: fixture.db, audit: audit(), metadataCrypto: metadataCrypto(), catalogKeyring: keyring(),
+      db: fixture.db, audit: audit(), metadataCrypto: metadataCrypto(), catalogKeyring: keyring(), backupSnapshotWriteGate: allowSnapshotWrites(),
       connector: { claimRecipeDraft: claim, upsertResolvedRecipeDraft: submit },
     });
 
@@ -274,7 +279,7 @@ describe('ORV14 Connector secret import journal', () => {
     const echoed = result();
     echoed.revision.credentialRef = SECRET;
     const service = createConnectorSecretImportService({
-      db: fixture.db, audit: audit(), metadataCrypto: metadataCrypto(), catalogKeyring: keyring(),
+      db: fixture.db, audit: audit(), metadataCrypto: metadataCrypto(), catalogKeyring: keyring(), backupSnapshotWriteGate: allowSnapshotWrites(),
       connector: {
         claimRecipeDraft: async (input: { expectedHeadRevision: number }) => ({ claimed: true, expectedHeadRevision: input.expectedHeadRevision }),
         upsertResolvedRecipeDraft: jest.fn().mockResolvedValue(echoed),

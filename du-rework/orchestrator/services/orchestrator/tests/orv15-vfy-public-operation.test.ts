@@ -130,6 +130,7 @@ describe('ORV15 public legacy operation read compatibility', () => {
     expect(response?.headers).toMatchObject({
       'content-type': 'text/markdown; charset=utf-8',
       'content-length': String(OUTPUT.length),
+      'content-disposition': `attachment; filename="result.bin"; filename*=UTF-8''result.bin`,
     });
     expect(await collect(response?.raw)).toEqual(OUTPUT);
     expect(h.queries[1]?.params).toEqual([OPERATION_ID, TENANT_ID, KEY_ID]);
@@ -137,13 +138,17 @@ describe('ORV15 public legacy operation read compatibility', () => {
   });
 
   test.each([
-    ['POST', `/api/v1/operations/${OPERATION_ID}`],
-    ['GET', `/api/v1/operations/${OPERATION_ID}/cancel`],
-    ['GET', '/api/v1/operations/metrics'],
-  ])('%s %s stays outside the public operation read surface', async (method, pathname) => {
+    ['POST', `/api/v1/operations/${OPERATION_ID}`, 405],
+    ['GET', `/api/v1/operations/${OPERATION_ID}/cancel`, 405],
+    ['GET', '/api/v1/operations/metrics', 404],
+  ] as const)('%s %s preserves its public route status without reading an operation', async (method, pathname, status) => {
     const h = publicContext(pathname, { method } as Partial<RouteContext>);
 
-    await expect(handlePublicRoutes(h.context)).rejects.toMatchObject({ status: 404 });
+    if (status === 404) {
+      await expect(handlePublicRoutes(h.context)).rejects.toMatchObject({ status });
+    } else {
+      await expect(handlePublicRoutes(h.context)).resolves.toMatchObject({ status });
+    }
     expect(h.queries).toEqual([]);
   });
 

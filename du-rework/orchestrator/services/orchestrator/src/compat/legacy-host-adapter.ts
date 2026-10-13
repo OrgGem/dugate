@@ -1,5 +1,9 @@
 import { readKeySpend, moneyAsUsd } from '../modules/usage/spend-admission';
-import { renderLegacyDocumentContent } from './legacy-result-format';
+import {
+  legacyCorePipelineSnapshot,
+  projectLegacyCoreCompletion,
+  renderLegacyDocumentContent,
+} from './legacy-result-format';
 import { HttpError } from '../http/errors';
 import { extensionDeniedReason, fileUrlEntryName } from '../modules/profiles/policy';
 import { acquireLegacyUrl } from './legacy-url-input';
@@ -39,16 +43,31 @@ function isPostgresLockUnavailable(error: unknown): boolean {
     && 'code' in error && (error as { code?: unknown }).code === '55P03';
 }
 
-/**
- * Map the canonical parked-wait state onto the legacy token.
- *
- * WFA 6c: the legacy contract exposes `WAITING_USER_INPUT` for every parked
- * wait; the canonical `WAITING_INPUT` token must never leak back to old
- * clients, whether or not the row carries a workflow marker. The mapping is
- * therefore applied unconditionally at every legacy projection.
- */
+/** Normalize canonical runtime states to the vocabulary old pollers understand. */
+const LEGACY_STATE_BY_RUNTIME_STATE: Readonly<Record<string, string>> = {
+  PENDING_INGESTION: 'PENDING',
+  ACCEPTED: 'RUNNING',
+  QUEUED: 'RUNNING',
+  RUNNING: 'RUNNING',
+  WAITING_CHILDREN: 'RUNNING',
+  RETRY_PENDING: 'RUNNING',
+  CANCEL_REQUESTED: 'RUNNING',
+  WAITING_INPUT: 'WAITING_USER_INPUT',
+  SUCCEEDED: 'SUCCEEDED',
+  FAILED: 'FAILED',
+  CANCELLED: 'CANCELLED',
+  TIMED_OUT: 'TIMED_OUT',
+};
+
 function legacyWorkflowState(state: string): string {
-  return state === 'WAITING_INPUT' ? 'WAITING_USER_INPUT' : state;
+  return LEGACY_STATE_BY_RUNTIME_STATE[state] ?? state;
+}
+
+/** Expand each legacy list clause independently, preserving the old AND semantics. */
+function runtimeStateSetsForLegacyFilters(states: readonly string[]): string[][] {
+  return states.map((requestedState) => Object.entries(LEGACY_STATE_BY_RUNTIME_STATE)
+    .filter(([, legacyState]) => legacyState === requestedState)
+    .map(([runtimeState]) => runtimeState));
 }
 
 /**
@@ -163,7 +182,11 @@ export function legacyCompatHost(ctx: RouteContext): LegacyCompatHost {
         const result = await ctx.submission.submit({
           ...scope, legacyRequestIdentity: identity, legacyEndpointSlug: endpointSlug,
           legacyExpectedProfile: profile.mode === 'pinned' ? { profileId: profile.profileId, revision: profile.revision } : null,
-          legacyProjection: { endpointSlug, pipelineJson: [{ legacyCallback: true }], progressMessage: 'Queued' },
+          legacyProjection: {
+            endpointSlug,
+            pipelineJson: [{ processor: action, legacyCallback: true }],
+            progressMessage: 'Queued',
+          },
           submission: {
             ...decoded.submission, input: toInput(artifacts), artifacts,
           },
@@ -435,7 +458,7 @@ export function legacyCompatHost(ctx: RouteContext): LegacyCompatHost {
           waitId: String((pendingWait.rows[0] as { wait_id: string }).wait_id),
           input: answer,
           expectedStateVersion: Number(row.state_version),
-        });
+        }, undefined, principal.apiKeyId);
         return { ok: true };
       } catch (error: unknown) {
         // A concurrent resume/cancel/expiry is reported through the legacy
@@ -472,6 +495,7 @@ export function legacyCompatHost(ctx: RouteContext): LegacyCompatHost {
     },
     listLegacyOperations: async (input) => {
       const params: unknown[] = [input.tenantId, input.pageSize + 1, input.apiKeyId];
+      const runtimeStateSets = runtimeStateSetsForLegacyFilters(input.states);
       // The caller's AUTHORIZATION scope, named once and used by BOTH the outer
       // WHERE and the page-token subquery below, so the two can never drift
       // apart (WFA §8 LOW). `deleted_at IS NULL` is deliberately NOT part of it:
@@ -484,8 +508,8 @@ export function legacyCompatHost(ctx: RouteContext): LegacyCompatHost {
         'deleted_at IS NULL',
         apiKeyFence,
       ];
-      if (input.states.length > 0) {
-        params.push(input.states);
+      for (const runtimeStates of runtimeStateSets) {
+        params.push(runtimeStates);
         where.push(`state = ANY($${params.length}::text[])`);
       }
       for (const processor of input.processors) {
@@ -562,9 +586,17 @@ export function toLegacyRow(row: Record<string, unknown>): LegacyOperationRow {
     value === null || value === undefined ? null : Number(value);
   const text = (value: unknown): string | null =>
     value === null || value === undefined ? null : value instanceof Date ? value.toISOString() : String(value);
-  const pipelineJson = jsonOrNull(row.pipeline_json);
-  const workflowMarkers = workflowMarkersFromPipeline(pipelineJson);
+  const storedPipelineJson = jsonOrNull(row.pipeline_json);
+  const workflowMarkers = workflowMarkersFromPipeline(storedPipelineJson);
+  const action = text(row.action);
+  const isCoreAction = row.business_id === LEGACY_BUSINESS_ID
+    && workflowMarkers.workflow === null
+    && action !== null;
+  const pipelineJson = isCoreAction
+    ? legacyCorePipelineSnapshot(storedPipelineJson, action)
+    : storedPipelineJson;
   const rawState = String(row.state);
+  const coreCompleted = isCoreAction && rawState === 'SUCCEEDED';
   // WFA 6c: unconditional — the legacy state token does not depend on the
   // workflow marker. The markers are still projected for the workflow fields.
   const state = legacyWorkflowState(rawState);
@@ -575,8 +607,8 @@ export function toLegacyRow(row: Record<string, unknown>): LegacyOperationRow {
     pipelineJson,
     stepsResultJson: jsonOrNull(row.steps_result_json),
     currentStep: num(row.current_step),
-    progressPercent: num(row.progress_percent),
-    progressMessage: text(row.progress_message),
+    progressPercent: coreCompleted ? 100 : num(row.progress_percent),
+    progressMessage: coreCompleted ? null : text(row.progress_message),
     createdAt: text(row.created_at),
     updatedAt: text(row.updated_at),
     outputFormat: text(row.output_format),
@@ -593,6 +625,7 @@ export function toLegacyRow(row: Record<string, unknown>): LegacyOperationRow {
     errorMessage: text(row.error_message),
     failedAtStep: num(row.failed_at_step),
     endpointSlug: text(row.endpoint_slug),
+    sourceFileName: text(row.source_file_name),
     workflow: workflowMarkers.workflow,
     schemaRevision: workflowMarkers.schemaRevision,
     schemaDigest: workflowMarkers.schemaDigest,
@@ -690,9 +723,26 @@ async function projectDocumentResult(ctx: RouteContext, row: LegacyOperationRow,
   if ((envelope.version !== undefined && envelope.version !== 'document-core-result-v1') || envelope.status !== 'COMPLETED' || envelope.data === undefined || !envelope.provenance) throw new Error('Invalid document result envelope');
   const data = envelope.data;
   const format = row.outputFormat ?? 'json';
+  const action = legacyActionSlug(raw.action) ?? legacyActionSlug(row.endpointSlug?.split(':')[0]);
+  if (!action) throw new Error('Document result action is unavailable for legacy projection');
+  const outputContent = renderLegacyDocumentContent(data, format);
+  const completion = projectLegacyCoreCompletion({
+    action,
+    data,
+    outputFormat: format,
+    outputContent,
+    pipelineJson: row.pipelineJson,
+    stepsResultJson: row.stepsResultJson,
+    currentStep: row.currentStep,
+  });
   return { ...row, outputFormat: format, extractedData: JSON.stringify(data),
-    outputContent: renderLegacyDocumentContent(data, format),
+    outputContent,
+    ...completion,
   };
+}
+
+function legacyActionSlug(value: unknown): string | null {
+  return typeof value === 'string' && /^[a-z][a-z0-9-]{0,63}$/.test(value) ? value : null;
 }
 
 /** `jsonb` columns arrive already parsed; the legacy contract wants a string. */
@@ -735,12 +785,43 @@ async function loadLegacyRow(
   );
   if (!res.rowCount) return null;
   const raw = res.rows[0] as Record<string, unknown>;
-  const row = await projectDocumentResult(ctx, toLegacyRow(raw), raw, tenantId);
+  const sourceFileName = await loadLegacySourceFileName(ctx, raw, operationId, tenantId);
+  const row = await projectDocumentResult(ctx, toLegacyRow({ ...raw, source_file_name: sourceFileName }), raw, tenantId);
   const usage = ctx.usage ? await ctx.usage.project(operationId) : undefined;
   if (!usage || usage.measurement === 'pending') return row;
   return { ...row, totalInputTokens: usage.inputTokens, totalOutputTokens: usage.outputTokens,
     pagesProcessed: usage.pages ?? row.pagesProcessed, modelUsed: usage.model ?? row.modelUsed,
     totalCostUsd: usage.costStatus === 'unpriced' || usage.costStatus === 'pending' ? null : usage.costMicrousd / 1_000_000 };
+}
+
+/** Read only the first submitted artifact name, fenced to this operation and tenant. */
+async function loadLegacySourceFileName(
+  ctx: RouteContext,
+  raw: Record<string, unknown>,
+  operationId: string,
+  tenantId: string,
+): Promise<string | null> {
+  let submitted: unknown = raw.submit_artifacts;
+  if (typeof submitted === 'string') {
+    try {
+      submitted = JSON.parse(submitted) as unknown;
+    } catch {
+      return null;
+    }
+  }
+  if (!Array.isArray(submitted) || submitted.length === 0) return null;
+  const first = submitted[0];
+  if (first === null || typeof first !== 'object' || Array.isArray(first)) return null;
+  const artifactId = (first as { artifactId?: unknown }).artifactId;
+  if (typeof artifactId !== 'string' || artifactId.length === 0) return null;
+  const result = await ctx.db.query(
+    `SELECT file_name FROM artifacts
+      WHERE id = $1 AND tenant_id = $2 AND operation_id = $3 AND state = 'READY'`,
+    [artifactId, tenantId, operationId],
+  );
+  if (!result.rowCount) return null;
+  const fileName = (result.rows[0] as { file_name?: unknown }).file_name;
+  return typeof fileName === 'string' ? fileName : null;
 }
 
 /**

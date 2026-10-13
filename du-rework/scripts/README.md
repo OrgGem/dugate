@@ -85,3 +85,10 @@ the new versions, provision tenant/API key/profile/connector bindings and import
 tenant schemas. Neither runner performs those administrative mutations. Migrations include
 the workflow schema catalog. Workflow API availability does not enable the disabled
 Workflow administration screen.
+
+Version enable and activation are compare-and-set operations. Read
+`GET /api/v1/admin/businesses/:id/versions`, send its `activationRevision` as
+`expectedActivationRevision` in the next enable/activate `PUT`, then reread the
+state after a successful mutation before issuing another one. Treat HTTP 409 or
+422 as a conflict to inspect; do not retry with a refreshed revision silently.
+`scripts/provision-local.cjs` follows this sequence.

@@ -65,7 +65,7 @@ describe('OIDC-02 SHARE: one Redis, every replica sees the same truth', () => {
       { cookie: 'du_session=' + created.sessionId, 'x-csrf-token': created.csrfToken },
       b // AdminSessionStore seam — B resolves what A minted
     );
-    expect(authOk).toEqual({ kind: 'cookie', role: 'operator', tenantId: 'T-42', csrfOk: true, issuer: 'https://idp.test/realms/du', principalId: 'share-1' });
+    expect(authOk).toEqual({ kind: 'cookie', role: 'operator', tenantId: 'T-42', csrfOk: true, issuer: 'https://idp.test/realms/du', principalId: 'share-1', sessionCreatedAt: 1_800_000_000_000 });
 
     const authCsrf = await resolveAdminActionAuthAsync(
       { adminToken: 'never-matching' },
@@ -204,7 +204,7 @@ describe('OIDC-02 FAIL-CLOSED + ROTATION across replicas (cycle 127)', () => {
       { cookie: 'du_session=' + next.sessionId, 'x-csrf-token': next.csrfToken },
       b
     );
-    expect(newAuth).toEqual({ kind: 'cookie', role: 'operator', tenantId: 'T-5', csrfOk: true, issuer: 'https://idp.test/realms/du', principalId: 'rotate-x' });
+    expect(newAuth).toEqual({ kind: 'cookie', role: 'operator', tenantId: 'T-5', csrfOk: true, issuer: 'https://idp.test/realms/du', principalId: 'rotate-x', sessionCreatedAt: 1_800_000_000_000 });
   });
 
   it('double rotate: the pre-rotation id can never rotate again on ANY replica', async () => {

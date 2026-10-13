@@ -375,11 +375,28 @@ export function connectorBaseUrlsFromEnv(
   if (entries.length === 0) {
     throw new Error('DU_CONNECTOR_BASE_URLS must not be empty when set; unset the variable to disable the surface');
   }
-  const out: Record<string, string> = {};
+  const out = Object.create(null) as Record<string, string>;
   for (const [connectorId, baseUrl] of entries) {
     if (connectorId.length === 0) throw new Error('DU_CONNECTOR_BASE_URLS keys must be non-empty connector ids');
     if (typeof baseUrl !== 'string' || baseUrl.length === 0) {
       throw new Error('DU_CONNECTOR_BASE_URLS[' + connectorId + '] must be a non-empty base URL string');
+    }
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(baseUrl);
+    } catch {
+      throw new Error('DU_CONNECTOR_BASE_URLS values must be absolute HTTP(S) URLs without credentials, query, or fragment');
+    }
+    if (
+      !/^https?:\/\//i.test(baseUrl)
+      || !['http:', 'https:'].includes(parsedUrl.protocol)
+      || parsedUrl.username !== ''
+      || parsedUrl.password !== ''
+      || baseUrl.includes('?')
+      || baseUrl.includes('#')
+      || baseUrl.trim() !== baseUrl
+    ) {
+      throw new Error('DU_CONNECTOR_BASE_URLS values must be absolute HTTP(S) URLs without credentials, query, or fragment');
     }
     out[connectorId] = baseUrl;
   }

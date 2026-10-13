@@ -766,7 +766,7 @@ export function CostPolicyPanel({ tenantId, session }: { tenantId: string; sessi
                     {budgets.data.budgets.map((head) => <option key={head.budgetId} value={head.budgetId}>{head.latest?.config.businessId ?? 'Tenant'} · {head.latest?.config.period ?? 'empty'} · {head.latest?.state ?? 'no revision'}</option>)}
                   </NativeSelect>
                 </FormField>
-                <div className="flex items-end text-xs text-[var(--text-sub)]">Active tenant: {tenantId}. Cost values are integer micro-USD; nothing resets existing used or held quota.</div>
+                <div className="flex items-end text-xs text-[var(--text-sub)]">Cost values are integer micro-USD; publishing a revision does not reset existing used or held quota.</div>
               </div>
 
               <form onSubmit={(event) => void saveBudgetDraft(event)} className="flex min-w-0 flex-col gap-4 border-t border-[var(--border-subtle)] pt-4">
@@ -908,9 +908,9 @@ export function CostPolicyPanel({ tenantId, session }: { tenantId: string; sessi
                         {latestBudget?.state === 'PUBLISHED' ? <Button type="button" size="sm" variant="outline" disabled={budgetBusy} onClick={() => void transitionBudget('retire')}>Retire revision</Button> : null}
                         <Button type="button" size="sm" variant="outline" disabled={budgetBusy || !rollbackSource} onClick={() => void rollbackBudget()}>Create rollback draft</Button>
                       </div>
-                      <div className="overflow-x-auto rounded border border-[var(--border-subtle)]" role="region" aria-label="Budget revision history" tabIndex={0}>
+                      <div className="max-h-[min(65dvh,32rem)] overflow-auto rounded border border-[var(--border-subtle)]" role="region" aria-label="Budget revision history" tabIndex={0}>
                         <table className="w-full min-w-[540px] text-left text-xs">
-                          <thead><tr className="border-b border-[var(--border-subtle)] text-[var(--text-sub)]"><th className="p-2">Revision</th><th className="p-2">State</th><th className="p-2">Created</th><th className="p-2">Published</th><th className="p-2">Digest</th></tr></thead>
+                          <thead className="sticky top-0 z-10 bg-[var(--bg-card)]"><tr className="border-b border-[var(--border-subtle)] text-[var(--text-sub)]"><th className="p-2">Revision</th><th className="p-2">State</th><th className="p-2">Created</th><th className="p-2">Published</th><th className="p-2">Digest</th></tr></thead>
                           <tbody>{[...detail.revisions].sort((left, right) => right.revision - left.revision).map((revision) => <tr key={revision.revision} className="border-b border-[var(--border-subtle)] last:border-0"><td className="p-2">{revision.revision}</td><td className="p-2"><Badge variant={revision.state === 'PUBLISHED' ? 'success' : revision.state === 'REVIEW' ? 'warning' : 'neutral'}>{revision.state}</Badge></td><td className="p-2">{new Date(revision.createdAt).toISOString().slice(0, 16).replace('T', ' ')} UTC</td><td className="p-2">{revision.publishedAt ? `${new Date(revision.publishedAt).toISOString().slice(0, 16).replace('T', ' ')} UTC` : '—'}</td><td className="p-2 font-mono">{revision.contentDigest.slice(0, 18)}…</td></tr>)}</tbody>
                         </table>
                       </div>
@@ -1146,9 +1146,9 @@ function PriceBookEditor({ client, state, onReload }: { client: AdminApiClient; 
             </div>
             {error ? <p role="alert" className="text-sm text-[var(--badge-danger-text)]">{error}</p> : null}
             {message ? <p role="status" className="text-sm text-[var(--badge-success-text)]">{message}</p> : null}
-            <div className="overflow-x-auto rounded border border-[var(--border-subtle)]" role="region" aria-label="Price revision history" tabIndex={0}>
+            <div className="max-h-[min(65dvh,32rem)] overflow-auto rounded border border-[var(--border-subtle)]" role="region" aria-label="Price revision history" tabIndex={0}>
               <table className="w-full min-w-[500px] text-left text-xs">
-                <thead><tr className="border-b border-[var(--border-subtle)] text-[var(--text-sub)]"><th className="p-2">Revision</th><th className="p-2">State</th><th className="p-2">Tiers</th><th className="p-2">Created</th><th className="p-2">Digest</th></tr></thead>
+                <thead className="sticky top-0 z-10 bg-[var(--bg-card)]"><tr className="border-b border-[var(--border-subtle)] text-[var(--text-sub)]"><th className="p-2">Revision</th><th className="p-2">State</th><th className="p-2">Tiers</th><th className="p-2">Created</th><th className="p-2">Digest</th></tr></thead>
                 <tbody>{[...state.data.revisions].sort((left, right) => right.revision - left.revision).map((revision) => <tr key={revision.revision} className="border-b border-[var(--border-subtle)] last:border-0"><td className="p-2">{revision.revision}</td><td className="p-2"><Badge variant={revision.state === 'PUBLISHED' ? 'success' : revision.state === 'REVIEW' ? 'warning' : 'neutral'}>{revision.state}</Badge></td><td className="p-2">{revision.tiers.length}</td><td className="p-2">{new Date(revision.createdAt).toISOString().slice(0, 16).replace('T', ' ')} UTC</td><td className="p-2 font-mono">{revision.contentDigest.slice(0, 18)}…</td></tr>)}</tbody>
               </table>
             </div>

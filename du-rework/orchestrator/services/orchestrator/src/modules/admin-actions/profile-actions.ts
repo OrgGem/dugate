@@ -11,6 +11,7 @@ import type { Db } from '../../db/db';
 import { conflict, notFound, HttpError } from '../../http/errors';
 import { createProfileRevisionService, isUnknownRevisionError } from '../profiles/publish';
 import type { ProfileService } from '../profiles/profiles';
+import { isActiveConnectorPin } from '../profiles/connector-pin-validation';
 
 /**
  * P730-ADMIN-MUTATE / W3 (Δ7 ruling (A)) — the profile.* admin action leaf.
@@ -236,8 +237,7 @@ export async function runProfileUpsert(
   if(cmd.connectorBindings && Object.keys(cmd.connectorBindings).length) {
     if(!deps.connectorManagement) throw new HttpError(503,'TEMPORARY_UNAVAILABLE','connector management is required to validate explicit profile pins');
     for(const pin of Object.values(cmd.connectorBindings)) {
-      const connector=await deps.connectorManagement.getRevision(pin.connectorId,pin.revision);
-      if(!connector || connector.state !== 'ACTIVE' || (connector.tenantId && connector.tenantId !== key.tenant_id)) throw new HttpError(422,'INVALID_SCHEMA','connector revision is not ACTIVE or available in this tenant');
+      if(!await isActiveConnectorPin(deps.connectorManagement, key.tenant_id, pin)) throw new HttpError(422,'INVALID_SCHEMA','connector revision is not ACTIVE or available in this tenant');
     }
   }
 

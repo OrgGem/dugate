@@ -448,6 +448,14 @@ async function route(
       try { connectorId = decodeURIComponent(base[1] ?? ''); }
       catch { throw new ConnectorError('INVALID_INPUT', 'Connector identifier is invalid.'); }
       const tail = base[2] ?? '';
+      if (method === 'GET' && tail === 'chain') {
+        const tenantId = singleQueryValue(url, 'tenantId');
+        if (!tenantId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(tenantId)) {
+          throw new ConnectorError('INVALID_INPUT', 'Tenant scope is invalid.');
+        }
+        const hasTypedChain = await dependencies.parityManagement.hasTypedChain(tenantId, connectorId);
+        return writeJson(response, 200, { hasTypedChain });
+      }
       if (method === 'POST' && tail === 'claim') {
         const body = await readJson(request, dependencies.maxBodyBytes ?? 16_384);
         if (!isRecord(body) || !hasExactly(body, ['tenantId', 'expectedHeadRevision', 'idempotencyKey'])

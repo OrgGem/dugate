@@ -19,6 +19,9 @@ const SHA256 = /^[a-f0-9]{64}$/;
 const SAFE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,95}$/;
 const KEY_VERSION = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 const KEY_REF = /^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,255}$/;
+// These paths identify files inside the Linux restore container, regardless
+// of the host OS used to validate or build this entrypoint.
+const targetPath = path.posix;
 const TOKEN = z.string().min(32).max(4096).refine((value) => !/[\u0000-\u001f\u007f]/.test(value));
 const FilePinSchema = z.object({ path: z.string().min(1).max(4096), sha256: z.string().regex(SHA256) }).strict();
 
@@ -127,7 +130,7 @@ export function parseIsolatedRestoreBootstrapArgs(argv: readonly string[]): Isol
     if (!SHA256.test(digest)) fail('RESTORE_BOOTSTRAP_ARGUMENTS_INVALID');
   }
   for (const file of [parsed.configFile, parsed.secretsFile, parsed.pgPasswordFile]) {
-    if (!path.isAbsolute(file) || path.normalize(file) !== file) fail('RESTORE_BOOTSTRAP_ARGUMENTS_INVALID');
+    if (!targetPath.isAbsolute(file) || targetPath.normalize(file) !== file) fail('RESTORE_BOOTSTRAP_ARGUMENTS_INVALID');
   }
   if (parsed.gateDirectory !== '/run/du-restore/start-gate'
       || !SAFE.test(parsed.runtimeIdentity)
@@ -144,12 +147,12 @@ export async function readIsolatedRestorePinnedFile(
   expectedSha256: string,
   maximumBytes = 1024 * 1024,
 ): Promise<Buffer> {
-  if (!path.isAbsolute(filePath) || path.normalize(filePath) !== filePath || !SHA256.test(expectedSha256)) {
+  if (!targetPath.isAbsolute(filePath) || targetPath.normalize(filePath) !== filePath || !SHA256.test(expectedSha256)) {
     fail('RESTORE_BOOTSTRAP_FILE_PIN_INVALID');
   }
   try {
     const [resolved, before, parent] = await Promise.all([
-      realpath(filePath), lstat(filePath), lstat(path.dirname(filePath)),
+      realpath(filePath), lstat(filePath), lstat(targetPath.dirname(filePath)),
     ]);
     if (resolved !== filePath || !before.isFile() || before.isSymbolicLink() || before.nlink !== 1
         || !parent.isDirectory() || parent.isSymbolicLink()
@@ -162,7 +165,7 @@ export async function readIsolatedRestorePinnedFile(
     const handle = await open(filePath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
     try {
       const opened = await handle.stat();
-      const parentAfter = await lstat(path.dirname(filePath));
+      const parentAfter = await lstat(targetPath.dirname(filePath));
       if (opened.dev !== before.dev || opened.ino !== before.ino || opened.size !== before.size
           || opened.uid !== before.uid || opened.gid !== before.gid || opened.mode !== before.mode
           || parentAfter.dev !== parent.dev || parentAfter.ino !== parent.ino) {
@@ -325,7 +328,7 @@ function decodePassword(bytes: Buffer): string {
 
 async function waitForStartGate(gateDirectory: string, timeoutMs = 60_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
-  const markerPath = path.join(gateDirectory, 'ready');
+  const markerPath = targetPath.join(gateDirectory, 'ready');
   while (Date.now() < deadline) {
     try {
       const [directory, marker] = await Promise.all([lstat(gateDirectory), lstat(markerPath)]);
@@ -354,7 +357,7 @@ async function readMountedControlToken(): Promise<string> {
   let fd;
   try {
     const [before, parent, resolved] = await Promise.all([
-      lstat(filePath), lstat(path.dirname(filePath)), realpath(filePath),
+      lstat(filePath), lstat(targetPath.dirname(filePath)), realpath(filePath),
     ]);
     if (resolved !== filePath || !before.isFile() || before.isSymbolicLink() || before.nlink !== 1
         || !parent.isDirectory() || parent.isSymbolicLink() || before.uid !== 0 || before.gid !== 1000
@@ -365,7 +368,7 @@ async function readMountedControlToken(): Promise<string> {
     }
     fd = await open(filePath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
     const opened = await fd.stat();
-    const parentAfter = await lstat(path.dirname(filePath));
+    const parentAfter = await lstat(targetPath.dirname(filePath));
     if (opened.dev !== before.dev || opened.ino !== before.ino || opened.size !== before.size
         || opened.uid !== before.uid || opened.gid !== before.gid || opened.mode !== before.mode
         || parentAfter.dev !== parent.dev || parentAfter.ino !== parent.ino) {

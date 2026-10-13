@@ -1,4 +1,5 @@
 import {
+  existsSync,
   lstatSync,
   mkdirSync,
   mkdtempSync,
@@ -20,10 +21,27 @@ import { TrustedRolloutManifestSchema } from '../src/modules/maintenance/trusted
 
 const repositoryRoot = path.resolve(__dirname, '../../../..');
 const composeRoot = path.join(repositoryRoot, 'compose');
+const hostPath = (...parts: string[]): string => path.resolve(os.tmpdir(), 'orv15-vfy-host-paths', ...parts);
+const gitBash = path.join(process.env['ProgramFiles'] ?? 'C:\\Program Files', 'Git', 'bin', 'bash.exe');
+const itWithNativeSymlinks = process.platform === 'win32' ? it.skip : it;
 const availabilityPath = path.join(composeRoot, 'availability.yml');
 const releasePath = path.join(composeRoot, 'availability', 'slot-release.example.yml');
 const selectorPath = path.join(composeRoot, 'ingress', 'reload-selector');
 const nginxPath = path.join(composeRoot, 'ingress', 'nginx.conf');
+
+function posixPath(value: string): string {
+  const normalized = path.resolve(value).replace(/\\/g, '/');
+  return normalized.replace(/^([A-Za-z]):\/(.*)$/, (_match, drive: string, rest: string) => `/${drive.toLowerCase()}/${rest}`);
+}
+
+function shellInvocation(script: string, args: string[]): { command: string; args: string[] } {
+  if (process.platform !== 'win32') return { command: script, args };
+  if (!existsSync(gitBash)) throw new Error('Git Bash is required to run the POSIX selector fixture on Windows');
+  return {
+    command: gitBash,
+    args: [posixPath(script), ...args.map((argument) => /^[A-Za-z]:[\\/]/.test(argument) ? posixPath(argument) : argument)],
+  };
+}
 
 function runBounded(
   command: string,
@@ -31,7 +49,8 @@ function runBounded(
   env: NodeJS.ProcessEnv,
   cwd = repositoryRoot,
 ) {
-  return spawnSync(command, args, {
+  const invocation = command === process.execPath ? { command, args } : shellInvocation(command, args);
+  return spawnSync(invocation.command, invocation.args, {
     cwd,
     env,
     encoding: 'utf8',
@@ -162,21 +181,21 @@ function manifestTarget(service: 'orchestrator' | 'connector' | 'worker') {
       revision: 'orv15-r1',
       slots: {
         blue: { composeFiles: [
-          { path: '/srv/du/releases/availability.yml', sha256: 'b'.repeat(64) },
-          { path: `/srv/du/releases/${service}-blue.yml`, sha256: 'c'.repeat(64) },
+          { path: hostPath('releases', 'availability.yml'), sha256: 'b'.repeat(64) },
+          { path: hostPath('releases', `${service}-blue.yml`), sha256: 'c'.repeat(64) },
         ], imageDigest },
         green: { composeFiles: [
-          { path: '/srv/du/releases/availability.yml', sha256: 'b'.repeat(64) },
-          { path: `/srv/du/releases/${service}-green.yml`, sha256: 'd'.repeat(64) },
+          { path: hostPath('releases', 'availability.yml'), sha256: 'b'.repeat(64) },
+          { path: hostPath('releases', `${service}-green.yml`), sha256: 'd'.repeat(64) },
         ], imageDigest },
       },
     }],
   };
   if (service !== 'worker') {
     Object.assign(target, {
-      selectorFile: `/etc/du/availability/selectors/${service}`,
+      selectorFile: hostPath('availability', 'selectors', service),
       fixedIngressProbeUrl: `http://127.0.0.1:18081/${service}/identity`,
-      reloadExecutable: '/usr/local/sbin/reload-selector',
+      reloadExecutable: hostPath('sbin', 'reload-selector'),
       reloadExecutableSha256: 'e'.repeat(64),
       reloadArgs: ['--context', 'du-production', service],
     });
@@ -188,12 +207,12 @@ function trustedManifest() {
   return {
     schemaVersion: 1,
     hostId: 'du-host-orv15',
-    dockerBinary: '/usr/bin/docker',
+    dockerBinary: hostPath('usr', 'bin', 'docker'),
     dockerSha256: 'f'.repeat(64),
     dockerContext: 'du-production',
-    workingDirectory: '/srv/du',
-    homeDirectory: '/root',
-    dockerConfigDirectory: '/root/.docker',
+    workingDirectory: hostPath('du'),
+    homeDirectory: hostPath('root'),
+    dockerConfigDirectory: hostPath('root', '.docker'),
     targets: [manifestTarget('orchestrator'), manifestTarget('connector'), manifestTarget('worker')],
   };
 }
@@ -232,10 +251,6 @@ describe('VFY-ORV15-HA availability package contract', () => {
       const invalidCases: Array<() => void> = [
         () => writeFileSync(connectorSelector, 'purple\n'),
         () => writeFileSync(orchestratorSelector, 'green\ngreen\n'),
-        () => {
-          rmSync(connectorSelector);
-          symlinkSync(orchestratorSelector, connectorSelector);
-        },
       ];
       for (const prepare of invalidCases) {
         rmSync(connectorSelector, { force: true });
@@ -257,18 +272,62 @@ describe('VFY-ORV15-HA availability package contract', () => {
     }
   });
 
-  it('denies the production selector to a real non-root caller despite the legacy test-mode variable', () => {
-    expect(typeof process.getuid).toBe('function');
-    if (typeof process.getuid !== 'function') throw new Error('POSIX uid is required for this check');
-    expect(process.getuid()).not.toBe(0);
-    const result = runBounded(selectorPath, ['--context', 'du-synthetic-context', 'orchestrator'], {
-      PATH: '/usr/bin:/bin',
-      DU_AVAILABILITY_TEST_MODE: 'true',
-    });
-    expect(result.error).toBeUndefined();
-    expect(result.status).toBe(77);
-    expect(result.stdout).toBe('');
-    expect(result.stderr).toContain('reload-selector requires root');
+  itWithNativeSymlinks('rejects a symlink selector without modifying the selected include', () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), 'orv15-vfy-ha-symlink-'));
+    try {
+      const selectorDir = path.join(root, 'selectors');
+      const ingressDir = path.join(root, 'ingress');
+      mkdirSync(selectorDir);
+      mkdirSync(ingressDir);
+      const orchestratorSelector = path.join(selectorDir, 'orchestrator');
+      const connectorSelector = path.join(selectorDir, 'connector');
+      const selectedInclude = path.join(ingressDir, 'selected-upstream.conf');
+      writeFileSync(orchestratorSelector, 'blue\n');
+      writeFileSync(connectorSelector, 'green\n');
+      writeFileSync(selectedInclude, '# fixture previous contents\n');
+      symlinkSync(orchestratorSelector, connectorSelector);
+
+      const before = selectorTreeState(root);
+      const rejected = runBounded(selectorPath, ['--render-only', root], {
+        PATH: '/usr/bin:/bin', DU_AVAILABILITY_TEST_MODE: '1',
+      });
+      expect(rejected.error).toBeUndefined();
+      expect(rejected.status).toBe(65);
+      expect(rejected.stdout).toBe('');
+      expect(selectorTreeState(root)).toEqual(before);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('denies the production selector when the shell reports non-root despite legacy test mode', () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), 'orv15-vfy-ha-nonroot-'));
+    try {
+      const availabilityRoot = path.join(root, 'availability');
+      const bin = path.join(root, 'bin');
+      const bashEnv = path.join(root, 'bash-env');
+      const privateScript = path.join(root, 'reload-selector');
+      const fakeDocker = path.join(root, 'docker-stub');
+      mkdirSync(bin);
+      const source = readFileSync(selectorPath, 'utf8')
+        .replace('root=/etc/du/availability', `root=${posixPath(availabilityRoot)}`)
+        .replace('docker=/usr/bin/docker', `docker=${posixPath(fakeDocker)}`);
+      expect(source).not.toBe(readFileSync(selectorPath, 'utf8'));
+      writeFileSync(privateScript, source, { mode: 0o700 });
+      writeFileSync(path.join(bin, 'id'), '#!/bin/sh\nprintf "1000\\n"\n', { mode: 0o700 });
+      writeFileSync(fakeDocker, '#!/bin/sh\nexit 0\n', { mode: 0o700 });
+      writeFileSync(bashEnv, 'PATH="$TEST_BIN:$PATH"\nexport PATH\n');
+      const result = runBounded(privateScript, ['--context', 'du-synthetic-context', 'orchestrator'], {
+        PATH: `${posixPath(bin)}:/usr/bin:/bin`,
+        TEST_BIN: posixPath(bin),
+        BASH_ENV: process.platform === 'win32' ? posixPath(bashEnv) : bashEnv,
+        DU_AVAILABILITY_TEST_MODE: 'true',
+      });
+      expect(result.error).toBeUndefined();
+      expect(result.status).toBe(77);
+      expect(result.stdout).toBe('');
+      expect(result.stderr).toContain('reload-selector requires root');
+    } finally { rmSync(root, { recursive: true, force: true }); }
   });
 
   it('rejects wrong runtime-config hashes and forbidden identity overrides before spawning a service', () => {

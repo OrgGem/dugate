@@ -83,6 +83,9 @@ function makeWorld(opts: WorldOptions = {}) {
     query: async (text: string, params: unknown[] = []) => {
       const sql = text.replace(/\s+/g, ' ').trim();
       queries.push({ sql, params });
+      if (/SELECT id, tenant_id, hash, prefix, status FROM api_keys/i.test(sql)) {
+        return keyRow ? { rows: [{ ...keyRow, hash: HASH, prefix: RAW.slice(0, 4) }], rowCount: 1 } : { rows: [], rowCount: 0 };
+      }
       if (/SELECT id, tenant_id, status.* FROM api_keys/i.test(sql)) {
         return keyRow ? { rows: [keyRow], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
@@ -103,11 +106,20 @@ function makeWorld(opts: WorldOptions = {}) {
         };
       }
       // 0039 membership seams.
-      if (/SELECT 1 FROM profile_bindings WHERE profile_id/i.test(sql)) {
-        return opts.profileExists === false ? { rows: [], rowCount: 0 } : { rows: [{ '?column?': 1 }], rowCount: 1 };
+      if (/FROM profile_active_revisions a/i.test(sql) && /LEFT JOIN profile_names n/i.test(sql)) {
+        return opts.profileExists === false
+          ? { rows: [], rowCount: 0 }
+          : { rows: [{ group_id: null, business_id: 'document-core', business_version: '1.0.0', action: 'extract', endpoint_slug: null }], rowCount: 1 };
       }
-      if (/FROM profile_api_keys WHERE api_key_id/i.test(sql)) {
-        return { rows: opts.memberships ?? [], rowCount: (opts.memberships ?? []).length };
+      if (/FROM profile_api_keys m/i.test(sql)) {
+        const rows = (opts.memberships ?? []).map((membership) => ({
+          ...membership,
+          business_id: 'document-core',
+          business_version: '1.0.0',
+          action: 'extract',
+          endpoint_slug: null,
+        }));
+        return { rows, rowCount: rows.length };
       }
       if (/INSERT INTO profile_api_keys/i.test(sql)) {
         return { rows: [{ created: opts.membershipCreated !== false }], rowCount: 1 };

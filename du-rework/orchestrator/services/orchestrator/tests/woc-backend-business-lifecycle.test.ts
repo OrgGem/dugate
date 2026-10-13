@@ -80,17 +80,23 @@ describe('WOC-09/10 business registry lifecycle', () => {
   });
 
   it('uses persisted lifecycle revision as a strict enable/disable CAS and marks exact replay', async () => {
-    const state = { enabled: false, lifecycle_revision: 4 };
+    const state = { enabled: false, lifecycle_revision: 4, activation_revision: 1 };
     const client = {
       query: async <T extends QueryResultRow = QueryResultRow>(sql: string, params: unknown[] = []) => {
-        if (/^SELECT enabled,lifecycle_revision\s+FROM business_catalog/i.test(sql)) {
-          return queryResult<T>(params[0] === BUSINESS_ID ? [{ ...state }] : []);
+        if (/^SELECT enabled,lifecycle_revision,activation_revision/i.test(sql)) {
+          return queryResult<T>(params[0] === BUSINESS_ID ? [{ ...state, submissions_paused: false, pre_drain_version: null }] : []);
         }
-        if (/^UPDATE business_catalog/i.test(sql)) {
+        if (/^UPDATE business_catalog/i.test(sql) && sql.includes('SET enabled=$2')) {
           state.enabled = Boolean(params[1]);
           state.lifecycle_revision += 1;
           return queryResult<T>([{ ...state }], 'UPDATE');
         }
+        if (/^UPDATE business_catalog/i.test(sql) && sql.includes('SET activation_revision=activation_revision+1')) {
+          state.activation_revision += 1;
+          return queryResult<T>([{ activation_revision: state.activation_revision }], 'UPDATE');
+        }
+        if (/^SELECT version FROM business_versions/i.test(sql)) return queryResult<T>([]);
+        if (/^INSERT INTO business_version_activation_events/i.test(sql)) return queryResult<T>([], 'INSERT');
         throw new Error(`unexpected lifecycle SQL: ${sql}`);
       },
     };
@@ -173,7 +179,9 @@ describe('WOC-09/10 business registry lifecycle', () => {
       query: async <T extends QueryResultRow = QueryResultRow>(sql: string, params: unknown[] = []) => {
         queries.push({ sql, params });
         if (/FROM artifacts a/i.test(sql)) return queryResult<T>([]);
-        if (/SELECT enabled FROM business_catalog/i.test(sql)) return queryResult<T>([{ enabled: false }]);
+        if (/SELECT enabled,activation_revision,submissions_paused,pre_drain_version FROM business_catalog/i.test(sql)) {
+          return queryResult<T>([{ enabled: false, activation_revision: 1, submissions_paused: false, pre_drain_version: null }]);
+        }
         throw new Error(`unexpected disabled-submit SQL: ${sql}`);
       },
       tx,
@@ -189,7 +197,7 @@ describe('WOC-09/10 business registry lifecycle', () => {
       submission: { input: {} },
     })).rejects.toMatchObject({ status: 409, code: 'STATE_CONFLICT' });
 
-    expect(queries.some(({ sql }) => /SELECT enabled FROM business_catalog/i.test(sql))).toBe(true);
+    expect(queries.some(({ sql }) => /SELECT enabled,activation_revision,submissions_paused,pre_drain_version FROM business_catalog/i.test(sql))).toBe(true);
     expect(queries.some(({ sql }) => /FROM business_versions/i.test(sql))).toBe(false);
     expect(tx).not.toHaveBeenCalled();
   });

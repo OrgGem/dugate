@@ -12,6 +12,11 @@ import { defineConfig } from 'vite';
 export default defineConfig({
   base: '/admin/',
   plugins: [react(), tailwindcss()],
+  // @du/contracts is a linked CommonJS workspace dependency. Include it in
+  // Vite's browser prebundle so runtime schema imports work in dev mode too.
+  optimizeDeps: {
+    include: ['@du/contracts'],
+  },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

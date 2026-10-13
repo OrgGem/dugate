@@ -291,14 +291,18 @@ describe('R3-01: audit-INSERT fault injection rolls the mutation back', () => {
   }
 
   async function ledgerCount(): Promise<number> {
-    const res = await app.db.query('SELECT 1 FROM admin_audit_events WHERE resource = $1', [INJ_RESOURCE]);
+    const res = await app.db.query("SELECT 1 FROM admin_audit_events WHERE resource LIKE $1", [`${INJ_RESOURCE}:activation-revision:%`]);
     return res.rowCount ?? 0;
   }
 
   async function putEnable(): Promise<Response> {
+    const revision = await app.db.query<{ activation_revision: number | string }>(
+      'SELECT activation_revision FROM business_catalog WHERE business_id=$1', [TEST_BIZ],
+    );
     return fetch(`${baseUrl}/api/v1/admin/businesses/${TEST_BIZ}/versions/${INJ_VERSION}/enable`, {
       method: 'PUT',
-      headers: adminHeaders(),
+      headers: { ...adminHeaders(), 'content-type': 'application/json' },
+      body: JSON.stringify({ expectedActivationRevision: Number(revision.rows[0]?.activation_revision) }),
     });
   }
 
@@ -307,7 +311,7 @@ describe('R3-01: audit-INSERT fault injection rolls the mutation back', () => {
     await app.db.query(`
       CREATE OR REPLACE FUNCTION du_r301_audit_boom() RETURNS trigger AS \$\$
         BEGIN
-          IF NEW.action = 'business.enable' AND NEW.resource = '${INJ_RESOURCE}' THEN
+          IF NEW.action = 'business.enable' AND NEW.resource LIKE '${INJ_RESOURCE}:activation-revision:%' THEN
             RAISE EXCEPTION 'injected audit outage';
           END IF;
           RETURN NEW;
@@ -338,8 +342,8 @@ describe('R3-01: audit-INSERT fault injection rolls the mutation back', () => {
     expect(res.status).toBe(200);
     expect(await readStatus()).toBe('ENABLED');
     const rows = await app.db.query<{ tenant_id: string | null }>(
-      'SELECT tenant_id FROM admin_audit_events WHERE resource = $1',
-      [`business:${TEST_BIZ}@${INJ_VERSION}`]
+      "SELECT tenant_id FROM admin_audit_events WHERE resource LIKE $1",
+      [`business:${TEST_BIZ}@${INJ_VERSION}:activation-revision:%`]
     );
     expect(rows.rowCount).toBe(1);
     expect(rows.rows[0]!.tenant_id).toBeNull(); // platform-global, as documented

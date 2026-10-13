@@ -219,6 +219,33 @@ function formatDataAge(milliseconds: number): string {
 }
 
 function DataAgeLabel({ lastSuccessAt, stale }: { lastSuccessAt: number | null; stale: boolean }) {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    let timer: number | null = null;
+    const stop = () => {
+      if (timer !== null) {
+        window.clearInterval(timer);
+        timer = null;
+      }
+    };
+    const sync = () => {
+      if (document.visibilityState === 'hidden') {
+        stop();
+        return;
+      }
+      setNow(Date.now());
+      if (timer === null) timer = window.setInterval(() => setNow(Date.now()), 1_000);
+    };
+
+    sync();
+    document.addEventListener('visibilitychange', sync);
+    return () => {
+      stop();
+      document.removeEventListener('visibilitychange', sync);
+    };
+  }, []);
+
   return (
     <span
       className="text-xs text-[var(--text-sub)]"
@@ -227,7 +254,7 @@ function DataAgeLabel({ lastSuccessAt, stale }: { lastSuccessAt: number | null; 
     >
       {lastSuccessAt === null
         ? 'Data age: Unavailable (no successful load yet)'
-        : `Data age: ${formatDataAge(Date.now() - lastSuccessAt)}${
+        : `Data age: ${formatDataAge(now - lastSuccessAt)}${
             stale ? ' · refresh incomplete (some projections may be stale; last good data remains visible)' : ''
           }`}
     </span>
@@ -235,7 +262,7 @@ function DataAgeLabel({ lastSuccessAt, stale }: { lastSuccessAt: number | null; 
 }
 
 export function OverviewScreen() {
-  const { tenantId: globalTenantId, tenant } = useTenant();
+  const { tenantId: globalTenantId } = useTenant();
   const [session, setSession] = useState<Loadable<AdminWebSession>>({ kind: 'loading' });
   const [audit, setAudit] = useState<Loadable<AuditListPage>>({ kind: 'loading' });
   const [usage, setUsage] = useState<UsageTileState>({ kind: 'loading' });
@@ -256,6 +283,8 @@ export function OverviewScreen() {
     current: null,
     metricsRequestSequence: 0,
   });
+  const activeLoadRef = useRef(false);
+  const pendingLoadRef = useRef<(() => Promise<void>) | null>(null);
   const requestSequence = useRef(0);
   const selectedTenantRef = useRef(globalTenantId);
   const sessionScopeRef = useRef<string | null>(null);
@@ -280,6 +309,14 @@ export function OverviewScreen() {
     : null;
 
   const load = useCallback(async (): Promise<void> => {
+    if (activeLoadRef.current) {
+      // A scope or filter change during an in-flight cycle still gets a fresh
+      // load after it settles. Keep only the latest render's callback queued.
+      pendingLoadRef.current = load;
+      return;
+    }
+    activeLoadRef.current = true;
+    try {
     const requestId = ++requestSequence.current;
     const selectedTenantAtStart = globalTenantId;
     const isCurrent = () => requestSequence.current === requestId && selectedTenantRef.current === selectedTenantAtStart;
@@ -548,6 +585,12 @@ export function OverviewScreen() {
     lastSuccess.current = stamp;
     setLastSuccessAt(stamp);
     setStale(false);
+    } finally {
+      activeLoadRef.current = false;
+      const pendingLoad = pendingLoadRef.current;
+      pendingLoadRef.current = null;
+      if (pendingLoad) void pendingLoad();
+    }
   }, [window, lastSuccess, globalTenantId]);
 
   useEffect(() => {
@@ -577,21 +620,60 @@ export function OverviewScreen() {
 
   useEffect(() => {
     void load();
-    return () => { requestSequence.current += 1; };
+    return () => {
+      requestSequence.current += 1;
+      pendingLoadRef.current = null;
+    };
   }, [load]);
 
   useEffect(() => {
     if (!autoRefresh) return undefined;
-    const timer = setInterval(() => {
-      void load();
-    }, AUTO_REFRESH_MS);
-    return () => clearInterval(timer);
+    let timer: number | null = null;
+    let cancelled = false;
+    let running = false;
+    const stop = () => {
+      if (timer !== null) {
+        globalThis.window.clearTimeout(timer);
+        timer = null;
+      }
+    };
+    const schedule = () => {
+      if (!cancelled && document.visibilityState !== 'hidden' && timer === null) {
+        timer = globalThis.window.setTimeout(() => void refresh(), AUTO_REFRESH_MS);
+      }
+    };
+    const refresh = async () => {
+      timer = null;
+      if (cancelled || document.visibilityState === 'hidden' || running) return;
+      if (activeLoadRef.current) {
+        schedule();
+        return;
+      }
+      running = true;
+      try {
+        await load();
+      } finally {
+        running = false;
+        schedule();
+      }
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        stop();
+      } else if (!running && timer === null) {
+        void refresh();
+      }
+    };
+
+    schedule();
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      cancelled = true;
+      stop();
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, [autoRefresh, load]);
 
-  const effectiveTenantId =
-    session.kind === 'ready' && session.data.scope?.kind === 'tenant'
-      ? session.data.scope.tenantId
-      : (globalTenantId ?? null);
   const incidentLedgerVisible = session.kind === 'ready' && canReadIncidentLedger(session.data);
 
   return (
@@ -611,44 +693,39 @@ export function OverviewScreen() {
           Auto refresh: {autoRefresh ? 'On' : 'Off'}
         </Button>
         <DataAgeLabel lastSuccessAt={lastSuccessAt} stale={stale} />
-        <span className="text-xs text-[var(--text-sub)]">
-          Operations are filtered to the active tenant selection when set; tenant-scoped sessions use their own tenant.
-        </span>
       </div>
 
-      <SessionCard
-        loadable={session}
-        activeTenantId={effectiveTenantId}
-        activeTenantName={tenant?.name}
-      />
+      <div className="grid min-w-0 grid-cols-1 items-stretch gap-4 lg:grid-cols-3">
+        <SessionCard loadable={session} />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>System operations</CardTitle>
-          <CardDescription>Open persistent incident history or inspect the current host service and queue inventory.</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
-          {incidentLedgerVisible ? <Link className="text-[var(--cf-blue)] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]" to="/system-operations/incidents">Incident ledger</Link> : null}
-          <Link className="text-[var(--cf-blue)] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]" to="/system-operations/services">Services and replicas</Link>
-          <Link className="text-[var(--cf-blue)] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]" to="/system-operations/workers-queues">Workers and queues</Link>
-          <Link className="text-[var(--cf-blue)] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]" to="/system-operations">Operations cockpit</Link>
-        </CardContent>
-      </Card>
+        <Card className="h-full min-w-0">
+          <CardHeader>
+            <CardTitle>System operations</CardTitle>
+            <CardDescription>Open persistent incident history or inspect the current host service and queue inventory.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex min-w-0 flex-wrap gap-x-5 gap-y-2 text-sm">
+            {incidentLedgerVisible ? <Link className="break-words text-[var(--cf-blue)] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]" to="/system-operations/incidents">Incident ledger</Link> : null}
+            <Link className="break-words text-[var(--cf-blue)] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]" to="/system-operations/services">Services and replicas</Link>
+            <Link className="break-words text-[var(--cf-blue)] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]" to="/system-operations/workers-queues">Workers and queues</Link>
+            <Link className="break-words text-[var(--cf-blue)] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]" to="/system-operations">Operations cockpit</Link>
+          </CardContent>
+        </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Configuration and access</CardTitle>
-          <CardDescription>Review delegated API keys and profile-bound access assignments.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Link
-            className="text-sm font-medium text-[var(--cf-blue)] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
-            to="/profiles">
-            Profile access assignments
-          </Link>
-          <Link className="ml-5 text-sm font-medium text-[var(--cf-blue)] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]" to="/api-keys">API Keys administration</Link>
-        </CardContent>
-      </Card>
+        <Card className="h-full min-w-0">
+          <CardHeader>
+            <CardTitle>Configuration and access</CardTitle>
+            <CardDescription>Review delegated API keys and profile-bound access assignments.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex min-w-0 flex-wrap gap-x-5 gap-y-2">
+            <Link
+              className="break-words text-sm font-medium text-[var(--cf-blue)] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
+              to="/profiles">
+              Profile access assignments
+            </Link>
+            <Link className="break-words text-sm font-medium text-[var(--cf-blue)] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]" to="/api-keys">API Keys administration</Link>
+          </CardContent>
+        </Card>
+      </div>
 
       {hasOperationsApi ? (
         <>
@@ -671,14 +748,10 @@ export function OverviewScreen() {
               timeRange={timeRange}
               onTimeRangeChange={setTimeRange}
               onRetry={() => void load()}
-              effectiveTenantId={effectiveTenantId}
-              tenantName={tenant?.name}
             />
             <AuditCard
               loadable={audit}
               onRetry={() => void load()}
-              effectiveTenantId={effectiveTenantId}
-              tenantName={tenant?.name}
             />
           </div>
         </>
@@ -691,14 +764,10 @@ export function OverviewScreen() {
               timeRange={timeRange}
               onTimeRangeChange={setTimeRange}
               onRetry={() => void load()}
-              effectiveTenantId={effectiveTenantId}
-              tenantName={tenant?.name}
             />
             <AuditCard
               loadable={audit}
               onRetry={() => void load()}
-              effectiveTenantId={effectiveTenantId}
-              tenantName={tenant?.name}
             />
           </div>
           <UnavailableTile
@@ -713,16 +782,12 @@ export function OverviewScreen() {
 
 function SessionCard({
   loadable,
-  activeTenantId,
-  activeTenantName,
 }: {
   loadable: Loadable<AdminWebSession>;
-  activeTenantId?: string | null;
-  activeTenantName?: string | null;
 }) {
   const state = paneStateFrom(loadable);
   return (
-    <Card>
+    <Card className="h-full min-w-0">
       <CardHeader>
         <CardTitle>Session</CardTitle>
         <CardDescription>Live from /admin/api/session (no-store).</CardDescription>
@@ -759,16 +824,7 @@ function SessionCard({
               {state.data.scope === null ? (
                 <span className="text-[var(--text-sub)]">none — this session has no admin principal</span>
               ) : state.data.scope.kind === 'platform' ? (
-                <span>
-                  platform{' '}
-                  {activeTenantId ? (
-                    <span className="text-[var(--text-sub)]">
-                      (active: <code>{activeTenantName || activeTenantId}</code>)
-                    </span>
-                  ) : (
-                    '(may narrow per request)'
-                  )}
-                </span>
+                <span>platform (may narrow per request)</span>
               ) : (
                 <code>{state.data.scope.tenantId}</code>
               )}
@@ -783,13 +839,9 @@ function SessionCard({
 function AuditCard({
   loadable,
   onRetry,
-  effectiveTenantId,
-  tenantName,
 }: {
   loadable: Loadable<AuditListPage>;
   onRetry: () => void;
-  effectiveTenantId?: string | null;
-  tenantName?: string | null;
 }) {
   const state = paneStateFrom(loadable, (page) => page.items.length === 0);
   const [filterSeverity, setFilterSeverity] = useState<'all' | 'error' | 'warning' | 'info'>('all');
@@ -840,11 +892,6 @@ function AuditCard({
             {state.kind === 'ready' ? (
               <Badge variant="neutral" className="text-xs">
                 {items.length} event(s)
-              </Badge>
-            ) : null}
-            {effectiveTenantId ? (
-              <Badge variant="neutral" className="text-xs">
-                Scope: {tenantName ? `${tenantName}` : effectiveTenantId}
               </Badge>
             ) : null}
           </div>
@@ -1033,16 +1080,12 @@ function UsageRollupTile({
   timeRange,
   onTimeRangeChange,
   onRetry,
-  effectiveTenantId,
-  tenantName,
 }: {
   state: UsageTileState;
   window: { from: string; to: string };
   timeRange: TimeRangeKey;
   onTimeRangeChange: (range: TimeRangeKey) => void;
   onRetry: () => void;
-  effectiveTenantId?: string | null;
-  tenantName?: string | null;
 }) {
   const isEmpty =
     state.kind === 'ready' &&
@@ -1084,11 +1127,6 @@ function UsageRollupTile({
                 tenant scoped
               </Badge>
             )}
-            {effectiveTenantId ? (
-              <Badge variant="neutral" className="text-xs">
-                Tenant: {tenantName ? `${tenantName}` : effectiveTenantId}
-              </Badge>
-            ) : null}
           </div>
           <div className="flex items-center gap-1 rounded-md border border-[var(--border-sub)] p-0.5">
             {(['24h', '7d', '30d'] as const).map((r) => (

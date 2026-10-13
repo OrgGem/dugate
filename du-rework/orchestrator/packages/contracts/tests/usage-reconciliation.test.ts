@@ -411,9 +411,12 @@ describe('usage aggregation engines', () => {
         big('t2', 0, 0, 6_000_000_000_000_000),
       ]),
     ).toThrow(/USAGE_AGGREGATE_OVERFLOW/);
-    // single event beyond the cap: the ledger schema has no max on cost, so
-    // the aggregator is the boundary that fails closed
-    expect(() => aggregateUsageEvents([big('x', 1e20, 0, 0)])).toThrow(RangeError);
+    // Individually valid ledger events whose combined cost crosses the cap
+    // still fail closed at the aggregate boundary.
+    expect(() => aggregateUsageEvents([
+      big('x1', 6_000_000_000_000_000, 0, 0),
+      big('x2', 6_000_000_000_000_000, 0, 0),
+    ])).toThrow(RangeError);
   });
 
   test('26. pure + deterministic: inputs untouched, repeated calls identical, index re-export works', () => {
@@ -544,7 +547,10 @@ describe('usage aggregation engines', () => {
       ...base,
       groups: [{ ...base.groups[0]!, dimensions: { ...base.groups[0]!.dimensions, rawApiKey: 'secret' } }],
     })).toThrow(ZodError);
-    expect(() => aggregateUsageGroups([makeEvent({ eventId: 'evt-too-large', costMicrousd: 1e20 })])).toThrow(RangeError);
+    expect(() => aggregateUsageGroups([
+      makeEvent({ eventId: 'evt-too-large-1', costMicrousd: 6_000_000_000_000_000 }),
+      makeEvent({ eventId: 'evt-too-large-2', costMicrousd: 6_000_000_000_000_000 }),
+    ])).toThrow(RangeError);
     const conflict = makeEvent({ eventId: EVT1.eventId, costMicrousd: EVT1.costMicrousd + 1 });
     expect(() => aggregateUsageGroups([EVT1, conflict])).toThrow(UsageReconciliationConflictError);
   });

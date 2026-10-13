@@ -1,0 +1,14 @@
+▶ ORV15 Business and Profile configuration UI owner checks
+  ✔ keeps business detail in three tabs and nests worker inventory under version groups (1.0678ms)
+  ✔ pages the profile catalog and role-sensitive assigned endpoints with their own server cursors (0.5923ms)
+  ✔ keeps profile mutation actions outside mounted editor panels and leaves Groups platform-only (0.3116ms)
+  ✔ uses responsive control rows instead of bottom-aligning form actions with field messages (0.2212ms)
+✔ ORV15 Business and Profile configuration UI owner checks (2.9242ms)
+ℹ tests 4
+ℹ suites 1
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 59.9245

@@ -1,15 +1,15 @@
 {
-  "generatedAt": "2026-10-13T02:54:07.746Z",
-  "sourceCommit": "d2f0c88ddc65de0f59794afbc390b875462ce501",
-  "sourceSnapshot": "working-tree file hashes; sourceWorkingTreeDirty marks package trees with uncommitted source changes",
+  "generatedAt": "2026-10-13T10:00:36.736Z",
+  "sourceCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+  "sourceSnapshot": "Working-tree file hashes; sourceWorkingTreeDirty marks package trees with uncommitted source changes. sourceFilesSha256 is SHA-256 of compact JSON for the sorted [{path,sha256}] manifest.",
   "packages": [
     {
       "name": "@du/contracts",
       "version": "0.1.0",
       "sourcePath": "orchestrator/packages/contracts/src",
-      "sourceWorkingTreeDirty": false,
-      "fileCount": 47,
-      "sourceFilesSha256": "3087683336e9906a573e76a2933d299be535a6d532c0128f482f68dc9521da88",
+      "sourceWorkingTreeDirty": true,
+      "fileCount": 48,
+      "sourceFilesSha256": "ae4a3ab4df9ea4bff9cb216adfd5d388f5e84f651a882575ddeed5735486e7ac",
       "files": [
         {
           "path": "src/admin-workbench.ts",
@@ -45,7 +45,7 @@
         },
         {
           "path": "src/encryption-persistence.ts",
-          "sha256": "d8052c4e2ed21f41a3df56c2b396a879fa826b3b689b0c10b81e6541f97d3f1b"
+          "sha256": "2ab432692ebf8e3b971b9ae9cc4c4c296e0a40a94b477025e1cc905eb12c2318"
         },
         {
           "path": "src/encryption.ts",
@@ -53,7 +53,7 @@
         },
         {
           "path": "src/errors.ts",
-          "sha256": "07bfa3bbd7676b5ed36aba17a596de4eede64e0ea21855b3408fe6ba969d68d8"
+          "sha256": "508d1b93acf6aabfa882aaff55903d3b7576346c3a7608a9f2919a909fea3fcf"
         },
         {
           "path": "src/global-settings.ts",
@@ -73,7 +73,7 @@
         },
         {
           "path": "src/index.ts",
-          "sha256": "1db649377f879b9d0f3c9c2bd4d5b2069719299a9a0a147bb2669c719b500cda"
+          "sha256": "997d24057e5f0ddb56c10b35f24c2372639cadf8063e90b24ae3a92e9920a3f9"
         },
         {
           "path": "src/ip-policy.ts",
@@ -109,7 +109,7 @@
         },
         {
           "path": "src/parity.ts",
-          "sha256": "ea77f06d89ba5f8c2549524fab6f4b2ba837096f6d3d18da0474ef83b6f7c119"
+          "sha256": "d31ea2d8ca1be09ddf52b68731a9572a1993a27fef878ea250b55a39f5bbb2d2"
         },
         {
           "path": "src/pricing.ts",
@@ -144,12 +144,16 @@
           "sha256": "eb90c54bef5a081189fb7351f1bd4baa7ab6ee8a4cc8458c1983d0aa412e91bd"
         },
         {
+          "path": "src/registry.ts",
+          "sha256": "f606355025c3891f85749da76091cfad3d266bfd44f541bbf764c4a925543f10"
+        },
+        {
           "path": "src/request-redaction.ts",
           "sha256": "39aac7f386092c03b4e55b030bd92d007a7d369cbd6f9be8e9534b95b6cfd952"
         },
         {
           "path": "src/runtime.ts",
-          "sha256": "e28b6d8a9658f44512fe518974c5fbdcf55ba76a6ee88036cec865886363c91e"
+          "sha256": "9fcd1220f2a417dbba94866bf088ea5f141edca647189349e1fa1467f2344412"
         },
         {
           "path": "src/sdk.ts",
@@ -199,7 +203,9 @@
           "path": "src/workflow-import.ts",
           "sha256": "6d1f3b705084488d6ac7cb2e8b3844d67c814fc41e747ff4e116ace2fffc39ce"
         }
-      ]
+      ],
+      "sourceBaselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+      "sourceFilesSha256Algorithm": "SHA-256 of compact JSON for the sorted [{path,sha256}] manifest"
     },
     {
       "name": "@du/observability",
@@ -345,7 +351,7 @@
       "sourcePath": "orchestrator/packages/worker-sdk/src",
       "sourceWorkingTreeDirty": true,
       "fileCount": 16,
-      "sourceFilesSha256": "6f7de7ed9992455d480203575630639d76ef7c874be6b3b093ce0602df0a5136",
+      "sourceFilesSha256": "c191f4b960ad5d1836bd49f7d9e3d72f0057c23842dca906b30c0cae5640b3c7",
       "files": [
         {
           "path": "src/artifact-multipart.ts",
@@ -353,7 +359,7 @@
         },
         {
           "path": "src/artifact-streams.ts",
-          "sha256": "b6d1c13a775409951eb8ab3babc503aa6b872a4036bc1212a72114b45e7c8c9a"
+          "sha256": "3dc76b7d297cb8c8e6d4cfb79f0ebbd623696586c42fddf8afe94bc16bd6f90e"
         },
         {
           "path": "src/bounded-fanout.ts",
@@ -373,7 +379,7 @@
         },
         {
           "path": "src/crypto-storage.ts",
-          "sha256": "ee382e4ce5e1f55fc01bc7039d1dcc89fe16216e43a8174a4fda1890593e3177"
+          "sha256": "1d121c4ae2a3ceccd2cbc9d2f200225a8f6a70940b17faffa8558afcbda4e83b"
         },
         {
           "path": "src/fan-out.ts",
@@ -385,7 +391,7 @@
         },
         {
           "path": "src/runtime-client.ts",
-          "sha256": "cb9a448b4026f4f48045166fe5005ac31bf944648823f9754e3e2a742497fa43"
+          "sha256": "5743c85bb1ff939394b7e139ef50bba218a71ccb8122057710001d6217fedafe"
         },
         {
           "path": "src/source-acquisition.ts",
@@ -409,9 +415,11 @@
         },
         {
           "path": "src/worker.ts",
-          "sha256": "a5581aa3f0109b304570703082450e364730a87c274fbaaf0e7b596123d9b70c"
+          "sha256": "6e8907dc6fbff71f28847fbe8ab0724de8d4091e1dc972a6df0af504969c9eae"
         }
-      ]
+      ],
+      "sourceBaselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+      "sourceFilesSha256Algorithm": "SHA-256 of compact JSON for the sorted [{path,sha256}] manifest"
     }
   ]
 }

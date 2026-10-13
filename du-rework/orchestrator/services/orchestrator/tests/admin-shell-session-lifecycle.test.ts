@@ -359,6 +359,7 @@ describe('W-OIDC04 forged identity headers never authorize and never re-scope', 
       // Δ8/T-AUD-01: the store's principal rides along (additive fields).
       principalId: 'op-a',
       issuer: ISS,
+      sessionCreatedAt: rec.createdAt,
     });
     expect(assertRoleActionTenant(auth, 'operations.cancel', TENANT_A)).toEqual({ ok: true });
     const foreign = assertRoleActionTenant(auth, 'operations.cancel', TENANT_B);
@@ -382,6 +383,7 @@ describe('W-OIDC04 forged identity headers never authorize and never re-scope', 
       // Δ8/T-AUD-01: the store's principal rides along (additive fields).
       principalId: 'viewer-1',
       issuer: ISS,
+      sessionCreatedAt: rec.createdAt,
     });
     const d = assertRoleActionTenant(auth, 'business.enable');
     if (d.ok) throw new Error('a viewer session must never mutate');

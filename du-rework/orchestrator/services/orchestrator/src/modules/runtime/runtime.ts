@@ -21,12 +21,14 @@ import type { Queue } from 'bullmq';
 import { Db } from '../../db/db';
 import { HttpError, conflict, gone, notFound, unprocessable, zodIssuesToProblem } from '../../http/errors';
 import { lockRuntimeControlsForTask } from './control';
+import { admissionReasonForVersion, readBusinessAdmission } from '../registry/version-admission';
 import { openTenantDefaultsSnapshot } from '../global-settings/snapshot';
 import type { BackupSnapshotWriteGate } from '../maintenance/backup-effect-fence';
 import { maybeScheduleWebhook } from '../webhooks/webhooks';
 import {
   MetadataCryptoError,
   assertReadableWithoutSeam,
+  metadataPlaintextHash,
   readStoredText,
   type MetadataCrypto,
 } from './metadata-crypto';
@@ -58,6 +60,7 @@ export interface QueueIntegrityCandidate {
   attempts: number;
   task_id: string;
   task_state: string;
+  task_created_at: Date | string;
   business_id: string;
   business_version: string;
   queue_name: string;
@@ -84,8 +87,10 @@ export interface QueueIntegrityHealth {
 
 /**
  * MM-05 orphan candidate predicate — PG-only enumeration of the newest
- * dispatch or continuation delivery for a runnable, leaseless task. Pending
- * deliveries suppress another replacement while dispatch is in flight.
+ * dispatch or continuation delivery for a due runnable, leaseless task.
+ * RETRY_PENDING deliveries are included only once their due time arrives;
+ * parked/inactive work is left to version reactivation. Pending deliveries
+ * suppress another replacement while dispatch is in flight.
  * Queue name resolves exactly like the dispatcher's fallback
  * (business_versions.queue, else du-business-<id>-<version>) so the sweep
  * reads the queue the dispatcher would have published to.
@@ -93,24 +98,33 @@ export interface QueueIntegrityHealth {
 const QUEUE_INTEGRITY_CANDIDATES_SQL = `
   SELECT c.outbox_id, c.delivery_id, c.dispatched_at, c.attempts,
          c.task_id, c.task_state, c.business_id, c.business_version,
+         c.task_created_at,
          COALESCE(c.queue, 'du-business-' || c.business_id || '-' || c.business_version) AS queue_name
   FROM (
     SELECT DISTINCT ON (ob.aggregate_id)
            ob.id AS outbox_id, ob.delivery_id, ob.type AS delivery_type,
            ob.dispatched_at, ob.attempts,
-           t.id AS task_id, t.state AS task_state,
+           t.id AS task_id, t.state AS task_state,t.created_at AS task_created_at,
            o.business_id, o.business_version, bv.queue
     FROM outbox ob
     JOIN tasks t       ON t.id = ob.aggregate_id
     JOIN operations o  ON o.id = t.operation_id
     LEFT JOIN business_versions bv
       ON bv.business_id = o.business_id AND bv.version = o.business_version
+    JOIN business_catalog bc ON bc.business_id=o.business_id AND bc.enabled=true
     WHERE ob.type IN ('task.dispatch','task.continuation')
       AND ob.dispatched_at IS NOT NULL
       AND ob.dispatched_at < now() - ($1 * interval '1 ms')
-      AND t.state IN ('READY','QUEUED')
+      AND ob.parked_reason IS NULL
+      AND t.admission_parked_reason IS NULL
+      AND t.state IN ('READY','QUEUED','RETRY_PENDING')
+      AND (t.state <> 'RETRY_PENDING' OR t.due_at <= now())
       AND (t.lease_expires_at IS NULL OR t.lease_expires_at < now())
       AND o.state NOT IN ('SUCCEEDED','FAILED','CANCELLED','TIMED_OUT')
+      AND EXISTS (SELECT 1 FROM business_versions active
+                   WHERE active.business_id=o.business_id AND active.version=o.business_version
+                     AND active.is_active=true AND active.status='ENABLED')
+      AND ($3::timestamptz IS NULL OR (t.created_at,t.id)>($3::timestamptz,$4::uuid))
       AND NOT EXISTS (
             SELECT 1 FROM outbox pending
              WHERE pending.aggregate_id=ob.aggregate_id
@@ -119,7 +133,7 @@ const QUEUE_INTEGRITY_CANDIDATES_SQL = `
           )
     ORDER BY ob.aggregate_id, ob.dispatched_at DESC, ob.created_at DESC, ob.id DESC
   ) c
-  ORDER BY c.dispatched_at
+  ORDER BY c.task_created_at,c.task_id
   LIMIT $2`;
 
 /**
@@ -158,9 +172,16 @@ const QUEUE_INTEGRITY_REPLACEMENT_GUARD_SQL = `
      AND ob.attempts=$3
      AND ob.attempts < $4
      AND ob.type IN ('task.dispatch','task.continuation')
-     AND t.state IN ('READY','QUEUED')
+     AND ob.parked_reason IS NULL
+     AND t.admission_parked_reason IS NULL
+     AND t.state IN ('READY','QUEUED','RETRY_PENDING')
+     AND (t.state <> 'RETRY_PENDING' OR t.due_at <= now())
      AND (t.lease_expires_at IS NULL OR t.lease_expires_at < now())
      AND o.state NOT IN ('SUCCEEDED','FAILED','CANCELLED','TIMED_OUT')
+     AND EXISTS (SELECT 1 FROM business_catalog bc WHERE bc.business_id=o.business_id AND bc.enabled=true)
+     AND EXISTS (SELECT 1 FROM business_versions active
+                  WHERE active.business_id=o.business_id AND active.version=o.business_version
+                    AND active.is_active=true AND active.status='ENABLED')
      AND NOT EXISTS (
            SELECT 1 FROM outbox pending
             WHERE pending.aggregate_id=ob.aggregate_id
@@ -186,10 +207,27 @@ const QUEUE_INTEGRITY_INSERT_REPLACEMENT_SQL = `
   ON CONFLICT (delivery_id) DO NOTHING
   RETURNING id`;
 
+async function latestTaskDispatchPriority(
+  client: Pick<PoolClient, 'query'>,
+  taskId: string,
+): Promise<number | undefined> {
+  const result = await client.query<{ priority: string | null }>(
+    `SELECT payload->>'priority' AS priority FROM outbox
+      WHERE aggregate_id=$1 AND type IN ('task.dispatch','task.continuation')
+      ORDER BY created_at DESC,id DESC LIMIT 1`,
+    [taskId],
+  );
+  const raw = result.rows[0]?.priority;
+  if (raw === null || raw === undefined) return undefined;
+  const priority = Number(raw);
+  return Number.isSafeInteger(priority) && priority >= 0 ? priority : undefined;
+}
+
 interface ActiveLeaseRow {
   lease_epoch: number;
   lease_active: boolean;
   state: string;
+  capacity?: number | string;
   business_id: string;
   /** ENC-META-01: tenant the operation belongs to; binds the metadata AAD. */
   tenant_id?: string;
@@ -599,7 +637,11 @@ export function createRuntimeService(
       if (draining) {
         throw new HttpError(503, 'SHUTTING_DOWN', 'server is shutting down');
       }
-      return db.tx(async (client) => {
+      const decision = await db.tx(async (client): Promise<
+        | { kind: 'claimed'; result: ClaimResult }
+        | { kind: 'deferred'; code: string; message: string }
+        | { kind: 'terminal'; message: string }
+      > => {
         // The backup barrier is independent from ordinary DRAINING. It is the
         // first lock in this transaction and remains held through lease
         // creation, so a snapshot cannot race a worker claim. Existing lease
@@ -611,6 +653,26 @@ export function createRuntimeService(
             requestKey: `worker-claim:${taskId}:${deliveryId}`,
           });
         }
+        // Read immutable routing identity without locking the task, then take
+        // the business admission mutex before the task/worker locks. The
+        // activation path takes the same root first; no claim can acquire a
+        // post-cutover lease for the old version.
+        const taskIdentity = await client.query<{ business_id: string; business_version: string }>(
+          `SELECT o.business_id,o.business_version FROM tasks t
+             JOIN operations o ON o.id=t.operation_id WHERE t.id=$1`,
+          [taskId],
+        );
+        if (!taskIdentity.rowCount) throw new HttpError(404, 'NOT_FOUND', `task ${taskId} not found`);
+        const taskAdmission = await readBusinessAdmission(
+          client,
+          taskIdentity.rows[0]!.business_id,
+          taskIdentity.rows[0]!.business_version,
+          'SHARE',
+        );
+        if (!taskAdmission) {
+          throw conflict('BUSINESS_DISABLED', 'logical business is not registered for task execution');
+        }
+
         const taskRes = await client.query(
           `SELECT t.*, o.tenant_id, o.business_id, o.business_version, o.action,
                   o.input_ref, o.deadline_at, bv.digest as manifest_digest,
@@ -628,6 +690,10 @@ export function createRuntimeService(
         );
         if (!taskRes.rowCount) throw new HttpError(404, 'NOT_FOUND', `task ${taskId} not found`);
         const t = taskRes.rows[0] as Record<string, unknown>;
+        if (t.business_id !== taskIdentity.rows[0]!.business_id
+          || t.business_version !== taskIdentity.rows[0]!.business_version) {
+          throw conflict('STATE_CONFLICT', 'task routing identity changed while claim admission was being locked');
+        }
 
         // BR-12: business identity comes from the worker's own manifest, not
         // the queue payload. Reject before reading/exposing the execution
@@ -691,7 +757,7 @@ export function createRuntimeService(
             }
             const mismatch = workerPinMismatch(t, owner);
             if (mismatch) throw conflict(mismatch, 'worker registration does not match the task execution pin');
-            return buildClaimResult(t, client, metadataCrypto, reader);
+            return { kind: 'claimed', result: await buildClaimResult(t, client, metadataCrypto, reader) };
           }
 
           // A duplicate delivery can be acknowledged only when the durable
@@ -706,6 +772,35 @@ export function createRuntimeService(
             }
           }
           throw conflict('TASK_LEASE_HELD', 'task lease is active but its owner is not confirmed compatible');
+        }
+
+        // A version switch parks new claims but leaves an existing valid lease
+        // above fully replayable and reportable. Persist the refusal so the
+        // task/outbox remain recoverable even if Redis drops the delivery.
+        const versionAdmissionReason = admissionReasonForVersion(taskAdmission, t.business_version as string);
+        if (versionAdmissionReason !== 'ELIGIBLE') {
+          await client.query(
+            `UPDATE tasks SET admission_parked_reason=$2,
+                    admission_parked_at=COALESCE(admission_parked_at,statement_timestamp()),
+                    updated_at=statement_timestamp()
+              WHERE id=$1 AND state<>'RUNNING'`,
+            [taskId, versionAdmissionReason],
+          );
+          await client.query(
+            `UPDATE outbox SET parked_reason=$3,parked_at=statement_timestamp(),claim_token=NULL,claim_until=NULL
+              WHERE aggregate_id=$1 AND delivery_id=$2`,
+            [taskId, deliveryId, versionAdmissionReason],
+          );
+          return {
+            kind: 'deferred', code: versionAdmissionReason,
+            message: versionAdmissionReason === 'VERSION_NOT_ACTIVE'
+              ? `business version ${String(t.business_version)} is not active for new task claims`
+              : versionAdmissionReason === 'NO_ACTIVE_VERSION'
+                ? 'business has no active version for new task claims'
+                : versionAdmissionReason === 'VERSION_NOT_ENABLED'
+                  ? `business version ${String(t.business_version)} is not enabled`
+                  : 'logical business is disabled for new task execution',
+          };
         }
 
         // Persisted admission control is shared across all orchestrator
@@ -730,6 +825,7 @@ export function createRuntimeService(
         }>(
           `SELECT wi.business_version, wi.manifest_digest AS heartbeat_manifest_digest,
                   bv.digest AS registered_manifest_digest, wi.state,
+                  wi.capacity,
                   (wi.last_seen_at > clock_timestamp() - interval '60 seconds') AS heartbeat_fresh,
                   wi.control_revision,wi.control_state,wi.desired_control_revision,wi.desired_control_state
              FROM worker_instances wi
@@ -761,12 +857,52 @@ export function createRuntimeService(
           throw conflict('TASK_LEASE_HELD', `task ${taskId} has an active lease`);
         }
 
-        const businessGate = await client.query<{ enabled: boolean }>(
-          'SELECT enabled FROM business_catalog WHERE business_id=$1 FOR SHARE',
-          [t.business_id],
+        const attempt = Number(t.attempt);
+        const maxAttempts = Number(t.max_attempts);
+        if (!Number.isSafeInteger(attempt) || !Number.isSafeInteger(maxAttempts) || maxAttempts < 1) {
+          throw new Error('task attempt budget is invalid');
+        }
+        if (attempt >= maxAttempts) {
+          const failed = await client.query(
+            `UPDATE tasks SET state='FAILED',error_code='TASK_ATTEMPTS_EXHAUSTED',
+                    lease_expires_at=NULL,leased_by=NULL,admission_parked_reason=NULL,
+                    admission_parked_at=NULL,updated_at=statement_timestamp()
+              WHERE id=$1 AND state IN ('ACCEPTED','READY','QUEUED','RETRY_PENDING','RUNNING')
+                AND attempt>=max_attempts RETURNING id`,
+            [taskId],
+          );
+          if (failed.rowCount) {
+            const joined = await reconcileParentJoin(client, taskId, t.operation_id as string, metadataCrypto, reader);
+            if (!joined) {
+              await client.query(
+                `UPDATE operations SET state='FAILED',state_version=state_version+1,
+                        error_code='TASK_ATTEMPTS_EXHAUSTED',updated_at=statement_timestamp()
+                  WHERE id=$1 AND state NOT IN ('SUCCEEDED','FAILED','CANCELLED','TIMED_OUT')`,
+                [t.operation_id],
+              );
+              await maybeScheduleWebhook(client, t.operation_id as string);
+            }
+          }
+          return { kind: 'terminal', message: `task ${taskId} exhausted its attempt budget` };
+        }
+
+        const capacity = Number(worker.capacity);
+        if (!Number.isSafeInteger(capacity) || capacity < 0) {
+          throw new Error('worker capacity is invalid');
+        }
+        const activeLeases = await client.query<{ count: number | string }>(
+          `SELECT count(*)::int AS count FROM tasks t
+             JOIN operations o ON o.id=t.operation_id
+            WHERE o.business_id=$1 AND t.leased_by=$2 AND t.state='RUNNING'
+              AND t.lease_expires_at > clock_timestamp()`,
+          [t.business_id, workerInstanceId],
         );
-        if (!businessGate.rows[0]?.enabled) {
-          throw conflict('BUSINESS_DISABLED', 'logical business is disabled for new task execution');
+        const activeLeaseCount = Number(activeLeases.rows[0]?.count ?? 0);
+        if (!Number.isSafeInteger(activeLeaseCount) || activeLeaseCount < 0) {
+          throw new Error('worker active lease count is invalid');
+        }
+        if (activeLeaseCount >= capacity) {
+          throw conflict('WORKER_CAPACITY_EXHAUSTED', 'worker has no free task capacity');
         }
 
         const nextEpoch = (t.lease_epoch as number) + 1;
@@ -777,7 +913,8 @@ export function createRuntimeService(
         // recovery rechecks the now-RUNNING task before inserting a replacement.
         const claimed = await client.query(
           `UPDATE tasks SET lease_epoch=$2, lease_expires_at=$3, leased_by=$4,
-                  last_delivery_id=$5, state='RUNNING', attempt = attempt + 1, updated_at=now()
+                  last_delivery_id=$5, state='RUNNING', attempt = attempt + 1,
+                  admission_parked_reason=NULL,admission_parked_at=NULL,updated_at=now()
            WHERE id=$1
              AND lease_epoch=$6
              AND state IN ('ACCEPTED','READY','QUEUED','RETRY_PENDING','RUNNING')
@@ -820,8 +957,16 @@ export function createRuntimeService(
         (t as Record<string, unknown>).lease_expires_at = expiresAt;
         (t as Record<string, unknown>).leased_by = workerInstanceId;
         (t as Record<string, unknown>).attempt = (t.attempt as number) + 1;
-        return buildClaimResult(t, client, metadataCrypto, reader);
+        await client.query(
+          `UPDATE outbox SET parked_reason=NULL,parked_at=NULL,claim_token=NULL,claim_until=NULL
+            WHERE aggregate_id=$1 AND delivery_id=$2`,
+          [taskId, deliveryId],
+        );
+        return { kind: 'claimed', result: await buildClaimResult(t, client, metadataCrypto, reader) };
       });
+      if (decision.kind === 'deferred') throw conflict(decision.code, decision.message);
+      if (decision.kind === 'terminal') throw new HttpError(410, 'TASK_ATTEMPTS_EXHAUSTED', decision.message);
+      return decision.result;
     },
 
     async heartbeatTask(
@@ -1214,7 +1359,9 @@ export function createRuntimeService(
           );
           // Outbox continuation for retry. Payload is a full BusinessJobV1 so the
           // SDK's strict parse accepts the redelivery (docs 09 wire contract).
+          // Priority is a pinned scheduling choice and survives every retry.
           const deliveryId = `${taskId}:retry:${t.attempt + 1}`;
+          const priority = await latestTaskDispatchPriority(client, taskId);
           await client.query(
             `INSERT INTO outbox (aggregate_id, type, delivery_id, payload, due_at)
              VALUES ($1,'task.dispatch',$2,$3,$4)
@@ -1232,6 +1379,7 @@ export function createRuntimeService(
                 action: t.action,
                 kind: t.kind,
                 correlationId: t.correlation_id,
+                ...(priority === undefined ? {} : { priority }),
               }),
               dueAt,
             ]
@@ -1643,7 +1791,8 @@ export function createRuntimeService(
       operationId: string,
       tenantId: string,
       body: { waitId: string; input: unknown; expectedStateVersion: number },
-      activeClient?: PoolClient
+      activeClient?: PoolClient,
+      apiKeyId?: string,
     ): Promise<{ operationId: string; state: string; stateVersion: number; replayed: boolean; taskId: string }> {
       const b = body as { waitId?: unknown; input?: unknown; expectedStateVersion?: unknown };
       if (typeof b.waitId !== 'string' || !b.waitId || typeof b.expectedStateVersion !== 'number') {
@@ -1657,35 +1806,74 @@ export function createRuntimeService(
       // audit commit (or roll back) as one unit. The tenant-fence 404s keep
       // the FIXED message (no id echo — X2 rule).
       const run = async (client: PoolClient): Promise<{ operationId: string; state: string; stateVersion: number; replayed: boolean; taskId: string }> => {
+        // The backup barrier is the first row lock in every resume path. This
+        // also applies when the caller supplies an active transaction client.
+        if (backupSnapshotWriteGate) {
+          const requestKey = createHash('sha256')
+            .update(JSON.stringify([operationId, b.waitId]))
+            .digest('hex');
+          await backupSnapshotWriteGate.assertWriteAllowed(client, {
+            tenantId,
+            domain: 'work-admission',
+            requestKey: `runtime-resume:${requestKey}`,
+          });
+        }
+        const opWhere = apiKeyId === undefined
+          ? 'id=$1'
+          : 'id=$1 AND tenant_id=$2 AND api_key_id=$3 AND deleted_at IS NULL';
+        const opParams = apiKeyId === undefined
+          ? [operationId]
+          : [operationId, tenantId, apiKeyId];
         const opRes = await client.query(
-          'SELECT id, tenant_id, state, state_version, endpoint_slug FROM operations WHERE id=$1 FOR UPDATE',
-          [operationId]
+          `SELECT id, tenant_id, state, state_version, endpoint_slug FROM operations WHERE ${opWhere} FOR UPDATE`,
+          opParams,
         );
         if (!opRes.rowCount) throw notFound('operation not found');
         const op = opRes.rows[0] as { tenant_id: string; state: string; state_version: number; endpoint_slug?: string };
         if (op.tenant_id !== tenantId) throw notFound('operation not found');
-        if (['SUCCEEDED', 'FAILED', 'CANCELLED', 'TIMED_OUT'].includes(op.state)) {
-          throw conflict('STATE_CONFLICT', `operation ${operationId} is terminal ${op.state}`);
-        }
-        if (op.state_version !== b.expectedStateVersion) {
-          throw conflict(
-            'STATE_CONFLICT',
-            `stale expectedStateVersion ${String(b.expectedStateVersion)}, current ${op.state_version}`
-          );
-        }
+        const operationIsTerminal = ['SUCCEEDED', 'FAILED', 'CANCELLED', 'TIMED_OUT'].includes(op.state);
         const waitRes = await client.query(
-          'SELECT id, task_id, wait_id, input_schema, status FROM human_waits WHERE operation_id=$1 AND wait_id=$2 FOR UPDATE',
+          'SELECT id, task_id, wait_id, input_schema, status, response_ref FROM human_waits WHERE operation_id=$1 AND wait_id=$2 FOR UPDATE',
           [operationId, b.waitId]
         );
-        if (!waitRes.rowCount) throw notFound(`wait ${String(b.waitId)} not found for operation ${operationId}`);
+        if (!waitRes.rowCount) {
+          if (operationIsTerminal) {
+            throw conflict('STATE_CONFLICT', `operation ${operationId} is terminal ${op.state}`);
+          }
+          throw notFound(`wait ${String(b.waitId)} not found for operation ${operationId}`);
+        }
         const wait = waitRes.rows[0] as {
           id: string;
           task_id: string;
           wait_id: string;
           input_schema: unknown;
           status: string;
+          response_ref?: unknown;
         };
         if (wait.status === 'ANSWERED') {
+          // A wait id alone is not a replay identity: a caller must not be
+          // able to change the answer after another request has consumed it.
+          // Compare canonical JSON so object key ordering does not turn an
+          // otherwise identical retry into a conflict. New writes also pin
+          // the original CAS version; old persisted replies remain replayable
+          // by input during the compatibility window.
+          const answeredPayload = await openMetadata(reader, wait.response_ref, {
+            tenantId: op.tenant_id,
+            slot: 'human_waits.response_ref',
+            refId: wait.wait_id,
+          });
+          if (answeredPayload === null || typeof answeredPayload !== 'object' || Array.isArray(answeredPayload)
+              || !Object.hasOwn(answeredPayload, 'input')) {
+            throw conflict('STATE_CONFLICT', 'wait has already been answered and its request identity is unavailable');
+          }
+          const answeredRecord = answeredPayload as Record<string, unknown>;
+          if (metadataPlaintextHash(answeredRecord.input) !== metadataPlaintextHash(b.input)) {
+            throw conflict('STATE_CONFLICT', 'wait has already been answered with different input');
+          }
+          if (Object.hasOwn(answeredRecord, 'expectedStateVersion')
+              && answeredRecord.expectedStateVersion !== b.expectedStateVersion) {
+            throw conflict('STATE_CONFLICT', 'wait has already been answered by a different request');
+          }
           return {
             operationId,
             state: op.state,
@@ -1693,6 +1881,19 @@ export function createRuntimeService(
             replayed: true,
             taskId: wait.task_id,
           };
+        }
+        // A completed operation may still receive a transport retry for the
+        // exact answer that already consumed this wait. Return that durable
+        // acknowledgement above, but never accept a fresh answer after the
+        // operation has become terminal.
+        if (operationIsTerminal) {
+          throw conflict('STATE_CONFLICT', `operation ${operationId} is terminal ${op.state}`);
+        }
+        if (op.state_version !== b.expectedStateVersion) {
+          throw conflict(
+            'STATE_CONFLICT',
+            `stale expectedStateVersion ${String(b.expectedStateVersion)}, current ${op.state_version}`
+          );
         }
         if (wait.status !== 'OPEN') {
           throw conflict('STATE_CONFLICT', `wait ${wait.wait_id} is ${wait.status}, not OPEN`);
@@ -1714,7 +1915,7 @@ export function createRuntimeService(
         // a sealed resumeInput so neither column keeps the answer in plaintext.
         const answeredPayload = await sealMetadata(
           metadataCrypto,
-          { input: b.input, answeredAt: new Date().toISOString() },
+          { input: b.input, expectedStateVersion: b.expectedStateVersion, answeredAt: new Date().toISOString() },
           { tenantId: op.tenant_id, slot: 'human_waits.response_ref', refId: wait.wait_id },
         );
         await client.query(`UPDATE human_waits SET status='ANSWERED', response_ref=$2 WHERE id=$1`, [
@@ -1881,6 +2082,7 @@ export function createRuntimeService(
             // emit one outbox dispatch row (stable id → dedup).
             const nextEpoch = row.lease_epoch + 1;
             const deliveryId = `${taskId}:recover:${nextEpoch}`;
+            const priority = await latestTaskDispatchPriority(client, taskId);
             await client.query(
               `UPDATE tasks SET lease_epoch=$2, lease_expires_at=NULL, leased_by=NULL,
                       state='READY', updated_at=now()
@@ -1904,6 +2106,7 @@ export function createRuntimeService(
                   action: row.action,
                   kind: row.kind,
                   correlationId: row.correlation_id,
+                  ...(priority === undefined ? {} : { priority }),
                 }),
               ]
             );
@@ -1967,6 +2170,7 @@ export function createRuntimeService(
         if (task.attempt < task.max_attempts) {
           const nextEpoch = task.lease_epoch + 1;
           const deliveryId = `${taskId}:recover:${nextEpoch}`;
+          const priority = await latestTaskDispatchPriority(client, taskId);
           const changed = await client.query(
             `UPDATE tasks SET lease_epoch=$2,lease_expires_at=NULL,leased_by=NULL,state='READY',updated_at=now()
               WHERE id=$1 AND state='RUNNING' AND lease_epoch=$3 AND lease_expires_at<now()`,
@@ -1977,7 +2181,8 @@ export function createRuntimeService(
             `INSERT INTO outbox (aggregate_id,type,delivery_id,payload)
              VALUES ($1,'task.dispatch',$2,$3) ON CONFLICT (delivery_id) DO NOTHING`,
             [taskId,deliveryId,JSON.stringify({ contractVersion:'1',deliveryId,taskId,operationId:task.operation_id,
-              businessId:task.business_id,businessVersion:task.business_version,action:task.action,kind:task.kind,correlationId:task.correlation_id })],
+              businessId:task.business_id,businessVersion:task.business_version,action:task.action,kind:task.kind,correlationId:task.correlation_id,
+              ...(priority === undefined ? {} : { priority }) })],
           );
           return { status: 'APPLIED', code: null, evidence: { previousLeaseEpoch: task.lease_epoch, newLeaseEpoch: nextEpoch, terminal: false } };
         }
@@ -2020,12 +2225,49 @@ export function createRuntimeService(
       const limit = opts.limit ?? 50;
       const maxAttempts = opts.maxAttempts ?? 10;
 
-      const candRes = await db.query<QueueIntegrityCandidate>(QUEUE_INTEGRITY_CANDIDATES_SQL, [
-        graceMs,
-        limit,
-      ]);
+      // Advance a durable (task.created_at, task.id) cursor in a short
+      // PostgreSQL transaction, then release it before any BullMQ call. Every
+      // sweep gets the next fair page instead of repeatedly inspecting the
+      // oldest still-live queue entries.
+      const candidates = await db.tx(async (client) => {
+        const cursorResult = await client.query<{
+          last_created_at: Date | string | null;
+          last_task_id: string | null;
+        }>(
+          `SELECT last_created_at,last_task_id FROM queue_integrity_sweep_cursor
+            WHERE cursor_name='runtime' FOR UPDATE`,
+        );
+        if (!cursorResult.rowCount) {
+          await client.query(`INSERT INTO queue_integrity_sweep_cursor(cursor_name) VALUES ('runtime') ON CONFLICT DO NOTHING`);
+        }
+        const cursor = cursorResult.rows[0];
+        const readPage = (createdAt: Date | string | null, taskId: string | null) =>
+          client.query<QueueIntegrityCandidate>(QUEUE_INTEGRITY_CANDIDATES_SQL, [
+            graceMs, limit, createdAt, taskId,
+          ]);
+        let page = await readPage(cursor?.last_created_at ?? null, cursor?.last_task_id ?? null);
+        if (!page.rowCount && (cursor?.last_created_at || cursor?.last_task_id)) {
+          page = await readPage(null, null);
+        }
+        const last = page.rows.at(-1);
+        if (last) {
+          await client.query(
+            `UPDATE queue_integrity_sweep_cursor
+                SET last_created_at=$1,last_task_id=$2,updated_at=statement_timestamp()
+              WHERE cursor_name='runtime'`,
+            [last.task_created_at, last.task_id],
+          );
+        } else {
+          await client.query(
+            `UPDATE queue_integrity_sweep_cursor
+                SET last_created_at=NULL,last_task_id=NULL,updated_at=statement_timestamp()
+              WHERE cursor_name='runtime'`,
+          );
+        }
+        return page.rows;
+      });
       const result: QueueIntegritySweepResult = {
-        candidates: candRes.rows.length,
+        candidates: candidates.length,
         rearmed: 0,
         aliveSkipped: 0,
         casSkipped: 0,
@@ -2034,7 +2276,7 @@ export function createRuntimeService(
         stalledDeliveryIds: [],
       };
 
-      for (const c of candRes.rows) {
+      for (const c of candidates) {
         let job: { getState?: () => Promise<string> } | undefined;
         let state: string | undefined;
         try {

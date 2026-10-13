@@ -60,9 +60,20 @@ describe('OR10-04 retry preserves the original legacy workflow schema snapshot',
       query: async (sql: string, params: unknown[] = []) => {
         queries.push(sql);
         if (sql.startsWith('SELECT * FROM operations')) return { rows: [originalOperation], rowCount: 1 };
+      if (sql.startsWith('SELECT k.name,k.spending_limit')) {
+        return { rows: [{ name: 'key', spending_limit: '0', total_used: '0', tenant_id: tenantId }], rowCount: 1 };
+      }
+      if (sql.startsWith('SELECT ue.event_id')) return { rows: [], rowCount: 0 };
         if (sql.startsWith('SELECT * FROM tasks')) {
           return { rows: [{ id: taskId, payload_ref: originalPayload, kind: 'legacy-workflow', max_attempts: 3 }], rowCount: 1 };
         }
+      if (sql.includes('SELECT enabled,activation_revision,submissions_paused,pre_drain_version')) {
+        return { rows: [{ enabled: true, activation_revision: 1, submissions_paused: false, pre_drain_version: null }], rowCount: 1 };
+      }
+      if (sql.includes('SELECT version,status,is_active FROM business_versions')) {
+        return { rows: [{ version: '1.0.0', status: 'ENABLED', is_active: true }], rowCount: 1 };
+      }
+      if (sql.startsWith('SELECT id, state, error_code FROM tasks WHERE operation_id=$1')) return { rows: [], rowCount: 0 };
         if (sql.includes('WHERE retry_of=')) return { rows: [], rowCount: 0 };
         if (sql.includes('INSERT INTO operations')) return { rows: [], rowCount: 1 };
         if (sql.includes('INSERT INTO tasks')) {

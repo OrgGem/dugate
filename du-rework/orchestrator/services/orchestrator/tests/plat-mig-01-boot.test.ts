@@ -65,6 +65,10 @@ describe('partial connector config fails closed', () => {
     expect(() => connectorBaseUrlsFromEnv({ DU_CONNECTOR_BASE_URLS: '[]' })).toThrow(/JSON object/);
     expect(() => connectorBaseUrlsFromEnv({ DU_CONNECTOR_BASE_URLS: JSON.stringify({ a: '' }) })).toThrow(/non-empty base URL/);
     expect(() => connectorBaseUrlsFromEnv({ DU_CONNECTOR_BASE_URLS: JSON.stringify({ '': 'http://x' }) })).toThrow(/non-empty connector ids/);
+    for (const baseUrl of ['relative/path', 'ftp://connector.internal', 'http://user:password@connector.internal', 'http://connector.internal?token=x', 'http://connector.internal#fragment']) {
+      expect(() => connectorBaseUrlsFromEnv({ DU_CONNECTOR_BASE_URLS: JSON.stringify({ '*': baseUrl }) }))
+        .toThrow(/absolute HTTP\(S\) URLs without credentials, query, or fragment/);
+    }
   });
 
   it('legacy arbitrary-header identity configuration is refused', () => {
@@ -77,11 +81,19 @@ describe('partial connector config fails closed', () => {
 
   it('a complete surface composes with a decoded 32-byte issuer key', () => {
     const composed = assertConnectorComposition({
-      DU_CONNECTOR_BASE_URLS: JSON.stringify(BASE_URLS),
+      DU_CONNECTOR_BASE_URLS: JSON.stringify({ ...BASE_URLS, '*': 'http://127.0.0.1:8088' }),
       SERVICE_IDENTITY_SECRET,
     });
-    expect(composed.connectorBaseUrls).toEqual(BASE_URLS);
+    expect(composed.connectorBaseUrls).toEqual({ ...BASE_URLS, '*': 'http://127.0.0.1:8088' });
     expect(composed.connectorManagementAuthorizationForRequest).toEqual(expect.any(Function));
+  });
+
+  it('preserves an own __proto__ connector route without inheriting object properties', () => {
+    const baseUrls = connectorBaseUrlsFromEnv({
+      DU_CONNECTOR_BASE_URLS: '{"__proto__":"http://configured.example"}',
+    });
+    expect(baseUrls && Object.hasOwn(baseUrls, '__proto__')).toBe(true);
+    expect(connectorBaseUrlResolver(baseUrls!)('__proto__')).toBe('http://configured.example');
   });
 
   it('a short decoded key is refused without exposing the configured value', () => {
@@ -136,6 +148,22 @@ describe('management surface against a mock Connector', () => {
     } finally {
       await mock.close();
     }
+  });
+
+  it('routes arbitrary IDs through an explicitly configured static default, with exact routes taking precedence', () => {
+    const resolve = connectorBaseUrlResolver({
+      '*': 'http://default-connector.internal',
+      'exact-connector': 'http://exact-connector.internal',
+    });
+    expect(resolve()).toBe('http://default-connector.internal');
+    expect(resolve('new-local-connector')).toBe('http://default-connector.internal');
+    expect(resolve('exact-connector')).toBe('http://exact-connector.internal');
+  });
+
+  it('does not resolve inherited property names as configured connector IDs', () => {
+    const resolve = connectorBaseUrlResolver({ 'default-connector': 'http://connector.internal' });
+    expect(() => resolve('constructor')).toThrow(HttpError);
+    expect(() => resolve('toString')).toThrow(HttpError);
   });
 
   it('with no base URLs the surface fails closed instead of listing empty', () => {

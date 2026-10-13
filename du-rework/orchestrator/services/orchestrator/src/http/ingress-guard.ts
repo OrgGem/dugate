@@ -27,9 +27,14 @@ export function isPublicIngressAllowed(pathname: string): boolean {
   if (pathname === '/api/runtime' || pathname.startsWith('/api/runtime/')) return false;
   if (pathname === '/api/internal' || pathname.startsWith('/api/internal/')) return false;
 
-  if (pathname === '/api/v1/operations' || pathname === '/api/v1/operations/metrics') return false;
-  if (pathname.startsWith('/api/v1/operations/')
-      && !/^\/api\/v1\/operations\/[^/]+(?:\/download)?$/.test(pathname)) return false;
+  if (pathname === '/api/v1/operations') return true;
+  if (pathname === '/api/v1/operations/metrics') return false;
+  if (pathname.startsWith('/api/v1/operations/')) {
+    // Keep the published public operation flow on the API-key listener. The
+    // handlers resolve an ACTIVE x-api-key and fence by tenant + key; admin
+    // list/metrics/retry remain on /api/internal/operations.
+    return /^\/api\/v1\/operations\/[^/]+(?:\/(?:result|download|cancel|resume))?$/.test(pathname);
+  }
 
   // The public family only. Anything else is not a public surface.
   return pathname === '/api/v1' || pathname.startsWith('/api/v1/');

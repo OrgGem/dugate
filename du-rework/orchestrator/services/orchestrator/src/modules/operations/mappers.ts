@@ -160,10 +160,33 @@ export async function buildAdminOperationDetail(ctx: AdminOperationDetailContext
     };
   }
   const tasks = await ctx.db.query(
-    `SELECT id, task_key AS "taskKey", kind, state, attempt, max_attempts AS "maxAttempts",
-            error_code AS "errorCode" FROM tasks WHERE operation_id=$1 ORDER BY created_at ASC, id ASC`,
+    `SELECT id, task_key AS "taskKey", kind, state, parent_id AS "spawnedBy",
+            leased_by AS "leasedBy", lease_expires_at AS "leaseExpiresAt", due_at AS "dueAt",
+            admission_parked_reason AS "admissionParkedReason",
+            admission_parked_at AS "admissionParkedAt",
+            attempt, max_attempts AS "maxAttempts", error_code AS "errorCode"
+       FROM tasks WHERE operation_id=$1 ORDER BY created_at ASC, id ASC`,
     [operationId],
   );
+  const dependencies = await ctx.db.query(
+    `SELECT d.parent_id AS "parentId", d.child_id AS "childId", d.join_policy AS "joinPolicy"
+       FROM task_dependencies d
+       JOIN tasks p ON p.id=d.parent_id AND p.operation_id=$1
+       JOIN tasks c ON c.id=d.child_id AND c.operation_id=$1
+      ORDER BY d.parent_id ASC, d.child_id ASC`,
+    [operationId],
+  );
+  const taskLinks = new Map<string, { awaitedChildren: Array<{ taskId: string; joinPolicy: string }> }>();
+  for (const row of tasks.rows as Array<{ id: string }>) taskLinks.set(row.id, { awaitedChildren: [] });
+  for (const edge of dependencies.rows as Array<{ parentId: string; childId: string; joinPolicy: string }>) {
+    // task_dependencies represents a parent waiting for its spawned children
+    // to satisfy a join policy; it is not a child dependency on its parent.
+    taskLinks.get(edge.parentId)?.awaitedChildren.push({ taskId: edge.childId, joinPolicy: edge.joinPolicy });
+  }
+  const taskRows = (tasks.rows as Array<Record<string, unknown>>).map((task) => ({
+    ...task,
+    awaitedChildren: taskLinks.get(String(task.id))?.awaitedChildren ?? [],
+  }));
   const waits = await ctx.db.query(
     `SELECT w.wait_id AS "waitId", w.status, w.input_schema AS "inputSchema",
             w.ui_schema AS "uiSchema", w.expires_at AS "expiresAt"
@@ -174,7 +197,7 @@ export async function buildAdminOperationDetail(ctx: AdminOperationDetailContext
   );
   return {
     humanWaits: waits.rows,
-    tasks: tasks.rows,
+    tasks: taskRows,
     operation: toOperationDetailWire(op),
     ...(op.input_ref != null ? { requestInput: await buildAdminRequestInput(ctx, op) } : {}),
     result,

@@ -20,6 +20,7 @@
  */
 import { HeartbeatAckSchema } from '@du/contracts';
 import { absoluteGrantUrl, allowHostDerivedGrantUrl, route, type RouteContext } from '../src/server';
+import { mockOpenBackupEffectGateResult } from './helpers/backup-effect-gate';
 
 const PLATFORM_TOKEN = 'rfx11-platform-runtime-token';
 const CONFIGURED_BASE = 'https://api.dugate.example';
@@ -40,7 +41,34 @@ function makeCtx(overrides: {
   autoMigrate?: boolean;
   body?: unknown;
 }): RouteContext {
+  const query = jest.fn(async (sql: string, _params: unknown[] = []) => {
+    const normalized = sql.replace(/\s+/g, ' ').trim();
+    const backupFence = mockOpenBackupEffectGateResult(normalized);
+    if (backupFence) return backupFence;
+    if (normalized.startsWith('SELECT enabled,activation_revision,submissions_paused,pre_drain_version')) {
+      return { rows: [{ enabled: true, activation_revision: 3, submissions_paused: false, pre_drain_version: null }], rowCount: 1 };
+    }
+    if (normalized.startsWith('SELECT version,status,is_active FROM business_versions')) {
+      return { rows: [{ version: '1.0.0', status: 'ENABLED', is_active: true }], rowCount: 1 };
+    }
+    if (normalized.startsWith('SELECT scope_kind,scope_id,desired_state,revision')) {
+      return { rows: [
+        { scope_kind: 'platform', scope_id: 'all', desired_state: 'OPEN', revision: 1 },
+        { scope_kind: 'business', scope_id: 'business-a', desired_state: 'OPEN', revision: 2 },
+      ], rowCount: 2 };
+    }
+    if (normalized.startsWith('SELECT r.scope_id,r.revision,r.desired_state')) return { rows: [], rowCount: 0 };
+    if (normalized.startsWith('SELECT desired_control_revision,desired_control_state')) return { rows: [], rowCount: 0 };
+    if (normalized.startsWith('WITH lease_count AS')) {
+      return { rows: [{ state: 'ONLINE', last_seen_at: new Date(), control_revision: 2, control_state: 'OPEN' }], rowCount: 1 };
+    }
+    if (normalized.startsWith('INSERT INTO runtime_control_scopes')) return { rows: [], rowCount: 1 };
+    if (normalized.startsWith('INSERT INTO worker_control_scope_acks')) return { rows: [], rowCount: 1 };
+    throw new Error(`unmodelled RFX11/12 test SQL: ${normalized.slice(0, 140)}`);
+  });
+  const client = { query };
   return {
+    ingressAudience: 'internal',
     method: overrides.method,
     pathname: overrides.pathname,
     searchParams: new URLSearchParams(),
@@ -50,10 +78,8 @@ function makeCtx(overrides: {
     correlationId: 'rfx11-route-test',
     host: GRANT_HOST_PLACEHOLDER,
     db: {
-      query: jest.fn(async () => ({
-        rows: [{ state: 'ONLINE', last_seen_at: new Date() }],
-        rowCount: 1,
-      })),
+      query,
+      tx: async <T>(fn: (transactionClient: typeof client) => Promise<T>) => fn(client),
     },
     redis: {} as never,
     registry: {} as never,
@@ -224,9 +250,10 @@ describe('AWEB-11C: worker heartbeat persists real instance telemetry', () => {
     expect(HeartbeatAckSchema.safeParse(ack).success).toBe(true);
     expect(new Date(ack.leaseExpiresAt).getTime()).toBeGreaterThan(Date.now());
     expect(ack.capacity).toBe(1);
+    expect(ack).toMatchObject({ activeVersion: '1.0.0', activationRevision: 3, admissionEligible: true, admissionReason: 'ELIGIBLE' });
     expect(ctx.db.query).toHaveBeenCalledWith(
       expect.stringContaining('INSERT INTO worker_instances'),
-      ['business-a', 'worker-1', '1.0.0', 1],
+      expect.arrayContaining(['business-a', 'worker-1', '1.0.0', 1]),
     );
   });
 });

@@ -1,7 +1,3 @@
-// VENDORED from @du/worker-sdk @ b088eececcb5f3df0b4edbe073a29401dafda624 (worktree 2026-10-06)
-// source: packages/worker-sdk/src/source-acquisition.ts (lines=391) sha256=BE7AC23AF99E63916BFBFD4D1314F0D7D9EB04FE00703F3AEC94CF9571563E1E
-// why: worker surface required by src/worker.ts, src/main.ts, types/context.ts, step-checkpoint, fanout
-
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
 import { rm } from 'node:fs/promises';

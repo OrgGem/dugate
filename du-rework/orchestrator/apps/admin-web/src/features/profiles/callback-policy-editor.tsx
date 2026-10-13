@@ -324,8 +324,8 @@ export function CallbackPolicyEditor({
               Provider extensions (optional, max {CALLBACK_MAX_OAUTH2_EXTENSIONS})
             </legend>
             {draft.extensions.map((extension, index) => (
-              <div key={index} className="flex flex-wrap items-end gap-2">
-                <FormField id={`${idPrefix}-extension-name-${index}`} label="Name" className="max-w-[12rem]">
+              <div key={index} className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-[minmax(10rem,12rem)_minmax(12rem,1fr)_auto]">
+                <FormField id={`${idPrefix}-extension-name-${index}`} label="Name" className="min-w-0">
                   <Input
                     id={`${idPrefix}-extension-name-${index}`}
                     value={extension.name}
@@ -338,7 +338,7 @@ export function CallbackPolicyEditor({
                     }))}
                   />
                 </FormField>
-                <FormField id={`${idPrefix}-extension-value-${index}`} label="Value" className="flex-1 min-w-[12rem]">
+                <FormField id={`${idPrefix}-extension-value-${index}`} label="Value" className="min-w-0">
                   <Input
                     id={`${idPrefix}-extension-value-${index}`}
                     value={extension.value}
@@ -354,6 +354,7 @@ export function CallbackPolicyEditor({
                   type="button"
                   size="sm"
                   variant="ghost"
+                  className="sm:mt-[1.45rem]"
                   disabled={disabled}
                   onClick={() => update((current) => ({
                     ...current,

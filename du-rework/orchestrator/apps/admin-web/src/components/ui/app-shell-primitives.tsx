@@ -14,7 +14,7 @@ export function AppShellHeader({ className, ...props }: React.HTMLAttributes<HTM
   return (
     <header
       className={cn(
-        'flex flex-wrap items-center gap-3 border-b border-[var(--border-subtle)] bg-[var(--bg-card)] px-4 py-2.5 shadow-xs sticky top-0 z-40',
+        'flex flex-wrap items-center gap-3 border-b border-[var(--border-subtle)] bg-[var(--bg-card)] px-4 py-2.5 shadow-xs sticky top-0 z-40 lg:static lg:z-auto',
         className
       )}
       {...props}

@@ -6,6 +6,7 @@ import ts from 'typescript';
 
 const stateSource = await readFile(new URL('../src/features/connectors/state.ts', import.meta.url), 'utf8');
 const screenSource = await readFile(new URL('../src/features/connectors/connectors-screen.tsx', import.meta.url), 'utf8');
+const paritySource = await readFile(new URL('../src/features/connectors/parity-connector-editor.tsx', import.meta.url), 'utf8');
 const compiledState = ts.transpileModule(stateSource, {
   fileName: 'connectors-state.ts',
   compilerOptions: {
@@ -219,13 +220,25 @@ describe('Connectors state honesty', () => {
   it('wires the tested fail-closed state into Connectors screen controls offline', () => {
     assert.match(screenSource, /const caps = capabilities\.kind === 'ready' \? capabilities\.data : null;/);
     assert.match(screenSource, /const gating = connectorActionGating\(caps\);/);
-    assert.match(screenSource, /disabled=\{!gating\.test \|\| busy\}/);
-    assert.match(screenSource, /disabled=\{!gating\.activate \|\| activeRevision === null \|\| busy\}/);
-    assert.match(screenSource, /disabled=\{!gating\.disable \|\| busy\}/);
-    assert.match(screenSource, /disabled=\{!gating\.retire \|\| busy\}/);
+    assert.match(screenSource, /const validTenantSelected = typeof tenantId === 'string' && TENANT_UUID\.test\(tenantId\);/);
+    assert.match(screenSource, /upsert: gating\.upsert && validTenantSelected/);
+    assert.match(screenSource, /disabled=\{!screenGating\.test \|\| busy\}/);
+    assert.match(screenSource, /disabled=\{!screenGating\.activate \|\| activeRevision === null \|\| busy\}/);
+    assert.match(screenSource, /disabled=\{!screenGating\.disable \|\| busy\}/);
+    assert.match(screenSource, /disabled=\{!screenGating\.retire \|\| busy\}/);
     assert.match(screenSource, /const upsertPlan = importDraft === null \? null : buildConnectorUpsertParams/);
     assert.match(screenSource, /if \(upsertPlan === null \|\| !upsertPlan\.ok\) return;/);
+    assert.match(screenSource, /if \(!screenGating\[required\]\)/);
+    assert.match(screenSource, /async function testConnection\(id: string\): Promise<void> \{\s+if \(!validTenantSelected\)/);
     assert.match(screenSource, /client\.upsertConnector\(params, crypto\.randomUUID\(\)\)/);
+    assert.match(screenSource, /capabilities=\{caps\}/);
+    assert.match(paritySource, /capabilities\?\.management === true/);
+    assert.match(paritySource, /capabilities\?\.test === true/);
+    assert.match(paritySource, /session\.principal\.kind === 'tenant_operator'[\s\S]*?session\.principal\.tenantId === tenantId/);
+    assert.match(paritySource, /if \(credentialMode !== 'keep' && !mayManageCredentials\)/);
+    assert.match(paritySource, /option value="replace" disabled=\{!mayManageCredentials\}/);
+    assert.match(paritySource, /client\.activateConnectorRevision\(targetConnectorId, targetRevision, tenantId/);
+    assert.match(paritySource, /response\.data\.revision !== Number\(revisionText\)/);
     assert.match(screenSource, /summarizeConnectorConfig\(row\.config\)/);
     assert.match(screenSource, /summarizeConnectorConfig\(read\.revision\.config\)/);
   });

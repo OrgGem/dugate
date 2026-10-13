@@ -157,7 +157,7 @@ describe('RuntimeClient response deadlines and ambiguous writes (WOC-05)', () =>
     }
   );
 
-  it('keeps a replay-safe malformed claim ACK typed and retryable with its HTTP status', async () => {
+  it('classifies a malformed claim ACK as ambiguous and retryable for exact-identity replay', async () => {
     const fetchImpl: typeof fetch = async () => new Response('{', { status: 200 });
     const error = await client(fetchImpl)
       .claimTask('task-1', {
@@ -168,8 +168,8 @@ describe('RuntimeClient response deadlines and ambiguous writes (WOC-05)', () =>
       .catch((caught: unknown) => caught);
 
     expect(error).toBeInstanceOf(RuntimeError);
-    expect(error).not.toBeInstanceOf(AmbiguousReportError);
-    expect(error).toMatchObject({ status: 200, code: 'TEMPORARY_UNAVAILABLE' });
+    expect(error).toBeInstanceOf(AmbiguousReportError);
+    expect(error).toMatchObject({ status: 0, code: 'TEMPORARY_UNAVAILABLE' });
     expect((error as RuntimeError).isRetryable).toBe(true);
   });
 

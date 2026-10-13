@@ -11,7 +11,10 @@ const row = {
   state: 'ONLINE',
   health: 'HEALTHY',
   capacity: 8,
+  reportedActiveTasks: 1,
+  reportedObservedAt: '2026-10-10T11:59:49.000Z',
   activeLeases: 2,
+  durableLeases: 3,
   lastSeenAt: '2026-10-10T11:59:50.000Z',
   observedAt: '2026-10-10T11:59:51.000Z',
 };
@@ -20,11 +23,13 @@ describe('parseWorkerInstanceList', () => {
   it('accepts a valid actual worker inventory and keeps instance identity distinct from business identity', () => {
     const parsed = parseWorkerInstanceList({
       items: [row],
+      total: 1,
       sampledAt: '2026-10-10T12:00:00.000Z',
       truncated: false,
     });
     assert.deepEqual(parsed, {
       items: [row],
+      total: 1,
       sampledAt: '2026-10-10T12:00:00.000Z',
       truncated: false,
     });
@@ -33,13 +38,14 @@ describe('parseWorkerInstanceList', () => {
   it('accepts a real empty inventory without manufacturing per-business rows', () => {
     assert.deepEqual(parseWorkerInstanceList({
       items: [],
+      total: 0,
       sampledAt: '2026-10-10T12:00:00.000Z',
       truncated: false,
-    }), { items: [], sampledAt: '2026-10-10T12:00:00.000Z', truncated: false });
+    }), { items: [], total: 0, sampledAt: '2026-10-10T12:00:00.000Z', truncated: false });
   });
 
   it('rejects invalid health, timestamps, counters, duplicate instances, and oversized responses', () => {
-    const base = { items: [row], sampledAt: '2026-10-10T12:00:00.000Z', truncated: false };
+    const base = { items: [row], total: 1, sampledAt: '2026-10-10T12:00:00.000Z', truncated: false };
     assert.equal(parseWorkerInstanceList({ ...base, items: [{ ...row, health: 'GREEN' }] }), null);
     assert.equal(parseWorkerInstanceList({ ...base, items: [{ ...row, lastSeenAt: 'not-a-time' }] }), null);
     assert.equal(parseWorkerInstanceList({ ...base, items: [{ ...row, activeLeases: -1 }] }), null);
@@ -52,7 +58,7 @@ describe('parseWorkerInstanceList', () => {
 describe('worker inventory API client', () => {
   it('requests the platform BFF endpoint with only the supported query values', async () => {
     const calls = [];
-    const payload = { items: [row], sampledAt: '2026-10-10T12:00:00.000Z', truncated: false };
+    const payload = { items: [row], total: 1, sampledAt: '2026-10-10T12:00:00.000Z', truncated: false };
     const client = createAdminApiClient({
       basePath: '/admin/api',
       fetchImpl: async (input, init) => {
@@ -92,7 +98,10 @@ describe('computeWorkerTelemetry', () => {
         state: 'ONLINE',
         status: 'HEALTHY',
         capacity: 8,
+        reportedActiveTasks: 1,
+        reportedObservedAt: '2026-10-10T11:59:49.000Z',
         activeLeases: 2,
+        durableLeases: 3,
         lastHeartbeatAt: '2026-10-10T11:59:50.000Z',
       },
       {
@@ -102,7 +111,10 @@ describe('computeWorkerTelemetry', () => {
         state: 'ONLINE',
         status: 'DEGRADED',
         capacity: 4,
+        reportedActiveTasks: 1,
+        reportedObservedAt: '2026-10-10T11:59:49.000Z',
         activeLeases: 1,
+        durableLeases: 3,
         lastHeartbeatAt: '2026-10-10T11:59:50.000Z',
       },
     ]);

@@ -31,6 +31,8 @@ import {
   type ProfileEnv,
 } from './file-url-auth';
 import { pinActiveRevision } from './publish';
+import { isActiveConnectorPin } from './connector-pin-validation';
+import type { ConnectorManagementStore } from '../connectors/connector-management-store';
 
 /**
  * Profile-bound authorization (P2-02 / R08-02, W13-C) and the effective
@@ -347,6 +349,8 @@ export interface CreateProfileServiceOptions {
    * `process.env`, which is what every non-test deployment wants.
    */
   cryptoEnv?: ProfileEnv;
+  /** Connector source of truth used to validate every explicit profile pin. */
+  connectorManagement?: Pick<ConnectorManagementStore, 'getRecipeRevision' | 'hasRecipeChain' | 'getRevision'>;
 }
 
 export function createProfileService(db: Db, options: CreateProfileServiceOptions = {}) {
@@ -457,8 +461,11 @@ export function createProfileService(db: Db, options: CreateProfileServiceOption
     );
     if (orphan.rowCount) return 'pointer-missing' as const;
 
+    // A key that has ever been attached to a Profile must not become a legacy
+    // key when its last active membership is revoked. Membership state controls
+    // Profile access; api_keys.status remains an independent key lifecycle.
     const anyRes = await c.query(
-      "SELECT 1 FROM profile_api_keys WHERE api_key_id=$1 AND state='ACTIVE' LIMIT 1",
+      'SELECT 1 FROM profile_api_keys WHERE api_key_id=$1 LIMIT 1',
       [apiKeyId]
     );
     if (anyRes.rowCount) return 'not-authorized' as const;
@@ -734,6 +741,23 @@ export function createProfileService(db: Db, options: CreateProfileServiceOption
       const key = mutationLocks.keys.get(keyCandidate.id);
       if (!key || key.status !== 'ACTIVE' || key.hash !== input.apiKeyHash) {
         throw new HttpError(404, 'NOT_FOUND', 'api key not found or not ACTIVE');
+      }
+
+      // The public createRevision method is also the direct admin binding
+      // route's canonical write seam. Validate pins against the tenant from
+      // the locked API-key row before any profile metadata or binding is
+      // written. Profile-group saves have already validated their aggregate
+      // pins against the same tenant-scoped source of truth.
+      if (groupOwnerId === undefined && Object.keys(bindings).length > 0) {
+        const connectorManagement = options.connectorManagement;
+        if (!connectorManagement) {
+          throw new HttpError(503, 'TEMPORARY_UNAVAILABLE', 'connector management is required to validate profile connector bindings');
+        }
+        for (const [slot, pin] of Object.entries(bindings)) {
+          if (!await isActiveConnectorPin(connectorManagement, key.tenant_id, pin)) {
+            throw new HttpError(422, 'INVALID_SCHEMA', `connector binding '${slot}' is not an active connector revision for this tenant`);
+          }
+        }
       }
 
       // The public createRevision path is also called by the direct profile

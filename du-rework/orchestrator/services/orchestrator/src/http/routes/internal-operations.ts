@@ -107,6 +107,7 @@ export async function handleInternalOperationsRoutes(ctx: RouteContext): Promise
     await requireLocalOperationAccess(ctx, localUserScope, id);
     const op = await ctx.runtime.getOperation(id);
     requireResourceTenant(principal, String(op.tenant_id));
+    if (op.deleted_at != null) throw new HttpError(404, 'NOT_FOUND', 'not found');
     if (action === 'deliveries') return {status:200,body:await ctx.db.tx(client=>listAdminDeliveries(client,id,String(op.tenant_id),{dispatcherConfigured:!!ctx.config.webhookSecret && (ctx.config.webhookDispatchIntervalMs ?? (ctx.config.autoDispatch !== false ? 5000 : 0)) > 0,authResolverConfigured:!!ctx.config.resolveCallbackSecret}))};
     if (action === 'download') return buildOperationDownload(ctx, op);
     if (action === 'result') return buildOperationResult(ctx, op);

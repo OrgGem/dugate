@@ -10,6 +10,9 @@ describe('Document-Core Package & Source Boundary (R08-08)', () => {
     '@du/contracts',
     '@du/worker-sdk',
     '@du/document-kit',
+    '@du/egress',
+    // Required by the vendored Worker SDK's production QueueConsumer and the local BullMQ smoke path.
+    'bullmq',
     'zod',
   ]);
 

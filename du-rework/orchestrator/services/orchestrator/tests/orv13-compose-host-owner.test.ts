@@ -34,6 +34,10 @@ import type {
   ComposePerServiceOutcome,
 } from '../src/modules/compose-operations/contracts';
 
+// The host runner's journal security contract depends on POSIX uid/mode
+// ownership, which Windows stat results cannot model.
+const itOnPosixHost = process.platform === 'win32' ? it.skip : it;
+
 const NOW = '2026-10-11T16:00:00.000Z';
 const IMAGE_HASH = 'b'.repeat(64);
 const OBSERVED_DIGEST = 'c'.repeat(64);
@@ -41,6 +45,10 @@ const MANIFEST_DIGEST = 'a'.repeat(64);
 const CONTAINER_ID = 'd'.repeat(64);
 const IMAGE_ID = `sha256:${IMAGE_HASH}`;
 const REPO_DIGEST = `registry.example.test/app@sha256:${IMAGE_HASH}`;
+const COMPOSE_ROOT = path.resolve(os.tmpdir(), 'orv13-compose-test');
+const COMPOSE_APP = path.join(COMPOSE_ROOT, 'app');
+const COMPOSE_FILE = path.join(COMPOSE_APP, 'compose.yaml');
+const DOCKER_BINARY = path.join(COMPOSE_ROOT, 'bin', 'docker');
 
 let tempDirectory = '';
 
@@ -50,17 +58,17 @@ function createManifest(): ComposeManifest {
     hostId: 'host-test',
     projectId: 'project-test',
     displayName: 'Disposable app',
-    dockerBinary: '/srv/compose-test/bin/docker',
+    dockerBinary: DOCKER_BINARY,
     dockerContext: 'fixture-context',
-    workingDirectory: '/srv/compose-test/app',
-    homeDirectory: '/srv/compose-test/home',
-    dockerConfigDirectory: '/srv/compose-test/docker-config',
-    inventoryComposeFiles: [{ path: '/srv/compose-test/app/compose.yaml', sha256: '1'.repeat(64) }],
+    workingDirectory: COMPOSE_APP,
+    homeDirectory: path.join(COMPOSE_ROOT, 'home'),
+    dockerConfigDirectory: path.join(COMPOSE_ROOT, 'docker-config'),
+    inventoryComposeFiles: [{ path: COMPOSE_FILE, sha256: '1'.repeat(64) }],
     applicationServices: [{ serviceId: 'app', label: 'Application' }],
     releases: [{
       releaseId: 'release-one',
       label: 'Release one',
-      composeFiles: [{ path: '/srv/compose-test/app/compose.yaml', sha256: '1'.repeat(64) }],
+      composeFiles: [{ path: COMPOSE_FILE, sha256: '1'.repeat(64) }],
       serviceIds: ['app'],
       imageDigests: { app: REPO_DIGEST },
       migrationCompatibility: 'acknowledged',
@@ -196,7 +204,7 @@ async function createRunnerDirectory(): Promise<string> {
 const loadedManifest: LoadedComposeManifest = {
   manifest: createManifest(),
   sha256: MANIFEST_DIGEST,
-  path: '/srv/compose-test/manifest.json',
+  path: path.join(COMPOSE_ROOT, 'manifest.json'),
 };
 
 afterEach(async () => {
@@ -228,7 +236,7 @@ describe('UI13 Compose host runner', () => {
       expect(apply.cwd).toBe(manifest.workingDirectory);
       expect(apply.args).toEqual([
         '--context', 'fixture-context', 'compose', '--project-name', 'project-test',
-        '--project-directory', '/srv/compose-test/app', '--file', '/srv/compose-test/app/compose.yaml',
+        '--project-directory', COMPOSE_APP, '--file', COMPOSE_FILE,
         'up', '-d', '--no-build', '--pull', 'never', '--no-deps', 'app',
       ]);
       expect(apply.env).toMatchObject({ COMPOSE_DISABLE_ENV_FILE: '1' });
@@ -236,11 +244,11 @@ describe('UI13 Compose host runner', () => {
 
       const explicitlyPinnedEnv = {
         ...manifest,
-        envFile: { path: '/etc/compose-runner/pinned.env', sha256: '2'.repeat(64) },
+        envFile: { path: path.resolve(os.tmpdir(), 'orv13-pinned.env'), sha256: '2'.repeat(64) },
       };
       const explicitApply = buildDockerInvocation(explicitlyPinnedEnv, { kind: 'apply', releaseId: 'release-one' });
       expect(explicitApply.args).toContain('--env-file');
-      expect(explicitApply.args).toContain('/etc/compose-runner/pinned.env');
+      expect(explicitApply.args).toContain(path.resolve(os.tmpdir(), 'orv13-pinned.env'));
     } finally {
       for (const [name, previous] of priorValues) {
         if (previous === undefined) delete process.env[name];
@@ -386,7 +394,7 @@ describe('UI13 Compose host runner', () => {
     expect(JSON.stringify(result)).not.toContain(secretMarker);
   });
 
-  it('fsyncs a private journal and protects the project lock from a second runner', async () => {
+  itOnPosixHost('fsyncs a private journal and protects the project lock from a second runner', async () => {
     const directory = await createRunnerDirectory();
     const journalPath = path.join(directory, 'runner', 'journal.jsonl');
     const journal = new FsyncedRunnerJournal(journalPath);
@@ -410,7 +418,7 @@ describe('UI13 Compose host runner', () => {
     await second.release();
   });
 
-  it('does not spawn a host command when start acknowledgement is lost', async () => {
+  itOnPosixHost('does not spawn a host command when start acknowledgement is lost', async () => {
     const directory = await createRunnerDirectory();
     const loadSpy = jest.spyOn(manifestModule, 'loadComposeManifest').mockResolvedValue(loadedManifest);
     const reloadSpy = jest.spyOn(manifestModule, 'reloadAndCheckManifest').mockResolvedValue(loadedManifest);
@@ -462,7 +470,7 @@ describe('UI13 Compose host runner', () => {
     }
   });
 
-  it('retries only a pending completion report after transport loss, never the host action', async () => {
+  itOnPosixHost('retries only a pending completion report after transport loss, never the host action', async () => {
     const directory = await createRunnerDirectory();
     const loadSpy = jest.spyOn(manifestModule, 'loadComposeManifest').mockResolvedValue(loadedManifest);
     const reloadSpy = jest.spyOn(manifestModule, 'reloadAndCheckManifest').mockResolvedValue(loadedManifest);
@@ -522,7 +530,7 @@ describe('UI13 Compose host runner', () => {
     }
   });
 
-  it('requires server UNKNOWN and quiescent stable state, then retries the exact reconcile ACK before superseding a stale report', async () => {
+  itOnPosixHost('requires server UNKNOWN and quiescent stable state, then retries the exact reconcile ACK before superseding a stale report', async () => {
     const directory = await createRunnerDirectory();
     const loadSpy = jest.spyOn(manifestModule, 'loadComposeManifest').mockResolvedValue(loadedManifest);
     const reloadSpy = jest.spyOn(manifestModule, 'reloadAndCheckManifest').mockResolvedValue(loadedManifest);
@@ -611,19 +619,19 @@ describe('UI13 Compose host runner', () => {
       COMPOSE_OPERATIONS_RUNNER_BASE_URL: 'https://runner.example.test',
       COMPOSE_OPERATIONS_HOST_ID: 'host-test',
       COMPOSE_OPERATIONS_RUNNER_TOKEN: 'QwErTy_1234567890abcdefghijklmno',
-      COMPOSE_OPERATIONS_MANIFEST_PATH: '/srv/compose-test/manifest.json',
+      COMPOSE_OPERATIONS_MANIFEST_PATH: path.resolve(os.tmpdir(), 'orv13-compose-test', 'manifest.json'),
       COMPOSE_OPERATIONS_MANIFEST_DIGEST: MANIFEST_DIGEST,
-      COMPOSE_OPERATIONS_JOURNAL_PATH: '/var/lib/compose-runner/journal.jsonl',
-      COMPOSE_OPERATIONS_LOCK_PATH: '/var/lib/compose-runner/lock',
+      COMPOSE_OPERATIONS_JOURNAL_PATH: path.resolve(os.tmpdir(), 'orv13-compose-runner', 'journal.jsonl'),
+      COMPOSE_OPERATIONS_LOCK_PATH: path.resolve(os.tmpdir(), 'orv13-compose-runner', 'lock'),
     })).resolves.toMatchObject({ runnerToken: 'QwErTy_1234567890abcdefghijklmno' });
     await expect(loadRunnerConfigFromEnvironment({
       COMPOSE_OPERATIONS_RUNNER_BASE_URL: 'http://runner.example.test',
       COMPOSE_OPERATIONS_HOST_ID: 'host-test',
       COMPOSE_OPERATIONS_RUNNER_TOKEN: 'QwErTy_1234567890abcdefghijklmno',
-      COMPOSE_OPERATIONS_MANIFEST_PATH: '/srv/compose-test/manifest.json',
+      COMPOSE_OPERATIONS_MANIFEST_PATH: path.resolve(os.tmpdir(), 'orv13-compose-test', 'manifest.json'),
       COMPOSE_OPERATIONS_MANIFEST_DIGEST: MANIFEST_DIGEST,
-      COMPOSE_OPERATIONS_JOURNAL_PATH: '/var/lib/compose-runner/journal.jsonl',
-      COMPOSE_OPERATIONS_LOCK_PATH: '/var/lib/compose-runner/lock',
+      COMPOSE_OPERATIONS_JOURNAL_PATH: path.resolve(os.tmpdir(), 'orv13-compose-runner', 'journal.jsonl'),
+      COMPOSE_OPERATIONS_LOCK_PATH: path.resolve(os.tmpdir(), 'orv13-compose-runner', 'lock'),
     })).rejects.toMatchObject({ code: 'runner_config_invalid' });
   });
 });

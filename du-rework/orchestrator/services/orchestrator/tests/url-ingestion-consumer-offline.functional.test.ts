@@ -74,6 +74,7 @@ interface TaskRow {
   leased_by: string | null;
   last_delivery_id: string | null;
   attempt: number;
+  max_attempts: number;
 }
 interface OutboxRow {
   id: string;
@@ -137,6 +138,30 @@ function makeHarness(opts: HarnessOptions = {}) {
     const n = normalize(sql);
     store.log.push(n);
     const now = Date.now();
+
+    if (/SELECT o\.business_id,o\.business_version FROM tasks t/i.test(n)) {
+      const task = store.tasks.get(String(params[0]));
+      return result(task ? [{ business_id: 'du-doc', business_version: '1.0.0' }] : []);
+    }
+    if (/FROM business_catalog WHERE business_id=\$1/i.test(n)) {
+      return result([{ enabled: true, activation_revision: 1, submissions_paused: false, pre_drain_version: null }]);
+    }
+    if (/SELECT version,status,is_active FROM business_versions/i.test(n)) {
+      return result([{ version: '1.0.0', status: 'ENABLED', is_active: true }]);
+    }
+    if (/INSERT INTO runtime_control_scopes/i.test(n)) return result([]);
+    if (/FROM runtime_control_scopes/i.test(n)) {
+      return result([
+        { scope_kind: 'platform', scope_id: 'all', desired_state: 'OPEN', revision: 1 },
+        { scope_kind: 'tenant', scope_id: TENANT, desired_state: 'OPEN', revision: 1 },
+        { scope_kind: 'business', scope_id: 'du-doc', desired_state: 'OPEN', revision: 1 },
+      ]);
+    }
+    // The bounded inactive-task sweep has its own query page. This harness
+    // models only an active business, so it has no parking candidates.
+    if (/FROM tasks t/.test(n) && /JOIN business_catalog bc/.test(n) && /EXISTS \( SELECT 1 FROM outbox ob/.test(n)) {
+      return result([]);
+    }
 
     if (n.includes("FROM outbox WHERE type = 'task.dispatch'") && n.includes("payload->>'gate' = 'ingestion'")) {
       const rows = store.outbox
@@ -262,6 +287,17 @@ function makeHarness(opts: HarnessOptions = {}) {
         .slice(0, 2);
       return result(rows);
     }
+    if (/SELECT id::text,tenant_id::text,operation_id::text,task_id::text,purpose,file_name,mime_type,size_bytes,state,storage_key/i.test(n)) {
+      const row = store.artifacts.get(String(params[0]));
+      if (!row || row.tenant_id !== params[1]) return result([]);
+      return result([{
+        id: row.id, tenant_id: row.tenant_id, operation_id: row.operation_id, task_id: row.task_id,
+        purpose: row.purpose, file_name: null, mime_type: row.mime_type, size_bytes: row.size_bytes,
+        state: row.state, storage_key: row.storage_key, storage_generation_id: null,
+        storage_version_id: row.storage_version_id, manifest_version_id: null, sha256: row.sha256,
+        upload_token: null,
+      }]);
+    }
     if (n.includes('FROM artifacts WHERE id=$1')) {
       const hit = store.artifacts.get(String(params[0]));
       return result(hit ? [hit] : []);
@@ -358,6 +394,7 @@ function makeHarness(opts: HarnessOptions = {}) {
         kind: 'root',
         state: task.state,
         attempt: task.attempt,
+        max_attempts: task.max_attempts,
         lease_epoch: task.lease_epoch,
         lease_expires_at: task.lease_expires_at,
         leased_by: task.leased_by,
@@ -385,6 +422,17 @@ function makeHarness(opts: HarnessOptions = {}) {
       const op = store.ops.get(String(params[0]));
       return result(op ? [{ state: op.state }] : []);
     }
+    if (/FROM worker_instances wi/i.test(n)) {
+      return result([{
+        business_version: '1.0.0', heartbeat_manifest_digest: 'sha256:offline',
+        registered_manifest_digest: 'sha256:offline', state: 'ONLINE', capacity: 1,
+        heartbeat_fresh: true, control_revision: 1, control_state: 'OPEN',
+        desired_control_revision: 1, desired_control_state: 'OPEN',
+      }]);
+    }
+    if (/SELECT count\(\*\)::int AS count FROM tasks t/i.test(n)) {
+      return result([{ count: 0 }]);
+    }
     if (n.includes('FROM step_checkpoints')) return result([]);
     // W-DATA-03-ORCH-VERIFY: the claim lease UPDATE that claimTask performs
     // when the guard passes. Without this branch, a successful claim test
@@ -392,7 +440,12 @@ function makeHarness(opts: HarnessOptions = {}) {
     if (n.includes('UPDATE tasks SET lease_epoch=') && n.includes('lease_expires_at=') && n.includes('leased_by=') && n.includes('last_delivery_id=') && n.includes("state='RUNNING'")) {
       const row = store.tasks.get(String(params[0]));
       const expectedEpoch = Number(params[1]);
-      const owns = row && row.lease_epoch + 1 === expectedEpoch;
+      const deliveryIndex = store.outbox.findIndex((candidate) =>
+        candidate.aggregate_id === params[0] && candidate.delivery_id === params[4]
+          && ['task.dispatch', 'task.continuation'].includes(candidate.type));
+      const hasNoNewerDelivery = deliveryIndex >= 0 && !store.outbox.slice(deliveryIndex + 1).some((candidate) =>
+        candidate.aggregate_id === params[0] && ['task.dispatch', 'task.continuation'].includes(candidate.type));
+      const owns = row && row.lease_epoch + 1 === expectedEpoch && hasNoNewerDelivery;
       if (row && owns) {
         row.lease_epoch = expectedEpoch;
         row.lease_expires_at = Number(params[2]);
@@ -408,11 +461,17 @@ function makeHarness(opts: HarnessOptions = {}) {
     // would be RUNNING but the operation would stay PENDING_INGESTION.
     if (n.includes("UPDATE operations SET state='RUNNING'") && n.includes('state_version = state_version + 1')) {
       const op = store.ops.get(String(params[0]));
-      if (op && op.state === 'PENDING_INGESTION') {
+      if (op && ['ACCEPTED', 'QUEUED', 'WAITING_CHILDREN', 'WAITING_INPUT', 'RETRY_PENDING'].includes(op.state)) {
         op.state = 'RUNNING';
         op.state_version += 1;
       }
       return { ...result([]), rowCount: op?.state === 'RUNNING' ? 1 : 0 };
+    }
+    if (/UPDATE worker_instances\s+SET accepted_task_count=accepted_task_count\+1/i.test(n)) {
+      return { ...result([]), rowCount: 1 };
+    }
+    if (/UPDATE outbox SET parked_reason=NULL,parked_at=NULL,claim_token=NULL,claim_until=NULL/i.test(n)) {
+      return { ...result([]), rowCount: 1 };
     }
     // W-DATA-03-ORCH-VERIFY: the claim lease UPDATE that claimTask performs
     // when the guard passes. Without this branch a successful-claim test would
@@ -461,7 +520,7 @@ function makeHarness(opts: HarnessOptions = {}) {
       id: taskId, operation_id: OP, task_key: 'root', state: 'PENDING_INGESTION',
       payload_ref: { input: { url: 'inline-doc' }, sourceUrl, ingestionState: 'PENDING' },
       error_code: null,
-      lease_epoch: 0, lease_expires_at: null, leased_by: null, last_delivery_id: null, attempt: 0,
+      lease_epoch: 0, lease_expires_at: null, leased_by: null, last_delivery_id: null, attempt: 0, max_attempts: 8,
     });
     outboxSeq += 1;
     const deliveryId = 'dd000000-0000-4000-8000-0000000000' + String(outboxSeq).padStart(2, '0');
@@ -1046,19 +1105,44 @@ describe('W-DATA03-CONSUMER-JOIN-1 offline functional', () => {
   });
 
   it('dispatcher routing: gate-ingestion rows never reach a business queue; ready/plain rows do', async () => {
-    interface Row { id: string; aggregate_id: string; type: string; delivery_id: string; payload: Record<string, unknown>; attempts: number; dispatched_at: number | null }
+    interface Row {
+      id: string; aggregate_id: string; type: string; delivery_id: string; payload: Record<string, unknown>;
+      attempts: number; dispatched_at: number | null; claim_token: string | null; claim_until: number | null;
+    }
     const rows: Row[] = [
-      { id: 'r1', aggregate_id: TASK, type: 'task.dispatch', delivery_id: 'd1', attempts: 0, dispatched_at: null,
+      { id: 'r1', aggregate_id: TASK, type: 'task.dispatch', delivery_id: 'd1', attempts: 0, dispatched_at: null, claim_token: null, claim_until: null,
         payload: { deliveryId: 'd1', taskId: TASK, gate: 'ingestion' } },
-      { id: 'r2', aggregate_id: TASK, type: 'task.dispatch', delivery_id: 'd2', attempts: 0, dispatched_at: null,
+      { id: 'r2', aggregate_id: TASK, type: 'task.dispatch', delivery_id: 'd2', attempts: 0, dispatched_at: null, claim_token: null, claim_until: null,
         payload: { deliveryId: 'd2', taskId: TASK, gate: 'ready' } },
-      { id: 'r3', aggregate_id: TASK, type: 'task.dispatch', delivery_id: 'd3', attempts: 0, dispatched_at: null,
+      { id: 'r3', aggregate_id: TASK, type: 'task.dispatch', delivery_id: 'd3', attempts: 0, dispatched_at: null, claim_token: null, claim_until: null,
         payload: { deliveryId: 'd3', taskId: TASK } },
     ];
     const published: Array<Record<string, unknown>> = [];
     function res(rowsOut: unknown[]) { return { command: 'SQL', rowCount: rowsOut.length, oid: 0, rows: rowsOut, fields: [] }; }
     async function run(sql: string, params: unknown[] = []): Promise<ReturnType<typeof res>> {
       const n = normalize(sql);
+      if (/FROM tasks t/.test(n) && /JOIN business_catalog bc/.test(n) && /EXISTS \( SELECT 1 FROM outbox ob/.test(n)) {
+        return res([]);
+      }
+      if (/FROM outbox ob/.test(n) && /JOIN business_catalog bc/.test(n)) {
+        const filtersGate = n.includes('IS DISTINCT FROM') && n.includes('ingestion');
+        const candidates = rows.filter((row) => row.dispatched_at === null && (!filtersGate || row.payload.gate !== 'ingestion'));
+        return res(candidates.map((row) => ({
+          id: row.id, aggregate_id: row.aggregate_id, delivery_id: row.delivery_id,
+          type: row.type, payload: row.payload, business_id: 'demo', business_version: '1.0.0',
+          tenant_id: TENANT, queue_name: 'du-business-demo-1.0.0',
+        })));
+      }
+      if (/FROM outbox ob/.test(n) && /FOR UPDATE OF ob SKIP LOCKED/.test(n)) {
+        const row = rows.find((candidate) => candidate.id === params[0]
+          && candidate.dispatched_at === null && (candidate.claim_until === null || candidate.claim_until < Date.now()));
+        if (!row) return res([]);
+        return res([{
+          id: row.id, aggregate_id: row.aggregate_id, delivery_id: row.delivery_id,
+          type: row.type, payload: row.payload, attempts: row.attempts, claim_token: params[1],
+          business_id: params[2], business_version: params[3], tenant_id: params[4], queue_name: params[5],
+        }]);
+      }
       if (n.includes('FROM outbox') && n.includes('dispatched_at IS NULL')) {
         // The router mirrors PostgreSQL semantics for exactly this predicate:
         // if the production SQL ever loses the IS DISTINCT FROM ingestion
@@ -1070,6 +1154,39 @@ describe('W-DATA03-CONSUMER-JOIN-1 offline functional', () => {
       }
       if (n.includes('SELECT o.business_id, o.business_version, bv.queue FROM tasks t')) {
         return res([{ business_id: 'demo', business_version: '1.0.0', queue: 'du-business-demo-1.0.0' }]);
+      }
+      if (/FROM business_catalog WHERE business_id=\$1/i.test(n)) {
+        return res([{ enabled: true, activation_revision: 1, submissions_paused: false, pre_drain_version: null }]);
+      }
+      if (/SELECT version,status,is_active FROM business_versions/i.test(n)) {
+        return res([{ version: '1.0.0', status: 'ENABLED', is_active: true }]);
+      }
+      if (/INSERT INTO runtime_control_scopes/i.test(n)) return res([]);
+      if (/FROM runtime_control_scopes/i.test(n)) {
+        return res([
+          { scope_kind: 'platform', scope_id: 'all', desired_state: 'OPEN', revision: 1 },
+          { scope_kind: 'tenant', scope_id: TENANT, desired_state: 'OPEN', revision: 1 },
+          { scope_kind: 'business', scope_id: 'demo', desired_state: 'OPEN', revision: 1 },
+        ]);
+      }
+      if (/UPDATE outbox SET claim_token=\$2,claim_until=statement_timestamp\(\)\+interval '30 seconds'/i.test(n)) {
+        const row = rows.find((candidate) => candidate.id === params[0]);
+        if (row) {
+          row.claim_token = String(params[1]);
+          row.claim_until = Date.now() + 30_000;
+        }
+        return res([]);
+      }
+      if (/UPDATE outbox SET dispatched_at=statement_timestamp\(\),claim_token=NULL,claim_until=NULL,\s*attempts=attempts\+1/i.test(n)) {
+        const row = rows.find((candidate) => candidate.id === params[0] && candidate.claim_token === params[1]
+          && candidate.dispatched_at === null);
+        if (row) {
+          row.dispatched_at = Date.now();
+          row.claim_token = null;
+          row.claim_until = null;
+          row.attempts += 1;
+        }
+        return { ...res([]), rowCount: row ? 1 : 0 };
       }
       if (n.includes('UPDATE outbox SET dispatched_at = now(), claim_until = NULL, attempts = attempts + 1')) {
         const row = rows.find((candidate) => candidate.id === params[0]);
@@ -1283,7 +1400,7 @@ describe('W-DATA03-CONSUMER-JOIN-1 offline functional', () => {
       sha256: docSha,
       state: 'READY',
       storage_key: sourceStorageKey(TENANT, OP),
-      storage_version_id: 'stale-column',
+      storage_version_id: 'v1',
       storage_backend: 's3',
     });
     const { consumer } = makeConsumer(h, fixture, net);
@@ -1415,7 +1532,7 @@ describe('W-DATA03-CONSUMER-JOIN-1 offline functional', () => {
     const runtime = createRuntimeService(h.db);
     await expect(
       runtime.claimTask(TASK, 'delivery-gated-1', 'worker-a-1', 'du-doc'),
-    ).rejects.toMatchObject({ code: 'STATE_CONFLICT' });
+    ).rejects.toMatchObject({ code: 'TASK_NOT_READY' });
     const task = h.store.tasks.get(TASK);
     expect(task?.state).toBe('PENDING_INGESTION');
     expect(task?.lease_epoch ?? 0).toBe(0);
@@ -1435,7 +1552,8 @@ describe('W-DATA03-CONSUMER-JOIN-1 offline functional', () => {
     // The very same claim that was refused above now succeeds: the guard keys
     // on the gate state, not on the task id.
     const runtime = createRuntimeService(h.db);
-    const claimed = await runtime.claimTask(TASK, 'delivery-after-ready-1', 'worker-a-1', 'du-doc');
+    const readyDelivery = must(readyRows(h)[0], 'ready delivery');
+    const claimed = await runtime.claimTask(TASK, readyDelivery.delivery_id, 'worker-a-1', 'du-doc');
     expect(claimed.taskId).toBe(TASK);
     expect(claimed.executionSnapshot.tenantId).toBe(TENANT);
     // And the snapshot now carries the materialized pin, not a bare URL. The

@@ -3,8 +3,9 @@ import { budgetQuotaScopeKey, resolveBudgetQuotaWindow } from '@du/contracts';
 import type { BudgetConfigInput } from '@du/contracts';
 import type { Db } from '../src/db/db';
 import { createBudgetReservationService } from '../src/modules/usage/budget-reservations';
+import { createBackupSnapshotWriteGate } from '../src/modules/maintenance/backup-effect-fence';
 
-const TENANT = 'tenant-or10-07';
+const TENANT = '50000000-0000-4000-8000-000000000007';
 const API_KEY = 'key-or10-07';
 const PROFILE = 'profile-or10-07';
 const BUSINESS = 'document-core';
@@ -35,6 +36,9 @@ describe('OR10-07 advisory lock encoding', () => {
     const client = {
       query: async (sql: string, params: unknown[] = []) => {
         const normalized = sql.replace(/\s+/g, ' ').trim();
+        if (normalized.includes('FROM maintenance_backup_effect_gate')) {
+          return result([{ state: 'OPEN', fence_id: null, fence_revision: 0 }]);
+        }
         if (normalized.startsWith('SELECT pg_advisory_xact_lock')) {
           lockParameters.push(params[0]);
           return result([]);
@@ -113,7 +117,10 @@ describe('OR10-07 advisory lock encoding', () => {
         fn(client as unknown as PoolClient),
       close: async (): Promise<void> => undefined,
     } as unknown as Db;
-    const service = createBudgetReservationService(db, () => NOW);
+    const service = createBudgetReservationService(db, {
+      clock: () => NOW,
+      backupSnapshotWriteGate: createBackupSnapshotWriteGate(),
+    });
 
     const admission = await service.reserve({
       budget: BUDGET,
@@ -134,9 +141,11 @@ describe('OR10-07 advisory lock encoding', () => {
       businessId: BUSINESS,
     });
     const window = resolveBudgetQuotaWindow(BUDGET.period, NOW);
+    const quotaLock = lockParameters.filter((value): value is string => typeof value === 'string')
+      .find((value) => value.startsWith('cost-quota:'));
     expect(admission.decision).toBe('ADMITTED');
-    expect(lockParameters).toHaveLength(1);
-    expect(lockParameters[0]).toBe(JSON.stringify([scopeKey, window.from, window.to]));
-    expect(String(lockParameters[0])).not.toContain('\u0000');
+    expect(lockParameters).toContain(`cost-policy-selection:${TENANT}`);
+    expect(quotaLock).toBe(`cost-quota:${JSON.stringify([scopeKey, window.from, window.to])}`);
+    expect(quotaLock).not.toContain('\u0000');
   });
 });

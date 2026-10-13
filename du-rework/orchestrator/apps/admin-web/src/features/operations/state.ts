@@ -19,6 +19,13 @@ export function parseOperationWire(value: unknown): OperationWire | null {
   const id = str(value['id']);
   const state = str(value['state']);
   if (id === null || state === null) return null;
+  const progressValue = value['progress'];
+  const progress = isRecord(progressValue)
+    && typeof progressValue['percent'] === 'number'
+    && Number.isFinite(progressValue['percent'])
+    && progressValue['percent'] >= 0 && progressValue['percent'] <= 100
+    ? { percent: progressValue['percent'], ...(str(progressValue['message']) === null ? {} : { message: str(progressValue['message'])! }) }
+    : undefined;
   return {
     id,
     state,
@@ -29,6 +36,7 @@ export function parseOperationWire(value: unknown): OperationWire | null {
     updatedAt: str(value['updatedAt'] ?? value['updated_at']),
     startedAt: str(value['startedAt']), completedAt: str(value['completedAt']),
     retryOf: str(value['retryOf']), errorCode: str(value['errorCode']), deadlineAt: str(value['deadlineAt']),
+    ...(progress ? { progress } : {}),
   };
 }
 
@@ -78,7 +86,12 @@ export function parseOperationDetail(value: unknown): OperationDetail | null {
     operation: operation ?? null,
     tasks: Array.isArray(value['tasks']) ? value['tasks'].filter(isRecord).map(task => ({
       id: str(task['id']) ?? '', taskKey: str(task['taskKey']) ?? '', kind: str(task['kind']) ?? '',
-      state: str(task['state']) ?? '', attempt: typeof task['attempt'] === 'number' ? task['attempt'] : 0,
+      state: str(task['state']) ?? '', spawnedBy: str(task['spawnedBy']), leasedBy: str(task['leasedBy']),
+      ...(Object.hasOwn(task, 'admissionParkedReason') ? { admissionParkedReason: str(task['admissionParkedReason']) } : {}),
+      ...(Object.hasOwn(task, 'admissionParkedAt') ? { admissionParkedAt: str(task['admissionParkedAt']) } : {}),
+      leaseExpiresAt: str(task['leaseExpiresAt']), dueAt: str(task['dueAt']),
+      awaitedChildren: parseTaskLinks(task['awaitedChildren']),
+      attempt: typeof task['attempt'] === 'number' ? task['attempt'] : 0,
       maxAttempts: typeof task['maxAttempts'] === 'number' ? task['maxAttempts'] : 0, errorCode: str(task['errorCode']),
     })) : [],
     ...(isRecord(input) && ['REDACTED', 'NO_RULES', 'HIDDEN'].includes(String(input['status'])) ? {
@@ -90,6 +103,15 @@ export function parseOperationDetail(value: unknown): OperationDetail | null {
     serverNow: str(value['serverNow']),
     raw: value,
   };
+}
+
+function parseTaskLinks(value: unknown): Array<{ taskId: string; joinPolicy: string }> {
+  if (!Array.isArray(value)) return [];
+  return value.filter(isRecord).flatMap((row) => {
+    const taskId = str(row['taskId']);
+    const joinPolicy = str(row['joinPolicy']);
+    return taskId !== null && joinPolicy !== null ? [{ taskId, joinPolicy }] : [];
+  });
 }
 
 export function operationStateVariant(state: string): 'success' | 'warning' | 'danger' | 'info' | 'neutral' {

@@ -1,4 +1,6 @@
+import { createHash } from 'node:crypto';
 import type { BusinessManifest } from '@du/contracts';
+import { canonicalLegacyWorkflowPinBytes, type LegacyWorkflowSchema } from '@du/contracts';
 import type { Db } from '../src/db/db';
 import type { MetadataCrypto } from '../src/modules/runtime/metadata-crypto';
 import type { ProfileService } from '../src/modules/profiles/profiles';
@@ -9,19 +11,21 @@ import { documentCoreManifest } from '../../../../businesses/document-core/src/m
 
 const TENANT = '11111111-1111-4111-8111-111111111111';
 const KEY = '22222222-2222-4222-8222-222222222222';
+const pinSchema: LegacyWorkflowSchema = {
+  slug: 'invoice-flow',
+  name: 'Invoice flow',
+  nodes: [{ id: 'ocr', type: 'connector', connector: 'ocr-service' }],
+  flow: ['ocr'],
+};
+const connectorSlotMap = { 'ocr-service': 'legacy-connector-00' };
 const PIN = {
   tenantId: TENANT,
   slug: 'invoice-flow',
   revision: 1,
-  digest: `sha256:${'a'.repeat(64)}`,
-  schema: {
-    slug: 'invoice-flow',
-    name: 'Invoice flow',
-    nodes: [{ id: 'ocr', type: 'connector', connector: 'ocr-service' }],
-    flow: ['ocr'],
-  },
-  connectorSlotMap: { 'ocr-service': 'legacy-connector-00' },
-} as const;
+  digest: `sha256:${createHash('sha256').update(canonicalLegacyWorkflowPinBytes(pinSchema, connectorSlotMap)).digest('hex')}`,
+  schema: pinSchema,
+  connectorSlotMap,
+};
 
 const ACTION_SCHEMA = {
   type: 'object',
@@ -42,10 +46,18 @@ function makeService(
   const manifest = options.manifest ?? ({
     actions: [{ name: 'schema-workflow', inputSchema: ACTION_SCHEMA }],
   } as unknown as BusinessManifest);
-  const query = jest.fn(async () => ({
-    rowCount: 1,
-    rows: [{ version: manifest.version ?? '1.0.0', manifest, digest: 'manifest-digest', queue: 'q-document-core' }],
-  }));
+  const query = jest.fn(async (sql: string) => {
+    if (/FROM business_catalog/i.test(sql)) {
+      return {
+        rowCount: 1,
+        rows: [{ enabled: true, activation_revision: 1, submissions_paused: false, pre_drain_version: null }],
+      };
+    }
+    return {
+      rowCount: 1,
+      rows: [{ version: manifest.version ?? '1.0.0', status: 'ENABLED', is_active: true, manifest, digest: 'manifest-digest', queue: 'q-document-core' }],
+    };
+  });
   const db = { query } as unknown as Db;
   const profile = {
     mode: 'pinned',
@@ -85,7 +97,24 @@ function makeService(
     db,
     {} as RegistryService,
     profiles,
-    { metadataCrypto },
+    {
+      metadataCrypto,
+      connectorManagement: {
+        getRecipeRevision: async (input: { tenantId: string; connectorId: string; revision: number }) => ({
+          ...input,
+          state: 'ACTIVE',
+          recipe: {
+            adapter: 'json-http', method: 'POST', endpointUrl: 'https://connector.example.test/',
+            auth: { kind: 'none' }, headers: [],
+            request: { promptField: 'prompt', fields: [] }, response: { contentPath: 'content' },
+            session: { capture: [], inject: [] }, timeoutMs: 5000, responseBytes: 4096,
+          },
+          credentialRef: null,
+          credentialVersion: null,
+          expectedHeadRevision: 1,
+        }),
+      } as never,
+    },
   );
   return { service, query, profiles, businessId: options.businessId ?? 'document-core' };
 }
@@ -136,7 +165,7 @@ describe('WFA API admission preflight', () => {
     });
 
     const bound = makeService({ 'legacy-connector-00': { connectorId: 'connector-ocr', revision: 4 } });
-    await expect(bound.service.preflightLegacyWorkflow(preflightInput)).resolves.toBeUndefined();
+    await expect(bound.service.preflightLegacyWorkflow(preflightInput)).resolves.toMatchObject({ mode: 'pinned' });
     expect(bound.profiles.resolveEffectiveProfile).toHaveBeenCalledWith(
       KEY,
       'document-core',
@@ -144,6 +173,7 @@ describe('WFA API admission preflight', () => {
       'schema-workflow',
       preflightInput.input,
       ['variables', 'artifactIds', 'fileNames', 'artifacts'],
+      undefined,
     );
   });
 
@@ -181,7 +211,7 @@ describe('WFA API admission preflight', () => {
       'legacy-compliance': { connectorId: 'compliance-provider', revision: 7 },
       'legacy-report': { connectorId: 'report-provider', revision: 2 },
     }, { businessId: 'lc-checker', manifest, effectiveInput: input });
-    await expect(complete.service.preflightLegacyWorkflow(context)).resolves.toBeUndefined();
+    await expect(complete.service.preflightLegacyWorkflow(context)).resolves.toMatchObject({ mode: 'pinned' });
     const resolverArgs = (complete.profiles.resolveEffectiveProfile as jest.Mock).mock.calls[0];
     expect(resolverArgs?.[1]).toBe('lc-checker');
     expect(resolverArgs?.[2]).toBe('1.1.0');
@@ -218,6 +248,6 @@ describe('WFA API admission preflight', () => {
       'legacy-compare': { connectorId: 'compare-provider', revision: 8 },
       'legacy-report': { connectorId: 'report-provider', revision: 2 },
     }, { manifest, effectiveInput: input });
-    await expect(complete.service.preflightLegacyWorkflow(context)).resolves.toBeUndefined();
+    await expect(complete.service.preflightLegacyWorkflow(context)).resolves.toMatchObject({ mode: 'pinned' });
   });
 });

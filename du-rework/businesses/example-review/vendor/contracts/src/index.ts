@@ -14,6 +14,7 @@ export * from './operations';
 export * from './profile-policy';
 export * from './profile-commands';
 export * from './runtime';
+export * from './registry';
 export * from './queue';
 export * from './connector';
 export * from './sdk';

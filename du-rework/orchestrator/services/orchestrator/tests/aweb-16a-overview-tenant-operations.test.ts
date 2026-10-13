@@ -51,9 +51,12 @@ function loadOverviewLoader() {
   const injectedLoader = `
     const {
       createAdminApiClient, lastSuccess, globalTenantId, window,
+      activeLoadRef, pendingLoadRef, requestSequence, selectedTenantRef, sessionScopeRef,
       setUsage, setSession, setAudit, setOperations, setHasOperationsApi,
-      setBusinesses, setHealth, setStale, setLastSuccessAt,
-      parseUsageRollup, parseAuditPage,
+      setOperationsLoading, setOperationsFailed,
+      setBusinesses, setHealth, setHealthFailed, setOperationMetrics, setOperationMetricsFailed,
+      setWorkerInstances, setWorkerInventoryFailed, setStale, setLastSuccessAt,
+      parseUsageRollup, parseAuditPage, canReadPlatformSignals,
     } = dependencies;
     const load = ${callback.getText(sourceFile)};
   `;
@@ -71,8 +74,17 @@ function createDependencies(tenantId: string | null, operationsQueries: Record<s
     globalTenantId: tenantId,
     window: { from: '2026-10-09T00:00:00.000Z', to: '2026-10-10T00:00:00.000Z' },
     lastSuccess: { current: null as number | null },
+    activeLoadRef: { current: false },
+    pendingLoadRef: { current: null as (() => Promise<void>) | null },
+    requestSequence: { current: 0 },
+    selectedTenantRef: { current: tenantId },
+    sessionScopeRef: { current: null as string | null },
     createAdminApiClient: () => ({
-      getSession: async () => ({ ok: true, status: 200, data: { scope: { kind: 'platform' } } }),
+      getSession: async () => ({ ok: true, status: 200, data: {
+        role: 'admin',
+        principal: { kind: 'platform', tenantId: null as string | null },
+        scope: { kind: 'platform' },
+      } }),
       getUsage: async () => ({ ok: true, status: 200, data: {} }),
       listAudit: async () => ({ ok: true, status: 200, data: {} }),
       listOperations: async (query?: Record<string, string>) => {
@@ -86,13 +98,22 @@ function createDependencies(tenantId: string | null, operationsQueries: Record<s
     setSession: () => undefined,
     setAudit: () => undefined,
     setOperations: () => undefined,
+    setOperationsLoading: () => undefined,
+    setOperationsFailed: () => undefined,
     setHasOperationsApi: () => undefined,
     setBusinesses: () => undefined,
     setHealth: () => undefined,
+    setHealthFailed: () => undefined,
+    setOperationMetrics: () => undefined,
+    setOperationMetricsFailed: () => undefined,
+    setWorkerInstances: () => undefined,
+    setWorkerInventoryFailed: () => undefined,
     setStale: () => undefined,
     setLastSuccessAt: () => undefined,
     parseUsageRollup: (value: unknown) => value,
     parseAuditPage: (value: unknown) => value,
+    // Platform health/worker projections are outside this tenant-list scope test.
+    canReadPlatformSignals: () => false,
   };
 }
 
@@ -119,7 +140,11 @@ describe('AWEB-16a Overview operations tenant scope (offline)', () => {
     const createClient = dependencies.createAdminApiClient;
     dependencies.createAdminApiClient = () => ({
       ...createClient(),
-      getSession: async () => ({ ok: true, status: 200, data: { scope: { kind: 'tenant', tenantId: 'tenant-owned' } } }),
+      getSession: async () => ({ ok: true, status: 200, data: {
+        role: 'tenant_operator',
+        principal: { kind: 'tenant_operator', tenantId: 'tenant-owned' },
+        scope: { kind: 'tenant', tenantId: 'tenant-owned' },
+      } }),
     });
 
     await loader.create(dependencies)();
@@ -127,11 +152,10 @@ describe('AWEB-16a Overview operations tenant scope (offline)', () => {
     expect(queries).toEqual([{ limit: '100', sort: 'created_at:desc', tenant: 'tenant-owned' }]);
   });
 
-  test('states how the Overview operations list is scoped', () => {
+  test('does not repeat the global tenant selection in the Overview header', () => {
     const { source } = loadOverviewLoader();
 
-    expect(source).toContain(
-      'Operations are filtered to the active tenant selection when set; tenant-scoped sessions use their own tenant.',
-    );
+    expect(source).not.toContain('activeTenantName=');
+    expect(source).toContain('<SessionCard loadable={session} />');
   });
 });

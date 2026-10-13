@@ -22,7 +22,13 @@ export interface WorkerInstanceRead {
   state: WorkerInstanceState;
   health: WorkerInstanceHealth;
   capacity: number;
+  /** Worker self-report from the heartbeat payload; null means unavailable. */
+  reportedActiveTasks: number | null;
+  reportedObservedAt: string | null;
+  /** Database lease count sampled when the heartbeat was recorded. */
   activeLeases: number;
+  /** Unexpired RUNNING task leases currently owned in PostgreSQL. */
+  durableLeases: number;
   acceptedTaskCount: number;
   acceptedTaskCountSince: string;
   acceptedTaskCountScope: 'business-instance-lifetime';
@@ -32,6 +38,7 @@ export interface WorkerInstanceRead {
 
 export interface WorkerInstanceList {
   items: WorkerInstanceRead[];
+  total: number;
   sampledAt: string;
   truncated: boolean;
 }
@@ -43,6 +50,10 @@ interface WorkerInstanceDbRow extends QueryResultRow {
   state: string;
   capacity: number | string;
   active_leases: number | string;
+  active_task_count: number | string | null;
+  active_task_observed_at: Date | string | null;
+  durable_leases: number | string;
+  total_count: number | string;
   accepted_task_count: number | string;
   accepted_task_count_since: Date | string;
   last_seen_at: Date | string;
@@ -95,6 +106,13 @@ export async function listWorkerInstances(
   params.push(query.limit + 1);
   const result = await db.query<WorkerInstanceDbRow>(
     `SELECT business_id, instance_id, business_version, state, capacity, active_leases,
+            active_task_count, active_task_observed_at,
+            count(*) OVER() AS total_count,
+            (SELECT count(*)::int FROM tasks t JOIN operations o ON o.id=t.operation_id
+              WHERE t.leased_by=worker_instances.instance_id
+                AND o.business_id=worker_instances.business_id
+                AND o.business_version=worker_instances.business_version
+                AND t.state='RUNNING' AND t.lease_expires_at>statement_timestamp()) AS durable_leases,
             accepted_task_count, accepted_task_count_since,
             last_seen_at, observed_at
        FROM worker_instances${where}
@@ -104,7 +122,8 @@ export async function listWorkerInstances(
   );
   const truncated = result.rows.length > query.limit;
   const items = result.rows.slice(0, query.limit).map((row) => toWorkerInstanceRead(row, nowMs));
-  return { items, sampledAt: sampledAt.toISOString(), truncated };
+  const total = result.rows.length ? readCount(result.rows[0]!.total_count, 'total_count') : 0;
+  return { items, total, sampledAt: sampledAt.toISOString(), truncated };
 }
 
 function toWorkerInstanceRead(row: WorkerInstanceDbRow, nowMs: number): WorkerInstanceRead {
@@ -115,6 +134,9 @@ function toWorkerInstanceRead(row: WorkerInstanceDbRow, nowMs: number): WorkerIn
   const observedAt = readTimestamp(row.observed_at, 'observed_at');
   const capacity = readCount(row.capacity, 'capacity');
   const activeLeases = readCount(row.active_leases, 'active_leases');
+  const reportedActiveTasks = row.active_task_count === null ? null : readCount(row.active_task_count, 'active_task_count');
+  const reportedObservedAt = row.active_task_observed_at === null ? null : readTimestamp(row.active_task_observed_at, 'active_task_observed_at');
+  const durableLeases = readCount(row.durable_leases ?? 0, 'durable_leases');
   const acceptedTaskCount = readCount(row.accepted_task_count, 'accepted_task_count');
   const acceptedTaskCountSince = readTimestamp(row.accepted_task_count_since, 'accepted_task_count_since');
   const ageMs = Math.max(0, nowMs - Date.parse(lastSeenAt));
@@ -131,7 +153,10 @@ function toWorkerInstanceRead(row: WorkerInstanceDbRow, nowMs: number): WorkerIn
     state,
     health,
     capacity,
+    reportedActiveTasks,
+    reportedObservedAt,
     activeLeases,
+    durableLeases,
     acceptedTaskCount,
     acceptedTaskCountSince,
     acceptedTaskCountScope: 'business-instance-lifetime',

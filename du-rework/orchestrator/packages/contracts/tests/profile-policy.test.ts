@@ -219,6 +219,7 @@ describe('profile detail read (T-API-01, fixes revision: 0)', () => {
     },
     manifest: { actions: [{ name: 'extract' }] },
     capabilities: [{ connectorId: 'c1', capability: 'ocr' }],
+    connectorBindings: {},
   };
 
   it('accepts a real revision and keeps the shell fetcher field names', () => {

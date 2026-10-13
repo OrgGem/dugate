@@ -27,6 +27,13 @@ function harness(stored: unknown = policy, hasPrevious = true) {
   const client = { query: async (sql: string, params: unknown[] = []) => {
     statements.push({ sql, params });
     if (sql.includes('SELECT id, tenant_id FROM api_keys')) return { rows: [{ id: apiKeyId, tenant_id: tenantId }], rowCount: 1 };
+    if (sql.includes('SELECT id, tenant_id, hash, prefix, status FROM api_keys WHERE id=$1 FOR SHARE')) {
+      return { rows: [{ id: apiKeyId, tenant_id: tenantId, hash: 'a'.repeat(64), prefix: 'synthetic', status: 'ACTIVE' }], rowCount: 1 };
+    }
+    if (sql.includes("SELECT api_key_id, tenant_id FROM profile_api_keys")) return { rows: [], rowCount: 0 };
+    if (sql.includes('pg_advisory_xact_lock')) return { rows: [], rowCount: 1 };
+    if (/SELECT b\.profile_id[\s\S]+FROM profile_active_revisions a/i.test(sql)) return { rows: [], rowCount: 0 };
+    if (sql.includes('SELECT group_id FROM profile_names')) return { rows: [], rowCount: 0 };
     if (sql.includes('SELECT max(revision)')) return { rows: [{ m: hasPrevious ? 4 : null }], rowCount: 1 };
     if (sql.includes('SELECT enabled, parameters')) return { rows: hasPrevious ? [previous] : [], rowCount: hasPrevious ? 1 : 0 };
     if (sql.includes('FROM profile_active_revisions')) return { rows: [{ ...previous, profile_id: profileId, revision: 4, connector_bindings: {}, moved_at: new Date(0) }], rowCount: 1 };
@@ -85,7 +92,7 @@ describe('CB-02b profile publish callback write boundary', () => {
         expect.objectContaining({ pointer: '/callbackPolicy/mode' }),
       ]) },
     });
-    expect(h.statements.filter((s) => /INSERT|UPDATE/.test(s.sql))).toEqual([]);
+    expect(h.statements.filter((s) => /^\s*(?:INSERT|UPDATE|DELETE)\b/i.test(s.sql))).toEqual([]);
   });
   it('valid client replacement writes validated refs rather than the previous policy', async () => {
     const h = harness({ broken: true });
@@ -103,7 +110,7 @@ describe('CB-02b profile publish callback write boundary', () => {
   it('invalid inherited policy fails closed before publishing a revision', async () => {
     const h = harness({ broken: true });
     await expect(h.publish()).rejects.toMatchObject({ status: 500, code: 'INVALID_SCHEMA' });
-    expect(h.statements.filter((s) => /INSERT|UPDATE/.test(s.sql))).toEqual([]);
+    expect(h.statements.filter((s) => /^\s*(?:INSERT|UPDATE|DELETE)\b/i.test(s.sql))).toEqual([]);
   });
   it('effective profile SELECT and decode retain stored refs without secret resolution', async () => {
     const h = harness();

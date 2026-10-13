@@ -31,6 +31,7 @@ Accessible text input built on Base UI `Input`.
   - `leftIcon`, `rightIcon`: `React.ReactNode` — decorative icon adornments.
   - Standard input HTML attributes (`placeholder`, `value`, `onChange`, `disabled`, `type`, `aria-describedby`).
 - **Reflow**: `w-full min-w-0` prevents grid/flex overflow at 320px.
+- **Content row**: Children render in a non-wrapping inline-flex row, including an icon supplied as part of `children`; `leftIcon` and `rightIcon` remain decorative.
 
 ### 3. `Field` & `FormField` (`./field.tsx`)
 Accessible form field composition using Base UI `Field`.
@@ -41,7 +42,8 @@ Accessible form field composition using Base UI `Field`.
   - `FieldError`: Error message block with `role="alert"` and `aria-live="polite"`.
 - **Composite `FormField` (F3)**:
   - Pre-assembled container accepting `id`, `label`, `description`, `error`, `required`, and `children`.
-  - Automatically clones single-element children and wires `id`, `aria-describedby`, `aria-errormessage`, and `aria-invalid` directly to the input element for complete accessibility without manual binding.
+  - Automatically clones a single non-fragment child and wires `id`, `aria-describedby`, `aria-errormessage`, and `aria-invalid` directly to the control. Existing child ids are preserved and used by the label; fragment/multiple children remain untouched so input+datalist compositions keep their explicit ids. If a multi-child field also has helper or error text, set the control's `aria-describedby` and invalid state on that control explicitly.
+  - Descriptions and errors stay visibly below the control. In a side-by-side form toolbar, align actions with the control row and keep dynamic messages below that row. Aligning the whole `FormField` at the bottom can move actions when a message appears; aligning the field at the top aligns actions with its label, not the control.
 
 ### 4. `Select` & `NativeSelect` (`./select.tsx`)
 - **Base UI Primitives**: `SelectRoot`, `SelectTrigger`, `SelectValue`, `SelectPortal`, `SelectPositioner`, `SelectPopup`, `SelectItem`, `SelectItemText`, `SelectGroup`, `SelectGroupLabel`, `SelectSeparator`.
@@ -63,7 +65,10 @@ Accessible modal dialogs built on Base UI `Dialog`.
 
 ### 6. `Table` (`./table.tsx`)
 Responsive data tables with semantic HTML markup.
-- **Primitives**: `TableContainer` (overflow-x auto, styled with `--shadow-card` [F2]), `Table`, `TableHeader`, `TableBody`, `TableFooter`, `TableRow` (hover highlight), `TableHead`, `TableCell`, `TableEmpty` (empty state row spanning columns).
+- **Primitives**: `TableContainer` (horizontal scrolling by default; optional `maxHeight` enables bounded vertical scrolling and keyboard focus), `Table`, `TableHeader` (optional `sticky`), `TableBody`, `TableFooter`, `TableRow` (hover highlight), `TableHead`, `TableCell`, `TableEmpty` (empty state row spanning columns), and `TablePagination`.
+- **Scroll accessibility**: A bounded `TableContainer` receives `tabIndex=0`; provide `aria-label` to expose it as a named region for assistive technology.
+- **Density**: `Table density="compact"` reduces header and cell spacing for data-dense views.
+- **Pagination**: `TablePagination` accepts previous/next availability and callbacks plus an optional status message. It only invokes the supplied callbacks; consumers retain server cursor/offset behavior and should not infer full totals from a loaded subset.
 - **Reflow**: TableContainer ensures wide tables scroll horizontally without breaking screen layout on narrow screens (320px).
 
 ### 7. `Badge` (`./badge.tsx`)

@@ -14,6 +14,7 @@ import { createApp, route } from '../src/server';
 import type { ServerConfig } from '../src/server';
 import type { RouteContext } from '../src/http/route-context';
 import { loadMigrationFiles } from '../src/db/migrations';
+import { mockCreateStorageGenerationFixture, mockOpenBackupEffectGateResult } from './helpers/backup-effect-gate';
 import { createArtifactService } from '../src/modules/artifacts/artifacts';
 import { createMultipartService } from '../src/modules/artifacts/multipart-service';
 import type { KeyProvider } from '../src/modules/encryption/vault-transit-provider';
@@ -60,20 +61,26 @@ interface MinimalState {
 
 jest.mock('pg', () => {
   const state = { schemaLedger: [] as { sequence: number; filename: string }[] };
+  let mockStorage: ReturnType<typeof mockCreateStorageGenerationFixture> | undefined;
+  const getMockStorage = () => (mockStorage ??= mockCreateStorageGenerationFixture());
   interface PgResult { rows: unknown[]; rowCount: number }
-  function answer(sql: string): PgResult {
+  function answer(sql: string, params: unknown[] = []): PgResult {
     const text = String(sql).replace(/\s+/g, ' ').trim();
+    const backupGate = mockOpenBackupEffectGateResult(text);
+    if (backupGate) return backupGate;
+    const storage = getMockStorage().answer(text, params);
+    if (storage) return storage;
     if (/information_schema\.tables/i.test(text)) return { rows: [{ exists: true }], rowCount: 1 };
     if (/SELECT count\(\*\)::int/i.test(text)) return { rows: [{ count: state.schemaLedger.length }], rowCount: state.schemaLedger.length };
     if (/FROM schema_migrations/i.test(text)) return { rows: state.schemaLedger, rowCount: state.schemaLedger.length };
     return { rows: [], rowCount: 0 };
   }
   class ScriptedPool {
-    async query(sql: string): Promise<PgResult> {
-      return answer(sql);
+    async query(sql: string, params?: unknown[]): Promise<PgResult> {
+      return answer(sql, params ?? []);
     }
-    async connect(): Promise<{ query: (sql: string) => Promise<PgResult>; release: () => void }> {
-      return { query: (sql) => Promise.resolve(answer(sql)), release: () => undefined };
+    async connect(): Promise<{ query: (sql: string, params?: unknown[]) => Promise<PgResult>; release: () => void }> {
+      return { query: (sql, params) => Promise.resolve(answer(sql, params ?? [])), release: () => undefined };
     }
     async end(): Promise<void> {
       return undefined;

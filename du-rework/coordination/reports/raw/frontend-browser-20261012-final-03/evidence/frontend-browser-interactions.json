@@ -1,0 +1,30 @@
+[
+  {
+    "scenario": "workflow-connector-mapping-bounded-accessible-overflow",
+    "passed": true,
+    "details": {
+      "clientHeight": 547,
+      "scrollHeight": 7308,
+      "clientWidth": 314,
+      "scrollWidth": 314,
+      "maxHeight": 548.6,
+      "documentWidth": 390,
+      "viewportWidth": 390
+    }
+  },
+  {
+    "scenario": "profiles-delayed-old-filter-next-response-ignored",
+    "passed": true,
+    "details": {
+      "profileRequestOrder": [
+        "all:first",
+        "business-a:first",
+        "business-a:a-next",
+        "business-b:first"
+      ],
+      "delayedRequest": "business-a:a-next",
+      "currentFilter": "business-b",
+      "visibleRowAfterOldResponseReleased": "business-b-first"
+    }
+  }
+]

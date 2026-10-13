@@ -1,7 +1,3 @@
-// VENDORED from @du/contracts @ b088eececcb5f3df0b4edbe073a29401dafda624 (worktree 2026-10-05)
-// source: packages/contracts/src/ip-policy.ts (lines=279) sha256=B5A78AFBD8C16C5E991B18469214693FA38E2F284AD10DB1C7B542B13ADA2D77
-// why: transitive dep of operations.ts (adjudicateUrlDestination, DESTINATION_DENIED)
-
 /**
  * Shared IP destination policy (FIX-CR-01) — the single source of truth the R1-C
  * boundary vector table (tests/harness/network-boundaries/policy-vectors.ts) pins.

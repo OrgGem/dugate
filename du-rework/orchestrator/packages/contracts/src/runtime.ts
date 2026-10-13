@@ -39,6 +39,19 @@ export const HeartbeatAckSchema = z.object({
   health: z.enum(['HEALTHY', 'DEGRADED', 'OFFLINE']),
   leaseExpiresAt: z.string(),
   capacity: z.number().int().min(0),
+  /** Version-level permission to accept a new lease. This is independent of
+   * maintenance controlState and does not fence an already-running lease.
+   * Optional on parse for rolling compatibility with older servers. */
+  activeVersion: z.string().nullable().optional(),
+  activationRevision: z.number().int().positive().optional(),
+  admissionEligible: z.boolean().optional(),
+  admissionReason: z.enum([
+    'ELIGIBLE',
+    'BUSINESS_DISABLED',
+    'NO_ACTIVE_VERSION',
+    'VERSION_NOT_ACTIVE',
+    'VERSION_NOT_ENABLED',
+  ]).optional(),
   /** Durable admission revision and state the worker has observed. */
   controlRevision: z.number().int().nonnegative().default(0),
   controlState: z.enum(['OPEN', 'PAUSED', 'DRAINING']).default('OPEN'),
@@ -69,6 +82,12 @@ export const RUNTIME_CLAIM_ERROR_DISPOSITION = {
   ADMISSION_PAUSED: 'DEFER',
   WORKER_NOT_REGISTERED: 'DEFER',
   WORKER_ADMISSION_CLOSED: 'DEFER',
+  VERSION_NOT_ACTIVE: 'DEFER',
+  NO_ACTIVE_VERSION: 'DEFER',
+  VERSION_NOT_ENABLED: 'DEFER',
+  WORKER_CAPACITY_EXHAUSTED: 'DEFER',
+  BUSINESS_SUBMISSIONS_PAUSED: 'DEFER',
+  TASK_ATTEMPTS_EXHAUSTED: 'ACK_SAFE',
   TASK_NOT_READY: 'DEFER',
   WORKER_VERSION_MISMATCH: 'DEFER',
   MANIFEST_DIGEST_MISMATCH: 'DEFER',

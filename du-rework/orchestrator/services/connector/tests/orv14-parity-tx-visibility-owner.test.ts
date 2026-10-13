@@ -5,6 +5,7 @@ import {
   createLocalInvocationKekProvider,
 } from '../src/db/invocation-crypto';
 import { PostgresConnectorParityRepository } from '../src/db/parity-repository';
+import type { ConnectorBackupConfigWritePort } from '../src/db/backup-effect-fences';
 import type { SqlClient, SqlResult } from '../src/db/sql';
 
 const TENANT = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -12,6 +13,7 @@ const CONNECTOR = 'provider-main';
 const REVISION = 1;
 const IDEMPOTENCY_KEY = 'draft-transaction-visibility-01';
 const PAYLOAD_HASH = 'a'.repeat(64);
+const BACKUP_EFFECT_ID = 'b1b2b3b4-c5c6-47d8-89e0-f1f2f3f4f5f6';
 
 const RECIPE = ConnectorRecipeSchema.parse({
   adapter: 'json-http',
@@ -44,6 +46,7 @@ class TransactionVisibilityDb implements SqlClient {
   public poolQueries = 0;
   public poolQueriesInsideTransaction = 0;
   public revisionInserts = 0;
+  public completedEffects: string[] = [];
   public intent: Record<string, unknown>;
   public revision: Record<string, unknown> | undefined;
 
@@ -66,6 +69,7 @@ class TransactionVisibilityDb implements SqlClient {
       vault_expected_version: null,
       vault_target_version: null,
       vault_secret_sha256: null,
+      backup_effect_id: BACKUP_EFFECT_ID,
     };
   }
 
@@ -104,7 +108,11 @@ class TransactionVisibilityDb implements SqlClient {
     const sql = text.replace(/\s+/g, ' ').trim().toLowerCase();
     let rows: object[] = [];
 
-    if (sql.includes('pg_advisory_xact_lock')) {
+    if (sql.startsWith('select fence_id,fence_revision,state from connector_backup_effect_gate')) {
+      rows = [{ fence_id: null, fence_revision: 0, state: 'OPEN' }];
+    } else if (sql.startsWith("update connector_backup_effect_permits set state='completed'")) {
+      this.completedEffects.push(String(parameters[0]));
+    } else if (sql.includes('pg_advisory_xact_lock')) {
       rows = [];
     } else if (sql.startsWith('select * from connector_parity_draft_intents')) {
       rows = [this.intent];
@@ -156,6 +164,17 @@ function invocationCrypto() {
   return createInvocationFieldCrypto(provider, keyRef);
 }
 
+function backupConfigWrites(): ConnectorBackupConfigWritePort {
+  return {
+    prepare: async () => undefined,
+    activate: async () => true,
+    complete: async (client, effectId) => {
+      await client.query("UPDATE connector_backup_effect_permits SET state='COMPLETED' WHERE effect_id=$1", [effectId]);
+    },
+    markUnknown: async () => undefined,
+  };
+}
+
 describe('ORV14 parity transaction-consistent revision visibility', () => {
   it('finalizes and replays a completed intent without reading the pool before commit', async () => {
     const crypto = invocationCrypto();
@@ -165,7 +184,7 @@ describe('ORV14 parity transaction-consistent revision visibility', () => {
       refId: `${CONNECTOR}:${REVISION}`,
     });
     const db = new TransactionVisibilityDb(envelope, claimHash());
-    const repository = new PostgresConnectorParityRepository(db, crypto);
+    const repository = new PostgresConnectorParityRepository(db, crypto, backupConfigWrites());
 
     const firstWrite = await repository.finalizeIntent(TENANT, CONNECTOR, IDEMPOTENCY_KEY);
     expect(firstWrite).toMatchObject({
@@ -182,13 +201,15 @@ describe('ORV14 parity transaction-consistent revision visibility', () => {
       },
     });
     expect(db.poolQueriesInsideTransaction).toBe(0);
-    expect(db.transactionQueries).toBe(7);
+    expect(db.transactionQueries).toBe(9);
     expect(db.revisionInserts).toBe(1);
+    expect(db.completedEffects).toEqual([BACKUP_EFFECT_ID]);
 
     const completedReplay = await repository.finalizeIntent(TENANT, CONNECTOR, IDEMPOTENCY_KEY);
     expect(completedReplay).toEqual(firstWrite);
     expect(db.poolQueriesInsideTransaction).toBe(0);
     expect(db.revisionInserts).toBe(1);
+    expect(db.completedEffects).toEqual([BACKUP_EFFECT_ID]);
 
     const beginIntentReplay = await repository.beginIntent({
       tenantId: TENANT,

@@ -9,10 +9,17 @@ import {
   InvocationResponse,
   BusinessJobV1,
   ClaimResult,
+  businessQueueName,
+  validateManifest,
 } from '@du/contracts';
+import { documentCoreManifest } from '../src/manifest/document-core.manifest';
 import { documentCoreHandlers, startDocumentCoreWorker } from '../src/worker';
 import { ExtractAction } from '../src/actions/extract';
 import { BusinessExecutionError } from '../src/types/results';
+
+const manifestValidation = validateManifest(documentCoreManifest);
+if (!manifestValidation.ok) throw new Error('fixture manifest is invalid');
+const documentCoreManifestDigest = manifestValidation.digest;
 
 describe('Provider-Backed Variant (DOC-02-01 extract/invoice) — SDK Facade & Reliability', () => {
   const originalFetch = globalThis.fetch;
@@ -73,7 +80,7 @@ describe('Provider-Backed Variant (DOC-02-01 extract/invoice) — SDK Facade & R
       operationId,
       tenantId: 'tenant-doc-core',
       businessId: 'document-core',
-      businessVersion: '1.0.0',
+      businessVersion: '1.1.0',
       action: 'extract',
       kind: 'extract',
       taskKey: 'task-extract-invoice-1',
@@ -391,6 +398,25 @@ describe('Provider-Backed Variant (DOC-02-01 extract/invoice) — SDK Facade & R
       const routes = [
         {
           method: 'PUT',
+          pattern: /^\/businesses\/document-core\/versions\/1\.1\.0$/,
+          handler: () => {
+            const registration = validateManifest(documentCoreManifest);
+            if (!registration.ok) throw new Error('fixture manifest is invalid');
+            return {
+              status: 200,
+              json: {
+                businessId: documentCoreManifest.businessId,
+                version: documentCoreManifest.version,
+                digest: registration.digest,
+                queue: businessQueueName(documentCoreManifest.businessId, documentCoreManifest.version),
+                created: true,
+                replayed: false,
+              },
+            };
+          },
+        },
+        {
+          method: 'PUT',
           pattern: /^\/workers\/[^/]+\/heartbeat$/,
           handler: () => ({
             status: 200,
@@ -400,6 +426,11 @@ describe('Provider-Backed Variant (DOC-02-01 extract/invoice) — SDK Facade & R
               capacity: 1,
               controlRevision: 1,
               controlState: 'OPEN',
+              activeVersion: '1.1.0',
+              activationRevision: 1,
+              admissionEligible: true,
+              admissionReason: 'ELIGIBLE',
+              backupEffectFence: { state: 'OPEN', revision: 1, acknowledged: true },
             },
           }),
         },
@@ -427,10 +458,10 @@ describe('Provider-Backed Variant (DOC-02-01 extract/invoice) — SDK Facade & R
                 operationId,
                 tenantId: 'tenant-test-sdk',
                 businessId: 'document-core',
-                businessVersion: '1.0.0',
+                businessVersion: '1.1.0',
                 action: 'extract',
                 schemaDigest: 'd1',
-                manifestDigest: 'd2',
+                manifestDigest: documentCoreManifestDigest,
                 resolvedInputRef: {
                   type: 'invoice',
                   text: 'Invoice from Supplier XYZ INV-8899 Total $3500.00',
@@ -562,7 +593,7 @@ describe('Provider-Backed Variant (DOC-02-01 extract/invoice) — SDK Facade & R
         taskId,
         operationId,
         businessId: 'document-core',
-        businessVersion: '1.0.0',
+        businessVersion: '1.1.0',
         action: 'extract',
         kind: 'extract',
         correlationId: `corr-${randomUUID()}`,

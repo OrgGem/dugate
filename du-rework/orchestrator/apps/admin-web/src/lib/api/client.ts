@@ -241,6 +241,7 @@ export interface AdminApiClient {
   createCostAdjustment(command: CostAdjustmentCommand, idempotencyKey: string): Promise<AdminApiResult<CostAdjustmentCommandResult>>;
   listCostAdjustmentEvidence(query: CostAdjustmentEvidenceQuery): Promise<AdminApiResult<CostAdjustmentEvidencePage>>;
   listTenantActiveConnectorRevisions(query: TenantActiveConnectorCatalogClientQuery): Promise<AdminApiResult<TenantActiveConnectorCatalogPage>>;
+  hasTenantConnectorRecipeChain(input: { tenantId?: string; connectorId: string }): Promise<AdminApiResult<{ hasTypedChain: boolean }>>;
   listCostAlertRecipients(query: CostAlertRecipientCatalogQuery): Promise<AdminApiResult<CostAlertRecipientCatalog>>;
   ensureCostAlertSelfRecipient(): Promise<AdminApiResult<CostAlertRecipient>>;
   transitionCostAlertRecipient(principalId: string, body: CostAlertRecipientLifecycleWrite, idempotencyKey: string): Promise<AdminApiResult<CostAlertRecipientLifecycleResult>>;
@@ -414,7 +415,8 @@ export interface AdminApiClient {
   businessVersionAction(
     businessId: string,
     version: string,
-    action: 'enable' | 'activate' | 'deactivate',
+    action: 'enable' | 'activate' | 'deactivate' | 'pre-drain' | 'pre-drain/cancel',
+    body?: Record<string, unknown>,
   ): Promise<AdminApiResult<Record<string, unknown>>>;
   getCryptoConfig(tenantId?: string): Promise<AdminApiResult<Record<string, unknown>>>;
   updateCryptoConfig(
@@ -793,6 +795,11 @@ export function createAdminApiClient(options: AdminApiClientOptions = {}): Admin
       if (query.limit !== undefined) params.limit = String(query.limit);
       if (query.cursor !== undefined) params.cursor = query.cursor;
       return request<TenantActiveConnectorCatalogPage>('GET', '/parity/tenant-connectors', { query: params });
+    },
+    hasTenantConnectorRecipeChain(input) {
+      return request<{ hasTypedChain: boolean }>('GET', `/parity/connectors/${encodeURIComponent(input.connectorId)}/chain`, {
+        query: input.tenantId === undefined ? {} : { tenantId: input.tenantId },
+      });
     },
     listCostAlertRecipients(query) {
       return request<CostAlertRecipientCatalog>('GET', '/cost-alerts/recipients', { query: {
@@ -1221,11 +1228,11 @@ export function createAdminApiClient(options: AdminApiClientOptions = {}): Admin
     listWorkerInstances(query) {
       return request<WorkerInstanceList>('GET', '/worker-instances', { query });
     },
-    businessVersionAction(businessId, version, action) {
+    businessVersionAction(businessId, version, action, body) {
       return request<Record<string, unknown>>(
         'PUT',
         `/businesses/${encodeURIComponent(businessId)}/versions/${encodeURIComponent(version)}/${action}`,
-        { csrf: true },
+        { ...(body ? { body } : {}), csrf: true },
       );
     },
     getCryptoConfig(tenantId) {

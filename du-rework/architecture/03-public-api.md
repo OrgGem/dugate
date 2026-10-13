@@ -1,6 +1,6 @@
 # 03 — Public API và hướng dẫn tích hợp
 
-**Contract mục tiêu, chưa phải API đang được chứng nhận hoạt động.** Base minh họa `https://du.example.com/api/v1`; `.example.com` không phải môi trường triển khai. UTF-8 JSON; file qua multipart/artifact. Tất cả endpoint trong tài liệu này cần `x-api-key`, kể cả đọc trạng thái và download.
+**Wire contract theo source hiện tại; không phải chứng nhận deployment.** Base minh họa `https://du.example.com/api/v1`; `.example.com` không phải môi trường triển khai. Generic business submissions dùng UTF-8 JSON; sáu document aliases và hai workflow facades dùng multipart form data. Public client routes yêu cầu `x-api-key` kể cả đọc trạng thái và download.
 
 > **Ingress (PM-M02):** các route public dưới đây phục vụ trên cả Public `:3000` và Internal `:3002`; route admin (`/api/v1/admin*`), runtime (`/api/runtime*`) và internal (`/api/internal*`) **bị chặn trên Public `:3000`** bằng generic 404 (`orchestrator/services/orchestrator/src/http/ingress-guard.ts`), kể cả khi caller có credential hợp lệ. BFF/workers/services dùng Internal `:3002`.
 
@@ -9,7 +9,7 @@
 | Header | Yêu cầu | Ý nghĩa |
 |---|---|---|
 | `x-api-key` | Bắt buộc | Key do admin cấp, server resolve tenant/profile; không truyền tenant identity từ client |
-| `Content-Type` | Theo body | `application/json`, hoặc boundary do HTTP client tạo khi upload multipart |
+| `Content-Type` | Theo route | Generic business action nhận `application/json`; `/docs/{action}` và `/docs/workflows*` nhận `multipart/form-data` với boundary do HTTP client tạo |
 | `Idempotency-Key` | Khuyến nghị cho submit | Chuỗi 1–128 ký tự chữ/số/`._-`; giữ nguyên khi retry cùng logical request |
 | `X-Correlation-Id` | Tùy chọn | 8–128 ký tự chữ/số/`._-`; phản hồi có correlation ID để tra cứu |
 
@@ -29,20 +29,20 @@ Không truyền `queue`, raw credentials, model tùy ý hay `_prompt` để vư�
 
 | Method + path dưới `/api/v1` | Input | Success response | Chú ý |
 |---|---|---|---|
-| GET `/businesses` | cursor, limit | 200 danh mục business/actions được cấp | Không lộ business ngoài profile |
-| GET `/businesses/{id}/actions/{action}/schema` | path | 200 input/output schemas theo pinned version | Không cho client tự đổi version |
-| POST `/businesses/{id}/actions/{action}` | Submission | 202 Operation; 200 replay | Canonical submit |
-| POST `/docs/{action}` | JSON Submission hoặc multipart compatibility | 202 Operation | Sáu alias document-core; adapter cần test |
-| POST `/artifacts` | multipart `file` | 201 ArtifactRef | MIME signature/size/ownership checks |
-| GET `/artifacts/{id}` | path | 200 metadata | Không trả storage credentials |
-| GET `/artifacts/{id}/download` | path | 200 raw bytes (plain) hoặc 200 JSON wrapper (encrypted) — **302 đã bị loại khỏi contract** | 410 khi hết retention |
-| GET `/operations` | cursor, limit, state | 200 cursor page | Scope theo key/tenant/policy |
-| GET `/operations/{id}` | path | 200 OperationDetail | 404 nếu không được xem |
-| GET `/operations/{id}/result` | path | 200 ResultEnvelope | 409 chưa SUCCEEDED; 410 kết quả expired |
-| POST `/operations/{id}/cancel` | `{reason?: string}` | 202 accepted / 200 replay | 409 terminal không cancellable |
-| POST `/operations/{id}/resume` | waitId, input, expectedStateVersion | 202 accepted / 200 replay | 409 stale; 422 sai schema |
+| POST `/businesses/{id}/actions/{action}` | JSON `Submission` | 202 accepted; 200 idempotent replay | Canonical business action |
+| POST `/docs/{action}` | Multipart; `mode`, `type`, `task`, or `action` discriminator by action | 202 legacy operation + `Operation-Location`; 200 for `?sync=true` or replay | `action` is one of `ingest`, `extract`, `analyze`, `transform`, `generate`, `compare`; no JSON request body on this alias |
+| POST `/docs/workflows` | Multipart `process`, optional `resolution_data`, files | 202 new legacy workflow operation + `Operation-Location` | `process` is `disbursement`, `lc-checker`, or `doc-compare`; requires at least one file |
+| POST `/docs/workflows/schema` | Multipart `schemaSlug`, optional JSON-object string `input`, optional files | 202 new legacy workflow operation + `Operation-Location` | `input` defaults to `{}`; a valid schema workflow may be fileless; revision/digest is pinned at admission |
+| GET `/operations` | Legacy `filter/page_size/page_token` or canonical `limit/cursor` and filters | 200 legacy `{operations,next_page_token}` or canonical `{items,nextCursor,prevCursor,total,limit}` | Select one query dialect. Both are tenant and exact API-key scoped; a canonical cursor is key-bound |
+| GET `/operations/{id}` | Optional `wait` seconds | 200 legacy `{name,done,metadata,result/error}` | `wait` is parsed as integer seconds and clamped to 0–30; 404 for missing, foreign-key, or deleted operations |
+| GET `/operations/{id}/result` | none | 200 `ResultResponse` | Plain ResultEnvelope or encrypted wrapper is selected by server tenant policy; 409 before success, 410 when timed out |
+| DELETE `/operations/{id}` | none | 204 no content | Soft delete; 401 or 404 on missing/foreign ownership |
+| POST `/operations/{id}/cancel` | Optional legacy JSON `reason` | 200 current legacy operation envelope | 404 unknown/foreign; 409 terminal operation |
+| POST `/operations/{id}/resume` | Either legacy `{step, extracted_data}` or CAS `{waitId,input,expectedStateVersion}` JSON; do not mix fields | Legacy form: 200 `{success,message}`; CAS form: 202 fresh / 200 replay with `{operationId,state,stateVersion,replayed,taskId}` | Both are API-key and tenant scoped. CAS validation/state conflicts retain the runtime error response; malformed/mixed fields return 422 |
+| GET `/operations/{id}/download` | none | 200 output bytes or policy-encrypted JSON | Key-scoped; 409 until SUCCEEDED, 404 when output is unavailable, 413/503 when encrypted delivery cannot be served |
+| GET `/artifacts/{id}/download` | none | 200 raw bytes or encrypted artifact wrapper | Plain mode uses artifact MIME; encrypted mode includes `artifactId` and `mimeType`; no 302 |
 
-Shape phân trang/discovery chi tiết chưa freeze. Đề xuất pagination `{items:[], nextCursor:null}` và schema discovery `{businessId,businessVersion,action,inputSchema,outputSchema}`; phải đồng bộ `@du/contracts` trước phát hành SDK. Không suy ra đã tồn tại từ bảng này.
+The legacy and canonical list query dialects are exclusive. Legacy filters use comma-separated `state=RUNNING|SUCCEEDED|FAILED|PENDING` and `processor=<name>`, `page_size` defaults to 20 and is bounded to 100, and `page_token` is the operation ID from the previous page. Canonical filters use `limit` (default 20, clamped to 1–100), opaque `cursor`, state/sort/time and allow-listed search filters; malformed canonical filters or cursors return 422. A canonical `tenant` filter must match the authenticated key tenant or the route returns 403. Public API-key cursors are bound to the key population, so another key cannot replay one. Business discovery and standalone artifact metadata/upload paths remain outside this endpoint catalog when absent from `docs/21-openapi.json`.
 
 ## Ví dụ end-to-end: upload → extract → lấy kết quả
 
@@ -141,7 +141,7 @@ Chỉ gọi result khi `state=SUCCEEDED`. Polling đề xuất bắt đầu 2 gi
 
 Cùng tenant/key/action + idempotency key + normalized body trả cùng operation; body khác trả 409. Alias và canonical route phải normalize về cùng action. Không sinh key mới chỉ vì HTTP timeout; retry cùng key hoặc đọc operation nếu đã nhận ID. Thời hạn lưu key phải dài hơn cửa sổ retry đã công bố.
 
-`?sync=true` chỉ là compatibility wait có giới hạn: kết thúc trong cửa sổ thì 200, chưa xong thì 202 với operation ID. Timeout HTTP không hủy operation. Shape của response 200 sync cần contract test riêng; hướng dẫn này dùng async để tránh phụ thuộc điểm chưa freeze.
+`?sync=true` trên sáu document aliases chỉ là compatibility wait có giới hạn: route trả HTTP 200 với legacy operation envelope, kể cả `done:false` khi hết cửa sổ chờ; timeout HTTP không hủy operation. Submit mới ở chế độ async trả 202 kèm `Operation-Location`; idempotent replay trả 200. Generic business action trả 202 khi mới nhận và 200 khi replay. Workflow facades luôn tạo operation mới, trả 202 và bỏ qua `sync` cùng `Idempotency-Key` theo legacy behavior.
 
 ## Cancel và human resume
 
@@ -149,7 +149,7 @@ Cùng tenant/key/action + idempotency key + normalized body trả cùng operatio
 {"reason": "Client no longer needs this result"}
 ```
 
-Gửi body trên tới `/operations/{id}/cancel`. Sau 202 tiếp tục đọc trạng thái; cancel provider là best-effort, usage có thể đến muộn. Cancellation không bảo đảm xóa file; retention/deletion policy là cơ chế riêng.
+Body `{reason}` là tùy chọn trên `POST /operations/{id}/cancel`. Thành công trả HTTP 200 với legacy operation envelope; tiếp tục polling tới terminal state vì cancellation của provider là best-effort và usage có thể đến muộn. Cancellation không bảo đảm xóa file; retention/deletion policy là cơ chế riêng.
 
 WAITING_INPUT bổ sung `wait` trong OperationDetail:
 
@@ -167,7 +167,7 @@ Resume request:
 {"waitId": "approval-001", "input": {"approved": true}, "expectedStateVersion": 7}
 ```
 
-202/200 trả operation hiện hành theo contract cần freeze. 409 buộc client đọc lại operation; không tự chuyển `approved` hoặc gửi tiếp bằng state version đoán. Chỉ action hỗ trợ human wait mới có luồng này; sáu core API không mặc định đều cần người duyệt.
+CAS resume trả 202 khi tạo lần tiếp tục mới hoặc 200 khi phát lại acknowledgement `{operationId,state,stateVersion,replayed,taskId}`. Dùng `waitId`, `input`, và `expectedStateVersion` từ operation hiện hành; 409 buộc client đọc lại operation. Legacy clients có thể tiếp tục gửi `{step,extracted_data}` và nhận HTTP 200 `{success:true,message:"Resumed successfully"}`. Không trộn hai body dialects. Chỉ action hỗ trợ human wait mới có luồng này; sáu core API không mặc định đều cần người duyệt.
 
 ## Lỗi và webhook
 

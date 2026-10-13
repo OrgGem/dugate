@@ -113,7 +113,12 @@ function txDb(store: Store, opts: TxDbOptions = {}) {
         return result<T>([{ m: list.length === 0 ? null : Math.max(...list) } as unknown as T]);
       }
       if (/FROM api_keys/i.test(sql)) {
-        return result<T>([{ id: KEY_ID, tenant_id: TENANT }] as unknown as T[]);
+        return result<T>([{ id: KEY_ID, tenant_id: TENANT, hash: KEY_HASH, prefix: 'test', status: 'ACTIVE' }] as unknown as T[]);
+      }
+      if (/SELECT b\.profile_id[\s\S]*FROM profile_active_revisions a/i.test(sql)) {
+        // The selector-overlap probe should only find a DIFFERENT profile;
+        // this fixture has no competing profile rows.
+        return result<T>([]);
       }
       if (/FROM profile_active_revisions a/i.test(sql)) {
         // The pointer JOIN query. A row exists only when the pointer points at a
@@ -370,6 +375,111 @@ describe('DD-05 / 0027 invariant #1: insert + pin in the SAME transaction', () =
     expect(calls2.some((c) => /INSERT INTO profile_bindings/i.test(c.sql))).toBe(false);
     void db;
     void calls;
+  });
+
+  it('validates direct profile revision pins against the locked key tenant', async () => {
+    const store = new Store();
+    const { db } = txDb(store);
+    const getRecipeRevision = jest.fn(async () => ({
+      tenantId: TENANT,
+      connectorId: 'typed-connector',
+      revision: 4,
+      state: 'ACTIVE',
+    }));
+    const hasRecipeChain = jest.fn(async () => true);
+    const getRevision = jest.fn(async () => undefined);
+    const svc = createProfileService(db, {
+      connectorManagement: { getRecipeRevision, hasRecipeChain, getRevision } as never,
+    });
+
+    await expect(svc.createRevision(binding({
+      connectorBindings: { reasoning: { connectorId: 'typed-connector', revision: 4 } },
+    }))).resolves.toMatchObject({ tenantId: TENANT, revision: 1 });
+    expect(getRecipeRevision).toHaveBeenCalledWith({ tenantId: TENANT, connectorId: 'typed-connector', revision: 4 });
+    expect(hasRecipeChain).not.toHaveBeenCalled();
+    expect(getRevision).not.toHaveBeenCalled();
+  });
+
+  it('rejects a retired typed revision even when a same-number legacy row is active', async () => {
+    const store = new Store();
+    const { db, calls } = txDb(store);
+    const getRecipeRevision = jest.fn(async () => ({
+      tenantId: TENANT,
+      connectorId: 'typed-connector',
+      revision: 4,
+      state: 'RETIRED',
+    }));
+    const getRevision = jest.fn(async () => ({
+      connectorId: 'typed-connector', revision: 4, state: 'ACTIVE', tenantId: TENANT,
+    }));
+    const svc = createProfileService(db, {
+      connectorManagement: {
+        getRecipeRevision,
+        hasRecipeChain: jest.fn(async () => true),
+        getRevision,
+      } as never,
+    });
+
+    await expect(svc.createRevision(binding({
+      connectorBindings: { reasoning: { connectorId: 'typed-connector', revision: 4 } },
+    }))).rejects.toMatchObject({ status: 422, code: 'INVALID_SCHEMA' });
+    expect(getRevision).not.toHaveBeenCalled();
+    expect(calls.some((call) => /INSERT INTO profile_bindings/i.test(call.sql))).toBe(false);
+  });
+
+  it('rejects a missing pin shadowed by an inactive typed chain without legacy fallback', async () => {
+    const store = new Store();
+    const { db, calls } = txDb(store);
+    const getRecipeRevision = jest.fn(async () => undefined);
+    const hasRecipeChain = jest.fn(async () => true);
+    const getRevision = jest.fn(async () => ({
+      connectorId: 'shadowed-connector', revision: 2, state: 'ACTIVE', tenantId: TENANT,
+    }));
+    const svc = createProfileService(db, {
+      connectorManagement: { getRecipeRevision, hasRecipeChain, getRevision } as never,
+    });
+
+    await expect(svc.createRevision(binding({
+      connectorBindings: { reasoning: { connectorId: 'shadowed-connector', revision: 2 } },
+    }))).rejects.toMatchObject({ status: 422, code: 'INVALID_SCHEMA' });
+    expect(hasRecipeChain).toHaveBeenCalledWith({ tenantId: TENANT, connectorId: 'shadowed-connector' });
+    expect(getRevision).not.toHaveBeenCalled();
+    expect(calls.some((call) => /INSERT INTO profile_bindings/i.test(call.sql))).toBe(false);
+  });
+
+  it('accepts an active legacy revision only when no typed chain shadows it', async () => {
+    const store = new Store();
+    const { db } = txDb(store);
+    const hasRecipeChain = jest.fn(async () => false);
+    const getRevision = jest.fn(async () => ({
+      connectorId: 'legacy-connector', revision: 2, state: 'ACTIVE', tenantId: TENANT,
+    }));
+    const svc = createProfileService(db, {
+      connectorManagement: {
+        getRecipeRevision: jest.fn(async () => undefined),
+        hasRecipeChain,
+        getRevision,
+      } as never,
+    });
+
+    await expect(svc.createRevision(binding({
+      connectorBindings: { reasoning: { connectorId: 'legacy-connector', revision: 2 } },
+    }))).resolves.toMatchObject({ tenantId: TENANT, revision: 1 });
+    expect(hasRecipeChain).toHaveBeenCalledWith({ tenantId: TENANT, connectorId: 'legacy-connector' });
+    expect(getRevision).toHaveBeenCalledWith('legacy-connector', 2);
+  });
+
+  it('fails closed when connector management is absent for explicit pins, while empty pins remain valid', async () => {
+    const blockedStore = new Store();
+    const blocked = txDb(blockedStore);
+    await expect(createProfileService(blocked.db).createRevision(binding({
+      connectorBindings: { reasoning: { connectorId: 'unverified', revision: 1 } },
+    }))).rejects.toMatchObject({ status: 503, code: 'TEMPORARY_UNAVAILABLE' });
+    expect(blocked.calls.some((call) => /INSERT INTO profile_bindings/i.test(call.sql))).toBe(false);
+
+    const emptyStore = new Store();
+    const empty = await createProfileService(txDb(emptyStore).db).createRevision(binding());
+    expect(empty).toMatchObject({ tenantId: TENANT, revision: 1 });
   });
 
 });

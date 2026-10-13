@@ -1,10 +1,11 @@
+import path from 'node:path';
 import { runMaintenanceHostRunner } from '../src/maintenance-host-runner';
 import { registerActiveMaintenanceCommand } from '../src/modules/maintenance/active-command-shutdown';
 
 const environment = {
   DU_MAINTENANCE_EXECUTION_ROLE: 'host',
   DU_MAINTENANCE_HOST_IDENTITY: 'maintenance-host-a',
-  DU_MAINTENANCE_BACKUP_MANIFEST_PATH: '/etc/du/maintenance-backup.json',
+  DU_MAINTENANCE_BACKUP_MANIFEST_PATH: path.resolve('maintenance-backup.json'),
   DU_MAINTENANCE_BACKUP_MANIFEST_SHA256: 'a'.repeat(64),
 };
 

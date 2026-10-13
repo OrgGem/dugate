@@ -45,10 +45,20 @@ function latestBusinessRows(): Row[] {
       latest.set(String(row['business_id']), row);
     }
   }
-  return [...latest.values()].map((row) => ({
-    ...row,
-    active_version: businessRows.find((candidate) => candidate['business_id'] === row['business_id'] && candidate['is_active'] === true)?.['version'] ?? null,
-  }));
+  return [...latest.values()].map((row) => {
+    const activeVersion = businessRows.find((candidate) => candidate['business_id'] === row['business_id'] && candidate['is_active'] === true)?.['version'] ?? null;
+    return {
+      ...row,
+      enabled: true,
+      lifecycle_revision: 1,
+      activation_revision: 1,
+      submissions_paused: false,
+      pre_drain_version: null,
+      active_version: activeVersion,
+      admission_eligible: activeVersion !== null,
+      admission_reason: activeVersion === null ? 'NO_ACTIVE_VERSION' : 'ELIGIBLE',
+    };
+  });
 }
 
 function sortSpec(sql: string): { key: 'created_at' | 'updated_at'; tie: string; direction: 'ASC' | 'DESC' } {
@@ -86,12 +96,32 @@ function applySortAndCursor(rows: Row[], sql: string, params: unknown[]): Row[] 
 }
 
 function fixtureDb(calls: Call[]) {
-  return {
-    async query(sql: string, params: unknown[] = []): Promise<QueryResult<QueryResultRow>> {
+  const query = async (sql: string, params: unknown[] = []): Promise<QueryResult<QueryResultRow>> => {
       calls.push({ sql, params });
       const flat = sql.replace(/\s+/g, ' ');
+      if (/FROM business_catalog/i.test(flat)) {
+        const businessId = String(params[0]);
+        const exists = businessRows.some((row) => row['business_id'] === businessId);
+        return pgResult(exists ? [{
+          business_id: businessId,
+          enabled: true,
+          lifecycle_revision: 1,
+          activation_revision: 1,
+          submissions_paused: false,
+          pre_drain_version: null,
+        }] : []);
+      }
+      if (/WITH task_counts AS/i.test(flat)) return pgResult([]);
       if (/count\(DISTINCT business_id\)/i.test(flat)) {
         return pgResult([{ total: new Set(businessRows.map((row) => row['business_id'])).size }]);
+      }
+      if (/SELECT version,\s*status,\s*is_active FROM business_versions/i.test(flat)) {
+        const businessId = String(params[0]);
+        const selected = businessRows
+          .filter((row) => row['business_id'] === businessId
+            && (row['is_active'] === true || row['version'] === params[1]))
+          .map(({ version, status, is_active }) => ({ version, status, is_active }));
+        return pgResult(selected);
       }
       if (/count\(\*\).*active_version/i.test(flat)) {
         const businessId = String(params[0]);
@@ -102,7 +132,7 @@ function fixtureDb(calls: Call[]) {
         }]);
       }
       if (/FROM business_versions/i.test(flat)) {
-        const sourceRows = flat.includes('FROM (')
+        const sourceRows = /FROM \( SELECT latest\.business_id/i.test(flat)
           ? latestBusinessRows()
           : businessRows.filter((row) => row['business_id'] === params[0]);
         return pgResult(applySortAndCursor(sourceRows, flat, params));
@@ -113,6 +143,11 @@ function fixtureDb(calls: Call[]) {
       if (/FROM api_keys/i.test(flat)) return pgResult(applySortAndCursor(apiRowsFor(sql, params), flat, params));
       if (/FROM profile_bindings/i.test(flat)) return pgResult([]);
       throw new Error('unexpected SQL in test: ' + flat.slice(0, 180));
+  };
+  return {
+    query,
+    async tx<T>(fn: (client: { query: typeof query }) => Promise<T>): Promise<T> {
+      return fn({ query });
     },
   };
 }

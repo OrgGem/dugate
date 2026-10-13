@@ -15,6 +15,10 @@ import type { OperationDetail } from '@du/contracts';
 import { OPERATIONS_LIST_QUERY_PARAMS, OPERATIONS_LIST_SORT_VALUES, isOperationsListFilterToken } from '@du/contracts';
 import { TENANT_A, TENANT_B, ADMIN_TOKEN, OPERATOR_TOKEN, pgResult, dbRow, listRoute, pageQuery, countQuery, decodeCursor, calls_with_page, OPERATIONS_LIST_PAGE_SQL_RE } from './helpers/operations-page-fixture';
 
+async function runLegacyListFixture(fixture: ReturnType<typeof listRoute>) {
+  return route(fixture.ctx);
+}
+
 
 
 describe('W-ADMUX02-SRV-1: parseOperationsListQuery allow-list', () => {
@@ -26,6 +30,16 @@ describe('W-ADMUX02-SRV-1: parseOperationsListQuery allow-list', () => {
       stateFilter: 'ALL',
       tenantId: null,
       idContains: null,
+      businessContains: null,
+      actionContains: null,
+      apiKeyContains: null,
+      profileContains: null,
+      correlationContains: null,
+      providerContains: null,
+      modelContains: null,
+      usageFilter: 'any',
+      reservationFilter: 'any',
+      attentionFilter: 'any',
       // The order this route had before a sort parameter existed: an absent
       // sort must not be "no order", it must be THE order, so every cursor and
       // deep link written earlier keeps paging the same rows.
@@ -95,7 +109,7 @@ describe('W-ADMUX02-SRV-1: parseOperationsListQuery allow-list', () => {
 
 
 
-describe('W-ADMUX02-SRV-1: GET /api/v1/operations envelope', () => {
+describe('W-ADMUX02-SRV-1: internal admin operations envelope', () => {
   it('platform admin without a tenant param reads cross-tenant and gets the documented keys', async () => {
     const { ctx, calls } = listRoute({
       search: '',
@@ -240,7 +254,8 @@ describe('W-ADMUX02-SRV-1-FIX: prev cursor is a real backward hop', () => {
     const calls: { sql: string; params: unknown[] }[] = [];
     const ctx = {
       method: 'GET',
-      pathname: '/api/v1/operations',
+      pathname: '/api/internal/operations',
+      ingressAudience: 'internal',
       searchParams: new URLSearchParams(''),
       headers: { authorization: `Bearer ${ADMIN_TOKEN}` },
       config: { adminToken: ADMIN_TOKEN },
@@ -501,35 +516,37 @@ describe('W-ADMUX02-SRV-1: filters are server-side, bound, and tenant-fenced', (
   //
   // So the fence is real, it is simply expressed as "a foreign tenant param is
   // ignored and the KEY's tenant is bound into the query" rather than as a 403.
-  it('the x-api-key path is fenced by the KEY: a foreign tenant param is ignored, not honoured', async () => {
+  it('the mounted legacy public x-api-key path ignores unsupported scope guesses and stays key-fenced', async () => {
     const own = listRoute({
-      search: `tenant=${TENANT_A}`,
+      search: `page_size=1&filter=state=RUNNING&tenant_id=${TENANT_A}`,
       headers: { 'x-api-key': 'raw-key' },
+      audience: 'public',
       db: {
         page: [dbRow('op-A', '2026-09-25T00:00:00.000Z')],
         total: 1,
         apiKey: { id: 'key-1', tenantId: TENANT_A },
       },
     });
-    const ownRes = (await route(own.ctx)) as { status: number; body: Record<string, unknown> };
+    const ownRes = await runLegacyListFixture(own);
     expect(ownRes.status).toBe(200);
     expect(pageQuery(own.calls).params[0]).toBe(TENANT_A);
 
     const foreign = listRoute({
-      search: `tenant=${TENANT_B}`,
+      search: `page_size=1&filter=state=RUNNING&tenant_id=${TENANT_B}`,
       headers: { 'x-api-key': 'raw-key' },
+      audience: 'public',
       db: {
         page: [dbRow('op-A', '2026-09-25T00:00:00.000Z')],
         total: 1,
         apiKey: { id: 'key-1', tenantId: TENANT_A },
       },
     });
-    const foreignRes = (await route(foreign.ctx)) as { status: number; body: Record<string, unknown> };
+    const foreignRes = await runLegacyListFixture(foreign);
 
     // 200, not 403: the compat facade answers this caller.
     expect(foreignRes.status).toBe(200);
     // The LEGACY envelope. These keys are how we know which branch ran.
-    expect(Object.keys(foreignRes.body).sort()).toEqual(['next_page_token', 'operations']);
+    expect(Object.keys(foreignRes.body as Record<string, unknown>).sort()).toEqual(['next_page_token', 'operations']);
 
     // The fence itself, asserted as a predicate rather than as a status code:
     const page = pageQuery(foreign.calls);
@@ -543,6 +560,83 @@ describe('W-ADMUX02-SRV-1: filters are server-side, bound, and tenant-fenced', (
     // prove that a real PostgreSQL withholds tenant-B rows — that needs a live
     // DB leg. Asserting row absence here would be asserting the mock.
     expect((foreignRes.body as { operations: unknown[] }).operations).toHaveLength(1);
+  });
+
+  it('the mounted public x-api-key list keeps legacy page_size and ignores unknown pagination guesses', async () => {
+    const fixture = listRoute({
+      search: 'page_size=1&offset=9&page=9&order_by=id',
+      headers: { 'x-api-key': 'raw-key' },
+      audience: 'public',
+      db: {
+        page: [dbRow('op-public-1', '2026-09-25T00:00:00.000Z')],
+        total: 1,
+        apiKey: { id: 'key-1', tenantId: TENANT_A },
+      },
+    });
+    const response = await runLegacyListFixture(fixture);
+    expect(response.status).toBe(200);
+    expect(Object.keys(response.body as Record<string, unknown>).sort()).toEqual([
+      'next_page_token',
+      'operations',
+    ]);
+    expect(pageQuery(fixture.calls).params[1]).toBe(2);
+    expect(fixture.calls.every((call) => !call.params.includes(9))).toBe(true);
+  });
+
+  it('the legacy public list isolates two keys in the same tenant', async () => {
+    const fixture = listRoute({
+      search: 'page_size=1',
+      headers: { 'x-api-key': 'raw-key-two' },
+      audience: 'public',
+      db: {
+        page: [dbRow('op-key-two', '2026-09-25T00:00:00.000Z')],
+        total: 1,
+        apiKey: { id: 'key-2', tenantId: TENANT_A },
+      },
+    });
+    const response = await route(fixture.ctx);
+    expect(response.status).toBe(200);
+    const page = pageQuery(fixture.calls);
+    expect(page.sql).toContain('tenant_id = $1');
+    expect(page.sql).toContain('api_key_id = $3');
+    expect(page.params[0]).toBe(TENANT_A);
+    expect(page.params[2]).toBe('key-2');
+  });
+
+  it('the canonical public list isolates same-tenant keys and rejects cross-key cursor replay before paging', async () => {
+    const first = listRoute({
+      search: 'limit=1',
+      headers: { 'x-api-key': 'raw-key-one' },
+      audience: 'public',
+      db: {
+        page: [
+          dbRow('11111111-1111-4111-8111-111111111111', '2026-09-25T02:00:00.000Z'),
+          dbRow('22222222-2222-4222-8222-222222222222', '2026-09-25T01:00:00.000Z'),
+        ],
+        total: 2,
+        apiKey: { id: 'key-1', tenantId: TENANT_A },
+      },
+    });
+    const firstResponse = await route(first.ctx);
+    expect(firstResponse.status).toBe(200);
+    const firstPageQuery = pageQuery(first.calls);
+    expect(firstPageQuery.sql).toContain('api_key_id = $');
+    expect(firstPageQuery.params).toContain('key-1');
+    const cursor = (firstResponse.body as { nextCursor?: string | null }).nextCursor;
+    expect(cursor).toEqual(expect.any(String));
+
+    const second = listRoute({
+      search: `limit=1&cursor=${encodeURIComponent(cursor as string)}`,
+      headers: { 'x-api-key': 'raw-key-two' },
+      audience: 'public',
+      db: {
+        page: [],
+        total: 0,
+        apiKey: { id: 'key-2', tenantId: TENANT_A },
+      },
+    });
+    await expect(route(second.ctx)).rejects.toMatchObject({ status: 422, code: 'INVALID_SCHEMA' });
+    expect(second.calls.filter((call) => OPERATIONS_LIST_PAGE_SQL_RE.test(call.sql))).toHaveLength(0);
   });
 
   // Objective-2 leg: confirm the CANONICAL branch is reachable with a bearer,

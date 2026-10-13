@@ -336,6 +336,14 @@ function requireParams<K extends string>(call: AdminActionCall, names: K[]): Rec
   return out;
 }
 
+function requireExpectedActivationRevision(call: AdminActionCall): number {
+  const revision = call.params.expectedActivationRevision;
+  if (typeof revision !== 'number' || !Number.isSafeInteger(revision) || revision < 1) {
+    throw new HttpError(422, 'INVALID_SCHEMA', 'expectedActivationRevision must be a positive integer');
+  }
+  return revision;
+}
+
 /**
  * Tenant resolution for operation-control actions. An operator acts with
  * ITS OWN credential tenant and the tenant-scoped service 404s foreign
@@ -580,39 +588,33 @@ export async function dispatchAdminAction(
     }
     case 'business.enable': {
       const p = requireParams(call, ['businessId', 'version']);
+      const expectedActivationRevision = requireExpectedActivationRevision(call);
       const outcome = await executeIdempotent(deps.db, idem, async (withMarker) => {
-        await auditedMutation(
+        const result = await auditedMutation(
           deps.db,
           deps.audit,
-          async (client) => {
-            const result = await client.query(
-              'UPDATE business_versions SET status=$3, updated_at=now() WHERE business_id=$1 AND version=$2',
-              [p.businessId, p.version, 'ENABLED']
-            );
-            if (!result.rowCount) {
-              throw new HttpError(404, 'NOT_FOUND', `business ${p.businessId}@${p.version} not registered`);
-            }
-          },
-          () => ({
+          (client) => deps.registry.enableVersion(p.businessId, p.version, expectedActivationRevision, client, actor),
+          (r) => ({
             tenantId: null,
             actor,
             ...principalFields,
             action: 'business.enable',
-            resource: `business:${p.businessId}@${p.version}`,
+            resource: `business:${p.businessId}@${p.version}:activation-revision:${r.activationRevision}`,
             severity: 'success',
             correlationId: deps.correlationId,
           }),
           call.idempotencyKey
-            ? (client) => withMarker(client, { status: 200, body: { businessId: p.businessId, version: p.version, status: 'ENABLED' } })
+            ? (client, r) => withMarker(client, { status: 200, body: r as unknown as Record<string, unknown> })
             : undefined
         );
-        return { status: 200, body: { businessId: p.businessId, version: p.version, status: 'ENABLED' } };
+        return { status: 200, body: result as unknown as Record<string, unknown> };
       });
       return { status: outcome.status, body: outcome.body as Record<string, unknown> };
     }
     case 'business.activate':
     case 'business.drain': {
       const p = requireParams(call, ['businessId', 'version']);
+      const expectedActivationRevision = requireExpectedActivationRevision(call);
       const isActivate = call.action === 'business.activate';
       const outcome = await executeIdempotent(deps.db, idem, async (withMarker) => {
         const result = await auditedMutation(
@@ -620,14 +622,14 @@ export async function dispatchAdminAction(
           deps.audit,
           (client) =>
             isActivate
-              ? deps.registry.activateVersion(p.businessId, p.version, client)
-              : deps.registry.deactivateVersion(p.businessId, p.version, client),
+              ? deps.registry.activateVersion(p.businessId, p.version, expectedActivationRevision, client, actor)
+              : deps.registry.deactivateVersion(p.businessId, p.version, expectedActivationRevision, client, actor),
           (r) => ({
             tenantId: null,
             actor,
             ...principalFields,
             action: isActivate ? 'business.activate' : 'business.drain',
-            resource: `business:${r.businessId}@${r.version}`,
+            resource: `business:${r.businessId}@${r.version}:activation-revision:${r.activationRevision}`,
             severity: isActivate ? 'info' : 'warning',
             correlationId: deps.correlationId,
           }),

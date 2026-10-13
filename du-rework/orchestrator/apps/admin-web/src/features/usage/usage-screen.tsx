@@ -129,7 +129,7 @@ function WindowPresets({ onChoose }: { onChoose: (durationMs: number) => void })
 }
 
 export function UsageScreen() {
-  const { tenantId, tenant } = useTenant();
+  const { tenantId } = useTenant();
   const client = useMemo(() => createAdminApiClient(), []);
   const [session, setSession] = useState<SessionState>({ kind: 'loading' });
   const [sessionRetry, setSessionRetry] = useState(0);
@@ -382,14 +382,6 @@ export function UsageScreen() {
           </CardDescription>
         </CardHeader>
         <CardContent className="flex min-w-0 flex-col gap-4">
-          <div className="flex min-w-0 flex-wrap items-center gap-2 rounded border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-3 text-sm">
-            <span className="font-medium text-[var(--text-main)]">Active tenant</span>
-            <span className="min-w-0 break-all text-[var(--text-sub)]">
-              {tenant?.name || (tenantId ? `Tenant (${tenantId.slice(0, 8)}…)` : 'No tenant selected')}
-            </span>
-            {tenantId ? <code className="min-w-0 break-all text-xs text-[var(--text-sub)]">{tenantId}</code> : null}
-            {tenant ? <Badge variant={tenant.state === 'ACTIVE' ? 'success' : 'neutral'}>{tenant.state}</Badge> : null}
-          </div>
           {session.kind === 'loading' ? <p role="status" className="text-sm text-[var(--text-sub)]">Checking admin session…</p> : null}
           {session.kind === 'failed' ? (
             <ErrorState title={session.problem.title ?? 'Admin session unavailable.'} statusCode={session.problem.status} error={session.problem.code} onRetry={() => setSessionRetry((value) => value + 1)} />
@@ -500,9 +492,9 @@ export function UsageScreen() {
                   <p className="text-xs text-[var(--text-sub)]">Rows preserve the status reported by the summary service. Unit measurement and cost status are shown separately.</p>
                 </div>
                 {currentSummary.data.rows.length === 0 ? <p className="text-sm text-[var(--text-sub)]">No provider/model breakdown is available for this window.</p> : (
-                  <TableContainer role="region" aria-label="Provider and model usage table" tabIndex={0} className="max-w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]">
-                      <Table aria-label="Usage by provider and model" className="min-w-[680px]">
-                        <TableHeader>
+                  <TableContainer maxHeight="65dvh" role="region" aria-label="Provider and model usage table" className="max-w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]">
+                      <Table aria-label="Usage by provider and model" density="compact" className="min-w-[680px]">
+                        <TableHeader sticky>
                           <TableRow>
                             <TableHead>Provider / model</TableHead>
                             <TableHead>Operations</TableHead>
@@ -578,9 +570,9 @@ export function UsageScreen() {
                 ? <EmptyState title="No displayable events on this page" description="Some stored rows were skipped by the service because their usage record did not meet the safe projection contract." />
                 : <EmptyState title="No usage events" description="No ledger rows match this tenant, window and applied ledger filters." />
             ) : (
-              <TableContainer role="region" aria-label="Usage event ledger table" tabIndex={0} className="max-w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]">
-                  <Table aria-label="Usage event ledger" className="min-w-[760px]">
-                    <TableHeader>
+              <TableContainer maxHeight="65dvh" role="region" aria-label="Usage event ledger table" className="max-w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]">
+                  <Table aria-label="Usage event ledger" density="compact" className="min-w-[760px]">
+                    <TableHeader sticky>
                       <TableRow>
                         <TableHead>Event / received</TableHead>
                         <TableHead>Operation</TableHead>

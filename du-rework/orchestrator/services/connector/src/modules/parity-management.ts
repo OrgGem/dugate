@@ -55,6 +55,7 @@ export interface ConnectorInternalRollbackDraft {
 
 export interface ConnectorParityManagementPort {
   listActiveConnectorRevisions(query: TenantActiveConnectorCatalogQuery): Promise<TenantActiveConnectorCatalogPage>;
+  hasTypedChain(tenantId: string, connectorId: string): Promise<boolean>;
   claimRecipeDraft(input: ConnectorParityClaimInput): Promise<ConnectorParityClaimResult>;
   getRevision(tenantId: string, connectorId: string, revision: number): Promise<ConnectorParityRevision | undefined>;
   upsertDraft(input: ConnectorInternalDraftUpsert): Promise<ConnectorParityDraftResult>;
@@ -80,6 +81,11 @@ export function createConnectorParityManagement(options: ConnectorParityManageme
       const parsed = TenantActiveConnectorCatalogQuerySchema.safeParse(query);
       if (!parsed.success) throw new ConnectorError('INVALID_INPUT', 'Tenant Connector catalog query is invalid.');
       return repository.listActiveRevisions(parsed.data);
+    },
+
+    async hasTypedChain(tenantId, connectorId) {
+      validateScope(tenantId, connectorId);
+      return repository.hasTypedChain(tenantId, connectorId);
     },
 
     async claimRecipeDraft(input) {

@@ -8,6 +8,7 @@ import {
 } from '../src/modules/admin-actions/dispatcher';
 import type { AdminActionAuth } from '../src/modules/admin-actions/rbac';
 import { createProfileService } from '../src/modules/profiles/profiles';
+import type { ConnectorManagementStore } from '../src/modules/connectors/connector-management-store';
 import { HttpError } from '../src/http/errors';
 
 /**
@@ -48,6 +49,9 @@ function makeFake(opts: { pointer?: boolean; seedProfile?: boolean } = {}) {
   const state = {
     businessVersions: [{ business_id: BIZ, version: VER, manifest: { actions: [{ name: 'extract' }] }, is_active: true }],
     apiKeys: [{ id: KEY_ID, tenant_id: TENANT, hash: KEY_HASH, status: 'ACTIVE' }],
+    memberships: seedProfile
+      ? [{ profile_id: PROFILE_ID, api_key_id: KEY_ID, tenant_id: TENANT, state: 'ACTIVE' }]
+      : [],
     names: seedProfile
       ? [
           {
@@ -94,6 +98,7 @@ function makeFake(opts: { pointer?: boolean; seedProfile?: boolean } = {}) {
 
   const query = (_via: 'pool' | 'tx', sql: string, params: unknown[]): { rows: Record<string, unknown>[]; rowCount: number } => {
     state.queries.push({ sql, params: [...params] });
+    if (/SELECT pg_advisory_xact_lock/.test(sql)) return { rows: [], rowCount: 1 };
     // --- route reads ---
     if (/FROM business_versions/.test(sql)) {
       const bv = state.businessVersions.find((r) =>
@@ -136,6 +141,46 @@ function makeFake(opts: { pointer?: boolean; seedProfile?: boolean } = {}) {
       );
       return { rows: hit ? [{ '?column?': 1 }] : [], rowCount: hit ? 1 : 0 };
     }
+    if (/SELECT group_id FROM profile_names/.test(sql)) {
+      const hit = state.names.find((name) => name.profile_id === params[0]);
+      return { rows: hit ? [{ group_id: null }] : [], rowCount: hit ? 1 : 0 };
+    }
+    if (/SELECT b\.business_id, b\.business_version, b\.action, b\.endpoint_slug/.test(sql)) {
+      const profileId = String(params[0]);
+      const name = state.names.find((candidate) => candidate.profile_id === profileId);
+      const revision = state.pointers.get(profileId);
+      const binding = revision === undefined ? undefined : state.bindings.find((candidate) =>
+        candidate.profile_id === profileId && candidate.revision === revision);
+      const row = name && binding
+        ? { business_id: name.business_id, business_version: name.business_version, action: name.action, endpoint_slug: null }
+        : undefined;
+      return { rows: row ? [row] : [], rowCount: row ? 1 : 0 };
+    }
+    if (/SELECT p\.connector_bindings FROM profile_active_revisions/.test(sql)) {
+      const profileId = String(params[0]);
+      const revision = state.pointers.get(profileId);
+      const binding = revision === undefined ? undefined : state.bindings.find((candidate) =>
+        candidate.profile_id === profileId && candidate.revision === revision);
+      return { rows: binding ? [{ connector_bindings: binding.connector_bindings ?? {} }] : [], rowCount: binding ? 1 : 0 };
+    }
+    if (/SELECT b\.profile_id\s+FROM profile_active_revisions/.test(sql)) return { rows: [], rowCount: 0 };
+    if (/SELECT n\.profile_id FROM profile_names n/.test(sql)) {
+      const [tenant, keyId, biz, ver, action, name] = params as string[];
+      const hits = state.names.filter((n) =>
+        n.tenant_id === tenant && n.business_id === biz && n.business_version === ver
+        && n.action === action && n.profile_name === name
+        && (n.api_key_id === keyId || state.memberships.some((membership) =>
+          membership.profile_id === n.profile_id && membership.api_key_id === keyId
+          && membership.tenant_id === tenant && membership.state === 'ACTIVE'))
+      );
+      return { rows: hits.slice(0, 2).map((n) => ({ profile_id: n.profile_id })), rowCount: Math.min(hits.length, 2) };
+    }
+    if (/SELECT api_key_id, tenant_id FROM profile_api_keys/.test(sql)) {
+      const memberships = state.memberships.filter((membership) =>
+        membership.profile_id === params[0] && membership.state === 'ACTIVE')
+        .sort((a, b) => a.api_key_id.localeCompare(b.api_key_id));
+      return { rows: memberships.map(({ api_key_id, tenant_id }) => ({ api_key_id, tenant_id })), rowCount: memberships.length };
+    }
     // --- upsert slice ---
     if (/SELECT profile_id FROM profile_names/.test(sql)) {
       const [tenant, keyId, biz, ver, action, name] = params as string[];
@@ -162,6 +207,10 @@ function makeFake(opts: { pointer?: boolean; seedProfile?: boolean } = {}) {
       });
       undo.push(() => state.names.pop());
       return { rows: [], rowCount: 1 };
+    }
+    if (/SELECT id, tenant_id, hash, prefix, status FROM api_keys/.test(sql)) {
+      const hit = state.apiKeys.find((k) => k.id === params[0] && k.status === 'ACTIVE');
+      return { rows: hit ? [{ ...hit, prefix: 'du_test' }] : [], rowCount: hit ? 1 : 0 };
     }
     if (/SELECT id, tenant_id, hash FROM api_keys/.test(sql)) {
       const hit = state.apiKeys.find((k) => k.id === params[0] && k.status === 'ACTIVE');
@@ -193,6 +242,7 @@ function makeFake(opts: { pointer?: boolean; seedProfile?: boolean } = {}) {
       state.bindings.push({
         profile_id: String(p[0]),
         revision: Number(p[1]),
+        connector_bindings: JSON.parse(String(p[7])) as unknown,
         enabled: Boolean(p[8]),
         parameters: JSON.parse(String(p[9])) as unknown,
         job_priority: String(p[10]),
@@ -223,6 +273,13 @@ function makeFake(opts: { pointer?: boolean; seedProfile?: boolean } = {}) {
       state.audit.push({ params });
       undo.push(() => state.audit.pop());
       return { rows: [{ id: 'audit-1' }], rowCount: 1 };
+    }
+    if (/INSERT INTO profile_api_keys/.test(sql)) {
+      const [profile_id, api_key_id, tenant_id] = params as [string, string, string];
+      if (!state.memberships.some((membership) => membership.profile_id === profile_id && membership.api_key_id === api_key_id)) {
+        state.memberships.push({ profile_id, api_key_id, tenant_id, state: 'ACTIVE' });
+      }
+      return { rows: [], rowCount: 1 };
     }
     throw new Error(`unhandled SQL: ${sql.slice(0, 90)}`);
   };
@@ -279,11 +336,19 @@ function adminCtx(fake: ReturnType<typeof makeFake>, pathname: string, over?: Pa
 }
 
 function makeDispatchDeps(fake: ReturnType<typeof makeFake>): AdminActionDeps {
+  const connectorManagement: Pick<ConnectorManagementStore, 'getRecipeRevision' | 'hasRecipeChain' | 'getRevision'> = {
+    getRecipeRevision: async () => undefined,
+    hasRecipeChain: async () => false,
+    getRevision: async (connectorId, revision) => connectorId === 'prompt-test' && revision === 3
+      ? { connectorId, revision, adapter: 'http', state: 'ACTIVE', config: {}, tenantId: TENANT }
+      : undefined,
+  };
   return {
     db: fake.db as never,
     audit: createAuditService(fake.db as never),
     registry: {} as never,
-    profiles: createProfileService(fake.db as never, { cryptoEnv: { ENCRYPTION_KEY: 'test-encryption-key' } }),
+    profiles: createProfileService(fake.db as never, { cryptoEnv: { ENCRYPTION_KEY: 'test-encryption-key' }, connectorManagement }),
+    connectorManagement: connectorManagement as unknown as ConnectorManagementStore,
     lifecycle: {} as never,
     runtime: { resumeOperation: async () => ({}) },
     hashApiKey: (raw: string) => raw,
@@ -451,5 +516,6 @@ describe('T-API-01 closure — detail → upsert end-to-end (offline)', () => {
     expect(after.policy.jobPriority).toBe('HIGH');
     expect(after.policy.fileUrlAuthConfigured).toBe(true);
     expect(after.apiKeyId).toBe(KEY_ID);
+    expect(after.connectorBindings).toEqual({ 'ext-prompt-wizard': { connectorId: 'prompt-test', revision: 3 } });
   });
 });

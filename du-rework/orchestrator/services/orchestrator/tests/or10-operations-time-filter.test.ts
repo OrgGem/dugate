@@ -58,7 +58,8 @@ function routeContext(search: string, calls: QueryCall[]): RouteContext {
   };
   return {
     method: 'GET',
-    pathname: '/api/v1/operations',
+    pathname: '/api/internal/operations',
+    ingressAudience: 'internal',
     searchParams: new URLSearchParams(search),
     headers: { authorization: 'Bearer ' + ADMIN_TOKEN },
     config: { adminToken: ADMIN_TOKEN },
@@ -204,7 +205,7 @@ describe('AWEB-20a Operations BFF time-filter forwarding', () => {
     );
     expect(response.status).toBe(200);
     const forwarded = new URL(requests[0] ?? '/', 'http://upstream.test');
-    expect(forwarded.pathname).toBe('/api/v1/operations');
+    expect(forwarded.pathname).toBe('/api/internal/operations');
     expect(forwarded.searchParams.get('from')).toBe(FROM);
     expect(forwarded.searchParams.get('to')).toBe(TO);
     expect(forwarded.searchParams.has('ignored')).toBe(false);

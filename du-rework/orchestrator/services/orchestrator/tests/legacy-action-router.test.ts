@@ -385,7 +385,7 @@ describe('COMP-03 legacy action router', () => {
       expect(call.idempotencyKey).toBe('idem-1');
       expect(call.correlationId).toBe('corr-1');
       expect(call.submission.input).toMatchObject({
-        variant: 'compliance',
+        task: 'compliance',
         criteria: 'signed by both parties',
         targetLanguage: 'vi',
       });

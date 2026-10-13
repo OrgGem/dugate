@@ -1,7 +1,3 @@
-// VENDORED from @du/contracts @ b088eececcb5f3df0b4edbe073a29401dafda624 (worktree 2026-10-06)
-// source: packages/contracts/src/sdk.ts (lines=50) sha256=5E193929A19A5447A3BAFEDED8885640D749F7B456643A63ADBEBDCF4AC9A58F
-// why: TaskDisposition for src/worker.ts
-
 import { z } from 'zod';
 
 /**

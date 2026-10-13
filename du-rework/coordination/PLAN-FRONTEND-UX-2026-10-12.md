@@ -1,0 +1,56 @@
+# Frontend usability adjustments
+
+User request: fix form/action alignment with warning/error messages, responsive layout, sidebar hierarchy and excessive subitems, horizontal icon/text buttons, and excessive page scrolling. Working scope is the du-rework admin-web frontend, consistent with the application in the preceding task. This change does not modify business-worker authentication or backend execution semantics.
+
+## Acceptance
+
+- Shared inputs and buttons retain aligned control rows when validation text appears; errors remain readable, associated with their controls and accessible.
+- Icon and label remain in one horizontal button layout; narrow-screen actions wrap at the action-group level without overlapping or leaving the viewport.
+- Navigation shows a clear parent/child hierarchy. Related destinations are exposed as page tabs, preserving routes, deep links, selected states and existing permissions.
+- Large collections use meaningful tables with pagination and bounded content height. Header, filters and pagination remain reachable; rows and actions stay accessible on narrow screens. Pagination must respect actual loaded data and existing server behavior.
+- Desktop, tablet and mobile checks cover error/warning states, long labels, many rows, empty data, page switching and route navigation. Source/build/mock-browser evidence is reported separately from live deployment.
+
+## Codex ownership
+
+- Primary: planning, file leases, coordination and evidence synthesis only.
+- `/root/frontend_ux_review`: read-only source audit and later independent review, gpt-6.1-sol high.
+- `/root/frontend_inventory`: read-only exploration of source, commands, baseline and browser harness, gpt-6-luna max.
+- Implementation and visual verification packets will be assigned to gpt-6-luna max workers after exact paths are known; no worker spawns additional agents.
+
+Baseline: `codex/fix-workflow-builder`, `d2f0c88`. The pre-existing untracked receipt dated 2026-10-11 remains untouched. No commit/push or deployment is part of this new frontend request unless requested later.
+
+Current status: frontend implementation, independent source review, browser verification and final receipts complete. The checkpoints below retain the sequence of ownership and repairs.
+
+## Implementation packets after source audit
+
+| Worker | Lease | Concrete scope |
+| --- | --- | --- |
+| frontend_shared_ui | `src/components/ui/**`, optionally `src/styles/app.css`; dedicated tests | Button child flex layout; safe FormField label/control/message semantics; opt-in bounded TableContainer, sticky TableHeader and callback-only TablePagination. |
+| frontend_navigation | app-shell; system-operations route/cockpit/workspace/incidents; operations screen; dedicated tests | System Operations route tabs, preserve deep links/incident visibility; responsive shell and clearly indented remaining hierarchy; preserve server operation cursors and filters with compact bounded tables. Additional Access/Resources grouping subject to existing route/permission evidence. |
+| frontend_configuration_pages | Explicit businesses/profiles/connectors/settings screen/editor files; dedicated tests | Persistent detail/editor tabs, responsive control-row action alignment, bounded tables and actual dataset-aware paging. No API/state/backend rewrites. |
+
+Lease refinement: frontend_configuration_pages now writes Businesses and Profiles only. It confirmed Connectors/Settings were untouched and released those paths before `/root/frontend_connectors_settings` received their exact screen/editor lease. The latter owns connector catalog/inspector/recipe/import and Settings workspace tabs, preserving current mutation/draft owners. Shared and navigation source are frozen; each focused owner packet passed four checks. Interim package checks encountered concurrent unfinished page files and are superseded by the final independent build after all owners freeze.
+
+`/root/frontend_browser_verify` owns only new verification spec/harness/report files, prepares browser-route mock fixtures without editing the existing harness, and will rebuild/inspect the integrated SPA after the two page owners freeze. No live data/provider calls are part of its fixtures.
+
+Audit confirms FormField messages plus `items-end` toolbars shift actions, Button's plain inner span leaves icon/text unaligned, and TableContainer lacks bounded vertical scrolling. Plain `items-start` is insufficient for a labeled field beside a button: the action must align with the input row rather than the label. Existing Base UI tabs should retain accessibility and keyboard semantics; mutation/draft owners stay mounted with hidden panels inaccessible.
+
+Paging contracts: operations and profile catalogs use existing server cursors; business list exposes nextCursor to the current parser; connector revisions and currently loaded business versions are locally paginated and must explicitly describe the loaded subset. Connector active-head selection and suggestions use the full returned collection. Never infer complete catalog totals or page an already server-paged collection again.
+
+Verification environment: installed Playwright/Chromium and the lightweight admin-web browser harness can serve a freshly rebuilt SPA with scripted upstream stubs. Desktop/tablet/mobile (1440/768/390/320), representative long values, warning/error control alignment, many rows and actual navigation/paging/draft preservation are required. This is mock-browser verification, not production service/deployment proof.
+
+Checkpoint: shared source and navigation are frozen. `frontend-shared-ui.md` records four focused SSR checks; `receipt-frontend-navigation.md` records four focused navigation/source-contract checks, not browser hydration proof. Source reviewer is checking those frozen packets while Businesses/Profiles and Connectors/Settings remain active. Browser verification prep added isolated `frontend-ux.verify.spec.ts` and its Playwright config; no build/browser result exists yet. Connector UNKNOWN-attempt browser coverage is currently omitted and must remain an explicit limit unless a real mock scenario is added. Configuration tabs must still preserve its state owner in source.
+
+Source-review repair checkpoint: reviewed navigation preserves permission/cursor/deep-link semantics, but the shared Button's nonshrinking children plus the shell's account/Logout row can overflow at 320px with a long name. frontend_navigation receives a narrow shell fix (shared Button remains owned/frozen). It also receives explicit caller leases for Trace, Secrets, Audit, Usage/cost panels, Security, API Keys, Identity, Workflows, and overview operation tables. These retain existing state/API contracts: proper secret catalog cursor paging/reset, current audit/usage/export cursors, bounded loaded samples/history, retained note/dialog drafts, and accessible workflow mapping overflow. Intentional chart/header `items-end` remains unchanged. This closes the broader caller coverage rather than claiming shared components alone fix every page.
+
+Final source checkpoint: all implementation packets are frozen and independently source-reviewed. Review findings about failed-page retry, workflow-profile selection across catalog pages, delayed profile responses, delayed Secrets mutation tenant scope, connector selection during mutation, and Settings migration labels have been repaired. Integrated TypeScript checking initially found a nullable profile cursor type and an unused Secrets import; the configuration owner repaired both under an explicit narrow lease. Independent integrated admin-web typecheck and build now pass, with a freshly generated SPA. Vite reported existing contract `node:crypto` externalization and a large JS chunk warning; these do not constitute runtime verification. Focused test aggregation, browser-package checks, and actual viewport/theme/async regression verification are in progress against that fresh build.
+
+Browser-driven follow-up: the first real run exposed an Operations row growing to 169px with a 515-character business ID. A narrow density repair keeps full text/title/detail access, bounds visible business text, and retains every action in one horizontally reachable row. Independent source review approved hash `580927B311CB35E584844E44DB85A3CB38EE693EC72278782A802ED51F023A27`; fresh-build measurement is 49px with the same fixture. Integrated admin-web typecheck/build pass again and focused tests pass 20/20. Existing Operations state fixtures were synchronized with their current filter/callback contract without changing assertions or state logic; all 24 tests pass and independent review approved hash `38A87D15C274B936A0BF3BF1D20F4ED6C300F19ECDF487A079D45B0FD46897E5`.
+
+Browser package lint/typecheck remains blocked in unchanged alias/state/harness and existing key-spec files; the new isolated verification spec/config has no reported compiler errors. Real Playwright execution uses the installed runner against the fresh SPA. Corrected diagnostic runs confirm navigation, narrow account/Trace alignment, Secrets cursor/reset and delayed mutation tenant isolation, stale profile response guarding, and bounded Workflow mappings; final complete viewport/theme/draft verification is pending. Raw failed diagnostic runs remain preserved and must not be reported as final success.
+
+Final acceptance: source and visual review approved a last Operations nowrap-only repair (`FF3C537C09FDD931B498ED142DE57EDAA1173FB593F9E0DCCB9F352CDF50F58B`). Admin-web typecheck/build both pass on this source (`raw/frontend-browser-20261012-final-12`), and Operations passes its targeted test against the fresh build (`final-13`, one test passed in 9.3s), including the eight viewport/theme matrix, paging, detail UNKNOWN and disabled retry. Nine other scenarios passed in the prior full ten-scenario run (`final-05`); its one Operations failure was corrected in the fixture and independently rerun, so do not call that earlier batch ten of ten. Settings actual edited draft retention, Business retry/workflow-profile persistence, Connector pending lock/selection, Secrets scope/cursor/race, Trace alignment, navigation/grants and Workflow bounded access all have executed browser evidence. Primary inspected final build/test logs and final 768-light/320-dark viewport images; the tablet header/ID readability issue is closed.
+
+Boundaries: browser data is synthetic and intercepted, with real shell/session and freshly built SPA; this is no live backend/provider or deployed-container claim. Connector UNKNOWN reconciliation remains source-only. Browser-package lint remains blocked in unchanged files; new verification spec/config has no reported errors. Vite warns about contract node:crypto externalization and the large JS bundle. All tracked product changes are frontend-only and full diff whitespace checking passes. No commit/push/deployment occurred for this frontend request; the old untracked receipt remains untouched.
+
+Final browser receipt: `coordination/reports/receipt-frontend-browser.md`. The verifier inspected all eight final screenshots and stopped only its verified harness process, with no file cleanup. Final artifacts and failed diagnostic logs remain available for review.

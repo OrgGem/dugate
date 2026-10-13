@@ -1,5 +1,5 @@
 import { InitialBindings, type InitialBinding } from './initial-bindings';
-import { Fragment, type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, type FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,7 +7,8 @@ import { FormField } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/dialog';
 import { AlertBanner, DeniedState, ErrorState, LoadingState } from '@/components/ui/state-panel';
-import { Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TablePagination, TableRow } from '@/components/ui/table';
+import { TabsList, TabsPanel, TabsRoot, TabsTab } from '@/components/ui/tabs';
 import {
   createAdminApiClient,
   type AdminWebSession,
@@ -21,6 +22,7 @@ import {
   type RequestRedactionRule,
   type ProfileSelfServiceAssignedPage,
   type ProfileSelfServiceAssignedApiKeyPage,
+  type ApiKeyRow,
 } from '@/lib/api';
 import { groupProfileListRows, profileErrorHint, parseProfileDetail, parseProfileListPage, parseProfileWorkflowPage } from './state';
 import { buildPublishBody, buildRollbackBody, buildUpsertBody } from './command-bodies';
@@ -34,7 +36,8 @@ import { useTenant } from '@/lib/tenant-context';
 import { parseBusinessPage, parseBusinessVersions } from '@/features/businesses/state';
 import { ProfileGroupEditor } from './profile-group-editor';
 import { parseProfileGroupFunctionCatalog } from './profile-group-state';
-import { useLocation, useNavigate } from 'react-router';
+import { createProfileRequestScope, findCurrentActiveProfileApiKey } from './profile-request-scope';
+import { Link, useLocation, useNavigate } from 'react-router';
 
 type Priority = 'LOW' | 'MEDIUM' | 'HIGH';
 type FileUrlAuthType = 'none' | 'bearer' | 'header' | 'query';
@@ -92,6 +95,9 @@ interface RowResult {
 
 type AssignedProfile = ProfileSelfServiceAssignedPage['items'][number];
 type AssignedApiKey = ProfileSelfServiceAssignedApiKeyPage['items'][number];
+type ProfileApiKeyOption = Pick<ApiKeyRow, 'id' | 'tenantId' | 'name' | 'status'>;
+const PROFILE_API_KEY_REQUIRED_MESSAGE = 'Select an active API key for the current tenant before saving, publishing, or rolling back this Profile.';
+const PROFILE_TENANT_SCOPE_REQUIRED_MESSAGE = 'Select a tenant and load a Profile for that tenant before saving, publishing, or rolling back.';
 type WorkbenchPromptProposal = {
   handoffId: string;
   businessId: string;
@@ -173,6 +179,7 @@ function AssignedProfilesWorkspace({
   onProposalConsumed: () => void;
 }) {
   const [query, setQuery] = useState('');
+  const [activeQuery, setActiveQuery] = useState('');
   const [page, setPage] = useState<ProfileSelfServiceAssignedPage | null>(null);
   const [loading, setLoading] = useState(false);
   const [problem, setProblem] = useState<AdminApiProblem | null>(null);
@@ -189,23 +196,39 @@ function AssignedProfilesWorkspace({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [keyLoading, setKeyLoading] = useState(false);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [keyNextCursor, setKeyNextCursor] = useState<string | null>(null);
+  const [assignedPageCursors, setAssignedPageCursors] = useState<Array<string | undefined>>([undefined]);
+  const [assignedPageIndex, setAssignedPageIndex] = useState(0);
   const [conflictRow, setConflictRow] = useState<AssignedProfile | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const searchGeneration = useRef(0);
+  const assignedScopeRef = useRef(tenantId);
   const keyGeneration = useRef(0);
   const saveInFlight = useRef(false);
   const proposalHandoffAttempt = useRef('');
   const workbenchId = useMemo(() => `assigned-${crypto.randomUUID()}`, []);
 
-  async function fetchAssigned(next?: string | null): Promise<ProfileSelfServiceAssignedPage | null> {
+  useLayoutEffect(() => {
+    if (assignedScopeRef.current === tenantId) return;
+    assignedScopeRef.current = tenantId;
+    searchGeneration.current += 1;
+    setLoading(false);
+    setProblem(null);
+    setPage(null);
+    setQuery('');
+    setActiveQuery('');
+    setAssignedPageCursors([undefined]);
+    setAssignedPageIndex(0);
+  }, [tenantId]);
+
+  async function fetchAssigned(next?: string | null, queryValue = activeQuery): Promise<ProfileSelfServiceAssignedPage | null> {
+    const requestTenantId = tenantId;
     const generation = ++searchGeneration.current;
     setLoading(true);
     setProblem(null);
     try {
-      const result = await client.listAssignedProfileEndpoints({ query: query.trim() || undefined, cursor: next ?? undefined, limit: 50 });
-      if (generation !== searchGeneration.current) return null;
+      const result = await client.listAssignedProfileEndpoints({ query: queryValue.trim() || undefined, cursor: next ?? undefined, limit: 50 });
+      if (generation !== searchGeneration.current || assignedScopeRef.current !== requestTenantId) return null;
       if (!result.ok) {
         setProblem(result.problem);
         return null;
@@ -216,18 +239,23 @@ function AssignedProfilesWorkspace({
       }
       return result.data;
     } catch {
-      if (generation === searchGeneration.current) setProblem({ status: 0, code: 'NETWORK_ERROR', title: 'Assigned Profiles could not be loaded.' });
+      if (generation === searchGeneration.current && assignedScopeRef.current === requestTenantId) setProblem({ status: 0, code: 'NETWORK_ERROR', title: 'Assigned Profiles could not be loaded.' });
       return null;
     } finally {
-      if (generation === searchGeneration.current) setLoading(false);
+      if (generation === searchGeneration.current && assignedScopeRef.current === requestTenantId) setLoading(false);
     }
   }
 
-  async function refreshAssigned(): Promise<void> {
-    const result = await fetchAssigned();
-    if (!result) return;
+  function showFirstAssignedPage(result: ProfileSelfServiceAssignedPage): void {
     setPage(result);
-    setNextCursor(result.nextCursor);
+    setAssignedPageIndex(0);
+    setAssignedPageCursors([undefined]);
+  }
+
+  async function refreshAssigned(): Promise<void> {
+    const result = await fetchAssigned(undefined, activeQuery);
+    if (!result) return;
+    showFirstAssignedPage(result);
     if (selected) {
       const refreshed = result.items.find((item) => item.profileId === selected.profileId);
       if (refreshed && refreshed.revision !== selected.revision) setConflictRow(refreshed);
@@ -237,14 +265,16 @@ function AssignedProfilesWorkspace({
   useEffect(() => {
     let active = true;
     const generation = ++searchGeneration.current;
+    const requestTenantId = tenantId;
+    setLoading(true);
     void (async () => {
       const result = await client.listAssignedProfileEndpoints({ limit: 50 });
-      if (!active || generation !== searchGeneration.current) return;
+      if (!active || generation !== searchGeneration.current || assignedScopeRef.current !== requestTenantId) return;
       if (!result.ok) { setProblem(result.problem); return; }
-      if (result.data.tenantId !== tenantId) { setProblem({ status: 502, code: 'SCOPE_MISMATCH', title: 'The assigned Profile response belongs to a different session tenant.' }); return; }
-      setPage(result.data);
-      setNextCursor(result.data.nextCursor);
-    })().catch(() => { if (active && generation === searchGeneration.current) setProblem({ status: 0, code: 'NETWORK_ERROR', title: 'Assigned Profiles could not be loaded.' }); });
+      if (result.data.tenantId !== requestTenantId) { setProblem({ status: 502, code: 'SCOPE_MISMATCH', title: 'The assigned Profile response belongs to a different session tenant.' }); return; }
+      showFirstAssignedPage(result.data);
+    })().catch(() => { if (active && generation === searchGeneration.current && assignedScopeRef.current === requestTenantId) setProblem({ status: 0, code: 'NETWORK_ERROR', title: 'Assigned Profiles could not be loaded.' }); })
+      .finally(() => { if (active && generation === searchGeneration.current && assignedScopeRef.current === requestTenantId) setLoading(false); });
     return () => { active = false; };
   }, [client, tenantId]);
 
@@ -299,10 +329,11 @@ function AssignedProfilesWorkspace({
     const generation = ++searchGeneration.current;
     setLoading(true);
     setProblem(null);
+    const requestTenantId = tenantId;
     void client.listAssignedProfileEndpoints({ query: proposalDraft.profileName, limit: 50 }).then((result) => {
-      if (generation !== searchGeneration.current) return;
+      if (generation !== searchGeneration.current || assignedScopeRef.current !== requestTenantId) return;
       if (!result.ok) { setProblem(result.problem); onProposalConsumed(); return; }
-      if (result.data.tenantId !== tenantId) { setProblem({ status: 502, code: 'SCOPE_MISMATCH', title: 'The Profile proposal belongs to a different session tenant.' }); onProposalConsumed(); return; }
+      if (result.data.tenantId !== requestTenantId) { setProblem({ status: 502, code: 'SCOPE_MISMATCH', title: 'The Profile proposal belongs to a different session tenant.' }); onProposalConsumed(); return; }
       const item = result.data.items.find((entry) => entry.profileId === proposalDraft.profileId);
       if (!item) { setProblem({ status: 404, code: 'PROFILE_NOT_ASSIGNED', title: 'This Profile is no longer assigned to your local account.' }); onProposalConsumed(); return; }
       if (item.revision !== proposalDraft.expectedRevision) {
@@ -319,31 +350,43 @@ function AssignedProfilesWorkspace({
         onProposalConsumed();
         return;
       }
-      setPage(result.data);
-      setNextCursor(result.data.nextCursor);
+      showFirstAssignedPage(result.data);
       setQuery(proposalDraft.profileName);
+      setActiveQuery(proposalDraft.profileName);
       chooseProfile(item);
       setDraftValues({ ...parameterValuesFor(item), [actualKey]: proposalDraft.prompt });
       setNotice('Wizard proposal loaded into the local assigned-Profile draft. Review and save to create a new revision.');
       onProposalConsumed();
     }).catch(() => {
-      if (generation === searchGeneration.current) setProblem({ status: 0, code: 'NETWORK_ERROR', title: 'The assigned Profile draft could not be loaded.' });
+      if (generation === searchGeneration.current && assignedScopeRef.current === requestTenantId) setProblem({ status: 0, code: 'NETWORK_ERROR', title: 'The assigned Profile draft could not be loaded.' });
       onProposalConsumed();
-    }).finally(() => { if (generation === searchGeneration.current) setLoading(false); });
+    }).finally(() => { if (generation === searchGeneration.current && assignedScopeRef.current === requestTenantId) setLoading(false); });
   }, [client, proposalDraft, tenantId, onProposalConsumed]);
 
   async function searchProfiles(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
-    const result = await fetchAssigned();
-    if (result) { setPage(result); setNextCursor(result.nextCursor); }
+    const result = await fetchAssigned(undefined, query);
+    if (result) {
+      setActiveQuery(query);
+      showFirstAssignedPage(result);
+    }
   }
 
-  async function loadMoreProfiles(): Promise<void> {
-    if (!nextCursor || loading || !page) return;
-    const result = await fetchAssigned(nextCursor);
+  async function navigateAssignedPage(direction: 'first' | 'next' | 'previous'): Promise<void> {
+    if (loading || !page) return;
+    const targetIndex = direction === 'first' ? 0 : direction === 'next' ? assignedPageIndex + 1 : assignedPageIndex - 1;
+    if (targetIndex < 0) return;
+    const cursor: string | undefined = direction === 'first' ? undefined : direction === 'next' ? page.nextCursor ?? undefined : assignedPageCursors[targetIndex];
+    if (direction === 'next' && !cursor) return;
+    if (direction === 'previous' && targetIndex > 0 && !cursor) return;
+    const result = await fetchAssigned(cursor);
     if (!result) return;
-    setPage((current) => current ? { ...result, items: [...current.items, ...result.items] } : result);
-    setNextCursor(result.nextCursor);
+    if (direction === 'first') showFirstAssignedPage(result);
+    else {
+      setPage(result);
+      setAssignedPageIndex(targetIndex);
+      if (direction === 'next') setAssignedPageCursors((history) => [...history.slice(0, targetIndex), cursor]);
+    }
   }
 
   async function loadMoreKeys(): Promise<void> {
@@ -424,8 +467,7 @@ function AssignedProfilesWorkspace({
           const latest = await fetchAssigned();
           const latestRow = latest?.items.find((item) => item.profileId === selected.profileId);
           if (latest && latestRow) {
-            setPage(latest);
-            setNextCursor(latest.nextCursor);
+            showFirstAssignedPage(latest);
             setConflictRow(latestRow);
           }
         }
@@ -440,8 +482,7 @@ function AssignedProfilesWorkspace({
       setNotice(`Saved as Profile revision ${response.data.revision}.`);
       const refreshed = await fetchAssigned();
       if (refreshed) {
-        setPage(refreshed);
-        setNextCursor(refreshed.nextCursor);
+        showFirstAssignedPage(refreshed);
         const row = refreshed.items.find((item) => item.profileId === updated.profileId);
         if (row) { setSelected(row); setBaseValues(parameterValuesFor(row)); setDraftValues(parameterValuesFor(row)); setBaseConnections(row.connectionsOverride); setDraftConnections(row.connectionsOverride); }
       }
@@ -483,19 +524,22 @@ function AssignedProfilesWorkspace({
       <Card>
         <CardHeader>
           <CardTitle>Enabled assigned endpoints</CardTitle>
-          <CardDescription>{page ? `${page.items.length} of ${page.total} endpoint${page.total === 1 ? '' : 's'} loaded.` : 'Only active, enabled endpoint assignments are shown.'}</CardDescription>
+          <CardDescription>{page ? `Server page ${assignedPageIndex + 1} · ${page.items.length} rows on this page · ${page.total} assigned endpoint${page.total === 1 ? '' : 's'} reported.` : 'Only active, enabled endpoint assignments are shown.'}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          <form className="flex flex-wrap items-end gap-2" onSubmit={(event) => void searchProfiles(event)}>
-            <div className="min-w-56 flex-1"><FormField id={`${workbenchId}-search`} label="Search assigned endpoints"><Input value={query} onChange={(event) => setQuery(event.target.value)} maxLength={128} placeholder="Business, version, profile, action" /></FormField></div>
-            <Button type="submit" variant="outline" disabled={loading}>Search</Button>
-            <Button type="button" variant="outline" onClick={() => void refreshAssigned()} disabled={loading}>Refresh</Button>
+          <form className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start" onSubmit={(event) => void searchProfiles(event)}>
+            <FormField id={`${workbenchId}-search`} label="Search assigned endpoints" className="min-w-0"><Input value={query} onChange={(event) => setQuery(event.target.value)} maxLength={128} placeholder="Business, version, profile, action" /></FormField>
+            <div className="flex flex-wrap gap-2 sm:mt-[1.375rem]">
+              <Button type="submit" variant="outline" disabled={loading}>Search</Button>
+              <Button type="button" variant="outline" onClick={() => void refreshAssigned()} disabled={loading}>Refresh</Button>
+            </div>
           </form>
           {problem ? <AlertBanner variant="error" title={problem.title ?? 'Assigned Profile action failed'}>{problem.status || 'Network error'} · {problem.code ?? 'ERROR'}</AlertBanner> : null}
           {loading && !page ? <LoadingState title="Loading assigned endpoints" description="The server is checking your current local-user assignments." /> : null}
           {page?.items.length === 0 ? <div role="status" className="rounded border border-dashed p-6 text-sm text-[var(--text-sub)]">No enabled Profile endpoints are assigned to this account.</div> : null}
           {page?.items.length ? (
-            <div className="grid gap-2 md:grid-cols-2">
+            <div role="region" aria-label="Current server page of assigned endpoints" tabIndex={0} className="max-h-[28rem] overflow-auto rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]">
+            <div className="grid gap-2 p-1 sm:grid-cols-2">
               {page.items.map((item) => (
                 <button key={item.profileId} type="button" onClick={() => chooseProfile(item)} aria-pressed={selected?.profileId === item.profileId} disabled={saving}
                   className={`min-w-0 rounded border p-3 text-left transition-colors ${selected?.profileId === item.profileId ? 'border-[var(--cf-blue)] bg-[var(--bg-subtle)]' : 'border-[var(--border-subtle)] hover:bg-[var(--bg-subtle)]'}`}>
@@ -504,8 +548,12 @@ function AssignedProfilesWorkspace({
                 </button>
               ))}
             </div>
+            </div>
           ) : null}
-          {nextCursor ? <Button type="button" variant="outline" onClick={() => void loadMoreProfiles()} disabled={loading}>Load more assigned endpoints</Button> : null}
+          {page ? <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => void navigateAssignedPage('first')} disabled={loading || assignedPageIndex === 0}>First page</Button>
+            <TablePagination ariaLabel="Assigned endpoint server pages" hasPreviousPage={assignedPageIndex > 0} hasNextPage={page.nextCursor !== null} onPreviousPage={() => void navigateAssignedPage('previous')} onNextPage={() => void navigateAssignedPage('next')} pending={loading} status={`Server page ${assignedPageIndex + 1} · ${page.items.length} rows on this page · ${page.total} assigned endpoints reported`} />
+          </div> : null}
         </CardContent>
       </Card>
 
@@ -598,7 +646,7 @@ function valuesFromConnections(steps: AssignedProfile['connectionsOverride'], fi
  * `/admin/api/profiles/…/{upsert|publish|rollback}` → dispatcher.
  */
 export function ProfilesScreen() {
-  const { tenantId: globalTenantId, tenant } = useTenant();
+  const { tenantId: globalTenantId } = useTenant();
   const location = useLocation();
   const navigate = useNavigate();
   const client = useMemo(() => createAdminApiClient(), []);
@@ -607,7 +655,7 @@ export function ProfilesScreen() {
   const [access, setAccess] = useState<{ kind: 'loading' } | { kind: 'ready'; session: AdminWebSession } | { kind: 'failed'; problem: AdminApiProblem }>({ kind: 'loading' });
   const [businesses, setBusinesses] = useState<string[]>([]);
   const [versions, setVersions] = useState<string[]>([]);
-  const [apiKeys, setApiKeys] = useState<{ id: string; name?: string | null; status: string }[]>([]);
+  const [apiKeys, setApiKeys] = useState<ProfileApiKeyOption[]>([]);
   const [selectedApiKeyId, setSelectedApiKeyId] = useState<string>('');
   const [businessId, setBusinessId] = useState(() => new URLSearchParams(window.location.search).get('businessId') ?? 'document-core');
   const [businessVersion, setBusinessVersion] = useState(() => new URLSearchParams(window.location.search).get('businessVersion') ?? '1.1.0');
@@ -621,11 +669,23 @@ export function ProfilesScreen() {
   const [profileListPage, setProfileListPage] = useState<ProfileListPage | null>(null);
   const [profileListLoading, setProfileListLoading] = useState(false);
   const [profileListLoadingMore, setProfileListLoadingMore] = useState(false);
+  const [profileListCursors, setProfileListCursors] = useState<Array<string | undefined>>([undefined]);
+  const [profileListPageIndex, setProfileListPageIndex] = useState(0);
   const [profileListProblem, setProfileListProblem] = useState<AdminApiProblem | null>(null);
   const [profileListRefresh, setProfileListRefresh] = useState(0);
+  const profileListScopeKey = JSON.stringify([globalTenantId, profileListBusinessId]);
+  const profileListScopeRef = useRef(profileListScopeKey);
+  const profileListRequestGeneration = useRef(0);
+  const [screenTab, setScreenTab] = useState<'catalog' | 'groups' | 'editor'>(() => {
+    const query = new URLSearchParams(window.location.search);
+    return query.has('profileName') ? 'editor' : 'catalog';
+  });
 
   const [detail, setDetail] = useState<ProfileDetail | null>(null);
-  const [loadedAs, setLoadedAs] = useState<{ businessId: string; businessVersion: string; profileName: string } | null>(null);
+  const [loadedAs, setLoadedAs] = useState<{ tenantId: string | null; businessId: string; businessVersion: string; profileName: string } | null>(null);
+  const profileRequestScope = useRef(createProfileRequestScope(globalTenantId));
+  const busyOperationSequence = useRef(0);
+  const busyOperationOwner = useRef<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [problem, setProblem] = useState<AdminApiProblem | null>(null);
   const [profileWorkflows, setProfileWorkflows] = useState<ProfileWorkflowItem[]>([]);
@@ -649,8 +709,64 @@ export function ProfilesScreen() {
   const [secretsLoading, setSecretsLoading] = useState(false);
   const [secretsProblem, setSecretsProblem] = useState<AdminApiProblem | null>(null);
 
+  function beginBusyOperation(): number {
+    const operation = ++busyOperationSequence.current;
+    busyOperationOwner.current = operation;
+    setBusy(true);
+    return operation;
+  }
+
+  function clearBusyOperation(operation: number): void {
+    if (busyOperationOwner.current !== operation) return;
+    busyOperationOwner.current = null;
+    setBusy(false);
+  }
+
+  function cancelBusyOperation(): void {
+    busyOperationOwner.current = null;
+    setBusy(false);
+  }
+
+  useLayoutEffect(() => {
+    if (profileListScopeRef.current === profileListScopeKey) return;
+    profileListScopeRef.current = profileListScopeKey;
+    profileListRequestGeneration.current += 1;
+    setProfileListLoadingMore(false);
+    setProfileListPage(null);
+    setProfileListProblem(null);
+    setProfileListCursors([undefined]);
+    setProfileListPageIndex(0);
+    setProfileListLoading(globalTenantId !== null && access.kind === 'ready' && !access.session.localUser && access.session.role !== 'viewer');
+  }, [access, globalTenantId, profileListScopeKey]);
+
   function consumeWorkbenchProposal(): void {
     navigate({ pathname: location.pathname, search: location.search }, { replace: true, state: null });
+  }
+
+  function changeProfileListBusinessId(nextBusinessId: string): void {
+    const nextScope = JSON.stringify([globalTenantId, nextBusinessId]);
+    if (profileListScopeRef.current !== nextScope) {
+      profileListScopeRef.current = nextScope;
+      profileListRequestGeneration.current += 1;
+      setProfileListLoadingMore(false);
+      setProfileListLoading(globalTenantId !== null && access.kind === 'ready' && !access.session.localUser && access.session.role !== 'viewer');
+      setProfileListPage(null);
+      setProfileListProblem(null);
+      setProfileListCursors([undefined]);
+      setProfileListPageIndex(0);
+    }
+    setProfileListBusinessId(nextBusinessId);
+  }
+
+  function refreshProfileCatalog(): void {
+    profileListRequestGeneration.current += 1;
+    setProfileListLoadingMore(false);
+    setProfileListLoading(globalTenantId !== null && access.kind === 'ready' && !access.session.localUser && access.session.role !== 'viewer');
+    setProfileListPage(null);
+    setProfileListProblem(null);
+    setProfileListCursors([undefined]);
+    setProfileListPageIndex(0);
+    setProfileListRefresh((current) => current + 1);
   }
 
   useEffect(() => {
@@ -663,7 +779,8 @@ export function ProfilesScreen() {
     return () => { active = false; };
   }, [client]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    if (!profileRequestScope.current.updateTenant(globalTenantId)) return;
     setEndpointSlug('');
     setInitialBindings([]);
     setApiKeys([]);
@@ -671,6 +788,8 @@ export function ProfilesScreen() {
     setDetail(null);
     setDraft(null);
     setLoadedAs(null);
+    setLoading(false);
+    cancelBusyOperation();
     setRowResults(null);
     setProblem(null);
     setProfileWorkflows([]);
@@ -678,10 +797,20 @@ export function ProfilesScreen() {
     setNotice(null);
   }, [globalTenantId]);
 
+  useEffect(() => () => profileRequestScope.current.invalidateRequests(), []);
+
   useEffect(() => {
     let active = true;
+    const generation = ++profileListRequestGeneration.current;
+    const requestScope = profileListScopeKey;
+    const isCurrent = (): boolean => active
+      && generation === profileListRequestGeneration.current
+      && profileListScopeRef.current === requestScope;
     setProfileListPage(null);
     setProfileListProblem(null);
+    setProfileListCursors([undefined]);
+    setProfileListPageIndex(0);
+    setProfileListLoadingMore(false);
     if (access.kind !== 'ready' || access.session.localUser || access.session.role === 'viewer') {
       setProfileListLoading(false);
       return () => { active = false; };
@@ -691,10 +820,10 @@ export function ProfilesScreen() {
       return () => { active = false; };
     }
     setProfileListLoading(true);
-    const query: Record<string, string> = { tenantId: globalTenantId, limit: '100' };
+    const query: Record<string, string> = { tenantId: globalTenantId, limit: '50' };
     if (profileListBusinessId) query.businessId = profileListBusinessId;
     void client.listProfiles(query).then((result) => {
-      if (!active) return;
+      if (!isCurrent()) return;
       if (!result.ok) {
         setProfileListProblem(result.problem);
         return;
@@ -706,12 +835,12 @@ export function ProfilesScreen() {
       }
       setProfileListPage(page);
     }).catch(() => {
-      if (active) setProfileListProblem({ status: 0, code: 'NETWORK_ERROR', title: 'The profile list could not be loaded.' });
+      if (isCurrent()) setProfileListProblem({ status: 0, code: 'NETWORK_ERROR', title: 'The profile list could not be loaded.' });
     }).finally(() => {
-      if (active) setProfileListLoading(false);
+      if (isCurrent()) setProfileListLoading(false);
     });
     return () => { active = false; };
-  }, [client, globalTenantId, profileListBusinessId, profileListRefresh, access]);
+  }, [client, globalTenantId, profileListBusinessId, profileListRefresh, profileListScopeKey, access]);
 
   // AWEB-14: workflow choices are loaded only for the stored profile's exact
   // business/version and current tenant. The backend applies the same fence.
@@ -818,15 +947,18 @@ export function ProfilesScreen() {
     void client.listApiKeys({ tenantId: globalTenantId }).then((result) => {
       if (!active) return;
       if (result.ok && result.data && Array.isArray(result.data.items)) {
-        const activeKeys = result.data.items.filter((k) => k.status === 'ACTIVE');
-        setApiKeys(activeKeys);
-        if (activeKeys.length > 0) {
-          setSelectedApiKeyId((prev) => (!prev || !activeKeys.some((k) => k.id === prev) ? activeKeys[0]!.id : prev));
-        }
+        setApiKeys(result.data.items.filter((key) => key.tenantId === globalTenantId));
       }
     });
     return () => { active = false; };
   }, [client, globalTenantId, access]);
+
+  useEffect(() => {
+    if (detail === null) return;
+    const detailApiKeyId = detail.apiKeyId;
+    const matchingActiveKey = findCurrentActiveProfileApiKey(apiKeys, detailApiKeyId ?? '', globalTenantId);
+    setSelectedApiKeyId(matchingActiveKey?.id ?? '');
+  }, [apiKeys, detail, globalTenantId]);
 
   // CB-04: the callback credential fields select from the live secret catalog
   useEffect(() => {
@@ -871,11 +1003,20 @@ export function ProfilesScreen() {
   async function load(
     nameToLoad?: string,
     identityOverride?: { businessId: string; businessVersion: string; profileName: string },
+    preserveBusyOperation?: number,
   ): Promise<ProfileDetail | null> {
+    const requestToken = profileRequestScope.current.beginRequest();
+    const isCurrentRequest = (): boolean => profileRequestScope.current.isRequestCurrent(requestToken)
+      && requestToken.tenantId === globalTenantId;
+    if (busyOperationOwner.current !== null && busyOperationOwner.current !== preserveBusyOperation) cancelBusyOperation();
+    setScreenTab('editor');
     setLoading(true);
     setProblem(null);
     setNotice(null);
     setRowResults(null);
+    setDetail(null);
+    setDraft(null);
+    setLoadedAs(null);
     const targetName = (identityOverride?.profileName ?? nameToLoad ?? profileName).trim() || 'default';
     const target = identityOverride ?? {
       businessId: identifiers.businessId,
@@ -884,6 +1025,7 @@ export function ProfilesScreen() {
     };
     try {
       const sessionResult = await client.getSession();
+      if (!isCurrentRequest()) return null;
       if (!sessionResult.ok) {
         setDetail(null);
         setDraft(null);
@@ -892,21 +1034,22 @@ export function ProfilesScreen() {
         return null;
       }
       const result = await client.getProfile(target.businessId, target.businessVersion, targetName);
+      if (!isCurrentRequest()) return null;
       if (!result.ok) {
         setDetail(null);
         setDraft(null);
+        setLoadedAs(null);
         setProblem(result.problem);
         return null;
       }
       const parsed = parseProfileDetail(result.data);
+      if (!isCurrentRequest()) return null;
       if (parsed === null) {
         setDetail(null);
         setDraft(null);
+        setLoadedAs(null);
         setProblem({ status: 502, code: 'UNREADABLE_RESPONSE', title: 'Unreadable profile payload.' });
         return null;
-      }
-      if (!parsed.apiKeyId && selectedApiKeyId) {
-        parsed.apiKeyId = selectedApiKeyId;
       }
       if (!parsed.profileName) {
         parsed.profileName = targetName;
@@ -915,12 +1058,12 @@ export function ProfilesScreen() {
       setBusinessId(target.businessId);
       setBusinessVersion(target.businessVersion);
       setProfileName(targetName);
-      setLoadedAs({ businessId: target.businessId, businessVersion: target.businessVersion, profileName: targetName });
+      setLoadedAs({ tenantId: requestToken.tenantId, businessId: target.businessId, businessVersion: target.businessVersion, profileName: targetName });
       setDraft(draftFromDetail(parsed));
       setNotice(`Profile "${targetName}" loaded (Revision ${parsed.revision}).`);
       return parsed;
     } finally {
-      setLoading(false);
+      if (isCurrentRequest()) setLoading(false);
     }
   }
 
@@ -958,18 +1101,28 @@ export function ProfilesScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [access, globalTenantId, workbenchProposal]);
 
-  async function loadMoreProfiles(): Promise<void> {
-    if (!globalTenantId || profileListPage?.nextCursor === null || profileListPage === null || profileListLoadingMore) return;
+  async function loadMoreProfiles(direction: 'next' | 'previous'): Promise<void> {
+    if (!globalTenantId || profileListPage === null || profileListLoadingMore) return;
+    const nextIndex = direction === 'next' ? profileListPageIndex + 1 : profileListPageIndex - 1;
+    const cursor = direction === 'next'
+      ? profileListPage.nextCursor
+      : profileListPage.prevCursor ?? profileListCursors[nextIndex];
+    if (nextIndex < 0 || cursor === null || cursor === undefined) return;
+    const requestScope = JSON.stringify([globalTenantId, profileListBusinessId]);
+    const generation = ++profileListRequestGeneration.current;
+    const isCurrent = (): boolean => generation === profileListRequestGeneration.current
+      && profileListScopeRef.current === requestScope;
     setProfileListLoadingMore(true);
     setProfileListProblem(null);
     try {
       const query: Record<string, string> = {
         tenantId: globalTenantId,
         limit: String(profileListPage.limit),
-        cursor: profileListPage.nextCursor,
+        cursor,
       };
       if (profileListBusinessId) query.businessId = profileListBusinessId;
       const result = await client.listProfiles(query);
+      if (!isCurrent()) return;
       if (!result.ok) {
         setProfileListProblem(result.problem);
         return;
@@ -979,22 +1132,31 @@ export function ProfilesScreen() {
         setProfileListProblem({ status: 502, code: 'UNREADABLE_RESPONSE', title: 'The profile list response did not match the selected tenant and business.' });
         return;
       }
-      setProfileListPage((current) => current === null ? current : ({
-        ...page,
-        items: [...current.items, ...page.items],
-      }));
+      setProfileListPage(page);
+      setProfileListPageIndex(nextIndex);
+      if (direction === 'next') {
+        setProfileListCursors((history) => [...history.slice(0, nextIndex), cursor]);
+      }
     } catch {
-      setProfileListProblem({ status: 0, code: 'NETWORK_ERROR', title: 'More profiles could not be loaded.' });
+      if (isCurrent()) setProfileListProblem({ status: 0, code: 'NETWORK_ERROR', title: 'The requested profile page could not be loaded.' });
     } finally {
-      setProfileListLoadingMore(false);
+      if (isCurrent()) setProfileListLoadingMore(false);
     }
   }
 
   async function createProfile(): Promise<void> {
+    const requestToken = profileRequestScope.current.beginRequest();
+    const isCurrentRequest = (): boolean => profileRequestScope.current.isRequestCurrent(requestToken)
+      && requestToken.tenantId === globalTenantId;
+    cancelBusyOperation();
+    setScreenTab('editor');
     setLoading(true);
     setProblem(null);
     setNotice(null);
     setRowResults(null);
+    setDetail(null);
+    setDraft(null);
+    setLoadedAs(null);
     const bId = businessId.trim();
     const bVer = businessVersion.trim() || 'latest';
     const pName = profileName.trim() || 'default';
@@ -1005,6 +1167,7 @@ export function ProfilesScreen() {
     }
     try {
       const sessionResult = await client.getSession();
+      if (!isCurrentRequest()) return;
       if (!sessionResult.ok) {
         setDetail(null);
         setDraft(null);
@@ -1013,27 +1176,31 @@ export function ProfilesScreen() {
         return;
       }
       const result = await client.getProfile(bId, bVer, pName);
+      if (!isCurrentRequest()) return;
       let parsed: ProfileDetail | null = null;
       if (result.ok) {
         parsed = parseProfileDetail(result.data);
       } else {
         const fallback = await client.getProfile(bId, bVer, 'new');
+        if (!isCurrentRequest()) return;
         if (fallback.ok) {
           parsed = parseProfileDetail(fallback.data);
         }
       }
+      if (!isCurrentRequest()) return;
       if (parsed === null) {
         setDetail(null);
         setDraft(null);
+        setLoadedAs(null);
         setProblem(result.ok ? { status: 502, code: 'UNREADABLE_RESPONSE', title: 'Unreadable profile payload.' } : result.problem);
         return;
       }
       parsed.profileName = pName;
-      if (selectedApiKeyId) {
-        parsed.apiKeyId = selectedApiKeyId;
+      if (parsed.revision === 0 && selectedActiveApiKey) {
+        parsed.apiKeyId = selectedActiveApiKey.id;
       }
       setDetail(parsed);
-      setLoadedAs({ businessId: bId, businessVersion: bVer, profileName: pName });
+      setLoadedAs({ tenantId: requestToken.tenantId, businessId: bId, businessVersion: bVer, profileName: pName });
       const initialized = draftFromDetail(parsed);
       if (parsed.revision === 0 && bId === 'document-core' && endpointSlug) initialized.rows = initialized.rows.map((r,i) => i === 0 ? { ...r, profileName: endpointSlug.split(':')[0]! } : r);
       setDraft(initialized);
@@ -1043,12 +1210,14 @@ export function ProfilesScreen() {
         setNotice(`Existing profile "${pName}" loaded (Revision ${parsed.revision}). You can modify and save updates.`);
       }
     } finally {
-      setLoading(false);
+      if (isCurrentRequest()) setLoading(false);
     }
   }
 
   async function setWorkflowEnabled(item: ProfileWorkflowItem, enabled: boolean): Promise<void> {
     if (detail === null || loadedAs === null || !globalTenantId) return;
+    const mutationToken = profileRequestScope.current.beginRequest();
+    if (loadedAs.tenantId !== globalTenantId || mutationToken.tenantId !== globalTenantId) return;
     const pendingKey = `${item.slug}:${item.revision}`;
     setProfileWorkflowPending(pendingKey);
     setProfileWorkflowsProblem(null);
@@ -1061,6 +1230,7 @@ export function ProfilesScreen() {
         { workflowSlug: item.slug, workflowRevision: item.revision, enabled },
         `profile-workflow-${globalThis.crypto.randomUUID()}`,
       );
+      if (!profileRequestScope.current.isRequestCurrent(mutationToken)) return;
       if (!result.ok) {
         setProfileWorkflowsProblem(result.problem.title ?? result.problem.code ?? 'Could not update workflow selection.');
       } else {
@@ -1070,14 +1240,32 @@ export function ProfilesScreen() {
         setNotice(`Workflow "${item.slug}" ${enabled ? 'enabled' : 'disabled'} for this profile.`);
       }
     } catch {
-      setProfileWorkflowsProblem('Could not update workflow selection.');
+      if (profileRequestScope.current.isRequestCurrent(mutationToken)) setProfileWorkflowsProblem('Could not update workflow selection.');
     } finally {
-      setProfileWorkflowPending(null);
+      if (profileRequestScope.current.isRequestCurrent(mutationToken)) setProfileWorkflowPending(null);
     }
   }
 
   const caps = detail?.capabilities ?? [];
   const policyShipped = true;
+  const activeApiKeys = apiKeys.filter((key) => key.tenantId === globalTenantId && key.status === 'ACTIVE');
+  const selectedActiveApiKey = findCurrentActiveProfileApiKey(apiKeys, selectedApiKeyId, globalTenantId);
+  const loadedProfileScopeCurrent = detail !== null && loadedAs !== null && globalTenantId !== null
+    && loadedAs.tenantId === globalTenantId;
+  const profileWriteBlockMessage = !globalTenantId || (detail !== null && !loadedProfileScopeCurrent)
+    ? PROFILE_TENANT_SCOPE_REQUIRED_MESSAGE
+    : !selectedActiveApiKey ? PROFILE_API_KEY_REQUIRED_MESSAGE : null;
+  const canMutateLoadedProfile = loadedProfileScopeCurrent && selectedActiveApiKey !== undefined;
+  const profileWriteProblem: AdminApiProblem = {
+    status: 409,
+    code: 'ACTIVE_API_KEY_REQUIRED',
+    title: PROFILE_API_KEY_REQUIRED_MESSAGE,
+  };
+  const profileTenantScopeProblem: AdminApiProblem = {
+    status: 409,
+    code: 'PROFILE_TENANT_SCOPE_REQUIRED',
+    title: PROFILE_TENANT_SCOPE_REQUIRED_MESSAGE,
+  };
   const canPublish = detail !== null && detail.revision >= 1;
   const canRollback = detail !== null && detail.revision >= 2;
   const profileDraftHasChanges = detail !== null && draft !== null
@@ -1125,6 +1313,20 @@ export function ProfilesScreen() {
       return { result: { profileName: row.profileName, ok: false, detail: 'no profile loaded' } };
     }
     const profileKey = row.profileName.trim() || target.profileName;
+    const currentScope = profileRequestScope.current.captureTenant();
+    if (!globalTenantId || target.tenantId !== globalTenantId || currentScope.tenantId !== globalTenantId) {
+      return {
+        result: { profileName: profileKey, ok: false, detail: PROFILE_TENANT_SCOPE_REQUIRED_MESSAGE },
+        problem: profileTenantScopeProblem,
+      };
+    }
+    const writeApiKey = findCurrentActiveProfileApiKey(apiKeys, selectedApiKeyId, currentScope.tenantId);
+    if (!writeApiKey) {
+      return {
+        result: { profileName: profileKey, ok: false, detail: PROFILE_API_KEY_REQUIRED_MESSAGE },
+        problem: profileWriteProblem,
+      };
+    }
     if (detail.revision === 0 && (initialBindings.some(b => !b.slot.trim() || !b.connectorId) || new Set(initialBindings.map(b => b.slot.trim())).size !== initialBindings.length)) return { result: { profileName: profileKey, ok: false, detail: 'Every connector slot must be unique and have a selected revision.' } };
     if (detail.revision === 0 && endpointSlug && endpointSlug.split(':')[0] !== profileKey) return { result: { profileName: profileKey, ok: false, detail: 'Endpoint action must match the profile action row.' } };
 
@@ -1142,7 +1344,7 @@ export function ProfilesScreen() {
     }
     const effectiveDetail: ProfileDetail = {
       ...detail,
-      apiKeyId: detail.apiKeyId || selectedApiKeyId || undefined,
+      apiKeyId: writeApiKey.id,
     };
     const response = await client.upsertProfile(
       target.businessId,
@@ -1161,14 +1363,28 @@ export function ProfilesScreen() {
   }
 
   async function saveOne(row: RowDraft): Promise<void> {
-    setBusy(true);
+    const target = loadedAs;
+    const mutationToken = profileRequestScope.current.beginRequest();
+    if (!target || !globalTenantId || target.tenantId !== globalTenantId || mutationToken.tenantId !== globalTenantId) {
+      setProblem(profileTenantScopeProblem);
+      return;
+    }
+    const busyOperation = beginBusyOperation();
     setNotice(null);
     setRowResults(null);
     setProblem(null);
     try {
       const { result, problem: failure } = await saveRow(row);
+      if (!profileRequestScope.current.isRequestCurrent(mutationToken)) return;
       if (result.ok) {
-        await load();
+        const refreshPromise = load(target.profileName, {
+          businessId: target.businessId,
+          businessVersion: target.businessVersion,
+          profileName: target.profileName,
+        }, busyOperation);
+        const refreshToken = profileRequestScope.current.captureRequest();
+        const refreshed = await refreshPromise;
+        if (!refreshed || !profileRequestScope.current.isRequestCurrent(refreshToken)) return;
         setRowResults([result]);
         setNotice('Saved — profile created/updated in registry.');
       } else {
@@ -1176,26 +1392,40 @@ export function ProfilesScreen() {
         if (failure !== undefined) setProblem(failure);
       }
     } finally {
-      setBusy(false);
+      clearBusyOperation(busyOperation);
     }
   }
 
   async function saveAll(): Promise<void> {
     if (draft === null) return;
-    setBusy(true);
+    const target = loadedAs;
+    const mutationToken = profileRequestScope.current.beginRequest();
+    if (!target || !globalTenantId || target.tenantId !== globalTenantId || mutationToken.tenantId !== globalTenantId) {
+      setProblem(profileTenantScopeProblem);
+      return;
+    }
+    const busyOperation = beginBusyOperation();
     setNotice(null);
     setProblem(null);
     try {
       // T-UI-04 / R-04: one POST per row, Promise.allSettled, per-row reporting,
       // no common rollback of the rows that did persist.
       const settled = await Promise.allSettled(draft.rows.map((row) => saveRow(row)));
+      if (!profileRequestScope.current.isRequestCurrent(mutationToken)) return;
       const rows: RowResult[] = settled.map((entry, index) =>
         entry.status === 'fulfilled'
           ? entry.value.result
           : { profileName: draft.rows[index]?.profileName ?? '?', ok: false, detail: 'transport error' },
       );
       if (rows.some((row) => row.ok)) {
-        await load();
+        const refreshPromise = load(target.profileName, {
+          businessId: target.businessId,
+          businessVersion: target.businessVersion,
+          profileName: target.profileName,
+        }, busyOperation);
+        const refreshToken = profileRequestScope.current.captureRequest();
+        const refreshed = await refreshPromise;
+        if (!refreshed || !profileRequestScope.current.isRequestCurrent(refreshToken)) return;
         setRowResults(rows);
         setNotice('Save complete: rows that succeeded are persisted.');
       } else {
@@ -1207,18 +1437,22 @@ export function ProfilesScreen() {
         if (firstFailure?.value.problem !== undefined) setProblem(firstFailure.value.problem);
       }
     } finally {
-      setBusy(false);
+      clearBusyOperation(busyOperation);
     }
   }
 
   async function publish(): Promise<void> {
     if (detail === null || loadedAs === null) return;
-    setBusy(true);
+    const mutationToken = profileRequestScope.current.beginRequest();
+    if (!globalTenantId || loadedAs.tenantId !== globalTenantId || mutationToken.tenantId !== globalTenantId) { setProblem(profileTenantScopeProblem); return; }
+    const writeApiKey = findCurrentActiveProfileApiKey(apiKeys, selectedApiKeyId, mutationToken.tenantId);
+    if (!writeApiKey) { setProblem(profileWriteProblem); return; }
+    const busyOperation = beginBusyOperation();
     setNotice(null);
     try {
       const effectiveDetail: ProfileDetail = {
         ...detail,
-        apiKeyId: detail.apiKeyId || selectedApiKeyId || undefined,
+        apiKeyId: writeApiKey.id,
       };
       const result = await client.publishProfile(
         loadedAs.businessId,
@@ -1227,25 +1461,37 @@ export function ProfilesScreen() {
         buildPublishBody(effectiveDetail),
         crypto.randomUUID(),
       );
+      if (!profileRequestScope.current.isRequestCurrent(mutationToken)) return;
       if (result.ok) {
-        await load();
+        const refreshPromise = load(loadedAs.profileName, {
+          businessId: loadedAs.businessId,
+          businessVersion: loadedAs.businessVersion,
+          profileName: loadedAs.profileName,
+        }, busyOperation);
+        const refreshToken = profileRequestScope.current.captureRequest();
+        const refreshed = await refreshPromise;
+        if (!refreshed || !profileRequestScope.current.isRequestCurrent(refreshToken)) return;
         setNotice(`Published (revision ${result.data.revision ?? '?'}).`);
       } else {
         setProblem(result.problem);
       }
     } finally {
-      setBusy(false);
+      clearBusyOperation(busyOperation);
     }
   }
 
   async function rollback(target: number): Promise<void> {
     if (detail === null || loadedAs === null) return;
-    setBusy(true);
+    const mutationToken = profileRequestScope.current.beginRequest();
+    if (!globalTenantId || loadedAs.tenantId !== globalTenantId || mutationToken.tenantId !== globalTenantId) { setProblem(profileTenantScopeProblem); return; }
+    const writeApiKey = findCurrentActiveProfileApiKey(apiKeys, selectedApiKeyId, mutationToken.tenantId);
+    if (!writeApiKey) { setProblem(profileWriteProblem); return; }
+    const busyOperation = beginBusyOperation();
     setNotice(null);
     try {
       const effectiveDetail: ProfileDetail = {
         ...detail,
-        apiKeyId: detail.apiKeyId || selectedApiKeyId || undefined,
+        apiKeyId: writeApiKey.id,
       };
       const result = await client.rollbackProfile(
         loadedAs.businessId,
@@ -1254,14 +1500,22 @@ export function ProfilesScreen() {
         buildRollbackBody(effectiveDetail, target),
         crypto.randomUUID(),
       );
+      if (!profileRequestScope.current.isRequestCurrent(mutationToken)) return;
       if (result.ok) {
-        await load();
+        const refreshPromise = load(loadedAs.profileName, {
+          businessId: loadedAs.businessId,
+          businessVersion: loadedAs.businessVersion,
+          profileName: loadedAs.profileName,
+        }, busyOperation);
+        const refreshToken = profileRequestScope.current.captureRequest();
+        const refreshed = await refreshPromise;
+        if (!refreshed || !profileRequestScope.current.isRequestCurrent(refreshToken)) return;
         setNotice(`Rolled back (active revision ${result.data.revision ?? '?'}).`);
       } else {
         setProblem(result.problem);
       }
     } finally {
-      setBusy(false);
+      clearBusyOperation(busyOperation);
     }
   }
 
@@ -1289,7 +1543,8 @@ export function ProfilesScreen() {
   }
 
   function requestWorkbenchHandoff(): void {
-    if (!detail || !loadedAs || !globalTenantId || detail.revision < 1) {
+    if (!detail || !loadedAs || !globalTenantId || loadedAs.tenantId !== globalTenantId
+        || profileRequestScope.current.captureTenant().tenantId !== globalTenantId || detail.revision < 1) {
       setProblem({ status: 409, code: 'PROFILE_REVISION_REQUIRED', title: 'Save a Profile revision and select a tenant before opening the Test Workbench.' });
       return;
     }
@@ -1312,6 +1567,11 @@ export function ProfilesScreen() {
   function confirmWorkbenchHandoff(): void {
     if (!pendingWorkbenchHandoff) return;
     const handoff = pendingWorkbenchHandoff;
+    if (handoff.tenantId !== globalTenantId || profileRequestScope.current.captureTenant().tenantId !== globalTenantId) {
+      setPendingWorkbenchHandoff(null);
+      setProblem(profileTenantScopeProblem);
+      return;
+    }
     setWorkbenchConfirmOpen(false);
     setPendingWorkbenchHandoff(null);
     navigate('/docs', { state: { profileWorkbenchHandoff: handoff } });
@@ -1348,50 +1608,56 @@ export function ProfilesScreen() {
         ) : null}
       </div>
 
-      {access.session.principal.kind === 'platform' ? <ProfileGroupEditor tenantId={globalTenantId} /> : null}
-
-      <AlertBanner variant="info" title="Wire frozen (Phase-1 contract)">
-        Reads use the frozen shape <code>{'{revision, currentValues, policy, manifest, capabilities:[{connectorId, capability}]}'}</code>;
-        writes ride <code>/admin/api/profiles/…</code> → dispatcher (<code>profile.upsert</code>/
-        <code>publish</code>/<code>rollback</code>). Until T-API-02 lands the dispatcher answers{' '}
-        <code>404 ACTION_NOT_FOUND</code> and actions stay disabled — nothing is faked here.
+      <AlertBanner variant="info" title="How Profiles work">
+        Profiles define versioned endpoint settings and connector bindings for each business. Saving creates a new
+        revision; publishing selects the active revision, and rollback restores an earlier revision.
       </AlertBanner>
+
+      <TabsRoot value={screenTab} onValueChange={(value) => { if (value) setScreenTab(value as 'catalog' | 'groups' | 'editor'); }} className="min-w-0">
+        <TabsList aria-label="Profile management sections" className="flex-wrap">
+          <TabsTab value="catalog">Catalog</TabsTab>
+          {access.session.principal.kind === 'platform' ? <TabsTab value="groups">Groups</TabsTab> : null}
+          <TabsTab value="editor">Selected editor</TabsTab>
+        </TabsList>
+        <TabsPanel value="catalog" keepMounted>
 
       <Card>
         <CardHeader>
-          <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(20rem,auto)] sm:items-start">
             <div>
               <CardTitle>Profiles</CardTitle>
               <CardDescription>
                 Catalog for the selected tenant. Active key count includes only active profile-to-key bindings; bound actions come from the active revision.
               </CardDescription>
             </div>
-            <div className="flex flex-wrap items-end gap-2">
-              <div className="min-w-56">
-                <FormField id="profile-list-business" label="Business filter">
-                  <select
-                    id="profile-list-business"
-                    aria-label="Filter profiles by business"
-                    className="h-9 w-full rounded-[var(--radius-sm)] border border-[var(--border-dark)] bg-[var(--bg-card)] px-3 text-sm font-medium"
-                    value={profileListBusinessId}
-                    onChange={(event) => setProfileListBusinessId(event.target.value)}
-                    disabled={!globalTenantId}
-                  >
-                    <option value="">All businesses</option>
-                    {businesses.map((business) => <option key={business} value={business}>{business}</option>)}
-                  </select>
-                </FormField>
+            <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-[minmax(12rem,1fr)_auto] sm:items-start">
+              <FormField id="profile-list-business" label="Business filter">
+                <select
+                  id="profile-list-business"
+                  aria-label="Filter profiles by business"
+                  className="h-9 w-full rounded-[var(--radius-sm)] border border-[var(--border-dark)] bg-[var(--bg-card)] px-3 text-sm font-medium"
+                  value={profileListBusinessId}
+                  onChange={(event) => changeProfileListBusinessId(event.target.value)}
+                  disabled={!globalTenantId}
+                >
+                  <option value="">All businesses</option>
+                  {businesses.map((business) => <option key={business} value={business}>{business}</option>)}
+                </select>
+              </FormField>
+              {profileWriteBlockMessage !== null ? (
+                <p role="status" className="mt-2 text-xs text-[var(--text-sub)]">
+                  {profileWriteBlockMessage}{' '}
+                  {profileWriteBlockMessage === PROFILE_API_KEY_REQUIRED_MESSAGE ? <Link className="font-medium text-[var(--cf-blue)] underline underline-offset-2" to="/api-keys">Manage API keys</Link> : null}
+                </p>
+              ) : null}
+              <div className="sm:mt-[1.375rem]">
+                <Button variant="outline" onClick={refreshProfileCatalog} disabled={!globalTenantId || profileListLoading}>
+                  Refresh
+                </Button>
               </div>
-              <Button variant="outline" onClick={() => setProfileListRefresh((current) => current + 1)} disabled={!globalTenantId || profileListLoading}>
-                Refresh
-              </Button>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--text-sub)]">
-            <span>Tenant scope:</span>
-            {tenant ? <Badge variant="neutral">{tenant.name}</Badge> : globalTenantId ? <Badge variant="neutral">{globalTenantId}</Badge> : <Badge variant="warning">No tenant selected</Badge>}
-            {profileListPage ? <span>{profileListPage.items.length} of {profileListPage.total} profiles loaded</span> : null}
-          </div>
+          {profileListPage ? <p className="text-xs text-[var(--text-sub)]">Server page {profileListPageIndex + 1} · {profileListPage.items.length} rows on this page · {profileListPage.total} reported total</p> : null}
         </CardHeader>
         <CardContent>
           {!globalTenantId ? (
@@ -1404,7 +1670,7 @@ export function ProfilesScreen() {
             profileListProblem.status === 401 || profileListProblem.status === 403 ? (
               <DeniedState title={profileListProblem.status === 401 ? 'Sign-in required' : 'Access denied'} description={profileListProblem.title ?? 'This session cannot read profiles in the selected tenant.'} tenantId={globalTenantId} />
             ) : (
-              <ErrorState title={profileListProblem.title ?? 'The profile catalog could not be loaded.'} statusCode={profileListProblem.status || undefined} error={profileListProblem.code} onRetry={() => setProfileListRefresh((current) => current + 1)} />
+              <ErrorState title={profileListProblem.title ?? 'The profile catalog could not be loaded.'} statusCode={profileListProblem.status || undefined} error={profileListProblem.code} onRetry={refreshProfileCatalog} />
             )
           ) : profileListPage === null ? null : profileListPage.items.length === 0 ? (
             <div role="status" className="rounded-md border border-dashed border-[var(--border-subtle)] px-4 py-10 text-center text-sm text-[var(--text-sub)]">
@@ -1413,13 +1679,13 @@ export function ProfilesScreen() {
           ) : (
             <>
               {profileListProblem !== null ? (
-                <AlertBanner variant="error" title={profileListProblem.title ?? 'More profile rows could not be loaded.'} className="mb-3">
+                <AlertBanner variant="error" title={profileListProblem.title ?? 'Profile page navigation failed.'} className="mb-3">
                   {profileListProblem.status || 'Network error'} · {profileListProblem.code ?? 'ERROR'} The rows already loaded remain visible.
                 </AlertBanner>
               ) : null}
-              <TableContainer>
-                <Table>
-                  <TableHeader>
+              <TableContainer maxHeight={520} aria-label="Current server page of the profile catalog">
+                <Table density="compact">
+                  <TableHeader sticky>
                     <TableRow>
                       <TableHead>Profile</TableHead>
                       <TableHead>Business</TableHead>
@@ -1471,45 +1737,39 @@ export function ProfilesScreen() {
                   </TableBody>
                 </Table>
               </TableContainer>
-              {profileListPage.nextCursor !== null ? (
-                <div className="mt-3 flex justify-center">
-                  <Button variant="outline" onClick={() => void loadMoreProfiles()} isLoading={profileListLoadingMore}>
-                    Load more profiles
-                  </Button>
-                </div>
-              ) : null}
+              <TablePagination
+                ariaLabel="Profile catalog server pages"
+                hasPreviousPage={profileListPageIndex > 0 || profileListPage.prevCursor !== null}
+                hasNextPage={profileListPage.nextCursor !== null}
+                onPreviousPage={() => void loadMoreProfiles('previous')}
+                onNextPage={() => void loadMoreProfiles('next')}
+                pending={profileListLoadingMore}
+                status={`Server page ${profileListPageIndex + 1} · ${profileListPage.items.length} rows on this page · ${profileListPage.total} reported total`}
+                className="mt-3 justify-end"
+              />
             </>
           )}
         </CardContent>
       </Card>
 
+        </TabsPanel>
+        <TabsPanel value="groups" keepMounted>
+          {access.session.principal.kind === 'platform' ? <ProfileGroupEditor tenantId={globalTenantId} /> : <p className="text-sm text-[var(--text-sub)]">Profile groups are available only to platform administrators.</p>}
+        </TabsPanel>
+        <TabsPanel value="editor" keepMounted>
+
       <Card>
         <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <CardTitle>Create Profile</CardTitle>
-              <CardDescription>
-                Select a business service, version, and name to create a new profile from its manifest or load an existing profile.
-              </CardDescription>
-            </div>
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-subtle)] text-xs">
-              <span className="text-[var(--text-sub)]">Global Tenant:</span>
-              <span className="font-semibold text-[var(--text-main)]">
-                {tenant?.name || (globalTenantId ? `Tenant (${globalTenantId.slice(0, 8)}...)` : 'None')}
-              </span>
-              {tenant && (
-                <Badge variant={tenant.state === 'ACTIVE' ? 'success' : 'neutral'} className="text-[10px] py-0 px-1.5 ml-1">
-                  {tenant.state}
-                </Badge>
-              )}
-            </div>
-          </div>
+          <CardTitle>Create Profile</CardTitle>
+          <CardDescription>
+            Select a business service, version, and name to create a new profile from its manifest or load an existing profile.
+          </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <div className="flex flex-wrap items-end gap-3">
-            {businessId === 'document-core' && <label className="block text-sm">Document Core endpoint (optional)<select aria-label="Legacy endpoint" className="block border rounded p-2 w-full" value={endpointSlug} onChange={e => setEndpointSlug(e.target.value)} disabled={businessFunctionCatalogLoading || !businessFunctionCatalog}><option value="">Generic action profile</option>{businessFunctionCatalog?.functions.filter((fn) => fn.kind === 'endpoint').map((fn) => <option key={fn.functionId} value={fn.endpointSlug ?? ''} disabled={fn.available === false}>{fn.endpointSlug ?? fn.functionId}{fn.available === false ? ` — unavailable: ${fn.unavailableReason ?? 'not supported'}` : ''}</option>)}</select>{businessFunctionCatalogLoading ? <span>Loading endpoints from {businessVersion} manifest…</span> : null}{businessFunctionCatalogProblem ? <span role="alert" className="text-[var(--badge-danger-text)]">{businessFunctionCatalogProblem}</span> : null}<span>Exact endpoint profiles override generic action profiles; endpoint choices come from the selected version manifest.</span></label>}
-            <InitialBindings value={initialBindings} onChange={setInitialBindings} />
-            <div className="w-full max-w-xs">
+          <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-6">
+            {businessId === 'document-core' && <label className="block min-w-0 text-sm sm:col-span-2 xl:col-span-3">Document Core endpoint (optional)<select aria-label="Legacy endpoint" className="mt-1 block w-full min-w-0 rounded border border-[var(--border-dark)] bg-[var(--bg-card)] p-2" value={endpointSlug} onChange={e => setEndpointSlug(e.target.value)} disabled={businessFunctionCatalogLoading || !businessFunctionCatalog}><option value="">Generic action profile</option>{businessFunctionCatalog?.functions.filter((fn) => fn.kind === 'endpoint').map((fn) => <option key={fn.functionId} value={fn.endpointSlug ?? ''} disabled={fn.available === false}>{fn.endpointSlug ?? fn.functionId}{fn.available === false ? ` — unavailable: ${fn.unavailableReason ?? 'not supported'}` : ''}</option>)}</select>{businessFunctionCatalogLoading ? <span className="mt-1 block text-xs text-[var(--text-sub)]">Loading endpoints from {businessVersion} manifest…</span> : null}{businessFunctionCatalogProblem ? <span role="alert" className="mt-1 block break-words text-xs text-[var(--badge-danger-text)]">{businessFunctionCatalogProblem}</span> : null}<span className="mt-1 block text-xs text-[var(--text-sub)]">Exact endpoint profiles override generic action profiles; endpoint choices come from the selected version manifest.</span></label>}
+            <div className="min-w-0 sm:col-span-2 xl:col-span-3"><InitialBindings value={initialBindings} onChange={setInitialBindings} /></div>
+            <div className="w-full min-w-0 max-w-xs xl:col-span-2">
               <FormField id="profile-business" label="Business Service">
                 <select
                   id="profile-business"
@@ -1531,7 +1791,7 @@ export function ProfilesScreen() {
               </FormField>
             </div>
 
-            <div className="w-full max-w-[10rem]">
+            <div className="w-full min-w-0 max-w-[10rem] xl:col-span-1">
               <FormField id="profile-version" label="Version">
                 <select
                   id="profile-version"
@@ -1553,7 +1813,7 @@ export function ProfilesScreen() {
               </FormField>
             </div>
 
-            <div className="w-full max-w-[12rem]">
+            <div className="w-full min-w-0 max-w-[12rem] xl:col-span-1">
               <FormField id="profile-name" label="Profile Name">
                 <Input
                   id="profile-name"
@@ -1564,7 +1824,7 @@ export function ProfilesScreen() {
               </FormField>
             </div>
 
-            <div className="w-full max-w-xs">
+            <div className="w-full min-w-0 max-w-xs xl:col-span-2">
               <FormField id="profile-api-key" label="API Key">
                 <select
                   id="profile-api-key"
@@ -1573,20 +1833,17 @@ export function ProfilesScreen() {
                   value={selectedApiKeyId}
                   onChange={(e) => setSelectedApiKeyId(e.target.value)}
                 >
-                  {apiKeys.length === 0 ? (
-                    <option value="">No active key in tenant</option>
-                  ) : (
-                    apiKeys.map((k) => (
-                      <option key={k.id} value={k.id}>
-                        {k.name ? `${k.name} (${k.id.slice(0, 8)}...)` : `Key (${k.id.slice(0, 8)}...)`}
-                      </option>
-                    ))
-                  )}
+                  <option value="">{activeApiKeys.length === 0 ? 'No active key in tenant' : 'Select an active API key'}</option>
+                  {activeApiKeys.map((k) => (
+                    <option key={k.id} value={k.id}>
+                      {k.name ? `${k.name} (${k.id.slice(0, 8)}...)` : `Key (${k.id.slice(0, 8)}...)`}
+                    </option>
+                  ))}
                 </select>
               </FormField>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 sm:col-span-2 xl:col-span-6">
               <Button
                 onClick={() => void createProfile()}
                 isLoading={loading}
@@ -1606,17 +1863,6 @@ export function ProfilesScreen() {
           </div>
         </CardContent>
       </Card>
-
-      {/* 0039: the profile owns its keys. `loadedAs` (not the selectors) so changing the
-          selector without re-loading cannot retarget the panel at another profile. */}
-      {detail !== null && loadedAs !== null ? (
-        <ProfileApiKeysPanel
-          businessId={loadedAs.businessId}
-          businessVersion={loadedAs.businessVersion}
-          profileName={loadedAs.profileName}
-          revision={detail.revision}
-        />
-      ) : null}
 
       {problem !== null && detail === null ? (
         problem.status === 403 ? (
@@ -1682,13 +1928,13 @@ export function ProfilesScreen() {
                 </div>
               ) : null}
               <div className="flex flex-wrap gap-2">
-                <Button onClick={() => void saveAll()} disabled={busy} title="Save profile settings to registry">
+                <Button onClick={() => void saveAll()} disabled={busy || loading || !canMutateLoadedProfile} title={profileWriteBlockMessage ?? 'Save profile settings to registry'}>
                   Save Profile
                 </Button>
-                <Button variant="outline" onClick={() => void publish()} disabled={!canPublish || busy} title={canPublish ? 'Publish' : 'Publish capability not reported'}>
+                <Button variant="outline" onClick={() => void publish()} disabled={!canPublish || busy || loading || !canMutateLoadedProfile} title={profileWriteBlockMessage ?? (canPublish ? 'Publish' : 'Publish capability not reported')}>
                   Publish
                 </Button>
-                <Button variant="outline" onClick={() => void rollback(Math.max(1, detail.revision - 1))} disabled={!canRollback || busy || detail.revision < 2} title={canRollback ? 'Rollback to previous revision' : 'Rollback capability not reported'}>
+                <Button variant="outline" onClick={() => void rollback(Math.max(1, detail.revision - 1))} disabled={!canRollback || busy || loading || detail.revision < 2 || !canMutateLoadedProfile} title={profileWriteBlockMessage ?? (canRollback ? 'Rollback to previous revision' : 'Rollback capability not reported')}>
                   Rollback to v{Math.max(1, detail.revision - 1)}
                 </Button>
                 <Button variant="outline" onClick={requestWorkbenchHandoff} disabled={busy || loading || detail.revision < 1 || !globalTenantId} title="Open the exact saved Profile revision in the Test Workbench">
@@ -1713,6 +1959,16 @@ export function ProfilesScreen() {
             </CardContent>
           </Card>
 
+          <TabsRoot defaultValue="parameters" className="min-w-0">
+            <TabsList aria-label="Selected profile configuration" className="flex-wrap">
+              <TabsTab value="parameters">Parameters &amp; bindings</TabsTab>
+              <TabsTab value="workflows">Workflows</TabsTab>
+              <TabsTab value="api-keys">API keys</TabsTab>
+              <TabsTab value="callback">Callback &amp; redaction</TabsTab>
+              <TabsTab value="auth-prompts">Auth &amp; prompts</TabsTab>
+              <TabsTab value="snapshot">Snapshot</TabsTab>
+            </TabsList>
+            <TabsPanel value="workflows" keepMounted>
           {detail.revision > 0 ? (
             <Card>
               <CardHeader>
@@ -1761,6 +2017,8 @@ export function ProfilesScreen() {
             </Card>
           ) : null}
 
+            </TabsPanel>
+            <TabsPanel value="parameters" keepMounted>
           {draft.rows.map((row, rowIndex) => (
             <Card key={`row-${rowIndex}`}>
               <CardHeader>
@@ -1864,7 +2122,7 @@ export function ProfilesScreen() {
                       </Button>
                     </div>
                   ))}
-                  <div className="flex flex-wrap items-end gap-2">
+                  <div className="flex flex-wrap items-start gap-2">
                     <Input id={`step-slug-${rowIndex}`} aria-label="connection slug" placeholder="connection slug" className="w-full max-w-[12rem]" disabled={!policyShipped} />
                     <Input id={`step-id-${rowIndex}`} aria-label="step id" placeholder="stepId (optional)" className="w-full max-w-[10rem]" disabled={!policyShipped} />
                     <Button
@@ -1887,71 +2145,6 @@ export function ProfilesScreen() {
                   </div>
                 </div>
 
-                <RequestRedactionEditor rules={row.requestRedaction} disabled={!policyShipped || busy}
-                  onChange={rules => updateRow(rowIndex, { ...row, requestRedaction: rules })} />
-
-                <Card>
-                  <CardHeader>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <CardTitle>Callback policy (CB-04)</CardTitle>
-                      <Badge variant="info" dot>secrets stay server-side</Badge>
-                    </div>
-                    <CardDescription>
-                      Delivery mode and outbound authentication for this profile&apos;s endpoint callbacks. Credentials
-                      are catalog secret references only — no literal secret is ever typed into or read from this form.
-                      Leaving the policy unchecked preserves the existing notification-only behavior.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="flex flex-col gap-4">
-                    {row.callbackPolicyInvalid ? (
-                      <div role="alert" className="text-sm text-[var(--badge-warning-text)]">
-                        <p>The stored callback policy is invalid. Callback processing remains blocked until you replace or clear it.</p>
-                        <Button type="button" disabled={!policyShipped || busy || row.callbackClearPending}
-                          onClick={() => updateRow(rowIndex, { ...row, callback: null, callbackClearPending: true })}>
-                          Clear invalid callback policy
-                        </Button>
-                      </div>
-                    ) : null}
-                    <label className="flex items-center gap-2 text-sm text-[var(--text-main)]">
-                      <input
-                        type="checkbox"
-                        checked={row.callback !== null}
-                        disabled={!policyShipped || busy}
-                        onChange={(event) => updateRow(rowIndex, event.target.checked
-                          ? { ...row, callback: emptyCallbackDraft(), callbackClearPending: false }
-                          : {
-                              ...row,
-                              callback: null,
-                              callbackClearPending: row.callbackConfiguredOnServer,
-                            })}
-                      />
-                      Configure a callback policy for this profile
-                    </label>
-                    {row.callbackClearPending ? (
-                      <p className="text-xs text-[var(--badge-warning-text)]" role="status">
-                        Saving now sends an explicit clear (`callbackPolicy: null`); an omitted key would keep the
-                        stored policy active.
-                      </p>
-                    ) : null}
-                    {row.callback !== null ? (
-                      <CallbackPolicyEditor
-                        idPrefix={`profile-${rowIndex}-callback`}
-                        draft={row.callback}
-                        onChange={(callback) => updateRow(rowIndex, { ...row, callback })}
-                        secrets={secretOptions}
-                        secretsLoading={secretsLoading}
-                        secretsProblem={secretsProblem}
-                        disabled={!policyShipped || busy}
-                      />
-                    ) : row.callbackClearPending ? null : (
-                      <p className="text-xs text-[var(--text-sub)]">
-                        No callback policy is attached: the platform keeps the existing notification-only delivery
-                        (submission callback URL + HMAC signature).
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
-
                 <div className="flex justify-end gap-2">
                   <Button
                     variant="ghost"
@@ -1964,8 +2157,8 @@ export function ProfilesScreen() {
                   </Button>
                   <Button
                     onClick={() => void saveOne(row)}
-                    disabled={!policyShipped || busy}
-                    title={policyShipped ? 'Save row' : 'Policy backend not shipped (T-API-02)'}
+                    disabled={!policyShipped || busy || loading || !canMutateLoadedProfile}
+                    title={profileWriteBlockMessage ?? (policyShipped ? 'Save row' : 'Policy backend not shipped')}
                   >
                     Save {row.profileName.trim() || '(unnamed)'}
                   </Button>
@@ -1973,6 +2166,38 @@ export function ProfilesScreen() {
               </CardContent>
             </Card>
           ))}
+
+            </TabsPanel>
+            <TabsPanel value="callback" keepMounted>
+              <div className="flex flex-col gap-3">
+                {draft.rows.map((row, rowIndex) => <Card key={`callback-${rowIndex}`}>
+                  <CardHeader>
+                    <div className="flex flex-wrap items-center gap-2"><CardTitle>{row.profileName.trim() || `Endpoint row ${rowIndex + 1}`}</CardTitle><Badge variant="info" dot>secrets stay server-side</Badge></div>
+                    <CardDescription>Callback and request redaction settings for this endpoint row.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="flex flex-col gap-4">
+                    <RequestRedactionEditor rules={row.requestRedaction} disabled={!policyShipped || busy} onChange={(rules) => updateRow(rowIndex, { ...row, requestRedaction: rules })} />
+                    <section className="flex flex-col gap-4 rounded-md border border-[var(--border-subtle)] p-3" aria-label={`Callback policy for ${row.profileName || `row ${rowIndex + 1}`}`}>
+                      <div>
+                        <h3 className="text-sm font-semibold">Callback policy (CB-04)</h3>
+                        <p className="mt-1 text-xs text-[var(--text-sub)]">Credentials are catalog secret references only. Leaving the policy unchecked preserves notification-only behavior.</p>
+                      </div>
+                      {row.callbackPolicyInvalid ? <div role="alert" className="flex flex-col items-start gap-2 text-sm text-[var(--badge-warning-text)]">
+                        <p>The stored callback policy is invalid. Callback processing remains blocked until you replace or clear it.</p>
+                        <Button type="button" disabled={!policyShipped || busy || row.callbackClearPending} onClick={() => updateRow(rowIndex, { ...row, callback: null, callbackClearPending: true })}>Clear invalid callback policy</Button>
+                      </div> : null}
+                      <label className="flex items-center gap-2 text-sm text-[var(--text-main)]">
+                        <input type="checkbox" checked={row.callback !== null} disabled={!policyShipped || busy} onChange={(event) => updateRow(rowIndex, event.target.checked ? { ...row, callback: emptyCallbackDraft(), callbackClearPending: false } : { ...row, callback: null, callbackClearPending: row.callbackConfiguredOnServer })} />
+                        Configure a callback policy for this profile
+                      </label>
+                      {row.callbackClearPending ? <p className="text-xs text-[var(--badge-warning-text)]" role="status">Saving now sends an explicit clear (`callbackPolicy: null`); an omitted key would keep the stored policy active.</p> : null}
+                      {row.callback !== null ? <CallbackPolicyEditor idPrefix={`profile-${rowIndex}-callback`} draft={row.callback} onChange={(callback) => updateRow(rowIndex, { ...row, callback })} secrets={secretOptions} secretsLoading={secretsLoading} secretsProblem={secretsProblem} disabled={!policyShipped || busy} /> : row.callbackClearPending ? null : <p className="text-xs text-[var(--text-sub)]">No callback policy is attached: the platform keeps the existing notification-only delivery (submission callback URL + HMAC signature).</p>}
+                    </section>
+                  </CardContent>
+                </Card>)}
+              </div>
+            </TabsPanel>
+            <TabsPanel value="auth-prompts" keepMounted>
 
           <Card>
             <CardHeader>
@@ -1988,7 +2213,7 @@ export function ProfilesScreen() {
                 frozen legacy shape and are sent only when touched — nothing is stored in the browser.
               </CardDescription>
             </CardHeader>
-            <CardContent className="flex flex-wrap items-end gap-3">
+            <CardContent className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <div className="w-full max-w-[10rem]">
                 <FormField id="fua-type" label="type">
                   <select
@@ -2055,6 +2280,7 @@ export function ProfilesScreen() {
             </CardContent>
           </Card>
 
+
           <Card>
             <CardHeader>
               <CardTitle>Prompt override (PAR-13, key-4)</CardTitle>
@@ -2089,6 +2315,11 @@ export function ProfilesScreen() {
             </CardContent>
           </Card>
 
+            </TabsPanel>
+            <TabsPanel value="api-keys" keepMounted>
+              {detail !== null && loadedAs !== null ? <ProfileApiKeysPanel businessId={loadedAs.businessId} businessVersion={loadedAs.businessVersion} profileName={loadedAs.profileName} revision={detail.revision} /> : <p className="text-sm text-[var(--text-sub)]">Load a saved Profile before managing its API keys.</p>}
+            </TabsPanel>
+            <TabsPanel value="snapshot" keepMounted>
           <Card>
             <CardHeader>
               <CardTitle>Profile snapshot</CardTitle>
@@ -2104,8 +2335,13 @@ export function ProfilesScreen() {
               <div className="text-xs text-[var(--text-sub)]">Credentials and effective provider configuration are not shown here.</div>
             </CardContent>
           </Card>
+            </TabsPanel>
+          </TabsRoot>
         </>
       ) : null}
+
+        </TabsPanel>
+      </TabsRoot>
 
       <Modal
         open={workbenchConfirmOpen}

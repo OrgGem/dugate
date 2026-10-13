@@ -59,5 +59,5 @@ test('unpriced zero cost never displays as final or free usage', () => {
 test('absent or invalid cost is unavailable with unknown completeness', () => {
   expect(usageCostState({})).toMatchObject({ label: 'Cost completeness unknown', knownCostUsd: null, incomplete: true });
   expect(usageCostState({ totals: { costMicrousd: -1 } }).knownCostUsd).toBeNull();
-  expect(usageCostState({ totals: { costMicrousd: 1250000, costStatus: 'estimated' } })).toMatchObject({ label: 'Estimated cost', knownCostUsd: 1.25, incomplete: true });
+  expect(usageCostState({ totals: { costMicrousd: 1250000, costStatus: 'estimated' } })).toMatchObject({ label: 'Estimated net cost', knownCostUsd: 1.25, incomplete: true });
 });

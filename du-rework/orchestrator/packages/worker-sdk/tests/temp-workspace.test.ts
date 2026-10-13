@@ -315,8 +315,9 @@ describe('createTempWorkspace concurrent isolation and sweep', () => {
       ]);
 
       expect(removalsStarted).toBe(2);
-      expect(first.removed).toContain(orphan);
-      expect(second.removed).toContain(orphan);
+      // One concurrent rm may observe the other sweep's removal and classify
+      // the missing path as kept; at least one sweep must have removed it.
+      expect([...first.removed, ...second.removed]).toContain(orphan);
       expect(existsSync(orphan)).toBe(false);
     } finally {
       rmMock.mockImplementation(originalImplementation);

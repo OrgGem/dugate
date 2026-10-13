@@ -211,7 +211,8 @@ describe('W-ADMUX02-SORT-ALLOWLIST-1: keyset paging stays exact under every sort
     const calls: { sql: string; params: unknown[] }[] = [];
     const ctx = {
       method: 'GET',
-      pathname: '/api/v1/operations',
+      pathname: '/api/internal/operations',
+      ingressAudience: 'internal',
       searchParams: new URLSearchParams(''),
       headers: { authorization: 'Bearer ' + ADMIN_TOKEN },
       config: { adminToken: ADMIN_TOKEN },

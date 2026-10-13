@@ -585,7 +585,13 @@ export function createMaintenanceService(options: MaintenanceServiceOptions) {
     const artifactIds = filters.artifactIds;
     if (kind === 'cache_cleanup' || kind === 'orphan_reconcile' || kind === 'retention_cleanup') {
       if (kind === 'retention_cleanup' && !retention) throw unavailable('effective retention policy is unavailable');
-      const cutoff = filters.olderThan ?? new Date(now().getTime() - (kind === 'cache_cleanup' ? retention!.cacheTtlHours * 3600_000 : kind === 'retention_cleanup' ? retention!.outputRetentionDays * 86400_000 : 0)).toISOString();
+      const policyCutoff = new Date(now().getTime() - (kind === 'cache_cleanup' ? retention!.cacheTtlHours * 3600_000 : kind === 'retention_cleanup' ? retention!.outputRetentionDays * 86400_000 : 0)).toISOString();
+      // A caller may choose an older cutoff to retain data for longer, but may
+      // not shorten the published retention window by supplying a newer one.
+      const requestedCutoff = filters.olderThan;
+      const cutoff = kind === 'retention_cleanup' && requestedCutoff
+        ? new Date(requestedCutoff).getTime() < new Date(policyCutoff).getTime() ? requestedCutoff : policyCutoff
+        : requestedCutoff ?? policyCutoff;
       const purpose = kind === 'cache_cleanup' ? `a.purpose='cache' AND a.operation_id IS NULL AND a.task_id IS NULL` : kind === 'retention_cleanup' ? `a.purpose IN ('output','intermediate') AND o.state IN ('SUCCEEDED','FAILED','CANCELLED','TIMED_OUT')` : `a.state='STAGING' AND a.operation_id IS NULL AND a.task_id IS NULL AND (a.expires_at IS NULL OR a.expires_at<=now())`;
       if (scope.kind === 'business' && kind !== 'retention_cleanup') return [];
       const params: unknown[] = kind === 'retention_cleanup' ? [cutoff, ...scopeSql(scope, 2).params, max, artifactIds ?? null] : [scope.kind === 'tenant' ? scope.tenantId : null, cutoff, max, artifactIds ?? null];
@@ -603,22 +609,38 @@ export function createMaintenanceService(options: MaintenanceServiceOptions) {
                      WHEN a.multipart_upload_id IS NOT NULL THEN false
                      WHEN EXISTS (SELECT 1 FROM operations x WHERE COALESCE(x.submit_artifacts,'[]'::jsonb) @> jsonb_build_array(jsonb_build_object('artifactId',a.id::text))) THEN false
                      WHEN EXISTS (SELECT 1 FROM tasks t WHERE t.result_ref=a.id::text) OR EXISTS (SELECT 1 FROM step_checkpoints sc WHERE sc.output_ref=a.id::text) THEN false
-                     WHEN kind_hint.retention AND (o.result_ref IS NOT NULL OR COALESCE(o.cancel_requested,false)
-                       OR EXISTS (SELECT 1 FROM tasks t WHERE t.operation_id=o.id AND t.state IN ('READY','QUEUED','RUNNING','RETRY_PENDING','WAITING_INPUT','WAITING_CHILDREN'))
-                       OR EXISTS (SELECT 1 FROM human_waits w WHERE w.operation_id=o.id AND w.status='OPEN')) THEN false
+                     WHEN kind_hint.retention AND o.completed_at IS NULL THEN false
+                     WHEN kind_hint.retention AND o.completed_at > $1::timestamptz THEN false
+                     WHEN kind_hint.retention AND o.result_ref IS NOT NULL THEN false
+                     WHEN kind_hint.retention AND COALESCE(o.cancel_requested,false) THEN false
+                     WHEN kind_hint.retention AND EXISTS (SELECT 1 FROM tasks t WHERE t.operation_id=o.id AND t.state IN ('READY','QUEUED','RUNNING','RETRY_PENDING','WAITING_INPUT','WAITING_CHILDREN')) THEN false
+                     WHEN kind_hint.retention AND EXISTS (SELECT 1 FROM human_waits w WHERE w.operation_id=o.id AND w.status='OPEN') THEN false
                      ELSE true END AS safe_to_delete,
                 CASE WHEN a.storage_version_id IS NULL OR a.storage_version_id='null' THEN 'IMMUTABLE_STORAGE_PIN_MISSING'
                      WHEN a.multipart_upload_id IS NOT NULL THEN 'MULTIPART_UPLOAD_ACTIVE'
                      WHEN EXISTS (SELECT 1 FROM operations x WHERE COALESCE(x.submit_artifacts,'[]'::jsonb) @> jsonb_build_array(jsonb_build_object('artifactId',a.id::text))) THEN 'ARTIFACT_REFERENCED'
                      WHEN EXISTS (SELECT 1 FROM tasks t WHERE t.result_ref=a.id::text) OR EXISTS (SELECT 1 FROM step_checkpoints sc WHERE sc.output_ref=a.id::text) THEN 'ARTIFACT_REFERENCED'
-                     WHEN kind_hint.retention AND (o.result_ref IS NOT NULL OR COALESCE(o.cancel_requested,false)
-                       OR EXISTS (SELECT 1 FROM tasks t WHERE t.operation_id=o.id AND t.state IN ('READY','QUEUED','RUNNING','RETRY_PENDING','WAITING_INPUT','WAITING_CHILDREN'))
-                       OR EXISTS (SELECT 1 FROM human_waits w WHERE w.operation_id=o.id AND w.status='OPEN')) THEN 'ARTIFACT_REFERENCED'
+                     WHEN kind_hint.retention AND o.completed_at IS NULL THEN 'TERMINAL_COMPLETION_TIME_MISSING'
+                     WHEN kind_hint.retention AND o.completed_at > $1::timestamptz THEN 'RETENTION_WINDOW_OPEN'
+                     WHEN kind_hint.retention AND o.result_ref IS NOT NULL THEN 'RESULT_REFERENCE_RETAINED'
+                     WHEN kind_hint.retention AND COALESCE(o.cancel_requested,false) THEN 'CANCELLATION_RETAINED'
+                     WHEN kind_hint.retention AND EXISTS (SELECT 1 FROM tasks t WHERE t.operation_id=o.id AND t.state IN ('READY','QUEUED','RUNNING','RETRY_PENDING','WAITING_INPUT','WAITING_CHILDREN')) THEN 'LIVE_TASKS_REMAIN'
+                     WHEN kind_hint.retention AND EXISTS (SELECT 1 FROM human_waits w WHERE w.operation_id=o.id AND w.status='OPEN') THEN 'OPEN_HUMAN_WAIT'
                      ELSE NULL END AS reason_code
-           FROM artifacts a ${joins} CROSS JOIN (SELECT ${kind === 'retention_cleanup' ? 'true' : 'false'} AS retention) kind_hint WHERE ${where} ORDER BY a.created_at LIMIT $${limitIndex}`,
+           FROM artifacts a ${joins} CROSS JOIN (SELECT ${kind === 'retention_cleanup' ? 'true' : 'false'} AS retention) kind_hint WHERE ${where}
+          -- Order eligible rows before applying the batch limit so permanently
+          -- referenced rows cannot occupy every preview and starve later data.
+          ORDER BY safe_to_delete DESC, a.created_at ASC, a.id ASC LIMIT $${limitIndex}`,
         params,
         kind === 'retention_cleanup' ? 'retention' : 'orphan',
       );
+      if (kind === 'retention_cleanup') {
+        for (const candidate of candidates) {
+          if (candidate.itemType === 'artifact' && candidate.data?.mode === 'retention') {
+            candidate.data.retentionCutoff = cutoff;
+          }
+        }
+      }
     } else if (kind === 'stalled_lease_recovery') {
       const filter = scopeSql(scope, 2);
       const params: unknown[] = [max, ...filter.params, filters.taskIds ?? null];
@@ -785,7 +807,34 @@ export function createMaintenanceService(options: MaintenanceServiceOptions) {
     const storedRequest = parseJson<MaintenancePreviewRequest>(config.request, {} as MaintenancePreviewRequest);
     const data = parseJson<Record<string, unknown>>(item.evidence, {});
     if (item.item_type === 'artifact') {
-      const result = await options.artifacts.expireForMaintenance(item.item_id, data.mode === 'retention' ? 'retention' : 'orphan');
+      let retentionFence: { expectedRevision: number; cutoff: string } | null = null;
+      if (data.mode === 'retention' && kind === 'retention_cleanup') {
+        const pinnedRetention = parseJson<RetentionPolicySnapshot | null>(config.retention, null);
+        const retentionCutoff = typeof data.retentionCutoff === 'string' ? data.retentionCutoff : null;
+        if (!pinnedRetention || retentionCutoff === null || !Number.isFinite(Date.parse(retentionCutoff))) {
+          return { status: 'SKIPPED', code: 'RETENTION_FENCE_INVALID', evidence: { retentionCutoff } };
+        }
+        retentionFence = { expectedRevision: pinnedRetention.revision, cutoff: retentionCutoff };
+        const currentRetention = await options.getEffectiveRetentionPolicy();
+        if (currentRetention.revision !== pinnedRetention.revision) {
+          return { status: 'SKIPPED', code: 'RETENTION_POLICY_CHANGED', evidence: { retentionCutoff } };
+        }
+        const scopedRequest: MaintenancePreviewRequest = {
+          ...storedRequest,
+          filters: { ...storedRequest.filters, maxItems: 1, artifactIds: [String(item.item_id)] },
+        };
+        const currentCandidate = (await enumerateMaintenanceCandidates(scopedRequest, currentRetention))[0];
+        if (!currentCandidate || currentCandidate.eligibility !== 'ELIGIBLE') {
+          return {
+            status: 'SKIPPED',
+            code: currentCandidate?.reasonCode ?? 'RETENTION_CANDIDATE_CHANGED',
+            evidence: { retentionCutoff: currentCandidate?.data?.retentionCutoff ?? data.retentionCutoff ?? null },
+          };
+        }
+      }
+      const result = retentionFence
+        ? await options.artifacts.expireForMaintenance(item.item_id, 'retention', retentionFence)
+        : await options.artifacts.expireForMaintenance(item.item_id, 'orphan');
       return { status: result.status === 'DELETED' ? 'APPLIED' : result.status, code: result.code, evidence: { storageGenerationId: typeof data.storageGenerationId === 'string' ? data.storageGenerationId : null } };
     }
     if (item.item_type === 'task' && kind === 'stalled_lease_recovery') {

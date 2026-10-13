@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertBanner,
   Badge,
@@ -61,6 +61,12 @@ interface CreateDraft {
   version: string;
 }
 
+interface SecretPageNavigation {
+  tenantScope: string;
+  cursors: Array<string | null>;
+  index: number;
+}
+
 function emptyCreateDraft(): CreateDraft {
   return {
     name: '',
@@ -104,10 +110,12 @@ function newIdempotencyKey(): string {
 }
 
 export function SecretsScreen(): React.JSX.Element {
-  const { tenantId: globalTenantId, tenant } = useTenant();
+  const { tenantId: globalTenantId } = useTenant();
   const tenantScope = globalTenantId ?? '';
   const client = useMemo(() => createAdminApiClient(), []);
   const [entries, setEntries] = useState<SecretCatalogEntryRead[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [pageNavigation, setPageNavigation] = useState<SecretPageNavigation>({ tenantScope: '', cursors: [null], index: 0 });
   const [loading, setLoading] = useState(false);
   const [problem, setProblem] = useState<AdminApiProblem | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -126,33 +134,88 @@ export function SecretsScreen(): React.JSX.Element {
   const [disableError, setDisableError] = useState<AdminApiProblem | null>(null);
 
   const [testResults, setTestResults] = useState<Record<string, SecretProbeResult | 'pending'>>({});
+  const tenantScopeRef = useRef(tenantScope);
+  const currentCursorRef = useRef<{ tenantScope: string; cursor: string | null }>({ tenantScope, cursor: null });
+  const loadSequenceRef = useRef(0);
 
-  const load = useCallback(async (): Promise<void> => {
+  const load = useCallback(async (cursor: string | null | undefined = undefined, movement?: 'first' | 'previous' | 'next'): Promise<void> => {
+    // A mutation handler from an older tenant render can complete after the
+    // tenant has changed. Reject it before it can supersede the current read.
+    if (tenantScopeRef.current !== tenantScope) return;
+    const cursorState = currentCursorRef.current;
+    const requestedCursor = cursor === undefined
+      ? cursorState.tenantScope === tenantScope ? cursorState.cursor : null
+      : cursor;
+    const sequence = ++loadSequenceRef.current;
     setLoading(true);
     setProblem(null);
-    const query: Record<string, string> = { limit: '100' };
+    const query: Record<string, string> = { limit: '50' };
     if (tenantScope.trim().length > 0) query.tenantId = tenantScope.trim();
-    const result = await client.listSecrets(query);
-    if (!result.ok) {
-      setEntries([]);
-      setProblem(result.problem);
-      setLoading(false);
-      return;
+    if (requestedCursor !== null) query.cursor = requestedCursor;
+    const isCurrentRequest = () => tenantScopeRef.current === tenantScope
+      && sequence === loadSequenceRef.current;
+    try {
+      const result = await client.listSecrets(query);
+      if (!isCurrentRequest()) return;
+      if (!result.ok) {
+        setEntries([]);
+        setNextCursor(null);
+        setProblem(result.problem);
+        return;
+      }
+      const page = parseSecretListPage(result.data);
+      if (page === null) {
+        setEntries([]);
+        setNextCursor(null);
+        setProblem({ status: 502, code: 'UNREADABLE_RESPONSE', title: 'The secret list response did not match the catalog contract.' });
+        return;
+      }
+      if (!isCurrentRequest()) return;
+      setEntries(page.items);
+      setNextCursor(page.nextCursor);
+      currentCursorRef.current = { tenantScope, cursor: requestedCursor };
+      if (movement !== undefined) {
+        setPageNavigation((current) => {
+          if (!isCurrentRequest()) return current;
+          const base = current.tenantScope === tenantScope
+            ? current
+            : { tenantScope, cursors: [null], index: 0 };
+          if (movement === 'first') return { tenantScope, cursors: [null], index: 0 };
+          if (movement === 'previous') return { ...base, index: Math.max(0, base.index - 1) };
+          if (requestedCursor === null) return base;
+          const existingNextCursor = base.cursors[base.index + 1];
+          if (existingNextCursor === requestedCursor) return { ...base, index: base.index + 1 };
+          return {
+            tenantScope,
+            cursors: [...base.cursors.slice(0, base.index + 1), requestedCursor],
+            index: base.index + 1,
+          };
+        });
+      }
+    } catch {
+      if (isCurrentRequest()) {
+        setEntries([]);
+        setNextCursor(null);
+        setProblem({ status: 0, code: 'UPSTREAM_UNAVAILABLE', title: 'The secret catalog could not be reached.' });
+      }
+    } finally {
+      if (isCurrentRequest()) setLoading(false);
     }
-    const page = parseSecretListPage(result.data);
-    if (page === null) {
-      setEntries([]);
-      setProblem({ status: 502, code: 'UNREADABLE_RESPONSE', title: 'The secret list response did not match the catalog contract.' });
-      setLoading(false);
-      return;
-    }
-    setEntries(page.items);
-    setLoading(false);
   }, [client, tenantScope]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  useLayoutEffect(() => {
+    // Invalidate old-scope requests synchronously after the scope commit and
+    // before user events can trigger another callback captured by the old render.
+    tenantScopeRef.current = tenantScope;
+    currentCursorRef.current = { tenantScope, cursor: null };
+    setEntries([]);
+    setProblem(null);
+    setLoading(false);
+    setPageNavigation({ tenantScope, cursors: [null], index: 0 });
+    setNextCursor(null);
+    loadSequenceRef.current += 1;
+    void load(null, 'first');
+  }, [load, tenantScope]);
 
   function updateCreate(mutate: (current: CreateDraft) => CreateDraft): void {
     setCreateDraft((current) => mutate(current));
@@ -274,6 +337,22 @@ export function SecretsScreen(): React.JSX.Element {
       : entries.length === 0
         ? 'empty'
         : 'ready';
+  const currentNavigation = pageNavigation.tenantScope === tenantScope
+    ? pageNavigation
+    : { tenantScope, cursors: [null], index: 0 };
+  const hasPreviousPage = currentNavigation.index > 0;
+  const pageNumber = currentNavigation.index + 1;
+
+  function goToPreviousPage(): void {
+    if (!hasPreviousPage) return;
+    const cursor = currentNavigation.cursors[currentNavigation.index - 1] ?? null;
+    void load(cursor, 'previous');
+  }
+
+  function goToNextPage(): void {
+    if (nextCursor === null) return;
+    void load(nextCursor, 'next');
+  }
 
   return (
     <section aria-labelledby="secrets-title" className="flex flex-col gap-5 min-w-0">
@@ -305,22 +384,6 @@ export function SecretsScreen(): React.JSX.Element {
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <div className="flex flex-wrap items-end gap-3">
-            <div className="w-full max-w-sm">
-              <div className="flex flex-col gap-1.5">
-                <span className="text-xs font-semibold text-[var(--text-sub)]">Active Tenant</span>
-                <div className="flex items-center gap-2 p-2 rounded border border-[var(--border-subtle)] bg-[var(--surface-muted)] text-sm">
-                  <span className="font-medium text-[var(--text-main)] truncate">
-                    {tenant?.name || (tenantScope ? `Tenant (${tenantScope.slice(0, 8)}...)` : 'No Tenant Selected')}
-                  </span>
-                  {tenant && (
-                    <Badge variant={tenant.state === 'ACTIVE' ? 'success' : 'neutral'} className="text-[10px] py-0 px-1.5 ml-auto">
-                      {tenant.state}
-                    </Badge>
-                  )}
-                </div>
-                <p className="text-xs text-[var(--text-sub)]">Inherited from Global Tenant in Left Navigator.</p>
-              </div>
-            </div>
             <Button type="button" variant="outline" onClick={() => void load()} isLoading={loading}>
               Refresh
             </Button>
@@ -344,9 +407,10 @@ export function SecretsScreen(): React.JSX.Element {
               statusCode: problem?.status,
             }}
           >
-            <TableContainer>
-              <Table>
-                <TableHeader>
+            <div className="flex min-w-0 flex-col gap-3">
+            <TableContainer maxHeight="65dvh" aria-label="Secret catalog page">
+              <Table density="compact">
+                <TableHeader sticky>
                   <TableRow>
                     <TableHead>Name</TableHead>
                     <TableHead>Purpose</TableHead>
@@ -440,6 +504,15 @@ export function SecretsScreen(): React.JSX.Element {
                 </TableBody>
               </Table>
             </TableContainer>
+            <div className="flex min-w-0 flex-col gap-2 border-t border-[var(--border-subtle)] pt-3 sm:flex-row sm:items-center sm:justify-between">
+              <span className="text-xs text-[var(--text-sub)]">Page {pageNumber} · {entries.length} secret entries loaded for this tenant.</span>
+              <div className="flex flex-wrap gap-2" aria-label="Secret catalog pagination">
+                <Button type="button" size="sm" variant="outline" disabled={loading || !hasPreviousPage} onClick={() => void load(null, 'first')}>First</Button>
+                <Button type="button" size="sm" variant="outline" disabled={loading || !hasPreviousPage} onClick={goToPreviousPage}>Previous</Button>
+                <Button type="button" size="sm" variant="outline" disabled={loading || nextCursor === null} onClick={goToNextPage}>Next</Button>
+              </div>
+            </div>
+            </div>
           </StatePanel>
         </CardContent>
       </Card>

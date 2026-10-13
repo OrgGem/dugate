@@ -28,6 +28,9 @@ function makeWorld(): RouteWorld {
   const client = {
     query: async (text: string) => {
       const sql = text.replace(/\s+/g, ' ').trim();
+      if (sql.startsWith('SELECT enabled,activation_revision,submissions_paused,pre_drain_version')) {
+        return { rows: [{ enabled: true, activation_revision: 1, submissions_paused: false, pre_drain_version: null }], rowCount: 1 };
+      }
       if (sql.startsWith('UPDATE business_versions')) {
         calls.update += 1;
         return { rows: [], rowCount: 1 };
@@ -57,13 +60,18 @@ function makeWorld(): RouteWorld {
     headers: { authorization: 'Bearer tok' } as Record<string, string>,
     config: { adminToken: 'tok' },
     registry: {
+      enableVersion: async (_businessId: string, version: string, expectedActivationRevision: number) => {
+        calls.update += 1;
+        return { businessId: BIZ, version, status: 'ENABLED' as const,
+          activationRevision: expectedActivationRevision + 1, replayed: false };
+      },
       activateVersion: async () => {
         calls.activate += 1;
-        return { businessId: 'biz', version: '1.0.0', active: true, replayed: false };
+        return { businessId: 'biz', version: '1.0.0', active: true, activationRevision: 2, previousVersion: null, replayed: false };
       },
       deactivateVersion: async () => {
         calls.deactivate += 1;
-        return { businessId: 'biz', version: '1.0.0', active: false, replayed: false };
+        return { businessId: 'biz', version: '1.0.0', active: false, activationRevision: 2, previousVersion: '1.0.0', replayed: false };
       },
     },
     lifecycle: {
@@ -96,7 +104,7 @@ describe('AUDIT-EXT-2: direct admin routes write the server-derived role', () =>
   it('business.enable: actorRole platform; actor fallback + absent sub/issuer', async () => {
     const w = makeWorld();
     const res = await handleAdminRoutes(
-      w.ctx({ method: 'PUT', pathname: `/api/v1/admin/businesses/${BIZ}/versions/${VER}/enable` })
+      w.ctx({ method: 'PUT', pathname: `/api/v1/admin/businesses/${BIZ}/versions/${VER}/enable`, body: { expectedActivationRevision: 1 } })
     );
     expect(res!.status).toBe(200);
     expect(w.auditRows[0]).toMatchObject({ actor: 'admin', actorRole: 'platform', action: 'business.enable' });
@@ -107,10 +115,10 @@ describe('AUDIT-EXT-2: direct admin routes write the server-derived role', () =>
   it('business.activate and business.drain: same principal fields', async () => {
     const w = makeWorld();
     await handleAdminRoutes(
-      w.ctx({ method: 'PUT', pathname: `/api/v1/admin/businesses/${BIZ}/versions/${VER}/activate` })
+      w.ctx({ method: 'PUT', pathname: `/api/v1/admin/businesses/${BIZ}/versions/${VER}/activate`, body: { expectedActivationRevision: 1 } })
     );
     await handleAdminRoutes(
-      w.ctx({ method: 'PUT', pathname: `/api/v1/admin/businesses/${BIZ}/versions/${VER}/deactivate` })
+      w.ctx({ method: 'PUT', pathname: `/api/v1/admin/businesses/${BIZ}/versions/${VER}/deactivate`, body: { expectedActivationRevision: 1 } })
     );
     expect(w.auditRows.map((a) => a.action)).toEqual(['business.activate', 'business.drain']);
     for (const row of w.auditRows) expect(row.actorRole).toBe('platform');

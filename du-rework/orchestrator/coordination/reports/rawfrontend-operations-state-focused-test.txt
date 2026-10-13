@@ -1,0 +1,40 @@
+▶ buildOperationsQuery
+  ✔ always carries the paging and ordering parameters (0.8752ms)
+  ✔ passes the tenant and a non-empty id filter through (0.1017ms)
+  ✔ omits ALL so the wire never carries a state the contract does not define (0.1389ms)
+  ✔ carries a cursor when paging (0.0795ms)
+  ✔ turns empty date inputs into no server bound at all (0.0764ms)
+  ✔ turns a half-open window into the bound that was asked for (0.0957ms)
+  ✔ sends an inclusive UTC day window that the admin list contract accepts (0.698ms)
+  ✔ keeps the same inclusive-day bounds as the previous client-side filter (0.1102ms)
+✔ buildOperationsQuery (3.0406ms)
+▶ operations population fingerprint
+  ✔ is stable when nothing the operator selected changed (0.2018ms)
+  ✔ changes when state changes (0.1923ms)
+  ✔ changes when tenantId changes (0.0785ms)
+  ✔ changes when id changes (0.0633ms)
+  ✔ changes when fromDate changes (0.056ms)
+  ✔ changes when toDate changes (0.0283ms)
+  ✔ changes when limit changes (0.0611ms)
+  ✔ trims the id filter so typing a trailing space does not churn the population (0.0747ms)
+  ✔ treats an absent tenant and an empty one as the same population (0.0582ms)
+✔ operations population fingerprint (1.0744ms)
+▶ operationsCursorIsStale
+  ✔ never fires when there is no cursor to lose (0.0716ms)
+  ✔ keeps the cursor while the population is unchanged so paging keeps working (0.0718ms)
+  ✔ drops a cursor minted for another tenant - the AWEB-20 defect (0.9607ms)
+  ✔ drops the cursor for a changed state, window, id or page size (0.138ms)
+  ✔ fails safe when the cursor origin was never recorded (0.0612ms)
+✔ operationsCursorIsStale (1.4345ms)
+▶ Operations screen request wiring
+  ✔ sends the selected date window as ISO UTC bounds and tracks it in load dependencies (64.6901ms)
+  ✔ drops a cursor from a previous population before making a list request (18.2435ms)
+✔ Operations screen request wiring (83.3496ms)
+ℹ tests 24
+ℹ suites 4
+ℹ pass 24
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 315.949

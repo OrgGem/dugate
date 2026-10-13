@@ -28,6 +28,7 @@ import { request as httpRequest } from 'node:http';
 import { BoundaryListener } from '../../../../tests/harness/network-boundaries/mock-listener';
 import type { AddressInfo } from 'node:net';
 import { createApp, type App } from '../src/server';
+import { mockCreateStorageGenerationFixture, mockOpenBackupEffectGateResult } from './helpers/backup-effect-gate';
 import {
   deliverWebhooks,
   signWebhookBody,
@@ -506,10 +507,16 @@ jest.mock('pg', () => {
     webhookRows: null as unknown[] | null,
     leaseSeq: 0,
   };
+  let mockStorage: ReturnType<typeof mockCreateStorageGenerationFixture> | undefined;
+  const getMockStorage = () => (mockStorage ??= mockCreateStorageGenerationFixture());
   class ScriptedPool {
     async query(sql: string, _params?: unknown[]): Promise<{ rows: unknown[]; rowCount: number }> {
       state.queries.push(sql);
       if (state.injectMessage) throw new Error(state.injectMessage);
+      const backupGate = mockOpenBackupEffectGateResult(sql);
+      if (backupGate) return backupGate;
+      const storage = getMockStorage().answer(sql, _params ?? []);
+      if (storage) return storage;
       if (/FROM webhook_deliveries/i.test(sql) && /FOR UPDATE SKIP LOCKED/i.test(sql)) {
         const rows = state.webhookRows ? state.webhookRows.map((r) => ({ ...(r as Record<string, unknown>) })) : [];
         return { rows, rowCount: rows.length };

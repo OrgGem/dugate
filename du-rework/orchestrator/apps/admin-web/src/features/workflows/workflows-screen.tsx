@@ -242,7 +242,7 @@ const PRESET_SAMPLES: PresetSample[] = [
 
 export function WorkflowsScreen() {
   const client = useMemo(() => createAdminApiClient(), []);
-  const { tenantId, tenant } = useTenant();
+  const { tenantId } = useTenant();
 
   const [workflowItems, setWorkflows] = useState<WorkflowCatalogItem[]>([]);
   const [catalogTenantId, setCatalogTenantId] = useState<string | null>(tenantId);
@@ -1016,11 +1016,6 @@ export function WorkflowsScreen() {
           <Badge variant={metadataConfigured === true ? 'info' : 'warning'} className="py-1 px-3">
             Metadata encryption: {metadataConfigured === null ? 'unknown' : metadataConfigured ? 'configured' : 'not configured'}
           </Badge>
-          {tenant && (
-            <Badge variant="neutral" className="py-1 px-3">
-              Organization: <strong className="ml-1">{tenant.name}</strong>
-            </Badge>
-          )}
           <Button
             variant="outline"
             size="sm"
@@ -1504,9 +1499,9 @@ export function WorkflowsScreen() {
                         Connector Slot Mapping
                       </h3>
                       <p className="text-xs mb-2">These are schema slot assignments. The selected API key's profile must pin compatible connector revisions; admission verifies those pins when a test starts.</p>
-                      <div className="border rounded-lg overflow-hidden text-xs">
+                      <div className="max-h-[min(65dvh,40rem)] overflow-auto rounded-lg border text-xs" role="region" aria-label={`Connector slot mappings for workflow ${selectedWorkflow.name}`} tabIndex={0}>
                         <table className="w-full">
-                          <thead className="bg-muted text-muted-foreground border-b text-left">
+                          <thead className="sticky top-0 z-10 border-b bg-muted text-left text-muted-foreground">
                             <tr>
                               <th className="p-2.5 font-medium">Connector Name</th>
                               <th className="p-2.5 font-medium">Internal Slot Binding</th>

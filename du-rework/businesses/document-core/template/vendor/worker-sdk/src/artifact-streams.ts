@@ -1,7 +1,3 @@
-// VENDORED from @du/worker-sdk @ b088eececcb5f3df0b4edbe073a29401dafda624 (worktree 2026-10-06)
-// source: packages/worker-sdk/src/artifact-streams.ts (lines=984) sha256=21CD0FA96956AB7D2FD088D2627C2CEBC19899156D7B76D2CAD44BD3F1DD12B2
-// why: worker surface required by src/worker.ts, src/main.ts, types/context.ts, step-checkpoint, fanout
-
 import { createHash } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
 import { mkdtemp, readdir, rm, stat, unlink, utimes } from 'node:fs/promises';
@@ -15,6 +11,7 @@ import {
   type ArtifactRefDisposition,
 } from '@du/contracts';
 import type { SdkFetcher } from './fan-out';
+import { isArtifactStoragePolicyCode } from './storage-policy';
 
 /**
  * Artifact streaming/download + temp isolation & cleanup (P4-05).
@@ -61,7 +58,9 @@ export type ArtifactStreamErrorCode =
   | 'EMPTY_BODY'
   | 'TIMEOUT'
   | 'OUTPUT_NOT_COMMITTED'
-  | 'TRANSPORT_FAILURE';
+  | 'TRANSPORT_FAILURE'
+  /** SEC-ENC-04: server refused the write/read on storage-encryption policy. */
+  | 'STORAGE_POLICY_REJECTED';
 
 /** Typed failure for every artifact-stream path (discriminated by `code`). */
 export class ArtifactStreamError extends Error {
@@ -708,7 +707,15 @@ export async function uploadArtifactStream(
         'content-type': options.mimeType,
         'content-length': String(options.sizeBytes),
       },
-      body: Readable.toWeb(meter) as unknown as RequestInit['body'],
+      body: Readable.toWeb(meter, {
+        strategy: {
+          highWaterMark,
+          // The default Web Streams strategy counts chunks. These are byte
+          // streams, so a 64 KiB high-water mark must account for chunk bytes;
+          // otherwise a fast producer can queue the whole artifact in memory.
+          size: (chunk: Uint8Array) => chunk.byteLength,
+        },
+      }) as unknown as RequestInit['body'],
       signal: scope.signal,
       duplex: 'half',
     } as RequestInit & { duplex: 'half' };
@@ -717,7 +724,10 @@ export async function uploadArtifactStream(
       source.destroy();
       meter.destroy();
       await transfer.catch(() => undefined);
-      const detail = await readErrorDetail(response);
+      const { detail, code } = await readErrorResponse(response);
+      if (response.status === 501 || isArtifactStoragePolicyCode(code)) {
+        throw new ArtifactStreamError(response.status, 'STORAGE_POLICY_REJECTED', detail);
+      }
       throw new ArtifactStreamError(response.status, 'DOWNLOAD_REJECTED', detail);
     }
     await transfer;
@@ -939,27 +949,34 @@ function errorClassName(err: unknown): string {
   return 'Error';
 }
 
+export interface ArtifactErrorResponse {
+  /** Allowlisted, non-echoing detail safe to carry on the typed error. */
+  readonly detail: string;
+  /** Machine code when the body is a problem+json object, else null. */
+  readonly code: string | null;
+}
+
 /**
- * ADM-BASE-03 / C2-4: previously returned the raw upstream body (first 512 chars) as the
- * DOWNLOAD_REJECTED detail, which failTask forwarded toward the candidate public wire.
- * Now only allowlisted, non-echoing fields survive: the machine code (problem+json
- * `code` / `error.code`) plus the HTTP status. Upstream `detail`/`message`/title are
- * upstream-authored strings — exactly the sentinel-carrying channel — so they are dropped.
+ * ADM-BASE-03 / C2-4: raw upstream bodies never travel. Only an allowlisted
+ * machine code and a bounded server-authored title/detail survive; the body is
+ * consumed exactly once, so callers that need both values must use this
+ * function rather than calling `readErrorDetail` and parsing separately.
  */
-export async function readErrorDetail(res: Response): Promise<string> {
+export async function readErrorResponse(res: Response): Promise<ArtifactErrorResponse> {
+  const fallback = `HTTP ${res.status}`;
   let text: string;
   try {
     text = await res.text();
   } catch {
-    return `HTTP ${res.status}`;
+    return { detail: fallback, code: null };
   }
-  if (text.length === 0) return `HTTP ${res.status}`;
+  if (text.length === 0) return { detail: fallback, code: null };
   let parsed: { code?: unknown; error?: { code?: unknown }; detail?: unknown; title?: unknown };
   try {
     parsed = JSON.parse(text) as typeof parsed;
   } catch {
     // C2-4 close: raw non-JSON body text (the old 512-char slice) never travels.
-    return `HTTP ${res.status}`;
+    return { detail: fallback, code: null };
   }
   const candidate =
     typeof parsed.code === 'string' ? parsed.code : typeof parsed.error?.code === 'string' ? parsed.error.code : null;
@@ -968,9 +985,20 @@ export async function readErrorDetail(res: Response): Promise<string> {
   // contract surface — same trust level as HttpError.detail through the server.ts
   // boundary) but length-bounded; non-JSON bodies NEVER pass through raw anymore.
   const authored = typeof parsed.detail === 'string' ? parsed.detail : typeof parsed.title === 'string' ? parsed.title : null;
-  if (authored !== null) return authored.slice(0, 240);
-  if (code !== null) return `HTTP ${res.status} ${code}`;
-  return `HTTP ${res.status}`;
+  if (authored !== null) return { detail: authored.slice(0, 240), code };
+  if (code !== null) return { detail: `HTTP ${res.status} ${code}`, code };
+  return { detail: fallback, code: null };
+}
+
+/**
+ * ADM-BASE-03 / C2-4: previously returned the raw upstream body (first 512 chars) as the
+ * DOWNLOAD_REJECTED detail, which failTask forwarded toward the candidate public wire.
+ * Now only allowlisted, non-echoing fields survive: the machine code (problem+json
+ * `code` / `error.code`) plus the HTTP status. Upstream `detail`/`message`/title are
+ * upstream-authored strings — exactly the sentinel-carrying channel — so they are dropped.
+ */
+export async function readErrorDetail(res: Response): Promise<string> {
+  return (await readErrorResponse(res)).detail;
 }
 
 async function removeFile(path: string): Promise<void> {

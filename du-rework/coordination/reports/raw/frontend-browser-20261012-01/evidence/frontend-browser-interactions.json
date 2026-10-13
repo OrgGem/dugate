@@ -1,0 +1,17 @@
+[
+  {
+    "scenario": "profiles-delayed-old-filter-next-response-ignored",
+    "passed": true,
+    "details": {
+      "profileRequestOrder": [
+        "all:first",
+        "business-a:first",
+        "business-a:a-next",
+        "business-b:first"
+      ],
+      "delayedRequest": "business-a:a-next",
+      "currentFilter": "business-b",
+      "visibleRowAfterOldResponseReleased": "business-b-first"
+    }
+  }
+]

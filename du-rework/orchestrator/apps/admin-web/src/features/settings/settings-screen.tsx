@@ -4,6 +4,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertBanner } from '@/components/ui/state-panel';
+import { Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TablePagination, TableRow } from '@/components/ui/table';
+import { TabsList, TabsPanel, TabsRoot, TabsTab } from '@/components/ui/tabs';
 import { createAdminApiClient, type AdminWebSession, type ApiKeyRow, type ConnectorManagementRevision } from '@/lib/api';
 import { loadActiveKeys } from '@/lib/api/active-keys';
 import { useTenant } from '@/lib/tenant-context';
@@ -326,6 +328,17 @@ export function SettingsScreen() {
     {error && <AlertBanner variant='error' title='Settings request failed'>{error}</AlertBanner>}
     {notice && <AlertBanner variant='info' title='Configuration status'>{notice}</AlertBanner>}
 
+    <TabsRoot defaultValue='overview' className='min-w-0'>
+      <TabsList aria-label='Settings workspaces'>
+        <TabsTab value='overview'>Overview</TabsTab>
+        <TabsTab value='scoped-configuration'>Scoped configuration</TabsTab>
+        <TabsTab value='ai-prompts'>AI &amp; prompts</TabsTab>
+        <TabsTab value='storage-retention'>Storage &amp; retention</TabsTab>
+        <TabsTab value='migration-reference'>Migration &amp; reference</TabsTab>
+      </TabsList>
+
+      <TabsPanel value='overview' keepMounted className='space-y-4'>
+
     <Card>
       <CardHeader>
         <CardTitle>Effective deployment</CardTitle>
@@ -344,9 +357,13 @@ export function SettingsScreen() {
         {caps && <div className='mt-3 flex flex-wrap gap-2'>{Object.entries(caps).map(([key, value]) => <Badge key={key} variant={value ? 'info' : 'warning'}>
           {({ metadataEncryptionConfigured: 'Metadata encryption', connectorManagementConfigured: 'Connector management', credentialManagementConfigured: 'Credential management', promptOverridesEditable: 'Prompt editing', configurationEditable: 'Configuration revision editing' } as Record<string, string>)[key] ?? key}: {value ? 'configured' : 'not configured'}
         </Badge>)}</div>}
-        <p className='mt-3 text-sm'>Configured capability does not prove provider health. Test the selected connection in <Link to='/connectors' className='underline'>Connectors</Link>. The storage and retention panels below show their own effective and tested revisions.</p>
+        <p className='mt-3 text-sm'>Configured capability does not prove provider health. Test the selected connection in <Link to='/connectors' className='underline'>Connectors</Link>. Storage and retention show their effective and tested revisions in the Storage &amp; retention tab.</p>
       </CardContent>
     </Card>
+
+      </TabsPanel>
+
+      <TabsPanel value='scoped-configuration' keepMounted className='space-y-4'>
 
     <Card>
       <CardHeader>
@@ -470,18 +487,63 @@ export function SettingsScreen() {
     </Card>
 
     {configuration && <ConfigurationRevisions configuration={configuration} scopeLabel={`${selectedKey?.name ?? selectedKey?.prefix ?? apiKeyId} · ${endpointSlug}`} busy={loading || mutating} canEdit={canEdit} onSelect={(revision) => void loadSettings(activeScope, true, revision)} onCommand={(command, revision) => void revisionCommand(command, revision)} />}
+      </TabsPanel>
 
-    <TenantAiSettingsPanel tenantId={tenantId ?? null} session={session} apiKeyId={apiKeyId} endpointSlug={endpointSlug} configuration={configuration} />
-    <PlatformRetentionPanel session={session} />
-    <StorageGenerationPanel session={session} tenantId={tenantId ?? null} />
-    <MigrationReadiness tenantId={tenantId} />
-    {SETTINGS_GROUPS.map((group) => <Card key={group.id}>
-      <CardHeader><CardTitle>{group.title}</CardTitle><CardDescription>{group.blurb}</CardDescription></CardHeader>
-      <CardContent>{settingsRowsByGroup(group.id).map((row) => <div key={row.legacyKey} className='border-t py-2 text-sm'>
-        <strong>{row.label}</strong> <code>{row.legacyKey}</code>
-        <p>{row.replacement} · {row.scope}</p>
-        {row.disposition === 'retire' ? <p className='text-xs'>{settingsWriteReason(row)}</p> : row.secret ? <p className='text-xs'>Secret value is write-only; the owning form reads back metadata and an opaque revision pin only.</p> : null}
-      </div>)}</CardContent>
-    </Card>)}
+      <TabsPanel value='ai-prompts' keepMounted className='space-y-4'>
+        <TenantAiSettingsPanel tenantId={tenantId ?? null} session={session} apiKeyId={apiKeyId} endpointSlug={endpointSlug} configuration={configuration} />
+      </TabsPanel>
+
+      <TabsPanel value='storage-retention' keepMounted className='space-y-4'>
+        <PlatformRetentionPanel session={session} />
+        <StorageGenerationPanel session={session} tenantId={tenantId ?? null} />
+      </TabsPanel>
+
+      <TabsPanel value='migration-reference' keepMounted className='space-y-4'>
+        <MigrationReadiness tenantId={tenantId} />
+        {SETTINGS_GROUPS.map((group) => <SettingsCatalogCard key={group.id} group={group} />)}
+      </TabsPanel>
+    </TabsRoot>
   </section>;
+}
+
+function SettingsCatalogCard({ group }: { group: (typeof SETTINGS_GROUPS)[number] }) {
+  const rows = settingsRowsByGroup(group.id);
+  const pageSize = 8;
+  const [page, setPage] = useState(0);
+  const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
+  const start = rows.length === 0 ? 0 : page * pageSize + 1;
+  const end = Math.min(rows.length, (page + 1) * pageSize);
+  const visibleRows = rows.slice(page * pageSize, (page + 1) * pageSize);
+
+  useEffect(() => {
+    if (page >= pageCount) setPage(Math.max(0, pageCount - 1));
+  }, [page, pageCount]);
+
+  return <Card>
+    <CardHeader><CardTitle>{group.title}</CardTitle><CardDescription>{group.blurb}</CardDescription></CardHeader>
+    <CardContent className='space-y-3'>
+      <TableContainer maxHeight={320} aria-label={`${group.title} catalog`}>
+        <Table aria-label={`${group.title} catalog`} density='compact'>
+          <TableHeader sticky><TableRow><TableHead>Setting</TableHead><TableHead>Legacy key</TableHead><TableHead>Replacement and scope</TableHead><TableHead>Status and handling</TableHead></TableRow></TableHeader>
+          <TableBody>{visibleRows.map((row) => <TableRow key={row.legacyKey}>
+            <TableCell className='max-w-64 font-medium'>{row.label}</TableCell>
+            <TableCell className='max-w-56 break-all font-mono text-xs'>{row.legacyKey}</TableCell>
+            <TableCell className='min-w-48'><span className='block break-words'>{row.replacement}</span><span className='block text-xs text-[var(--text-sub)]'>{row.scope}</span></TableCell>
+            <TableCell className='min-w-56 text-xs'>
+              <span className='font-medium'>{row.disposition === 'retire' ? 'Retirement planned' : 'Port mapping'}</span>
+              {row.disposition === 'retire' ? <span className='mt-1 block'>{settingsWriteReason(row)}</span> : row.secret ? <span className='mt-1 block'>Secret value is write-only; the owning form returns metadata and an opaque revision pin.</span> : null}
+            </TableCell>
+          </TableRow>)}</TableBody>
+        </Table>
+      </TableContainer>
+      <TablePagination
+        hasPreviousPage={page > 0}
+        hasNextPage={page + 1 < pageCount}
+        onPreviousPage={() => setPage((current) => Math.max(0, current - 1))}
+        onNextPage={() => setPage((current) => Math.min(pageCount - 1, current + 1))}
+        status={`Showing ${start}–${end} of ${rows.length} loaded settings. Page ${page + 1} of ${pageCount}.`}
+        ariaLabel={`${group.title} pagination`}
+      />
+    </CardContent>
+  </Card>;
 }

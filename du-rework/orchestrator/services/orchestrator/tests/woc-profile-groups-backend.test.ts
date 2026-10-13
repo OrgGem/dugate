@@ -763,17 +763,48 @@ describe('WOC-10 group-save validation fences', () => {
       }],
     });
     const connectorStore = {
+      getRecipeRevision: jest.fn(async () => ({ tenantId: TENANT_ID, connectorId: 'conn-ocr', revision: 2, state: 'ACTIVE' })),
+      hasRecipeChain: jest.fn(async () => true),
       getRevision: jest.fn(async () => ({ connectorId: 'conn-ocr', revision: 2, state: 'ACTIVE', tenantId: TENANT_ID })),
     } as unknown as ConnectorManagementStore;
     const overlap = fakeClient({ manifest, overlap: true });
     await assertHttpError(saveProfileGroup(overlap, noProfiles, connectorStore, input, null), 409, 'STATE_CONFLICT');
-    expect(connectorStore.getRevision).toHaveBeenCalledWith('conn-ocr', 2);
+    expect(connectorStore.getRecipeRevision).toHaveBeenCalledWith({ tenantId: TENANT_ID, connectorId: 'conn-ocr', revision: 2 });
+    expect(connectorStore.getRevision).not.toHaveBeenCalled();
     expect(overlap.calls.some((sql) => sql.includes('INSERT INTO'))).toBe(false);
 
     const wrongTenantConnector = {
+      // Typed NOT_FOUND permits the deliberate compatibility lookup.
+      getRecipeRevision: async () => undefined,
+      hasRecipeChain: async () => false,
       getRevision: async () => ({ connectorId: 'conn-ocr', revision: 2, state: 'ACTIVE', tenantId: OTHER_TENANT_ID }),
     } as unknown as ConnectorManagementStore;
     await assertHttpError(saveProfileGroup(fakeClient({ manifest }), noProfiles, wrongTenantConnector, input, null), 422, 'INVALID_SCHEMA');
+
+    const shadowedLegacyConnector = {
+      getRecipeRevision: jest.fn(async () => undefined),
+      hasRecipeChain: jest.fn(async () => true),
+      getRevision: jest.fn(async () => ({ connectorId: 'conn-ocr', revision: 2, state: 'ACTIVE', tenantId: TENANT_ID })),
+    } as unknown as ConnectorManagementStore;
+    await assertHttpError(saveProfileGroup(fakeClient({ manifest }), noProfiles, shadowedLegacyConnector, input, null), 422, 'INVALID_SCHEMA');
+    expect(shadowedLegacyConnector.getRevision).not.toHaveBeenCalled();
+
+    const inactiveTypedConnector = {
+      getRecipeRevision: async () => ({ tenantId: TENANT_ID, connectorId: 'conn-ocr', revision: 2, state: 'RETIRED' }),
+      hasRecipeChain: async () => true,
+      getRevision: jest.fn(async () => ({ connectorId: 'conn-ocr', revision: 2, state: 'ACTIVE', tenantId: TENANT_ID })),
+    } as unknown as ConnectorManagementStore;
+    await assertHttpError(saveProfileGroup(fakeClient({ manifest }), noProfiles, inactiveTypedConnector, input, null), 422, 'INVALID_SCHEMA');
+    expect(inactiveTypedConnector.getRevision).not.toHaveBeenCalled();
+
+    const unavailableTypedConnector = {
+      getRecipeRevision: async () => { throw new Error('typed Connector service unavailable'); },
+      hasRecipeChain: async () => false,
+      getRevision: jest.fn(async () => ({ connectorId: 'conn-ocr', revision: 2, state: 'ACTIVE', tenantId: TENANT_ID })),
+    } as unknown as ConnectorManagementStore;
+    await expect(saveProfileGroup(fakeClient({ manifest }), noProfiles, unavailableTypedConnector, input, null))
+      .rejects.toThrow('typed Connector service unavailable');
+    expect(unavailableTypedConnector.getRevision).not.toHaveBeenCalled();
   });
 });
 
@@ -897,6 +928,8 @@ describe('WOC-10 atomic group revisions', () => {
       }],
     });
     const connectors = {
+      getRecipeRevision: async () => ({ tenantId: TENANT_ID, connectorId: 'core-reasoning', revision: 1, state: 'ACTIVE' }),
+      hasRecipeChain: async () => true,
       getRevision: async (connectorId: string, revision: number) => ({
         connectorId, revision, state: 'ACTIVE', tenantId: TENANT_ID,
       }),

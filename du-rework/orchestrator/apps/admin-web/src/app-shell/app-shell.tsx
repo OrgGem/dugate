@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { NavLink, Outlet } from 'react-router';
+import { NavLink, Outlet, useLocation } from 'react-router';
 import { AppShellLayout, AppShellHeader, AppShellBrand, AppShellMain } from '@/components/ui/app-shell-primitives';
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/dialog';
@@ -9,25 +9,32 @@ import type { AdminHealthSnapshot } from '@/lib/api/client';
 import { TenantProvider } from '@/lib/tenant-context';
 import { GlobalTenantSelector } from '@/components/ui/global-tenant-selector';
 import { ADMIN_AUTH_RESTORED_EVENT } from './session-events';
-import { isLocalUserSession } from '@/features/system-operations/state';
 
 const HEALTH_POLL_INTERVAL_MS = 30_000;
 const HEALTH_STALE_AFTER_MS = 60_000;
 
 const NAV = [
-  { label: 'Workspace', items: [['Overview', '/overview'], ['Operations', '/operations'], ['Trace', '/trace'], ['Usage', '/usage']] },
-  { label: 'System operations', items: [
-    ['Cockpit', '/system-operations'],
-    ['Services', '/system-operations/services'],
-    ['Workers & Queues', '/system-operations/workers-queues'],
-    ['Incidents', '/system-operations/incidents'],
-    ['Deployments', '/system-operations/deployments'],
-    ['Maintenance', '/system-operations/maintenance'],
-  ] },
+  { label: 'Workspace', items: [['Overview', '/overview'], ['Trace', '/trace'], ['System operations', '/system-operations'], ['Usage', '/usage']] },
   { label: 'Configuration', items: [['Businesses', '/businesses'], ['Profiles', '/profiles'], ['Connectors', '/connectors'], ['Workflows', '/workflows']] },
-  { label: 'Administration', items: [['API Keys', '/api-keys'], ['Audit', '/audit'], ['Security', '/security'], ['Secrets', '/secrets'], ['Identity', '/identity'], ['Settings', '/settings']] },
-  { label: 'Resources', items: [['API Reference', '/api-docs'], ['Documentation', '/docs'], ['Bootstrap', '/']] },
+  { label: 'Administration', items: [['Access & security', '/security'], ['Audit', '/audit'], ['Settings', '/settings']] },
+  { label: 'Resources', items: [['API Reference', '/api-docs'], ['Bootstrap', '/']] },
 ] as const;
+
+const ACCESS_SECURITY_ROUTES = [
+  ['Security', '/security'],
+  ['Identity', '/identity'],
+  ['API Keys', '/api-keys'],
+  ['Secrets', '/secrets'],
+] as const;
+
+const DOCUMENTATION_ROUTES = [
+  ['API Reference', '/api-docs'],
+  ['Documentation', '/docs'],
+] as const;
+
+export interface AppShellOutletContext {
+  session: AdminWebSession | null;
+}
 
 export function AppShell() {
   return (
@@ -43,6 +50,7 @@ export function AppShell() {
 
 function AppShellContent() {
   const client = useMemo(() => createAdminApiClient(), []);
+  const location = useLocation();
   const [session, setSession] = useState<AdminWebSession | null>(null);
   const [sessionFailed, setSessionFailed] = useState(false);
   const [sessionExpired, setSessionExpired] = useState(false);
@@ -179,10 +187,17 @@ function AppShellContent() {
   const overallHealth = staleHealth
     ? `stale · last reported ${health?.status ?? 'unknown'}`
     : health?.status ?? (healthFailed ? 'unavailable' : 'checking');
+  const accessSecurityActive = ACCESS_SECURITY_ROUTES.some(([, href]) => location.pathname === href);
+  const documentationActive = DOCUMENTATION_ROUTES.some(([, href]) => location.pathname === href);
+  const contextRoutes = accessSecurityActive
+    ? ACCESS_SECURITY_ROUTES.filter(([label]) => label !== 'API Keys' || (session?.role === 'admin' && session.principal.kind === 'platform'))
+    : documentationActive
+      ? DOCUMENTATION_ROUTES
+      : null;
 
   function closeMobileNavigation(): void {
     setNavOpen(false);
-    if (window.matchMedia('(max-width: 767px)').matches) {
+    if (window.matchMedia('(max-width: 1023px)').matches) {
       window.requestAnimationFrame(() => navToggleRef.current?.focus());
     }
   }
@@ -190,17 +205,19 @@ function AppShellContent() {
   return (
     <AppShellLayout>
       <a href="#admin-content" className="sr-only focus:not-sr-only focus:p-3">Skip to content</a>
-      <AppShellHeader className="justify-between">
-        <AppShellBrand title="Orchestrator Portal" />
-        <time dateTime={now.toISOString()} className="text-xs text-[var(--text-muted)] tabular-nums">
-          {now.toLocaleString()} <span>{Intl.DateTimeFormat().resolvedOptions().timeZone}</span>
-        </time>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="ghost" size="sm" disabled={session === null} onClick={() => setProfileOpen(true)}>
-            {session?.displayName || (sessionExpired ? 'Session expired' : sessionFailed ? 'Session unavailable' : 'Loading account…')}
-            {session !== null ? ' · Profile' : ''}
+      <AppShellHeader className="flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1">
+          <AppShellBrand title="Orchestrator Portal" className="shrink-0 lg:hidden" />
+          <time dateTime={now.toISOString()} className="max-w-full break-words text-right text-xs text-[var(--text-muted)] tabular-nums sm:text-left">
+            {now.toLocaleString()} <span>{Intl.DateTimeFormat().resolvedOptions().timeZone}</span>
+          </time>
+        </div>
+        <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+          <Button variant="ghost" size="sm" className="min-w-0 flex-1 sm:flex-none" disabled={session === null} onClick={() => setProfileOpen(true)}>
+            <span className="min-w-0 max-w-[calc(100vw-13rem)] truncate sm:max-w-[12rem]">{session?.displayName || (sessionExpired ? 'Session expired' : sessionFailed ? 'Session unavailable' : 'Loading account…')}</span>
+            {session !== null ? <span className="shrink-0"> · Profile</span> : null}
           </Button>
-          <form method="post" action="/admin/logout">
+          <form method="post" action="/admin/logout" className="shrink-0">
             <input type="hidden" name="csrf" value={session?.csrfToken ?? ''} />
             <Button variant="outline" size="sm" type="submit" disabled={session === null}>Logout</Button>
           </form>
@@ -249,46 +266,60 @@ function AppShellContent() {
           <span>Platform health details are restricted to platform administrators.</span>
         )}
       </section>
-      <div className="flex flex-1 min-w-0 flex-col md:flex-row">
-        <aside {...inertRegionProps} aria-hidden={sessionExpired || undefined} className="w-full shrink-0 border-b border-[var(--border-subtle)] bg-[var(--bg-card)] md:w-56 md:border-b-0 md:border-r">
-          <div className="p-3 md:hidden">
-            <Button ref={navToggleRef} variant="outline" className="w-full" aria-expanded={navOpen} aria-controls="admin-navigation" onClick={() => setNavOpen(!navOpen)}>
-              {navOpen ? 'Close navigation' : 'Open navigation'}
-            </Button>
-          </div>
+      <div className="flex min-w-0 flex-1 flex-col lg:flex-row">
+        <aside {...inertRegionProps} aria-hidden={sessionExpired || undefined} className="w-full shrink-0 border-b border-[var(--border-subtle)] bg-[var(--bg-card)] lg:sticky lg:top-0 lg:h-[100dvh] lg:w-60 lg:self-start lg:overflow-hidden lg:border-b-0 lg:border-r">
           <nav
             id="admin-navigation"
             aria-label="Orchestrator Portal Navigation"
-            className={`${navOpen ? 'block' : 'hidden'} p-3 md:block md:sticky md:top-20 md:max-h-[calc(100dvh-5rem)] md:overflow-y-auto`}
+            className="flex min-h-0 flex-col lg:h-full"
             onKeyDown={(event) => {
               if (event.key === 'Escape' && navOpen) {
                 closeMobileNavigation();
               }
             }}
           >
-            <GlobalTenantSelector />
-            {NAV.map((group) => {
-              const items = group.items.filter(([, href]) => {
-                if (isLocalUserSession(session) && href === '/system-operations/incidents') return false;
-                if (href === '/api-keys') return session?.role === 'admin' && session.principal.kind === 'platform';
-                return true;
-              });
-              if (items.length === 0) return null;
-              return <div key={group.label} className="mb-4">
-                <p className="px-3 pb-1 text-xs font-semibold text-[var(--text-sub)]">{group.label}</p>
-                {items.map(([label, href]) => (
-                  <NavLink key={href} to={href} end onClick={closeMobileNavigation} className={({ isActive }) =>
-                    'block rounded-[var(--radius-sm)] px-3 py-2 text-sm no-underline ' + (isActive
-                      ? 'bg-[var(--cf-blue-light)] font-semibold text-[var(--cf-blue)]'
-                      : 'text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-main)]')
-                  }>{label}</NavLink>
-                ))}
-              </div>;
-            })}
+            <div className="hidden shrink-0 border-b border-[var(--border-subtle)] px-5 py-4 lg:block">
+              <AppShellBrand title="Orchestrator Portal" />
+            </div>
+            <div className="shrink-0">
+              <GlobalTenantSelector />
+            </div>
+            <div className="px-3 pb-3 lg:hidden">
+              <Button ref={navToggleRef} variant="outline" className="w-full" aria-expanded={navOpen} aria-controls="admin-navigation-links" onClick={() => setNavOpen(!navOpen)}>
+                {navOpen ? 'Close navigation' : 'Open navigation'}
+              </Button>
+            </div>
+            <div
+              id="admin-navigation-links"
+              aria-label="Navigation links"
+              tabIndex={0}
+              className={`${navOpen ? 'block' : 'hidden'} min-w-0 p-3 lg:block lg:min-h-0 lg:flex-1 lg:overflow-y-auto`}
+            >
+              {NAV.map((group, index) => (
+                <section key={group.label} aria-labelledby={`admin-navigation-group-${index}`} className="mb-5 last:mb-0">
+                  <h2 id={`admin-navigation-group-${index}`} className="px-3 pb-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-sub)]">{group.label}</h2>
+                  <ul className="ml-5 space-y-0.5 border-l-2 border-[var(--border-subtle)] pl-4">
+                    {group.items.map(([label, href]) => (
+                      <li key={href}>
+                        <NavLink to={href} end={href !== '/system-operations'} onClick={closeMobileNavigation} className={({ isActive }) => {
+                          const contextActive = href === '/security' && accessSecurityActive || href === '/api-docs' && documentationActive;
+                          return 'ml-1 block rounded-[var(--radius-sm)] px-3 py-2 text-sm no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] ' + (isActive || contextActive
+                            ? 'bg-[var(--cf-blue-light)] font-semibold text-[var(--cf-blue)]'
+                            : 'text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-main)]');
+                        }}>{label}</NavLink>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ))}
+            </div>
           </nav>
         </aside>
-        <AppShellMain {...inertRegionProps} aria-hidden={sessionExpired || undefined} id="admin-content" tabIndex={-1} className="max-w-none md:px-8">
-          <Outlet />
+        <AppShellMain {...inertRegionProps} aria-hidden={sessionExpired || undefined} id="admin-content" tabIndex={-1} className="max-w-none px-4 py-4 sm:px-5 md:px-6 lg:px-8">
+          {contextRoutes ? <nav aria-label={accessSecurityActive ? 'Access and security pages' : 'Resource pages'} className="mb-5 flex min-w-0 gap-1 overflow-x-auto border-b border-[var(--border-subtle)] pb-2">
+            {contextRoutes.map(([label, href]) => <NavLink key={href} to={href} end className={({ isActive }) => 'shrink-0 rounded-md px-3 py-2 text-sm no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] ' + (isActive ? 'bg-[var(--cf-blue-light)] font-semibold text-[var(--cf-blue)]' : 'text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-main)]')}>{label}</NavLink>)}
+          </nav> : null}
+          <Outlet context={{ session } satisfies AppShellOutletContext} />
         </AppShellMain>
       </div>
       <Modal open={profileOpen} onOpenChange={setProfileOpen} title="My profile" description="Account information from your current session.">

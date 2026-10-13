@@ -19,6 +19,7 @@
 import { join } from 'node:path';
 import { createApp, shouldSeedDevFallback, type App } from '../src/server';
 import { loadMigrationFiles } from '../src/db/migrations';
+import { mockCreateStorageGenerationFixture, mockOpenBackupEffectGateResult } from './helpers/backup-effect-gate';
 
 interface SeedGateMockState {
   /** Every SQL string the scripted pool answered, in order. */
@@ -38,10 +39,16 @@ jest.mock('pg', () => {
     devFallbackKeyWrites: 0,
     schemaLedger: [] as { sequence: number; filename: string }[],
   };
+  let mockStorage: ReturnType<typeof mockCreateStorageGenerationFixture> | undefined;
+  const getMockStorage = () => (mockStorage ??= mockCreateStorageGenerationFixture());
   class ScriptedPool {
-    async query(sql: string): Promise<{ rows: unknown[]; rowCount: number }> {
+    async query(sql: string, params: unknown[] = []): Promise<{ rows: unknown[]; rowCount: number }> {
       const text = String(sql);
       state.queries.push(text);
+      const backupGate = mockOpenBackupEffectGateResult(text);
+      if (backupGate) return backupGate;
+      const storage = getMockStorage().answer(text, params);
+      if (storage) return storage;
       if (text.includes('INSERT INTO tenants')) {
         state.defaultTenantWrites += 1;
         return { rows: [], rowCount: 1 };
@@ -60,11 +67,11 @@ jest.mock('pg', () => {
       return { rows: [], rowCount: 0 };
     }
     async connect(): Promise<{
-      query: (sql: string) => Promise<{ rows: unknown[]; rowCount: number }>;
+      query: (sql: string, params?: unknown[]) => Promise<{ rows: unknown[]; rowCount: number }>;
       release: () => void;
     }> {
       const pool = this;
-      return { query: (sql: string) => pool.query(sql), release: () => undefined };
+      return { query: (sql: string, params = []) => pool.query(sql, params), release: () => undefined };
     }
     async end(): Promise<void> {
       return undefined;

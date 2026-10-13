@@ -100,6 +100,7 @@ describe('W29-C: Admin authorization negative tests', () => {
     const res = await http(baseUrl, `/api/v1/admin/businesses/${BIZ}/versions/99.99.99/enable`, {
       method: 'PUT',
       headers: adminHeaders(),
+      body: { expectedActivationRevision: 1 },
     });
     expect(res.status).toBe(404);
     expect(res.body.code).toBe('NOT_FOUND');

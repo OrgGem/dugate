@@ -86,6 +86,7 @@ describe('SEC-ENC-01 freeze parity', () => {
       'operations.result_ref',
     ]);
     expect(METADATA_SLOTS[8]).toBe('legacy_workflow_schemas.schema_ref');
+    expect(METADATA_SLOTS.at(-1)).toBe('connector_secret_imports.resolved_payload');
     for (const slot of METADATA_SLOTS) {
       expect(PersistencePurposeSchema.safeParse(slot).success).toBe(true);
     }
@@ -105,6 +106,24 @@ describe('SEC-ENC-01 freeze parity', () => {
     await expect(crypto.open(sealed, { ...context, tenantId: 'tenant-2' })).rejects.toMatchObject({ code: 'CONTEXT_MISMATCH' });
     await expect(crypto.open(sealed, { ...context, refId: 'lc-review:4' })).rejects.toMatchObject({ code: 'CONTEXT_MISMATCH' });
     await expect(crypto.open(sealed, { ...context, refId: 'other-slug:3' })).rejects.toMatchObject({ code: 'CONTEXT_MISMATCH' });
+  });
+
+  it('seals connector secret-import payloads with tenant and journal identity in AAD', async () => {
+    const crypto = createMetadataCrypto(adaptKeyProviderForMetadata(keyProvider), 'du-orch-metadata-v1');
+    const value = { credential: 'synthetic-one-time-secret' };
+    const context = {
+      tenantId: 'tenant-1',
+      slot: 'connector_secret_imports.resolved_payload' as const,
+      refId: 'import-1',
+    };
+    const sealed = await crypto.seal(value, context);
+
+    expect(PersistencePurposeSchema.safeParse(context.slot).success).toBe(true);
+    expect(SealedMetadataEnvelopeSchema.safeParse(sealed).success).toBe(true);
+    expect(JSON.stringify(sealed)).not.toContain(value.credential);
+    await expect(crypto.open(sealed, context)).resolves.toEqual(value);
+    await expect(crypto.open(sealed, { ...context, refId: 'import-2' }))
+      .rejects.toMatchObject({ code: 'CONTEXT_MISMATCH' });
   });
 
   it('parses a real metadata seal() envelope with the frozen schema and still refuses a foreign context', async () => {

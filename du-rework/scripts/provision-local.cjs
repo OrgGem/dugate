@@ -14,6 +14,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { parseEnv } = require('node:util');
 const { Pool } = require(path.resolve(__dirname, '../orchestrator/services/orchestrator/node_modules/pg'));
+const { enableAndActivateBusinessVersion } = require('./provision-local-activation.cjs');
 
 const ROOT = path.resolve(__dirname, '..');
 const envFile = path.resolve(ROOT, '.env.local');
@@ -97,29 +98,17 @@ async function main() {
     }
     console.log(`     - Registered (HTTP ${regRes.status})`);
 
-    // Step B: PUT /api/v1/admin/businesses/:id/versions/:v/enable
-    const enableUrl = `${INTERNAL_URL}/api/v1/admin/businesses/${businessId}/versions/${version}/enable`;
-    const enableRes = await fetch(enableUrl, {
-      method: 'PUT',
-      headers: { authorization: `Bearer ${ADMIN_TOKEN}` },
+    // Step B/C: use activation-revision CAS for enable and activation. Conflicts
+    // stop provisioning for this business and require an operator refresh.
+    const activation = await enableAndActivateBusinessVersion({
+      fetchImpl: fetch,
+      internalUrl: INTERNAL_URL,
+      adminToken: ADMIN_TOKEN,
+      businessId,
+      version,
     });
-    if (![200, 202].includes(enableRes.status)) {
-      const err = await enableRes.text().catch(() => '');
-      throw new Error(`Failed to enable ${businessId}@${version} (${enableRes.status}): ${err}`);
-    }
-    console.log(`     - Enabled (HTTP ${enableRes.status})`);
-
-    // Step C: PUT /api/v1/admin/businesses/:id/versions/:v/activate
-    const actUrl = `${INTERNAL_URL}/api/v1/admin/businesses/${businessId}/versions/${version}/activate`;
-    const actRes = await fetch(actUrl, {
-      method: 'PUT',
-      headers: { authorization: `Bearer ${ADMIN_TOKEN}` },
-    });
-    if (![200, 202].includes(actRes.status)) {
-      const err = await actRes.text().catch(() => '');
-      throw new Error(`Failed to activate ${businessId}@${version} (${actRes.status}): ${err}`);
-    }
-    console.log(`     - Activated (HTTP ${actRes.status})`);
+    console.log(`     - Enabled (HTTP ${activation.enabled.status})`);
+    console.log(`     - Activated (HTTP ${activation.activated.status})`);
   }
 
   // 3. Issue Dev API Key
@@ -141,7 +130,7 @@ async function main() {
   });
 
   if (issueRes.status === 201) {
-    console.log(`  + API Key issued: ${DEV_API_KEY}`);
+    console.log('  + API Key issued (value redacted)');
   } else if (issueRes.status === 409 || issueRes.status === 400 || issueRes.status === 500) {
     // If key already exists
     console.log(`  * API Key already exists or reported: ${issueRes.status}`);
@@ -254,7 +243,7 @@ async function main() {
   console.log(`- Default Tenant: ${DEFAULT_TENANT_ID} (Default Organization)`);
   console.log(`- Active Businesses: document-core (1.1.0), lc-checker (1.1.0), example-review (1.0.0)`);
   console.log(`- Sample Workflow: ${sampleWorkflowSchema.slug} (Active)`);
-  console.log(`- Dev API Key: ${DEV_API_KEY}`);
+  console.log('- Dev API Key: configured (value redacted)');
   console.log(`- Portal URL: http://127.0.0.1:3001/admin/`);
   console.log('======================================================');
 }

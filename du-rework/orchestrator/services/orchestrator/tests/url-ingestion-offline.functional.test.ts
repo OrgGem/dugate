@@ -18,8 +18,15 @@ describe('DATA-03 URL ingestion offline slice', () => {
     const db = {
       query: async <T extends QueryResultRow = QueryResultRow>(statement: string) => {
         sql.push(statement);
+        if (/FROM api_keys k/i.test(statement)) {
+          return result<T>([{ name: 'offline', spending_limit: '0', total_used: '0', tenant_id: TENANT }]);
+        }
+        if (/FROM usage_events ue/i.test(statement)) return result<T>([]);
+        if (/FROM business_catalog WHERE business_id=\$1/i.test(statement)) {
+          return result<T>([{ enabled: true, activation_revision: 1, submissions_paused: false, pre_drain_version: null }]);
+        }
         if (/business_versions/i.test(statement)) {
-          return result<T>([{ version: '1.0.0', manifest: { actions: [{ name: 'ingest', inputSchema: { type: 'object' } }], runtime: { handlerKinds: ['root'] } }, digest: 'sha256:test', queue: 'q' }]);
+          return result<T>([{ version: '1.0.0', status: 'ENABLED', is_active: true, manifest: { actions: [{ name: 'ingest', inputSchema: { type: 'object' } }], runtime: { handlerKinds: ['root'] } }, digest: 'sha256:test', queue: 'q' }]);
         }
         if (/FROM operations/i.test(statement)) {
           return result<T>([{ id: OP, tenant_id: TENANT, business_id: 'demo', business_version: '1.0.0', action: 'ingest', state: 'PENDING_INGESTION', state_version: 1, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), deadline_at: null }]);
@@ -27,7 +34,26 @@ describe('DATA-03 URL ingestion offline slice', () => {
         return result<T>([]);
       },
       tx: async <T>(fn: (client: unknown) => Promise<T>) => fn({
-        query: async (statement: string) => { sql.push(statement); return result([]); },
+        query: async (statement: string) => {
+          sql.push(statement);
+          if (/FROM api_keys k/i.test(statement)) {
+            return result([{ name: 'offline', spending_limit: '0', total_used: '0', tenant_id: TENANT }]);
+          }
+          if (/FROM usage_events ue/i.test(statement)) return result([]);
+          if (/FROM business_catalog WHERE business_id=\$1/i.test(statement)) {
+            return result([{ enabled: true, activation_revision: 1, submissions_paused: false, pre_drain_version: null }]);
+          }
+          if (/SELECT version,status,is_active FROM business_versions/i.test(statement)) {
+            return result([{ version: '1.0.0', status: 'ENABLED', is_active: true }]);
+          }
+          if (/FROM business_versions/i.test(statement)) {
+            return result([{
+              version: '1.0.0', status: 'ENABLED', is_active: true,
+              digest: 'sha256:test', manifest: { actions: [{ name: 'ingest', inputSchema: { type: 'object' } }], runtime: { handlerKinds: ['root'] } },
+            }]);
+          }
+          return result([]);
+        },
       }),
       close: async () => undefined,
     } as unknown as Db;

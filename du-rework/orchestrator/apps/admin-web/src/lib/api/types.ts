@@ -552,6 +552,7 @@ export interface OperationWire {
   retryOf?: string | null;
   errorCode?: string | null;
   deadlineAt?: string | null;
+  progress?: { percent: number; message?: string };
 }
 
 export interface OperationsPage {
@@ -569,7 +570,26 @@ export interface OperationArtifactWire {
   contentType: string | null;
 }
 
-export interface OperationTaskWire { id: string; taskKey: string; kind: string; state: string; attempt: number; maxAttempts: number; errorCode: string | null; }
+export interface OperationTaskLinkWire { taskId: string; joinPolicy: string }
+export interface OperationTaskWire {
+  id: string;
+  taskKey: string;
+  kind: string;
+  state: string;
+  /** Task ancestry from tasks.parent_id; this does not mean it waits on parent completion. */
+  spawnedBy?: string | null;
+  /** Durable reason this unclaimed task is parked from admission. Undefined means the server omitted the field. */
+  admissionParkedReason?: string | null;
+  admissionParkedAt?: string | null;
+  leasedBy?: string | null;
+  leaseExpiresAt?: string | null;
+  dueAt?: string | null;
+  /** Child tasks whose results this parent joins before continuing. */
+  awaitedChildren?: OperationTaskLinkWire[];
+  attempt: number;
+  maxAttempts: number;
+  errorCode: string | null;
+}
 
 export interface OperationDetail {
   tasks?: OperationTaskWire[];
@@ -794,6 +814,11 @@ export interface ComposeJobSubmission { job: ComposeJob; replayed: boolean }
 export interface BusinessRow {
   businessId: string;
   activeVersion: string | null;
+  activationRevision?: number | null;
+  admissionEligible?: boolean | null;
+  admissionReason?: string | null;
+  submissionsPaused?: boolean | null;
+  preDrainVersion?: string | null;
   version: string | null;
   status: string;
   updatedAt: string | null;
@@ -812,12 +837,24 @@ export interface BusinessVersionRow {
   version: string;
   status: string;
   isActive: boolean;
+  admissionEligible?: boolean | null;
+  admissionReason?: string | null;
+  /** Unique nonterminal tasks with a durable admission park reason. */
+  parkedTaskCount?: number | null;
+  /** Unexpired RUNNING leases on versions other than the active version. */
+  drainingTaskCount?: number | null;
+  /** Unique nonterminal parked tasks grouped by their durable reason. */
+  parkedReasons?: Record<string, number> | null;
   updatedAt: string | null;
 }
 
 export interface BusinessVersions {
   businessId: string;
   activeVersion: string | null;
+  activationRevision?: number | null;
+  submissionsPaused?: boolean | null;
+  preDrainVersion?: string | null;
+  remainingOperations?: number | null;
   rows: BusinessVersionRow[];
   enabled: boolean | null;
   lifecycleRevision: number | null;
@@ -830,7 +867,11 @@ export interface WorkerInstance {
   state: 'ONLINE' | 'DRAINING' | 'OFFLINE';
   health: 'HEALTHY' | 'DEGRADED' | 'OFFLINE';
   capacity: number;
+  reportedActiveTasks: number | null;
+  reportedObservedAt: string | null;
+  /** DB lease count sampled at heartbeat time, not the worker self-report. */
   activeLeases: number;
+  durableLeases: number;
   acceptedTaskCount?: number;
   acceptedTaskCountSince?: string | null;
   acceptedTaskCountScope?: 'business-instance-lifetime' | string;
@@ -852,6 +893,7 @@ export interface BusinessEnabledResult {
 
 export interface WorkerInstanceList {
   items: WorkerInstance[];
+  total: number;
   sampledAt: string;
   truncated: boolean;
 }

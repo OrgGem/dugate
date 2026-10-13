@@ -117,9 +117,12 @@ function harness(opts: { keyProvider?: KeyProvider; crypto?: boolean } = {}): Ha
 
   const answer = (sql: string, params: unknown[], sink: Bound[]) => {
     if (sql.includes('FROM api_keys k')) return result<Row>([{ name: 'test', spending_limit: '0', total_used: '0', new_cost: '0' }]);
+    if (/FROM business_catalog WHERE business_id=\$1/i.test(sql)) {
+      return result<Row>([{ enabled: true, activation_revision: 1, submissions_paused: false, pre_drain_version: null }]);
+    }
     if (/FROM business_versions/.test(sql)) {
       return result<Row>([{
-        version: '1.0.0', manifest, digest: 'sha256:test', queue: 'du-q',
+        version: '1.0.0', manifest, digest: 'sha256:test', queue: 'du-q', status: 'ENABLED', is_active: true,
       }]);
     }
     if (/SELECT profile_id, revision, connector_bindings FROM profile_bindings/.test(sql)) {

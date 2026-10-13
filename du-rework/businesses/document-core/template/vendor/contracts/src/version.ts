@@ -1,7 +1,3 @@
-// VENDORED from @du/contracts @ b088eececcb5f3df0b4edbe073a29401dafda624 (worktree 2026-10-06)
-// source: packages/contracts/src/version.ts (lines=38) sha256=490DA72632B9DB65A3C551928DD245C53CDF371CB34E85C7A3A7363E24AFD43F
-// why: WIRE_CONTRACT_VERSION + SCHEMA_LIMITS for manifest.ts
-
 /**
  * Wire contract versioning constants.
  * A breaking DTO change bumps the major; wire v1 remains consumable by SDKs

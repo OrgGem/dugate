@@ -1,7 +1,3 @@
-// VENDORED from @du/worker-sdk @ b088eececcb5f3df0b4edbe073a29401dafda624 (worktree 2026-10-06)
-// source: packages/worker-sdk/src/crypto-seam.ts (lines=158) sha256=54C238AA566BCF04A7FFB7CE9E71EBF9CE90FD8DF8C65FF59E9A593646F2A071
-// why: worker surface required by src/worker.ts, src/main.ts, types/context.ts, step-checkpoint, fanout
-
 /**
  * W-ENC-04-SEAM: the task-facing side of the worker encryption seam.
  *

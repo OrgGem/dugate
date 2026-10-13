@@ -3,6 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertBanner } from '@/components/ui/state-panel';
+import { Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TablePagination, TableRow } from '@/components/ui/table';
 import {
   createAdminApiClient,
   type AdminApiResult,
@@ -23,6 +24,7 @@ type CredentialAction = 'keep' | 'replace' | 'clear';
 type UnknownAction = { label: string; retry: () => void };
 
 const DEFAULT_REASON = 'Update platform artifact storage generation';
+const GENERATION_PAGE_SIZE = 5;
 
 function keyForRequest(): string { return crypto.randomUUID(); }
 
@@ -88,6 +90,9 @@ export function StorageGenerationPanel({ session, tenantId }: { session: AdminWe
   const [reason, setReason] = useState(DEFAULT_REASON);
   const [activationTarget, setActivationTarget] = useState<StorageGenerationRead | null>(null);
   const [rollbackTarget, setRollbackTarget] = useState<StorageGenerationRead | null>(null);
+  const [stagedPage, setStagedPage] = useState(0);
+  const [historyPage, setHistoryPage] = useState(0);
+  const [selectedStagedId, setSelectedStagedId] = useState<string | null>(null);
   const generation = useRef(0);
   const secretRequestGeneration = useRef(0);
   const previousSecretTenant = useRef(tenantId);
@@ -323,6 +328,25 @@ export function StorageGenerationPanel({ session, tenantId }: { session: AdminWe
 
   const history = generations;
   const staged = history.filter((item) => item.state === 'STAGED');
+  const stagedPageCount = Math.max(1, Math.ceil(staged.length / GENERATION_PAGE_SIZE));
+  const historyPageCount = Math.max(1, Math.ceil(history.length / GENERATION_PAGE_SIZE));
+  const visibleStaged = staged.slice(stagedPage * GENERATION_PAGE_SIZE, (stagedPage + 1) * GENERATION_PAGE_SIZE);
+  const visibleHistory = history.slice(historyPage * GENERATION_PAGE_SIZE, (historyPage + 1) * GENERATION_PAGE_SIZE);
+  const selectedStaged = staged.find((item) => item.generationId === selectedStagedId) ?? staged[0] ?? null;
+  const firstStagedId = staged[0]?.generationId ?? null;
+  const selectedStagedExists = selectedStagedId !== null && staged.some((item) => item.generationId === selectedStagedId);
+  const unknownTestTarget = testUnknown ? history.find((item) => item.generationId === testUnknown.generationId) ?? null : null;
+  const stagedRangeStart = staged.length === 0 ? 0 : stagedPage * GENERATION_PAGE_SIZE + 1;
+  const stagedRangeEnd = Math.min(staged.length, (stagedPage + 1) * GENERATION_PAGE_SIZE);
+  const historyRangeStart = history.length === 0 ? 0 : historyPage * GENERATION_PAGE_SIZE + 1;
+  const historyRangeEnd = Math.min(history.length, (historyPage + 1) * GENERATION_PAGE_SIZE);
+
+  useEffect(() => {
+    if (stagedPage >= stagedPageCount) setStagedPage(Math.max(0, stagedPageCount - 1));
+    if (historyPage >= historyPageCount) setHistoryPage(Math.max(0, historyPageCount - 1));
+    if (firstStagedId === null) setSelectedStagedId(null);
+    else if (!selectedStagedExists) setSelectedStagedId(firstStagedId);
+  }, [firstStagedId, historyPage, historyPageCount, selectedStagedExists, stagedPage, stagedPageCount]);
 
   return <Card>
     <CardHeader><CardTitle>Artifact storage generation</CardTitle><CardDescription>Stage immutable PostgreSQL or S3 settings, test the exact generation, then activate it. Existing artifact references keep their original generation and credential revision. PostgreSQL connection details are server-owned; this form never accepts a database URL. Presigned URL lifetime is separate from cache and output retention below.</CardDescription></CardHeader>
@@ -395,25 +419,51 @@ export function StorageGenerationPanel({ session, tenantId }: { session: AdminWe
           <Button type='button' disabled={!canWrite || !reason.trim() || !s3FormValid || (backend === 'postgres' && !clearForPostgres)} onClick={stage}>{busy ? 'Saving…' : `Stage ${backend.toUpperCase()} generation`}</Button>
         </fieldset>
 
-        {staged.length > 0 && <section className='space-y-3 border-t pt-4' aria-labelledby='storage-staged-heading'><h3 id='storage-staged-heading' className='font-semibold'>Staged generations</h3>{staged.map((item) => <article key={item.generationId} className='space-y-3 rounded border p-3'>
-          <div className='flex flex-wrap items-center gap-2'><Badge variant={item.lastTest?.status === 'PASSED' ? 'success' : item.lastTest?.status === 'UNKNOWN' ? 'warning' : 'neutral'}>{safeGenerationLabel(item)}</Badge><span className='break-all text-xs'>{item.generationId}</span></div>
-          <p className='break-all text-sm'>{item.backend === 's3' ? `${safeStorageValue('endpoint', item.endpoint)} · ${item.bucket} · ${item.region} · credential ${item.credentialVersionRef} · owner ${item.credentialOwnerTenantId} · presign ${item.urlTtlSeconds}s` : 'PostgreSQL · trusted server-owned connection'}</p>
-          {(item.lastTest ?? (testResult?.generationId === item.generationId ? testResult : null)) && <TestRows result={item.lastTest ?? testResult!} />}
-          {testUnknown?.generationId === item.generationId && <AlertBanner variant='warning' title='Storage test acknowledgement is unknown'><p>Resolve this exact test using the same request key. No activation is available until a passing receipt is confirmed.</p><Button type='button' variant='outline' disabled={busy} onClick={() => runTest(item, testUnknown.request)}>Recheck exact test result</Button></AlertBanner>}
-          <div className='flex flex-wrap gap-2'><Button type='button' disabled={!canWrite || item.state !== 'STAGED'} onClick={() => runTest(item)}>{item.lastTest?.status === 'PASSED' ? 'Run storage test again' : 'Test exact generation'}</Button><Button type='button' disabled={!canWrite || item.state !== 'STAGED' || item.lastTest?.status !== 'PASSED'} onClick={() => setActivationTarget(item)}>Review activation</Button></div>
-        </article>)}</section>}
+        {staged.length > 0 && <section className='space-y-3 border-t pt-4' aria-labelledby='storage-staged-heading'>
+          <h3 id='storage-staged-heading' className='font-semibold'>Staged generations</h3>
+          <TableContainer maxHeight={320} aria-label='Staged storage generations'>
+            <Table aria-label='Staged storage generations' density='compact'>
+              <TableHeader sticky><TableRow><TableHead>Generation</TableHead><TableHead>Backend</TableHead><TableHead>Test status</TableHead><TableHead>Details</TableHead></TableRow></TableHeader>
+              <TableBody>{visibleStaged.map((item) => {
+                const test = item.lastTest ?? (testResult?.generationId === item.generationId ? testResult : null);
+                return <TableRow key={item.generationId} data-state={selectedStaged?.generationId === item.generationId ? 'selected' : undefined} onClick={() => setSelectedStagedId(item.generationId)}>
+                  <TableCell className='max-w-64 break-all font-medium'>Revision {item.revision}<span className='mt-1 block text-xs text-[var(--text-sub)]'>{item.generationId}</span></TableCell>
+                  <TableCell>{item.backend.toUpperCase()}</TableCell>
+                  <TableCell><Badge variant={test?.status === 'PASSED' ? 'success' : test?.status === 'UNKNOWN' ? 'warning' : 'neutral'}>{test?.status ?? 'Not tested'}</Badge></TableCell>
+                  <TableCell><Button type='button' variant='link' className='h-auto justify-start p-0 text-left' aria-label={`Inspect staged storage generation ${item.revision}`} onClick={(event) => { event.stopPropagation(); setSelectedStagedId(item.generationId); }}>Inspect</Button></TableCell>
+                </TableRow>;
+              })}</TableBody>
+            </Table>
+          </TableContainer>
+          <TablePagination hasPreviousPage={stagedPage > 0} hasNextPage={stagedPage + 1 < stagedPageCount} onPreviousPage={() => setStagedPage((current) => Math.max(0, current - 1))} onNextPage={() => setStagedPage((current) => Math.min(stagedPageCount - 1, current + 1))} pending={busy} status={`Showing ${stagedRangeStart}–${stagedRangeEnd} of ${staged.length} loaded staged generations. Page ${stagedPage + 1} of ${stagedPageCount}.`} ariaLabel='Staged generation pagination' />
+          {selectedStaged && <article className='space-y-3 rounded border p-3' aria-label={`Staged generation ${selectedStaged.revision} details`}>
+            <div className='flex flex-wrap items-center gap-2'><Badge variant={selectedStaged.lastTest?.status === 'PASSED' ? 'success' : selectedStaged.lastTest?.status === 'UNKNOWN' ? 'warning' : 'neutral'}>{safeGenerationLabel(selectedStaged)}</Badge><span className='break-all text-xs'>{selectedStaged.generationId}</span></div>
+            <p className='break-all text-sm'>{selectedStaged.backend === 's3' ? `${safeStorageValue('endpoint', selectedStaged.endpoint)} · ${selectedStaged.bucket} · ${selectedStaged.region} · credential ${selectedStaged.credentialVersionRef} · owner ${selectedStaged.credentialOwnerTenantId} · presign ${selectedStaged.urlTtlSeconds}s` : 'PostgreSQL · trusted server-owned connection'}</p>
+            {(selectedStaged.lastTest ?? (testResult?.generationId === selectedStaged.generationId ? testResult : null)) && <TestRows result={selectedStaged.lastTest ?? testResult!} />}
+            <div className='flex flex-wrap gap-2'><Button type='button' disabled={!canWrite || selectedStaged.state !== 'STAGED'} onClick={() => runTest(selectedStaged)}>{selectedStaged.lastTest?.status === 'PASSED' ? 'Run storage test again' : 'Test exact generation'}</Button><Button type='button' disabled={!canWrite || selectedStaged.state !== 'STAGED' || selectedStaged.lastTest?.status !== 'PASSED'} onClick={() => setActivationTarget(selectedStaged)}>Review activation</Button></div>
+          </article>}
+        </section>}
+        {testUnknown && <AlertBanner variant='warning' title='Storage test acknowledgement is unknown'><p>Generation {unknownTestTarget?.revision ?? 'in the saved test request'} may have a recorded outcome. Resolve the exact request with the same key; do not activate until a passing receipt is confirmed.</p>{unknownTestTarget ? <Button type='button' variant='outline' disabled={busy} onClick={() => runTest(unknownTestTarget, testUnknown.request)}>Recheck exact test result</Button> : <p className='text-sm'>The generation is not in the current history response. Reload storage history before resolving the saved request.</p>}</AlertBanner>}
 
         {activationTarget && <div role='group' aria-labelledby='storage-activation-confirm' className='rounded border p-3'><h3 id='storage-activation-confirm' className='font-semibold'>Confirm storage generation activation</h3><p className='break-all text-sm'>Activate tested generation {activationTarget.revision} ({activationTarget.backend}) after its passing write/read/checksum/crypto/delete receipt? The prior generation remains retained for old object references.</p><div className='mt-2 flex flex-wrap gap-2'><Button type='button' disabled={!canWrite || activationTarget.lastTest?.status !== 'PASSED'} onClick={() => activate(activationTarget)}>Activate generation</Button><Button type='button' variant='outline' disabled={busy} onClick={() => setActivationTarget(null)}>Cancel</Button></div></div>}
 
-        <section className='space-y-3 border-t pt-4' aria-labelledby='storage-history-heading'><h3 id='storage-history-heading' className='font-semibold'>Current and retained generations</h3>
-          {history.length === 0 && <p className='text-sm'>No retained generation rows were returned.</p>}
-          <div className='space-y-2'>{history.map((item) => <article key={item.generationId} className='min-w-0 rounded border p-3'>
-            <div className='flex flex-wrap items-center gap-2'><strong>Generation {item.revision}</strong><Badge variant={item.state === 'ACTIVE' ? 'success' : item.state === 'STAGED' ? 'warning' : item.state === 'FAILED' ? 'neutral' : 'info'}>{item.state}</Badge><span className='text-sm'>{item.backend.toUpperCase()}</span></div>
-            <p className='mt-1 break-all text-xs'>{item.backend === 's3' ? `${safeStorageValue('endpoint', item.endpoint)} · ${item.bucket} · ${item.region}` : 'server-owned PostgreSQL backend'} · generation {item.generationId}</p>
-            {item.backend === 's3' && <p className='break-all text-xs'>Pinned credential revision: {item.credentialVersionRef ?? 'none'} · purpose storage.credential · owner tenant {item.credentialOwnerTenantId ?? 'none'} · {item.secretPresent ? 'managed secret present' : 'no secret pin'}.</p>}
-            {item.state === 'RETIRED' && item.lastTest && <p className='text-xs'>Retained test status: {item.lastTest.status}{item.activatedAt ? ` · was active at ${new Date(item.activatedAt).toLocaleString()}` : ''}</p>}
-            {item.state === 'RETIRED' && <Button type='button' variant='outline' className='mt-2' disabled={!canWrite || item.lastTest?.status !== 'PASSED'} onClick={() => setRollbackTarget(item)}>Review rollback to this retained generation</Button>}
-          </article>)}</div>
+        <section className='space-y-3 border-t pt-4' aria-labelledby='storage-history-heading'>
+          <h3 id='storage-history-heading' className='font-semibold'>Current and retained generations</h3>
+          {history.length === 0 ? <p className='text-sm'>No retained generation rows were returned.</p> : <>
+            <TableContainer maxHeight={360} aria-label='Current and retained storage generations'>
+              <Table aria-label='Storage generation history' density='compact'>
+                <TableHeader sticky><TableRow><TableHead>Generation</TableHead><TableHead>State</TableHead><TableHead>Backend and location</TableHead><TableHead>Test</TableHead><TableHead>Action</TableHead></TableRow></TableHeader>
+                <TableBody>{visibleHistory.map((item) => <TableRow key={item.generationId}>
+                  <TableCell className='max-w-56 break-all font-medium'>Revision {item.revision}<span className='mt-1 block text-xs text-[var(--text-sub)]'>{item.generationId}</span></TableCell>
+                  <TableCell><Badge variant={item.state === 'ACTIVE' ? 'success' : item.state === 'STAGED' ? 'warning' : item.state === 'FAILED' ? 'neutral' : 'info'}>{item.state}</Badge></TableCell>
+                  <TableCell className='min-w-56 break-all text-xs'>{item.backend === 's3' ? `${safeStorageValue('endpoint', item.endpoint)} · ${item.bucket} · ${item.region} · credential ${item.credentialVersionRef ?? 'none'} · owner tenant ${item.credentialOwnerTenantId ?? 'none'} · ${item.secretPresent ? 'managed secret present' : 'no secret pin'}` : 'server-owned PostgreSQL backend'}</TableCell>
+                  <TableCell className='whitespace-nowrap text-xs'>{item.lastTest?.status ?? 'Not tested'}{item.state === 'RETIRED' && item.activatedAt ? <span className='mt-1 block'>Was active {new Date(item.activatedAt).toLocaleString()}</span> : null}</TableCell>
+                  <TableCell>{item.state === 'RETIRED' ? <Button type='button' variant='outline' size='sm' disabled={!canWrite || item.lastTest?.status !== 'PASSED'} onClick={() => setRollbackTarget(item)}>Review rollback</Button> : '—'}</TableCell>
+                </TableRow>)}</TableBody>
+              </Table>
+            </TableContainer>
+            <TablePagination hasPreviousPage={historyPage > 0} hasNextPage={historyPage + 1 < historyPageCount} onPreviousPage={() => setHistoryPage((current) => Math.max(0, current - 1))} onNextPage={() => setHistoryPage((current) => Math.min(historyPageCount - 1, current + 1))} pending={loading || busy} status={`Showing ${historyRangeStart}–${historyRangeEnd} of ${history.length} loaded storage generations. Page ${historyPage + 1} of ${historyPageCount}.`} ariaLabel='Storage generation history pagination' />
+          </>}
         </section>
         {rollbackTarget && <div role='group' aria-labelledby='storage-rollback-confirm' className='rounded border p-3'><h3 id='storage-rollback-confirm' className='font-semibold'>Confirm storage generation rollback</h3><p className='break-all text-sm'>Restore retained generation {rollbackTarget.revision} ({rollbackTarget.backend}) using its exact existing credential and object-generation pins? New writes will use this generation; old object references keep their own pins.</p><div className='mt-2 flex flex-wrap gap-2'><Button type='button' disabled={!canWrite || rollbackTarget.lastTest?.status !== 'PASSED'} onClick={() => rollback(rollbackTarget)}>Restore retained generation</Button><Button type='button' variant='outline' disabled={busy} onClick={() => setRollbackTarget(null)}>Cancel</Button></div></div>}
       </>}

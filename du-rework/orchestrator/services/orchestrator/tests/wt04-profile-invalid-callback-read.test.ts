@@ -40,12 +40,21 @@ describe('WT-04: invalid stored callback is visible and clearable without readba
   });
   it('real profile writer clears a malformed previous pin instead of parsing it again', async () => {
     let written: unknown[] | undefined;
+    const apiKey = { id: row.api_key_id, tenant_id: '10000000-0000-4000-8000-000000000001', hash: 'a'.repeat(64), prefix: 'du_test', status: 'ACTIVE' };
     const client = { query: async (sql: string, params: unknown[] = []) => {
-      if (sql.includes('SELECT id, tenant_id FROM api_keys')) return { rows: [{ id: row.api_key_id, tenant_id: '10000000-0000-4000-8000-000000000001' }], rowCount: 1 };
+      if (sql.includes('FROM api_keys')) {
+        const matches = sql.includes('WHERE hash=$1')
+          ? params[0] === apiKey.hash && params[1] === apiKey.status
+          : sql.includes('WHERE id=$1') && params[0] === apiKey.id;
+        return { rows: matches ? [apiKey] : [], rowCount: matches ? 1 : 0 };
+      }
       if (sql.includes('SELECT max(revision)')) return { rows: [{ m: 1 }], rowCount: 1 };
       if (sql.includes('SELECT enabled, parameters')) return { rows: [{ ...row, callback_policy: { token: 'SENSITIVE_SENTINEL' } }], rowCount: 1 };
-      if (sql.includes('INSERT INTO profile_bindings')) written = params;
-      return { rows: [], rowCount: 1 };
+      if (sql.includes('INSERT INTO profile_bindings')) {
+        written = params;
+        return { rows: [], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
     } } as unknown as PoolClient;
     const db = { tx: async (work: (c: PoolClient) => Promise<unknown>) => work(client) } as unknown as Db;
     await createProfileService(db).createRevision({ apiKeyHash: 'a'.repeat(64), profileId: row.profile_id,

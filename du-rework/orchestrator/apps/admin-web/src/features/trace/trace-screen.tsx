@@ -85,7 +85,7 @@ export function TraceScreen() {
   const initialLookup = traceLookupFromQuery(searchParams);
   const rawQueryTenantId = searchParams.get('tenantId');
   const requestedTenantId = safeQueryValue(rawQueryTenantId);
-  const { tenantId, tenant, tenants, loading: tenantsLoading, setTenantId } = useTenant();
+  const { tenantId, tenants, loading: tenantsLoading, setTenantId } = useTenant();
   const client = useMemo(() => createAdminApiClient(), []);
   const [lookupKind, setLookupKind] = useState<TraceLookupKind>(initialLookup.kind);
   const [lookupValue, setLookupValue] = useState(initialLookup.value);
@@ -275,9 +275,6 @@ export function TraceScreen() {
             Follow an operation and its task snapshots alongside related audit and usage records. All lookup reads stay inside the selected tenant.
           </p>
         </div>
-        <Badge variant={tenantId ? 'info' : 'warning'}>
-          Tenant scope: {tenant?.name ?? tenantId ?? 'Select a tenant'}
-        </Badge>
       </header>
 
       <Card>
@@ -289,7 +286,7 @@ export function TraceScreen() {
         </CardHeader>
         <CardContent>
           {tenantQueryError ? <p role="alert" className="mb-3 text-sm text-[var(--badge-warning-text)]">{tenantQueryError}</p> : null}
-          <form onSubmit={(event) => void lookup(event)} className="grid gap-3 md:grid-cols-[minmax(10rem,0.7fr)_minmax(16rem,2fr)_auto] md:items-end">
+          <form onSubmit={(event) => void lookup(event)} className="grid min-w-0 gap-3 md:grid-cols-[minmax(10rem,0.7fr)_minmax(16rem,2fr)_auto] md:items-start">
             <FormField id="trace-lookup-kind" label="Identifier type">
               <NativeSelect value={lookupKind} onChange={(event) => setLookupKind(event.currentTarget.value as TraceLookupKind)}>
                 <option value="operationId">Operation ID</option>
@@ -307,9 +304,11 @@ export function TraceScreen() {
                 isError={inputError !== null}
               />
             </FormField>
-            <Button type="submit" disabled={screen.kind === 'loading' || tenantId === null || tenantsLoading || tenantContextBlocked} isLoading={screen.kind === 'loading'}>
-              Trace request
-            </Button>
+            <div className="flex items-center md:pt-[1.375rem]">
+              <Button type="submit" disabled={screen.kind === 'loading' || tenantId === null || tenantsLoading || tenantContextBlocked} isLoading={screen.kind === 'loading'}>
+                Trace request
+              </Button>
+            </div>
           </form>
           {tenantId === null ? <p className="mt-3 text-xs text-[var(--badge-warning-text)]">Choose a tenant in the left navigation before searching.</p> : null}
         </CardContent>

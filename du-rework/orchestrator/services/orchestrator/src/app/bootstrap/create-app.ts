@@ -30,6 +30,7 @@ import {
   createRuntimeService,
   type QueueIntegrityHealth,
 } from '../../modules/runtime/runtime';
+import { createWorkerInstanceRetentionScheduler } from '../../modules/runtime/worker-instances';
 import { validateWorkerIdentityConfig } from '../../modules/runtime/worker-identity';
 import { createUsageService } from '../../modules/usage/usage';
 import { observeVerifiedLogin } from '../../modules/cost-alerts/oidc-recipients';
@@ -135,21 +136,26 @@ import type { ServerConfig } from '../../server';
 
 /**
  * PLAT-MIG-01 / DESIGN-803: connector base URL resolver, exported so the
- * unknown-id rejection is unit-testable without a boot. Present id -> its
- * configured URL; absent/unknown id -> 404 NOT_FOUND, NEVER a silent empty.
+ * routing is unit-testable without a boot. Exact configured IDs win; `*` is
+ * an operator-configured static default for other IDs. Without either, named
+ * IDs fail closed rather than deriving a URL from caller input.
  */
 export function connectorBaseUrlResolver(
   baseUrls: Record<string, string>,
 ): (connectorId?: string) => string {
   return (connectorId?: string) => {
     if (connectorId === undefined) {
-      const first = Object.values(baseUrls)[0];
-      if (first === undefined) {
+      const serviceBase = Object.hasOwn(baseUrls, '*')
+        ? baseUrls['*']
+        : Object.values(baseUrls)[0];
+      if (!serviceBase) {
         throw new HttpError(503, 'SERVICE_UNAVAILABLE', 'no connector base URL configured');
       }
-      return first;
+      return serviceBase;
     }
-    const base = baseUrls[connectorId];
+    const exactBase = Object.hasOwn(baseUrls, connectorId) ? baseUrls[connectorId] : undefined;
+    const defaultBase = Object.hasOwn(baseUrls, '*') ? baseUrls['*'] : undefined;
+    const base = exactBase ?? defaultBase;
     if (!base) {
       throw new HttpError(404, 'NOT_FOUND', `connector ${connectorId} not configured`);
     }
@@ -574,10 +580,37 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
     : undefined;
   if (s3Client) failedBootCleanups.push(() => { s3Client.destroy(); });
 
+  // P2-07/CON-03: Connector management proxy registry (platform config only).
+  // Compose it before Profiles so the canonical profile revision writer can
+  // validate explicit pins using the validated API key's tenant.
+  const connectorBaseUrls = config.connectorBaseUrls ?? {};
+  // PLAT-MIG-01: ONE resolver for connector-scoped lookups. Exact IDs always
+  // win. A configured `*` entry is an operator-owned static default service;
+  // absent both exact and default routes, the lookup fails closed (404). The
+  // base URL is never derived from caller input.
+  const connectorBaseUrl = connectorBaseUrlResolver(connectorBaseUrls);
+  const connectors: ConnectorProxy = createConnectorProxy({ baseUrlFor: connectorBaseUrl });
+  // CONNECTOR-WIRE-A: compose the management proxy from platform config. Only
+  // configured deployments get the surface — every other deployment reports
+  // management:false and fails closed rather than half-proxying. The `*`, when
+  // present, owns the service-level list and credential-revision adapter
+  // target. Otherwise keep the existing first-configured target.
+  const connectorManagementBaseUrl = Object.hasOwn(connectorBaseUrls, '*')
+    ? connectorBaseUrls['*']
+    : Object.values(connectorBaseUrls)[0];
+  const connectorManagement =
+    connectorManagementBaseUrl && config.connectorManagementAuthorizationForRequest
+      ? createConnectorManagementStore({
+          baseUrlFor: connectorBaseUrl,
+          authorizationForRequest: config.connectorManagementAuthorizationForRequest,
+        })
+      : undefined;
+
   const registry = createRegistryService(db);
-  const profiles: ProfileService = createProfileService(db, config.profileCipherKey
-    ? { cryptoEnv: { ENCRYPTION_KEY: config.profileCipherKey } }
-    : {});
+  const profiles: ProfileService = createProfileService(db, {
+    ...(config.profileCipherKey ? { cryptoEnv: { ENCRYPTION_KEY: config.profileCipherKey } } : {}),
+    ...(connectorManagement ? { connectorManagement } : {}),
+  });
   // W48-C1: admin audit ledger — every admin mutation below appends one
   // immutable row via ctx.audit; GET /api/v1/admin/audit reads via
   // audit.listForTenant (ledger table: migration 0010 admin_audit_events).
@@ -950,32 +983,6 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
       })
     : null;
   const lifecycle = createLifecycleService(db, metadataCrypto, metadataReader);
-  // P2-07/CON-03: Connector management proxy registry (platform config only).
-  const connectorBaseUrls = config.connectorBaseUrls ?? {};
-  // PLAT-MIG-01: ONE resolver for every connector-scoped lookup. An
-  // unconfigured id fails CLOSED (404), it never falls through to a default
-  // or an empty result list (DESIGN-803, Muc 1: the base URL is platform
-  // config, never caller input — no open proxy, no silent empty).
-  const connectorBaseUrl = connectorBaseUrlResolver(connectorBaseUrls);
-  const connectors: ConnectorProxy = createConnectorProxy({ baseUrlFor: connectorBaseUrl });
-  // CONNECTOR-WIRE-A: compose the management proxy from platform config. Only
-  // configured deployments get the surface — every other deployment reports
-  // management:false and fails closed (503) rather than half-proxying. The
-  // service-level (list) base is the first configured URL; a named connector
-  // still resolves strictly by its own entry (unknown id → 404, no open proxy).
-  const connectorManagementBaseUrls = Object.values(connectorBaseUrls);
-  const connectorManagement =
-    connectorManagementBaseUrls.length > 0 && config.connectorManagementAuthorizationForRequest
-      ? createConnectorManagementStore({
-          baseUrlFor: (connectorId?: string) => {
-            if (connectorId === undefined) return connectorManagementBaseUrls[0]!;
-            const base = connectorBaseUrls[connectorId];
-            if (!base) throw new HttpError(404, 'NOT_FOUND', `connector ${connectorId} not configured`);
-            return base;
-          },
-          authorizationForRequest: config.connectorManagementAuthorizationForRequest,
-        })
-      : undefined;
   const connectorSecretImports = connectorManagement && metadataCrypto && config.secretCatalogKeyring
     ? createConnectorSecretImportService({
         db,
@@ -1013,7 +1020,7 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
   // a half-configured deployment must not boot into silent 503s.
   let credentialWorkflow = config.credentialWorkflow;
   if (!credentialWorkflow && credentialWorkflowEnvRequested(process.env)) {
-    if (connectorManagementBaseUrls.length === 0) {
+    if (!connectorManagementBaseUrl) {
       throw new CredentialWorkflowBootError(
         'credential workflow requires connectorBaseUrls (the revision store has no base URL)'
       );
@@ -1026,7 +1033,7 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
     credentialWorkflow = composeCredentialWorkflow({
       env: process.env,
       revisions: createConnectorRevisionHttpAdapter({
-        baseUrl: connectorManagementBaseUrls[0]!,
+        baseUrl: connectorManagementBaseUrl,
         authorizationForRequest: config.connectorManagementAuthorizationForRequest,
       }),
     });
@@ -1251,7 +1258,7 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
     return client;
   });
   const requireEncryptedSourceWrites = resolveEncryptionRequirement(config.encryptionPolicy?.dataMode, false);
-  const ingestionStorage = storageGenerations
+  const ingestionStorage = storageGenerations && storageConfig.backend === 's3'
     ? config.publicUploadEncryption && artifactCryptoFacade
       ? createGenerationAwareS3EncryptedPinnedSourceStorage({
           db,
@@ -1394,6 +1401,21 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
   const defaultRecoveryInterval = autonomousWorkEnabled ? 5_000 : 0;
   const recoveryIntervalMs = isolatedRestoreRehearsal ? 0 : (config.leaseRecoveryIntervalMs ?? defaultRecoveryInterval);
   let recoveryTimer: ReturnType<typeof setInterval> | undefined;
+  const workerInstanceRetentionScheduler = createWorkerInstanceRetentionScheduler(db, {
+    enabled: autonomousWorkEnabled,
+    onSweep: (result) => {
+      if (result.deleted > 0) {
+        logger.info('expired worker instance inventory removed', {
+          scanned: result.scanned,
+          deleted: result.deleted,
+          protectedByRunningTask: result.protectedByRunningTask,
+        });
+      }
+    },
+    onError: (error) => {
+      logger.warn('worker instance retention sweep failed', { errorName: errorNameOf(error) });
+    },
+  });
   // P2-08: webhook dispatcher runs at production cadence only when a signing
   // secret is configured; scheduling (durable rows) happens regardless.
   const defaultWebhookInterval =
@@ -1802,6 +1824,10 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
         recoveryTimer.unref?.();
         restoreEffectRuntimeState.recoverySweep = true;
       }
+      // Offline/crashed or RUNNING-task-protected inventory becomes eligible
+      // after 24h, then is pruned in bounded batches. The scheduler follows
+      // the same read-only/auto-dispatch boot gate as other autonomous work.
+      workerInstanceRetentionScheduler.start();
       // P2-08: background webhook dispatcher. Delivery failures retry with
       // backoff and never affect the (already terminal) operation.
       if (webhookIntervalMs > 0 && config.webhookSecret) {
@@ -1852,6 +1878,7 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
       restoreEffectRuntimeState.recoverySweep = false;
       restoreEffectRuntimeState.webhookDelivery = false;
       restoreEffectRuntimeState.alertEmission = false;
+      await workerInstanceRetentionScheduler.stop().catch(() => undefined);
       await retentionCleanupScheduler?.stop().catch(() => undefined);
       restoreEffectRuntimeState.retentionScheduler = false;
       restoreEffectRuntimeState.maintenanceRunner = false;

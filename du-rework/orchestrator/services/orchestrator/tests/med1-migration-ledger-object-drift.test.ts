@@ -32,6 +32,7 @@ type DdlDeclaration = { command: string; objectName: string | null; line: number
  */
 const DDL_COVERAGE_POLICY: Record<string, string> = {
   'CREATE EXTENSION': 'inventory-only; runtime does not probe extensions',
+  'CREATE SEQUENCE': 'inventory-only; runtime does not probe sequences',
   'CREATE TABLE': 'runtime probes table existence',
   'CREATE INDEX': 'runtime probes index existence',
   'CREATE FUNCTION': 'inventory-only; runtime does not probe functions',
@@ -39,6 +40,7 @@ const DDL_COVERAGE_POLICY: Record<string, string> = {
   'ALTER TABLE ADD COLUMN': 'inventory-only; runtime probes only the table',
   'ALTER TABLE ALTER COLUMN': 'inventory-only; runtime probes only the table',
   'ALTER TABLE ADD CONSTRAINT': 'inventory-only; runtime does not probe constraints',
+  'ALTER TABLE DROP CONSTRAINT': 'inventory-only; runtime does not probe constraints',
 };
 
 function sqlWords(rawLine: string): string[] {
@@ -90,10 +92,20 @@ function alterTableCommand(actionWords: string[], line: number): DdlDeclaration 
 
   if (action === 'ADD' && (target === 'COLUMN' || target === 'CONSTRAINT')) {
     command = `ALTER TABLE ADD ${target}`;
-    objectName = actionWords[2]?.toLowerCase() ?? null;
+    let nameIndex = 2;
+    if (actionWords[nameIndex]?.toUpperCase() === 'IF' && actionWords[nameIndex + 1]?.toUpperCase() === 'NOT'
+      && actionWords[nameIndex + 2]?.toUpperCase() === 'EXISTS') nameIndex += 3;
+    objectName = actionWords[nameIndex]?.toLowerCase() ?? null;
   } else if (action === 'ALTER' && target === 'COLUMN') {
     command = 'ALTER TABLE ALTER COLUMN';
     objectName = actionWords[2]?.toLowerCase() ?? null;
+  } else if (action === 'DROP' && target === 'CONSTRAINT') {
+    command = 'ALTER TABLE DROP CONSTRAINT';
+    let nameIndex = 2;
+    if (actionWords[nameIndex]?.toUpperCase() === 'IF' && actionWords[nameIndex + 1]?.toUpperCase() === 'EXISTS') {
+      nameIndex += 2;
+    }
+    objectName = actionWords[nameIndex]?.toLowerCase() ?? null;
   }
 
   return { command, objectName, line };
@@ -115,7 +127,12 @@ function scanMigrationDdl(sql: string): DdlDeclaration[] {
     const first = words[0]!.toUpperCase();
     const second = words[1]?.toUpperCase();
 
-    if (pendingAlterTable && first !== 'ADD' && first !== 'ALTER' && first !== 'DROP' && first !== 'RENAME') {
+    if (pendingAlterTable) {
+      if (first === 'ADD' || first === 'ALTER' || first === 'DROP' || first === 'RENAME') {
+        declarations.push(alterTableCommand(words, index + 1));
+        pendingAlterTable = rawLine.trimEnd().endsWith(',');
+        continue;
+      }
       declarations.push({ command: 'ALTER TABLE <MISSING ACTION>', objectName: null, line: index + 1 });
       pendingAlterTable = false;
     }
@@ -125,8 +142,18 @@ function scanMigrationDdl(sql: string): DdlDeclaration[] {
     } else if (first === 'ALTER') {
       if (second === 'TABLE' && words.length > 3) {
         declarations.push(alterTableCommand(words.slice(3), index + 1));
+        pendingAlterTable = rawLine.trimEnd().endsWith(',');
       } else if (second === 'TABLE') {
         pendingAlterTable = true;
+      } else if (second === 'COLUMN' || second === 'CONSTRAINT') {
+        // A continued ALTER TABLE statement places its action on a separate
+        // line; the pending branch above handles it before this top-level
+        // ALTER inventory path.
+        declarations.push({
+          command: `ALTER ${second ?? '<MISSING TARGET>'}`,
+          objectName: words[2]?.toLowerCase() ?? null,
+          line: index + 1,
+        });
       } else {
         declarations.push({
           command: `ALTER ${second ?? '<MISSING TARGET>'}`,
@@ -134,9 +161,6 @@ function scanMigrationDdl(sql: string): DdlDeclaration[] {
           line: index + 1,
         });
       }
-    } else if (pendingAlterTable) {
-      declarations.push(alterTableCommand(words, index + 1));
-      pendingAlterTable = false;
     }
   }
 

@@ -66,6 +66,25 @@ function claimHarness(profilePolicySnapshot: unknown) {
         ): Promise<QueryResult<R>> => {
           sqlCalls.push(sql.replace(/\s+/g, ' ').trim());
 
+          if (/FROM business_catalog/i.test(sql)) {
+            return queryResult<R>([{ enabled: true, activation_revision: 1, submissions_paused: false, pre_drain_version: null }]);
+          }
+          if (/FROM business_versions/i.test(sql)) {
+            return queryResult<R>([{ version: '1.0.0', status: 'ENABLED', is_active: true, digest: 'sha256:dd03-fixture' }]);
+          }
+          if (/FROM worker_instances wi/i.test(sql)) return queryResult<R>([{
+            business_version: '1.0.0', heartbeat_manifest_digest: 'sha256:dd03-fixture',
+            registered_manifest_digest: 'sha256:dd03-fixture', state: 'ONLINE', capacity: 4,
+            heartbeat_fresh: true, control_revision: 1, control_state: 'OPEN',
+            desired_control_revision: 1, desired_control_state: 'OPEN',
+          }]);
+          if (/INSERT INTO runtime_control_scopes/i.test(sql)) return queryResult<R>([], 'INSERT');
+          if (/FROM runtime_control_scopes/i.test(sql)) return queryResult<R>([
+            { scope_kind: 'platform', scope_id: 'all', desired_state: 'OPEN', revision: 1 },
+            { scope_kind: 'tenant', scope_id: TENANT_ID, desired_state: 'OPEN', revision: 1 },
+            { scope_kind: 'business', scope_id: BUSINESS_ID, desired_state: 'OPEN', revision: 1 },
+          ]);
+
           if (/^\s*SELECT/i.test(sql) && /FROM tasks t/i.test(sql) && /JOIN operations o/i.test(sql)) {
             return queryResult<R>([{
               id: TASK_ID,
@@ -74,6 +93,7 @@ function claimHarness(profilePolicySnapshot: unknown) {
               kind: 'root',
               state: stagedTask.state,
               attempt: stagedTask.attempt,
+              max_attempts: 3,
               lease_epoch: stagedTask.leaseEpoch,
               lease_expires_at: stagedTask.leaseExpiresAt,
               leased_by: stagedTask.leasedBy,
@@ -120,6 +140,14 @@ function claimHarness(profilePolicySnapshot: unknown) {
           if (/^\s*UPDATE operations SET state='RUNNING'/i.test(sql)) {
             stagedOperationState = 'RUNNING';
             return queryResult<R>([{ id: OPERATION_ID }], 'UPDATE');
+          }
+
+          if (/^\s*UPDATE worker_instances\s+SET accepted_task_count=/i.test(sql)) {
+            return queryResult<R>([{ accepted_task_count: 1 }], 'UPDATE');
+          }
+
+          if (/^\s*UPDATE outbox SET parked_reason=/i.test(sql)) {
+            return queryResult<R>([], 'UPDATE');
           }
 
           if (/^\s*SELECT/i.test(sql) && /FROM step_checkpoints/i.test(sql)) {

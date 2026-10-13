@@ -48,7 +48,7 @@ const INVALID_CASES: FailClosedCase[] = [
   {
     action: 'extract',
     name: 'too many artifacts',
-    payload: { type: 'invoice', artifactIds: Array.from({ length: 11 }, (_, i) => `art-${i}`) },
+    payload: { type: 'invoice', artifactIds: Array.from({ length: 21 }, (_, i) => `art-${i}`) },
     code: 'TOO_MANY_ARTIFACTS',
   },
   {
@@ -74,7 +74,7 @@ const INVALID_CASES: FailClosedCase[] = [
   {
     action: 'analyze',
     name: 'too many artifacts',
-    payload: { task: 'classify', artifactIds: Array.from({ length: 11 }, (_, i) => `art-${i}`) },
+    payload: { task: 'classify', artifactIds: Array.from({ length: 21 }, (_, i) => `art-${i}`) },
     code: 'TOO_MANY_ARTIFACTS',
   },
 
@@ -86,7 +86,7 @@ const INVALID_CASES: FailClosedCase[] = [
   {
     action: 'transform',
     name: 'too many artifacts',
-    payload: { variant: 'rewrite', artifactIds: Array.from({ length: 11 }, (_, i) => `art-${i}`) },
+    payload: { variant: 'rewrite', artifactIds: Array.from({ length: 21 }, (_, i) => `art-${i}`) },
     code: 'TOO_MANY_ARTIFACTS',
   },
 
@@ -99,7 +99,7 @@ const INVALID_CASES: FailClosedCase[] = [
   {
     action: 'generate',
     name: 'too many artifacts',
-    payload: { task: 'summary', artifactIds: Array.from({ length: 11 }, (_, i) => `art-${i}`) },
+    payload: { task: 'summary', artifactIds: Array.from({ length: 21 }, (_, i) => `art-${i}`) },
     code: 'TOO_MANY_ARTIFACTS',
   },
 

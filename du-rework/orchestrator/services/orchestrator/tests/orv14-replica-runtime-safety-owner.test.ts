@@ -7,8 +7,9 @@ const observedAt = '2026-10-11T23:30:00.000Z';
 function connectorObservation(overrides: Record<string, unknown> = {}) {
   return {
     service: 'connector', slot: 'green', runtimeIdentity: 'connector-green', replicaId: 'connector-green',
+    bootId: '6bb5fd2a-b36a-4d1a-9b32-8a8c3561ec4f',
     revision: 'release-2', imageDigest, readiness: 'DRAINING', observedAt, workObservedAt: observedAt,
-    controlRevision: 7, controlState: 'DRAINING', controlAcknowledgedAt: null,
+    controlRevision: 7, controlState: 'DRAINING', controlAcknowledgedAt: null, controlAcknowledgedBootId: null,
     work: {
       workerLeases: { applicable: false, count: null }, sdkActiveTasks: { applicable: false, count: null },
       connectorInvocations: { applicable: true, count: 0 }, orchestratorRequests: { applicable: false, count: null },

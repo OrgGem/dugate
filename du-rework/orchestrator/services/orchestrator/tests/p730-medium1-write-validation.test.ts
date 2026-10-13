@@ -98,6 +98,9 @@ function txDb(store: Store) {
         const m = view.length === 0 ? null : Math.max(...view.map((r) => r.revision));
         return result<T>([{ m } as unknown as T]);
       }
+      if (/SELECT id, tenant_id, hash, prefix, status FROM api_keys WHERE id=\$1 FOR SHARE/i.test(sql)) {
+        return result<T>([{ id: KEY_ID, tenant_id: TENANT, hash: KEY_HASH, prefix: 'synthetic', status: 'ACTIVE' }]);
+      }
       if (/FROM api_keys/i.test(sql)) {
         return result<T>([{ id: KEY_ID, tenant_id: TENANT }] as unknown as T[]);
       }

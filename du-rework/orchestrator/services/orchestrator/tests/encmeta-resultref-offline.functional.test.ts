@@ -6,7 +6,8 @@ import { createMetadataCrypto, type MetadataKeyProvider } from '../src/modules/r
 import { adaptKeyProviderForMetadata } from '../src/modules/encryption/metadata-key-adapter';
 import type { KeyProvider, WrapDekInput, WrappedDek } from '../src/modules/encryption/vault-transit-provider';
 import { loadMigrationFiles } from '../src/db/migrations';
-import { handlePublicRoutes } from '../src/http/routes/public';
+import { mockCreateStorageGenerationFixture, mockOpenBackupEffectGateResult } from './helpers/backup-effect-gate';
+import { buildOperationResult } from '../src/http/routes/public';
 import type { RouteContext } from '../src/http/route-context';
 
 /**
@@ -44,10 +45,16 @@ jest.mock('pg', () => {
     sibs: null,
     children: null,
   };
+  let mockStorage: ReturnType<typeof mockCreateStorageGenerationFixture> | undefined;
+  const getMockStorage = () => (mockStorage ??= mockCreateStorageGenerationFixture());
   interface PgResult { rows: unknown[]; rowCount: number }
   function answer(sql: string, params: unknown[] = []): PgResult {
     const text = String(sql).replace(/\s+/g, ' ').trim();
     state.queries.push(text);
+    const backupGate = mockOpenBackupEffectGateResult(text);
+    if (backupGate) return backupGate;
+    const storage = getMockStorage().answer(text, params);
+    if (storage) return storage;
     const write = (): PgResult => {
       state.writes.push({ sql: text, params });
       return { rows: [], rowCount: 1 };
@@ -306,37 +313,27 @@ describe('ENCMETA-RESULTREF-IMPL — result_ref under the metadata seam', () => 
     expect(res.children.map((c) => c.resultRef)).toEqual(['ref-x', 'memory://legacy', null]);
   });
 
-  it('G6/R1 public /result: a sealed row projects the SAME opaque ref; null and no-seam paths unchanged', async () => {
+  it('G6/R1 operation result projection: a sealed row projects the SAME opaque ref; null and no-seam paths unchanged', async () => {
     const sealedOp = await crypto.seal(RESULT_REF, { tenantId: TENANT, slot: 'operations.result_ref', refId: 'op-1' });
     const baseCtx = (resultRef: unknown, withSeam: boolean) =>
       ({
-        method: 'GET',
-        pathname: '/api/v1/operations/op-1/result',
-        searchParams: new URLSearchParams(),
-        headers: { 'x-api-key': 'raw-key' },
-        body: undefined,
-        rawBody: Buffer.alloc(0),
-        correlationId: 'rr-1',
         db: {
           query: async (sql: string) => {
-            if (/FROM api_keys/.test(sql)) return { rows: [{ id: 'key-1', tenant_id: TENANT }], rowCount: 1 };
             return { rows: [], rowCount: 0 };
           },
-        },
-        runtime: {
-          getOperation: async () => ({ id: 'op-1', tenant_id: TENANT, state: 'SUCCEEDED', result_ref: resultRef }),
         },
         usage: { project: async () => ({}) },
         ...(withSeam ? { metadataCrypto: crypto } : {}),
       }) as unknown as RouteContext;
+    const operation = (resultRef: unknown) => ({ id: 'op-1', tenant_id: TENANT, state: 'SUCCEEDED', result_ref: resultRef });
 
-    const sealed = await handlePublicRoutes(baseCtx(JSON.stringify(sealedOp), true));
+    const sealed = await buildOperationResult(baseCtx(JSON.stringify(sealedOp), true), operation(JSON.stringify(sealedOp)));
     expect((sealed!.body as { data: { resultRef: string } }).data.resultRef).toBe(RESULT_REF);
 
-    const nullRef = await handlePublicRoutes(baseCtx(null, true));
+    const nullRef = await buildOperationResult(baseCtx(null, true), operation(null));
     expect((nullRef!.body as { data: Record<string, unknown> }).data).toEqual({});
 
-    const legacyNoSeam = await handlePublicRoutes(baseCtx('memory://plain-op-ref', false));
+    const legacyNoSeam = await buildOperationResult(baseCtx('memory://plain-op-ref', false), operation('memory://plain-op-ref'));
     expect((legacyNoSeam!.body as { data: { resultRef: string } }).data.resultRef).toBe('memory://plain-op-ref');
   });
 });

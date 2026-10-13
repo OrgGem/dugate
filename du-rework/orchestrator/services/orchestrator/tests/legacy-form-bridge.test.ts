@@ -66,7 +66,7 @@ describe('legacy form bridge', () => {
     ]));
     const form = LegacyFormData.fromMultipart(body);
     const decoded = decodeLegacyWire('extract', { form, body: legacyFieldsToRecord(body) });
-    expect(decoded.submission.input).toMatchObject({ variant: 'contract', language: 'vi' });
+    expect(decoded.submission.input).toMatchObject({ type: 'contract', language: 'vi' });
   });
 
   it('carries output_format and file_urls into the decoded request', async () => {

@@ -1,36 +1,63 @@
 import * as React from 'react';
 import { cn } from '@/lib/utils';
+import { Button } from './button';
 
-export const TableContainer = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
+export interface TableContainerProps extends React.HTMLAttributes<HTMLDivElement> {
+  /** When set, bounds the table viewport and enables vertical as well as horizontal scrolling. */
+  maxHeight?: number | string;
+}
+
+export const TableContainer = React.forwardRef<HTMLDivElement, TableContainerProps>(
+  ({ className, maxHeight, style, role, tabIndex, 'aria-label': ariaLabel, ...props }, ref) => (
     <div
       ref={ref}
+      role={role ?? (maxHeight !== undefined && ariaLabel ? 'region' : undefined)}
+      aria-label={ariaLabel}
+      tabIndex={tabIndex ?? (maxHeight === undefined ? undefined : 0)}
       className={cn(
-        'relative w-full min-w-0 overflow-x-auto rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--bg-card)] shadow-[var(--shadow-card)]',
+        'relative w-full min-w-0 rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--bg-card)] shadow-[var(--shadow-card)]',
+        maxHeight === undefined ? 'overflow-x-auto' : 'overflow-auto',
         className
       )}
+      style={{ ...style, ...(maxHeight === undefined ? {} : { maxHeight }) }}
       {...props}
     />
   )
 );
 TableContainer.displayName = 'TableContainer';
 
-export const Table = React.forwardRef<HTMLTableElement, React.TableHTMLAttributes<HTMLTableElement>>(
-  ({ className, ...props }, ref) => (
+export interface TableProps extends React.TableHTMLAttributes<HTMLTableElement> {
+  density?: 'default' | 'compact';
+}
+
+export const Table = React.forwardRef<HTMLTableElement, TableProps>(
+  ({ className, density = 'default', ...props }, ref) => (
     <table
       ref={ref}
-      className={cn('w-full caption-bottom text-sm border-collapse text-[var(--text-main)]', className)}
+      className={cn(
+        'w-full caption-bottom text-sm border-collapse text-[var(--text-main)]',
+        density === 'compact' && 'text-xs [&_th]:h-8 [&_th]:px-3 [&_td]:px-3 [&_td]:py-2 [&_td]:text-xs',
+        className
+      )}
       {...props}
     />
   )
 );
 Table.displayName = 'Table';
 
-export const TableHeader = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>(
-  ({ className, ...props }, ref) => (
+export interface TableHeaderProps extends React.HTMLAttributes<HTMLTableSectionElement> {
+  sticky?: boolean;
+}
+
+export const TableHeader = React.forwardRef<HTMLTableSectionElement, TableHeaderProps>(
+  ({ className, sticky = false, ...props }, ref) => (
     <thead
       ref={ref}
-      className={cn('bg-[var(--bg-subtle)] border-b border-[var(--border-subtle)]', className)}
+      className={cn(
+        'bg-[var(--bg-subtle)] border-b border-[var(--border-subtle)]',
+        sticky && 'sticky top-0 z-10',
+        className
+      )}
       {...props}
     />
   )
@@ -116,3 +143,74 @@ export function TableEmpty({ colSpan, message = 'No data available', icon }: Tab
     </TableRow>
   );
 }
+
+export interface TablePaginationProps extends React.HTMLAttributes<HTMLElement> {
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
+  onPreviousPage?: () => void;
+  onNextPage?: () => void;
+  pending?: boolean;
+  status?: React.ReactNode;
+  previousLabel?: React.ReactNode;
+  nextLabel?: React.ReactNode;
+  ariaLabel?: string;
+}
+
+/**
+ * Callback-only paging controls for server-paginated or otherwise externally paged data.
+ * This component does not slice rows or infer totals from the currently loaded page.
+ */
+export const TablePagination = React.forwardRef<HTMLElement, TablePaginationProps>(
+  (
+    {
+      className,
+      hasPreviousPage,
+      hasNextPage,
+      onPreviousPage,
+      onNextPage,
+      pending = false,
+      status,
+      previousLabel = 'Previous page',
+      nextLabel = 'Next page',
+      ariaLabel = 'Table pagination',
+      ...props
+    },
+    ref
+  ) => (
+    <nav
+      ref={ref}
+      aria-label={ariaLabel}
+      aria-busy={pending ? true : undefined}
+      className={cn(
+        'flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between',
+        className
+      )}
+      {...props}
+    >
+      {status !== undefined && status !== null && (
+        <span role="status" aria-live="polite" className="min-w-0 break-words text-xs text-[var(--text-sub)]">
+          {status}
+        </span>
+      )}
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={pending || !hasPreviousPage || !onPreviousPage}
+          onClick={onPreviousPage}
+        >
+          {previousLabel}
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={pending || !hasNextPage || !onNextPage}
+          onClick={onNextPage}
+        >
+          {nextLabel}
+        </Button>
+      </div>
+    </nav>
+  )
+);
+TablePagination.displayName = 'TablePagination';

@@ -52,6 +52,56 @@ pnpm --filter @du/worker-sdk lint
 pnpm --filter @du/worker-sdk test
 ```
 
+## Worker instance lifecycle
+
+Each process boot gets a fresh `workerInstanceId` by default. If an application
+sets `workerInstanceId` explicitly, it should still use a distinct value for
+each concurrently running process. On graceful stop, the SDK stops admission,
+waits for its heartbeat callback and consumer shutdown, then best-effort
+retires that exact business/version/manifest identity. A row with a `RUNNING`
+task owner stays `OFFLINE`; otherwise graceful retirement removes only the
+worker inventory row. Crashed or ambiguous instances become eligible 24 hours
+after their last heartbeat. An hourly cleanup checks at most 100 rows at a
+time, so normal removal is around 24–25 hours and can take longer under backlog
+or while a `RUNNING` task protects its owner.
+
+Heartbeat HTTP deadlines can expire while the server-side transaction is still
+finishing. Shutdown waits for the local request to settle before retirement,
+but a late server completion can recreate an inventory row; the 24-hour cleanup
+is the fallback for that ambiguous transport case.
+
+## Version admission and task drain
+
+The worker heartbeat keeps version eligibility separate from control state and
+the backup-effect fence. The SDK requires a complete current admission tuple:
+`activeVersion`, positive `activationRevision`, `admissionEligible`, and
+`admissionReason`. Missing or unknown values close new claims. A lower revision
+cannot reopen the consumer, and conflicting tuples at the same revision remain
+closed until a higher revision is observed. Version cutover pauses new claims
+without aborting already-claimed task contexts; those tasks continue their
+lease heartbeats and lease-bound checkpoints, grants, effects, and settlement.
+Existing cancellation, lease, control, and backup-fence rules remain in force.
+
+Admission and capacity claim refusals are deferred with bounded backoff and do
+not consume attempts. `TASK_ATTEMPTS_EXHAUSTED` is settled only when the Runtime
+has committed terminal state and returns the ACK-safe terminal response.
+If a claim response is ambiguous, the SDK makes one exact-identity replay while
+the delivery callback is still active, even if admission closed meanwhile.
+Runtime may return the existing valid lease for that replay; the retry cannot
+claim a different delivery or start new work for the inactive version.
+
+Document Core's local dev runner consumes prebuilt workspace dependency
+artifacts and does not watch SDK source. After changing the SDK lifecycle, stop
+the current Document Core dev process, rebuild the SDK from `orchestrator/`,
+then restart Document Core dev from `businesses/document-core/`:
+
+```bash
+cd orchestrator
+pnpm --filter @du/worker-sdk build
+cd ../businesses/document-core
+pnpm run dev
+```
+
 ## Read first
 
 - [04-data-state](../../../docs/04-data-state.md)

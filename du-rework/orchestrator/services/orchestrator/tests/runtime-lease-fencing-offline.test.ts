@@ -33,7 +33,11 @@ function queryResult<T extends QueryResultRow>(rows: QueryResultRow[], command =
   };
 }
 
-function makeOfflineDb(overrides: Partial<TaskFixture> = {}, loseFenceAtWrite = false) {
+function makeOfflineDb(
+  overrides: Partial<TaskFixture> = {},
+  loseFenceAtWrite = false,
+  activeVersion = '1.0.0',
+) {
   const task: TaskFixture = {
     lease_epoch: 12,
     lease_expires_at: new Date(Date.now() + 60_000),
@@ -60,7 +64,19 @@ function makeOfflineDb(overrides: Partial<TaskFixture> = {}, loseFenceAtWrite = 
     tx: async <T>(fn: (client: never) => Promise<T>): Promise<T> => {
       const transactionWrites: string[] = [];
       const client = {
-        query: async <R extends QueryResultRow = QueryResultRow>(sql: string): Promise<QueryResult<R>> => {
+        query: async <R extends QueryResultRow = QueryResultRow>(sql: string, params: unknown[] = []): Promise<QueryResult<R>> => {
+          if (/^\s*SELECT o\.business_id,o\.business_version/i.test(sql)) {
+            return queryResult<R>([{ business_id: task.business_id, business_version: task.business_version }]);
+          }
+          if (/^\s*SELECT enabled,activation_revision,submissions_paused,pre_drain_version\s+FROM business_catalog/i.test(sql)) {
+            return queryResult<R>([{ enabled: true, activation_revision: 1,
+              submissions_paused: false, pre_drain_version: null }]);
+          }
+          if (/^\s*SELECT version,status,is_active FROM business_versions/i.test(sql)) {
+            const targetVersion = String(params[1] ?? task.business_version);
+            return queryResult<R>([{ version: activeVersion, status: 'ENABLED', is_active: true },
+              ...(targetVersion === activeVersion ? [] : [{ version: targetVersion, status: 'ENABLED', is_active: false }])]);
+          }
           if (/^\s*SELECT/i.test(sql) && /FROM tasks t\s+JOIN operations o/i.test(sql)) {
             return queryResult<R>([task]);
           }
@@ -143,6 +159,7 @@ function makeLeaseTakeoverRaceDb() {
   const terminalUpdateSql: string[] = [];
   const committedWrites: string[] = [];
   const committedTerminalMutations: { state: string; leaseEpoch: number }[] = [];
+  let activeVersion = '1.0.0';
   let rollbacks = 0;
   let transactionTail: Promise<void> = Promise.resolve();
 
@@ -162,6 +179,18 @@ function makeLeaseTakeoverRaceDb() {
       let stagedTerminalMutation: { state: string; leaseEpoch: number } | undefined;
       const client = {
         query: async <R extends QueryResultRow = QueryResultRow>(sql: string, params: unknown[] = []): Promise<QueryResult<R>> => {
+          if (/^\s*SELECT o\.business_id,o\.business_version/i.test(sql)) {
+            return queryResult<R>([{ business_id: stagedTask.business_id, business_version: stagedTask.business_version }]);
+          }
+          if (/^\s*SELECT enabled,activation_revision,submissions_paused,pre_drain_version\s+FROM business_catalog/i.test(sql)) {
+            return queryResult<R>([{ enabled: true, activation_revision: 1,
+              submissions_paused: false, pre_drain_version: null }]);
+          }
+          if (/^\s*SELECT version,status,is_active FROM business_versions/i.test(sql)) {
+            const targetVersion = String(params[1] ?? stagedTask.business_version);
+            return queryResult<R>([{ version: activeVersion, status: 'ENABLED', is_active: true },
+              ...(targetVersion === activeVersion ? [] : [{ version: targetVersion, status: 'ENABLED', is_active: false }])]);
+          }
           if (/^\s*SELECT/i.test(sql) && /FROM tasks t\s+JOIN operations o/i.test(sql)) {
             const row = {
               ...stagedTask,
@@ -187,17 +216,18 @@ function makeLeaseTakeoverRaceDb() {
               registered_manifest_digest: 'sha256:offline',
               heartbeat_fresh: true,
               state: 'ONLINE',
+              capacity: 4,
               control_revision: 1,
               control_state: 'OPEN',
               desired_control_revision: 1,
               desired_control_state: 'OPEN',
             }]);
           }
-          if (/^\s*SELECT enabled FROM business_catalog/i.test(sql)) {
-            return queryResult<R>([{ enabled: true }]);
-          }
           if (/^\s*SELECT/i.test(sql) && /FROM step_checkpoints/i.test(sql)) {
             return queryResult<R>([]);
+          }
+          if (/^\s*SELECT count\(\*\)::int AS count FROM tasks/i.test(sql)) {
+            return queryResult<R>([{ count: 0 }]);
           }
           if (/^\s*SELECT/i.test(sql) && /FROM task_dependencies WHERE child_id=\$1/i.test(sql)) {
             return queryResult<R>([]);
@@ -223,6 +253,9 @@ function makeLeaseTakeoverRaceDb() {
           }
           if (/^\s*UPDATE worker_instances\s+SET accepted_task_count=/i.test(sql)) {
             return queryResult<R>([{ accepted_task_count: 1 }], 'UPDATE');
+          }
+          if (/^\s*UPDATE outbox SET parked_reason=NULL/i.test(sql)) {
+            return queryResult<R>([], 'UPDATE');
           }
           if (/^\s*UPDATE tasks t SET state='SUCCEEDED'/i.test(sql) || /^\s*UPDATE tasks t SET state='FAILED'/i.test(sql)) {
             terminalUpdateSql.push(sql);
@@ -271,6 +304,7 @@ function makeLeaseTakeoverRaceDb() {
   return {
     db,
     task,
+    setActiveVersion(version: string) { activeVersion = version; },
     claimUpdates,
     terminalUpdateSql,
     committedWrites,
@@ -558,6 +592,9 @@ describe('R1-B / FIX-CR-06 offline active-lease fencing', () => {
     const fixture = makeLeaseTakeoverRaceDb();
     const runtime = createRuntimeService(fixture.db);
     const workerBClaim = await runtime.claimTask(TASK_ID, 'delivery-b', 'worker-b', BUSINESS_A);
+    // The task is now a valid v1 lease. Cut over to v2 before completion;
+    // execution reporting must remain independent from new-claim admission.
+    fixture.setActiveVersion('2.0.0');
     const requestBody = {
       leaseEpoch: workerBClaim.leaseEpoch,
       resultRef: RESULT_REF,
@@ -591,7 +628,7 @@ describe('R1-B / FIX-CR-06 offline active-lease fencing', () => {
   });
 
   it('allows a live same-business heartbeat and checkpoint to commit behind epoch and expiry predicates', async () => {
-    const fixture = makeOfflineDb();
+    const fixture = makeOfflineDb({}, false, '2.0.0');
     const runtime = createRuntimeService(fixture.db);
 
     await expect(runtime.heartbeatTask(TASK_ID, 12, BUSINESS_A)).resolves.toMatchObject({ cancelRequested: false });

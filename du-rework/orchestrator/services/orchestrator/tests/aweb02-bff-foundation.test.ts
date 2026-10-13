@@ -435,10 +435,10 @@ describe('AWEB-02 admin BFF foundation', () => {
       expect(res.status).toBe(401);
     });
 
-    it('operator session → 403 before any CSRF/upstream work', async () => {
+    it('operator session with valid CSRF proof → 403 before upstream work', async () => {
       const res = await post(
         { action: 'apikey.issue', params: {} },
-        { cookie: oidcCookie() },
+        { cookie: oidcCookie(), 'x-csrf-token': CSRF_OPERATOR_A },
       );
       expect(res.status).toBe(403);
       expect(JSON.parse(res.body).code).toBe('PERMISSION_DENIED');

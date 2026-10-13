@@ -4,6 +4,7 @@ import type { RouteContext } from '../../http/route-context';
 import type { AdminActionAuth, AdminPrincipal } from '../admin-actions/rbac';
 import { requireResourceTenant } from '../admin-actions/rbac';
 import { AdminWorkbenchEndpointTestRequestSchema, AdminWorkbenchPromptWizardRequestSchema, type AdminWorkbenchEndpointTestRequest } from '@du/contracts';
+import { isActiveConnectorPin } from '../profiles/connector-pin-validation';
 
 export const PROFILE_TEST_ENDPOINT_ACTIONS = ['ingest', 'extract', 'analyze', 'transform', 'generate', 'compare'] as const;
 
@@ -211,8 +212,11 @@ export async function submitPromptWizard(ctx: RouteContext, auth: AdminActionAut
   assertCallerTenant(principal, p.tenantId);
   if (!ctx.connectorManagement) throw new HttpError(503, 'TEMPORARY_UNAVAILABLE', 'Connector management is unavailable; Prompt Wizard stays disabled');
   if (p.wizardConnectorId !== 'ext-prompt-wizard') throw new HttpError(422, 'INVALID_SCHEMA', 'Prompt Wizard requires the configured ext-prompt-wizard Connector');
-  const wizardConnector = await ctx.connectorManagement.getRevision(p.wizardConnectorId, p.wizardConnectorRevision);
-  if (!wizardConnector || wizardConnector.state !== 'ACTIVE' || (wizardConnector.tenantId !== undefined && wizardConnector.tenantId !== p.tenantId)) {
+  const wizardConnectorIsActive = await isActiveConnectorPin(ctx.connectorManagement, p.tenantId, {
+    connectorId: p.wizardConnectorId,
+    revision: p.wizardConnectorRevision,
+  });
+  if (!wizardConnectorIsActive) {
     throw notFound('active tenant-authorized Prompt Wizard Connector revision not found');
   }
 

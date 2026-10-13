@@ -36,9 +36,10 @@ import {
 import { adaptKeyProviderForMetadata } from '../src/modules/encryption/metadata-key-adapter';
 import type { KeyProvider, WrapDekInput, WrappedDek } from '../src/modules/encryption/vault-transit-provider';
 import { loadMigrationFiles } from '../src/db/migrations';
+import { mockCreateStorageGenerationFixture, mockOpenBackupEffectGateResult } from './helpers/backup-effect-gate';
 
 const KEY_REF = 'enc-meta-sentinel-v1';
-const TENANT = 'enc-meta-tenant';
+const TENANT = '44444444-4444-4444-8444-444444444444';
 const BUSINESS = 'document-core';
 const SENTINEL = 'ENC-META-SENTINEL-REF-4b71';
 const HASH = String.fromCharCode(35);
@@ -52,10 +53,16 @@ interface ScriptedState {
 
 jest.mock('pg', () => {
   const state: ScriptedState = { queries: [], writes: [], schemaLedger: [], outbox: [] };
+  let mockStorage: ReturnType<typeof mockCreateStorageGenerationFixture> | undefined;
+  const getMockStorage = () => (mockStorage ??= mockCreateStorageGenerationFixture());
   interface PgResult { rows: unknown[]; rowCount: number }
   function answer(sql: string, params: unknown[] = []): PgResult {
     const text = String(sql).replace(/\s+/g, ' ').trim();
     state.queries.push(text);
+    const backupGate = mockOpenBackupEffectGateResult(text);
+    if (backupGate) return backupGate;
+    const storage = getMockStorage().answer(text, params);
+    if (storage) return storage;
     const write = (): PgResult => {
       state.writes.push({ sql: text, params });
       return { rows: [], rowCount: 1 };

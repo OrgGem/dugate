@@ -25,7 +25,7 @@ describe('Document Core Manifest & Recipe Registry (P5-01)', () => {
     });
   });
 
-  it('manifest declares all 8 actions including the two multi-turn workflows', () => {
+  it('manifest declares all 9 actions including the legacy schema workflow and two multi-turn workflows', () => {
     const actionNames = documentCoreManifest.actions.map((a) => a.name);
     expect(actionNames).toEqual([
       'ingest',
@@ -36,6 +36,7 @@ describe('Document Core Manifest & Recipe Registry (P5-01)', () => {
       'compare',
       'disbursement',
       'doc-compare',
+      'schema-workflow',
     ]);
   });
 

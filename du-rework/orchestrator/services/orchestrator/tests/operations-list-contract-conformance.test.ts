@@ -74,7 +74,8 @@ function ctxFor(search: string, calls: Call[]): RouteContext {
   };
   return {
     method: 'GET',
-    pathname: '/api/v1/operations',
+    pathname: '/api/internal/operations',
+    ingressAudience: 'internal',
     searchParams: new URLSearchParams(search),
     headers: { authorization: 'Bearer ' + ADMIN_TOKEN },
     config: { adminToken: ADMIN_TOKEN },
@@ -133,21 +134,16 @@ describe('W-CONTRACT-ALIGN-1: the route reads exactly the contract parameter set
     ]);
   });
 
-  // W-ADMUX02-SORT-ALLOWLIST-1 moved "sort" from the unknown side of this
-  // contract to the declared side, so the exemplar below is a name the contract
-  // still does not carry. The property is unchanged and still worth pinning:
-  // an undeclared parameter is IGNORED by the route (never 422, never echoed),
-  // which is what stops a caller from believing "?offset=10" did something.
-  it('an unknown parameter is ignored, so a future page/offset cannot half-exist', () => {
-    const parsed = parseOperationsListQuery(
+  // This parser drives the ADMIN-only internal list, whose independent filter
+  // allowlist is intentionally strict. The public x-api-key compatibility
+  // route keeps its original behavior of ignoring unknown query keys; that
+  // separate audience contract is exercised in admin-operations-sql.test.ts.
+  it('the internal admin list rejects unknown parameters instead of half-implementing them', () => {
+    expect(() => parseOperationsListQuery(
       new URLSearchParams('limit=5&page=3&offset=10&order_by=id&sortBy=created_at')
-    );
-    expect(parsed.limit).toBe(5);
-    expect(parsed.sort.field).toBe('created_at');
-    expect(parsed.sort.direction).toBe('desc');
-    // order_by / sortBy are the near-miss spellings an operator might guess.
-    // Ignoring them silently is deliberate, and the sort stays at its default.
-    expect(() => parseOperationsListQuery(new URLSearchParams('order_by=deadbeef'))).not.toThrow();
+    )).toThrow(/unsupported or repeated parameter/);
+    expect(() => parseOperationsListQuery(new URLSearchParams('order_by=deadbeef')))
+      .toThrow(/unsupported or repeated parameter/);
   });
 
   it('every contract parameter is actually wired into the parser', () => {

@@ -30,9 +30,10 @@ import {
 import { adaptKeyProviderForMetadata } from '../src/modules/encryption/metadata-key-adapter';
 import type { KeyProvider, WrapDekInput, WrappedDek } from '../src/modules/encryption/vault-transit-provider';
 import { loadMigrationFiles } from '../src/db/migrations';
+import { mockCreateStorageGenerationFixture, mockOpenBackupEffectGateResult } from './helpers/backup-effect-gate';
 
 const KEY_REF = 'crx01-createapp-v1';
-const TENANT = 'crx01-tenant';
+const TENANT = '87000000-0000-4000-8000-000000000001';
 const API_KEY = 'crx01-api-key';
 const BUSINESS = 'document-core';
 const ACTION = 'extract';
@@ -61,10 +62,16 @@ jest.mock('pg', () => {
       operation_id: string; request_hash: unknown;
     }[],
   };
+  let mockStorage: ReturnType<typeof mockCreateStorageGenerationFixture> | undefined;
+  const getMockStorage = () => (mockStorage ??= mockCreateStorageGenerationFixture());
   interface PgResult { rows: unknown[]; rowCount: number }
   function answer(sql: string, params: unknown[] = []): PgResult {
     const text = String(sql).replace(/\s+/g, ' ').trim();
     state.queries.push(text);
+    const backupGate = mockOpenBackupEffectGateResult(text);
+    if (backupGate) return backupGate;
+    const storage = getMockStorage().answer(text, params);
+    if (storage) return storage;
     const write = (): PgResult => {
       state.writes.push({ sql: text, params });
       return { rows: [], rowCount: 1 };
@@ -99,6 +106,15 @@ jest.mock('pg', () => {
     if (/FROM schema_migrations/i.test(text)) {
       return { rows: state.schemaLedger, rowCount: state.schemaLedger.length };
     }
+    if (/SELECT id FROM tenants WHERE id=\$1/i.test(text)) {
+      return { rows: [{ id: String(params[0]) }], rowCount: 1 };
+    }
+    if (/FROM business_catalog WHERE business_id=\$1/i.test(text)) {
+      return {
+        rows: [{ enabled: true, activation_revision: 1, submissions_paused: false, pre_drain_version: null }],
+        rowCount: 1,
+      };
+    }
     if (/FROM business_versions/i.test(text)) {
       return {
         rows: [{
@@ -109,10 +125,19 @@ jest.mock('pg', () => {
           },
           digest: 'sha256:test',
           queue: 'du-q',
+          status: 'ENABLED',
+          is_active: true,
         }],
         rowCount: 1,
       };
     }
+    if (/FROM api_keys k WHERE k\.id=\$1/i.test(text)) {
+      return {
+        rows: [{ name: 'crx01-test-key', spending_limit: '0', total_used: '0', tenant_id: String(params[1]) }],
+        rowCount: 1,
+      };
+    }
+    if (/FROM usage_events ue JOIN operations/i.test(text)) return { rows: [], rowCount: 0 };
     if (/FROM submission_keys/i.test(text)) {
       const hit = state.submissionKeys.find((row) =>
         row.tenant_id === params[0] && row.api_key_id === params[1] &&

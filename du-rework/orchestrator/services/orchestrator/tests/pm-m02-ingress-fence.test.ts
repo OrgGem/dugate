@@ -58,12 +58,18 @@ describe('PM-M02-ROUTE guard (pure)', () => {
     // lets it through; the router's own matcher is the second line of defence
     // and sees the SAME pathname, so there is no bypass.
     expect(isPublicIngressAllowed(new URL('/api/v1//admin/', 'http://x').pathname)).toBe(true);
-    expect(isPublicIngressAllowed(new URL('/api/v1/./operations', 'http://x').pathname)).toBe(false);
+    // Dot segments are normalized before both guard and router. The resulting
+    // public operations-list route remains available for the restored contract.
+    const operationsListPath = new URL('/api/v1/./operations', 'http://x').pathname;
+    expect(operationsListPath).toBe('/api/v1/operations');
+    expect(isPublicIngressAllowed(operationsListPath)).toBe(true);
     expect(isPublicIngressAllowed(new URL('/api/v1/foo/../runtime', 'http://x').pathname)).toBe(true);
     // a dot segment that RESOLVES OUT of /admin lands on the public family,
     // which is correct: the guard sees the same pathname the router will use
     expect(isPublicIngressAllowed(new URL('/api/v1/admin/..', 'http://x').pathname)).toBe(true);
-    expect(isPublicIngressAllowed(new URL('/api/v1/admin/../admin/audit', 'http://x').pathname)).toBe(false);
+    const adminPath = new URL('/api/v1/admin/../admin/audit', 'http://x').pathname;
+    expect(adminPath).toBe('/api/v1/admin/audit');
+    expect(isPublicIngressAllowed(adminPath)).toBe(false);
     // an encoded separator stays inside ONE segment and does not become /admin
     expect(isPublicIngressAllowed(new URL('/api/v1%2Fadmin', 'http://x').pathname)).toBe(false);
   });

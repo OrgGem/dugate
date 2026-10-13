@@ -1,0 +1,4 @@
+Historical command: npm run typecheck
+Historical result before the all-owner freeze: blocked by concurrent profile-source parse error:
+src/features/profiles/profiles-screen.tsx(523,19): error TS1381: Unexpected token.
+The final package-wide build/typecheck is pending the coordinator's freeze gate.

@@ -1,6 +1,8 @@
-import { OperationsScreen } from '@/features/operations/operations-screen';
+import { Navigate, useLocation } from 'react-router';
+import { legacyOperationsWorkspacePath } from '@/features/trace/state';
 
-/** Route entry for `admin/operations` (thin — logic in the feature). */
+/** Legacy route alias; preserve its query and open Operations inside the Trace workspace. */
 export function OperationsRoute() {
-  return <OperationsScreen />;
+  const location = useLocation();
+  return <Navigate to={legacyOperationsWorkspacePath(location.search, location.hash)} replace />;
 }

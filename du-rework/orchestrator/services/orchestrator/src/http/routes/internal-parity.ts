@@ -166,6 +166,22 @@ export async function handleInternalParityRoutes(ctx: RouteContext): Promise<Rou
     return { status: 200, body: page };
   }
 
+  const chain = /^\/connectors\/([^/]+)\/chain$/.exec(suffix);
+  if (chain) {
+    if (ctx.method !== 'GET') throw new HttpError(405, 'METHOD_NOT_ALLOWED', 'tenant Connector chain lookup requires GET');
+    requireRead(auth);
+    const values = queryValues(ctx, new Set(['tenantId']));
+    const tenantId = scopedTenant(auth, values.tenantId ?? null);
+    let connectorId: string;
+    try { connectorId = decodeURIComponent(chain[1] ?? ''); }
+    catch { throw new HttpError(422, 'INVALID_SCHEMA', 'tenant Connector chain scope is invalid'); }
+    if (!tenantId || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(connectorId)) {
+      throw new HttpError(422, 'INVALID_SCHEMA', 'tenant Connector chain scope is invalid');
+    }
+    if (!ctx.connectorManagement) throw new HttpError(503, 'SERVICE_UNAVAILABLE', 'Connector management is not configured');
+    return { status: 200, body: { hasTypedChain: await ctx.connectorManagement.hasRecipeChain({ tenantId, connectorId }) } };
+  }
+
   if (suffix === '/identity/platform-assignable-users') {
     if (ctx.method !== 'GET') throw new HttpError(405, 'METHOD_NOT_ALLOWED', 'platform identity lookup requires GET');
     if (auth.kind !== 'platform') throw new HttpError(403, 'PERMISSION_DENIED', 'platform owner lookup requires platform Admin access');

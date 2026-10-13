@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 import { createAdminApiClient } from '../src/lib/api/client.ts';
 import { PROMPT_PRESETS, promptIssues } from '../src/features/settings/prompt-presets.ts';
+import { tenantActiveConnectorPageMatches } from '../src/features/settings/tenant-connector-catalog.ts';
+import { storageSecretCatalogQuery } from '../src/features/settings/storage-secret-catalog.ts';
 import { completePromptPreset, TENANT_PROMPT_PRESETS } from '../../../services/orchestrator/src/modules/global-settings/defaults.ts';
 
 const settingsScreen = readFileSync(new URL('../src/features/settings/settings-screen.tsx', import.meta.url), 'utf8');
@@ -93,13 +95,22 @@ describe('ORV14 full Settings UI owner checks', () => {
     assert.match(tenantSettings, /createTenantAiDraft/);
     assert.match(tenantSettings, /publishTenantPromptRevision/);
     assert.match(tenantSettings, /rollbackTenantAiRevision/);
-    assert.match(tenantSettings, /connectorsTenantId === tenantId/);
-    assert.match(tenantSettings, /tenant-scoped Connector list API is not available yet/);
-    assert.match(tenantSettings, /Show next 100/);
-    assert.match(tenantSettings, /safeStorageValue\('endpoint'/);
+    assert.match(tenantSettings, /tenantActiveConnectorPageMatches\(result\.data, tenant\)/);
+    const tenantId = '11111111-1111-4111-8111-111111111111';
+    assert.equal(tenantActiveConnectorPageMatches({ tenantId, items: [{ tenantId }] }, tenantId), true);
+    assert.equal(tenantActiveConnectorPageMatches({ tenantId, items: [{ tenantId: '22222222-2222-4222-8222-222222222222' }] }, tenantId), false);
+    assert.equal(tenantActiveConnectorPageMatches({ tenantId: '22222222-2222-4222-8222-222222222222', items: [] }, tenantId), false);
+    assert.match(tenantSettings, /Connector catalog unavailable/);
+    assert.match(tenantSettings, /No platform-wide catalog fallback was used/);
+    assert.match(tenantSettings, /Load next Connector page/);
+    assert.match(storageSettings, /safeStorageValue\('endpoint'/);
     assert.match(storageSettings, /type='password'/);
-    assert.match(storageSettings, /purpose storage\.credential/);
-    assert.match(storageSettings, /at most 200 rows and no continuation cursor/);
+    assert.match(storageSettings, /purpose: 'storage\.credential'/);
+    assert.match(storageSettings, /Load next credential page/);
+    assert.deepEqual(storageSecretCatalogQuery('tenant-1', '  archive  ', 'cursor-1'), {
+      tenantId: 'tenant-1', purpose: 'storage.credential', service: 'orchestrator', state: 'ACTIVE',
+      limit: '200', q: 'archive', cursor: 'cursor-1',
+    });
     assert.match(storageSettings, /client\.testStorageGeneration/);
     assert.match(storageSettings, /client\.activateStorageGeneration/);
     assert.match(storageSettings, /client\.rollbackStorageGeneration/);

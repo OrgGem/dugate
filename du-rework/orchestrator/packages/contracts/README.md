@@ -27,7 +27,7 @@ Module path ổn định theo gate `contracts-v1.md`; tất cả được re-exp
 | `manifest.ts` / `manifest-validator.ts` | Business/action manifest shape + validator |
 | `json-schema-guard.ts` | Guard cho JSON Schema khai báo trong manifest |
 | `operations.ts` | Operation state machine và list contract |
-| `runtime.ts` | Runtime API wire, lease/checkpoint, multipart lifecycle bounds |
+| `runtime.ts` | Runtime API wire, version-admission heartbeat tuple, claim dispositions, lease/checkpoint and multipart lifecycle bounds |
 | `queue.ts` | Queue và task payload shape |
 | `connector.ts` | Connector invocation wire + `CONNECTOR_ARTIFACT_MAX_BYTES` (10 MiB) |
 | `sdk.ts` | Worker SDK extension interfaces |

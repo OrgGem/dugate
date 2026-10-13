@@ -3,8 +3,12 @@ import { conflict } from '../../http/errors';
 import type { MaintenanceControlState, WorkerHeartbeat } from '@du/contracts';
 import type { Db } from '../../db/db';
 import { readWorkerControl } from './control';
+import { admissionReasonForVersion, readBusinessAdmission } from '../registry/version-admission';
 
 export const WORKER_HEARTBEAT_FRESH_FOR_MS = 60_000;
+/** Keep offline worker inventory visible for one day after its last observation. */
+export const WORKER_INSTANCE_RETENTION_MS = 24 * 60 * 60_000;
+export const WORKER_INSTANCE_RETENTION_BATCH_SIZE = 100;
 
 interface WorkerHeartbeatWriteRow extends QueryResultRow {
   state: 'ONLINE' | 'DRAINING' | 'OFFLINE';
@@ -28,6 +32,10 @@ export async function recordWorkerHeartbeat(
   lastSeenAt: string;
   controlRevision: number;
   controlState: MaintenanceControlState;
+  activeVersion: string | null;
+  activationRevision: number;
+  admissionEligible: boolean;
+  admissionReason: ReturnType<typeof admissionReasonForVersion>;
   backupEffectFence: { state: 'OPEN' | 'HELD' | 'UNKNOWN'; revision: number; acknowledged: boolean };
 }> {
   return db.tx(async (client) => {
@@ -62,6 +70,19 @@ export async function recordWorkerHeartbeat(
         throw conflict('MANIFEST_DIGEST_MISMATCH', 'worker heartbeat digest does not match its registered manifest');
       }
     }
+    // Keep heartbeat liveness available even for inactive versions. The root
+    // lock only makes this admission observation ordered with a cutover; it
+    // never changes the worker or its currently running task permission.
+    const versionAdmission = await readBusinessAdmission(
+      client,
+      heartbeat.businessId,
+      heartbeat.businessVersion,
+      'SHARE',
+    );
+    if (!versionAdmission) {
+      throw conflict('WORKER_NOT_REGISTERED', 'worker business is not registered in the catalog');
+    }
+    const admissionReason = admissionReasonForVersion(versionAdmission, heartbeat.businessVersion);
     const backupFenceAcknowledged = heartbeat.observedBackupFenceRevision === backupFenceRevision;
     const scoped = await readWorkerControl(client, heartbeat.businessId);
     const tenantControls = await client.query<{
@@ -174,6 +195,10 @@ export async function recordWorkerHeartbeat(
       lastSeenAt: lastSeenAt.toISOString(),
       controlRevision: Number(row.control_revision),
       controlState: row.control_state,
+      activeVersion: versionAdmission.activeVersion,
+      activationRevision: versionAdmission.activationRevision,
+      admissionEligible: admissionReason === 'ELIGIBLE',
+      admissionReason,
       backupEffectFence: {
         state: backupFence.state,
         revision: backupFenceRevision,
@@ -181,4 +206,220 @@ export async function recordWorkerHeartbeat(
       },
     };
   });
+}
+
+export type WorkerInstanceRetirementResult = 'REMOVED' | 'RETAINED_FOR_RUNNING_TASK' | 'STALE_IDENTITY';
+
+/**
+ * Retire an authenticated worker generation after its consumer has stopped.
+ * The exact business/version/digest row is locked before checking task leases,
+ * matching the claim path's worker-row fence. Historical task/operation rows
+ * are never removed; RUNNING owners keep an OFFLINE inventory row until later
+ * retention cleanup.
+ */
+export async function retireWorkerInstance(
+  db: Db,
+  businessId: string,
+  instanceId: string,
+  businessVersion: string,
+  manifestDigest: string,
+): Promise<WorkerInstanceRetirementResult> {
+  return db.tx(async (client) => {
+    const worker = await client.query<{
+      business_version: string;
+      manifest_digest: string | null;
+    }>(
+      `SELECT business_version,manifest_digest FROM worker_instances
+        WHERE business_id=$1 AND instance_id=$2 FOR UPDATE`,
+      [businessId, instanceId],
+    );
+    const row = worker.rows[0];
+    if (!row || row.business_version !== businessVersion || row.manifest_digest !== manifestDigest) {
+      return 'STALE_IDENTITY';
+    }
+
+    // Keep the task read in its own statement and do not lock task rows. Claims
+    // lock task then worker; holding only the worker row avoids a lock cycle.
+    const leases = await client.query<{
+      has_running_task: boolean;
+      active_leases: number | string;
+    }>(
+      `SELECT EXISTS (
+               SELECT 1
+                 FROM tasks running_task
+                 JOIN operations running_operation ON running_operation.id=running_task.operation_id
+                WHERE running_operation.business_id=$1
+                  AND running_task.leased_by=$2
+                  AND running_task.state='RUNNING'
+             ) AS has_running_task,
+             count(*) FILTER (WHERE t.lease_expires_at > statement_timestamp())::int AS active_leases
+         FROM tasks t
+         JOIN operations o ON o.id=t.operation_id
+        WHERE t.leased_by=$2
+          AND o.business_id=$1
+          AND t.state='RUNNING'`,
+      [businessId, instanceId],
+    );
+    const activeLeases = Number(leases.rows[0]?.active_leases ?? 0);
+    if (!Number.isSafeInteger(activeLeases) || activeLeases < 0) {
+      throw new Error('worker retirement lease count is invalid');
+    }
+
+    if (leases.rows[0]?.has_running_task === true) {
+      await client.query(
+        `UPDATE worker_instances
+            SET state='OFFLINE', capacity=0, active_leases=$5,
+                last_seen_at=statement_timestamp(), observed_at=statement_timestamp()
+          WHERE business_id=$1 AND instance_id=$2 AND business_version=$3
+            AND manifest_digest=$4 AND state<>'OFFLINE'`,
+        [businessId, instanceId, businessVersion, manifestDigest, activeLeases],
+      );
+      return 'RETAINED_FOR_RUNNING_TASK';
+    }
+
+    await client.query(
+      `DELETE FROM worker_instances
+        WHERE business_id=$1 AND instance_id=$2 AND business_version=$3
+          AND manifest_digest=$4`,
+      [businessId, instanceId, businessVersion, manifestDigest],
+    );
+    return 'REMOVED';
+  });
+}
+
+export interface WorkerInstanceRetentionSweepResult {
+  scanned: number;
+  deleted: number;
+  protectedByRunningTask: number;
+}
+
+/**
+ * Delete only old worker inventory rows with no RUNNING task owner.
+ * Historical task/operation rows retain their leased_by text unchanged; the
+ * worker_control_scope_acks cache is the only FK that cascades with this row.
+ */
+export async function sweepExpiredWorkerInstances(
+  db: Db,
+  nowMs = Date.now(),
+  limit = WORKER_INSTANCE_RETENTION_BATCH_SIZE,
+): Promise<WorkerInstanceRetentionSweepResult> {
+  if (!Number.isSafeInteger(nowMs) || Number.isNaN(new Date(nowMs).getTime())) {
+    throw new Error('worker instance retention time is invalid');
+  }
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > WORKER_INSTANCE_RETENTION_BATCH_SIZE) {
+    throw new Error(`worker instance retention limit must be between 1 and ${WORKER_INSTANCE_RETENTION_BATCH_SIZE}`);
+  }
+  const cutoff = new Date(nowMs - WORKER_INSTANCE_RETENTION_MS).toISOString();
+  return db.tx(async (client) => {
+    // Lock a bounded set of worker rows first. The runtime claim path also
+    // fences on this row; SKIP LOCKED avoids waiting on an active claim.
+    const candidates = await client.query<{ business_id: string; instance_id: string }>(
+      `SELECT business_id,instance_id
+         FROM worker_instances
+        WHERE last_seen_at <= $1
+          AND NOT EXISTS (
+            SELECT 1
+              FROM tasks t
+              JOIN operations o ON o.id=t.operation_id
+             WHERE o.business_id=worker_instances.business_id
+               AND t.leased_by=worker_instances.instance_id
+               AND t.state='RUNNING'
+          )
+        ORDER BY last_seen_at ASC,business_id ASC,instance_id ASC
+        LIMIT $2 FOR UPDATE SKIP LOCKED`,
+      [cutoff, limit],
+    );
+    let deleted = 0;
+    let protectedByRunningTask = 0;
+    for (const candidate of candidates.rows) {
+      // Re-check the cutoff in a fresh statement while holding the row lock,
+      // then check RUNNING history without taking a task-row lock.
+      const stillExpired = await client.query<{ expired: boolean }>(
+        `SELECT last_seen_at <= $3::timestamptz AS expired
+           FROM worker_instances
+          WHERE business_id=$1 AND instance_id=$2`,
+        [candidate.business_id, candidate.instance_id, cutoff],
+      );
+      if (stillExpired.rows[0]?.expired !== true) continue;
+
+      const running = await client.query<{ has_running_task: boolean }>(
+        `SELECT EXISTS (
+           SELECT 1
+             FROM tasks t
+             JOIN operations o ON o.id=t.operation_id
+            WHERE o.business_id=$1
+              AND t.leased_by=$2
+              AND t.state='RUNNING'
+         ) AS has_running_task`,
+        [candidate.business_id, candidate.instance_id],
+      );
+      if (running.rows[0]?.has_running_task === true) {
+        protectedByRunningTask += 1;
+        continue;
+      }
+
+      const removed = await client.query(
+        `DELETE FROM worker_instances
+          WHERE business_id=$1 AND instance_id=$2 AND last_seen_at <= $3::timestamptz`,
+        [candidate.business_id, candidate.instance_id, cutoff],
+      );
+      deleted += removed.rowCount ?? 0;
+    }
+    return { scanned: candidates.rows.length, deleted, protectedByRunningTask };
+  });
+}
+
+export interface WorkerInstanceRetentionSchedulerOptions {
+  enabled: boolean;
+  intervalMs?: number;
+  onSweep?: (result: WorkerInstanceRetentionSweepResult) => void;
+  onError?: (error: unknown) => void;
+}
+
+/** Single-flight lifecycle wrapper for the bounded inventory cleanup. */
+export function createWorkerInstanceRetentionScheduler(
+  db: Db,
+  options: WorkerInstanceRetentionSchedulerOptions,
+): { start(): void; run(): Promise<void>; stop(): Promise<void> } {
+  const intervalMs = options.intervalMs ?? 60 * 60_000;
+  if (!Number.isSafeInteger(intervalMs) || intervalMs < 1) {
+    throw new Error('worker instance retention interval must be a positive integer');
+  }
+  let timer: ReturnType<typeof setInterval> | undefined;
+  let active: Promise<void> | undefined;
+
+  const run = (): Promise<void> => {
+    if (!options.enabled) return Promise.resolve();
+    if (active) return active;
+    let sweep!: Promise<void>;
+    sweep = sweepExpiredWorkerInstances(db)
+      .then((result) => options.onSweep?.(result))
+      .catch((error: unknown) => {
+        try {
+          options.onError?.(error);
+        } catch {
+          // A reporting hook must never leave the maintenance promise rejected.
+        }
+      })
+      .finally(() => {
+        if (active === sweep) active = undefined;
+      });
+    active = sweep;
+    return sweep;
+  };
+
+  return {
+    start(): void {
+      if (!options.enabled || timer) return;
+      void run();
+      timer = setInterval(() => { void run(); }, intervalMs);
+      timer.unref?.();
+    },
+    run,
+    async stop(): Promise<void> {
+      if (timer) clearInterval(timer);
+      timer = undefined;
+      await active;
+    },
+  };
 }

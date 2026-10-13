@@ -155,7 +155,7 @@ export function AuditScreen() {
   const rawQueryTenantId = searchParams.get('tenantId');
   const requestedTenantId = safeQueryValue(rawQueryTenantId, 256);
   const correlationIdFromUrl = safeQueryValue(searchParams.get('correlationId'), 200);
-  const { tenantId, tenant, tenants, loading: tenantsLoading, setTenantId } = useTenant();
+  const { tenantId, tenants, loading: tenantsLoading, setTenantId } = useTenant();
   const client = useMemo(() => createAdminApiClient(), []);
   const [draft, setDraft] = useState<DraftFilters>(initialFilters.draft);
   const [filters, setFilters] = useState<AppliedAuditFilters>(initialFilters.filters);
@@ -326,25 +326,6 @@ export function AuditScreen() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Active tenant scope</CardTitle>
-          <CardDescription>The audit API enforces this scope again from your signed-in session.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap items-center gap-2 rounded border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-3 text-sm">
-            <span className="font-medium text-[var(--text-main)]">
-              {tenant?.name || (tenantId ? `Tenant (${tenantId.slice(0, 8)}…)` : 'No tenant selected')}
-            </span>
-            {tenantId ? <code className="text-xs text-[var(--text-sub)]">{tenantId}</code> : null}
-            {tenant ? <Badge variant={tenant.state === 'ACTIVE' ? 'success' : 'neutral'}>{tenant.state}</Badge> : null}
-          </div>
-          {tenantId === null ? (
-            <p role="status" className="mt-2 text-sm text-[var(--text-sub)]">Select a tenant in the left navigator to read its audit events.</p>
-          ) : null}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
           <CardTitle>Server-side filters</CardTitle>
           <CardDescription>Filters are sent to the audit API; time bounds are interpreted in your local time and sent as UTC.</CardDescription>
         </CardHeader>
@@ -432,7 +413,7 @@ export function AuditScreen() {
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <CardTitle>Audit events</CardTitle>
-                <CardDescription>{page.data.total.toLocaleString()} matching events · {page.data.items.length} on this page · tenant {tenant?.name ?? tenantId}</CardDescription>
+                <CardDescription>{page.data.total.toLocaleString()} matching events · {page.data.items.length} on this page</CardDescription>
               </div>
               <div className="flex flex-wrap gap-2" aria-label="Audit page controls">
                 <Button variant="outline" size="sm" disabled={!page.data.prevCursor} onClick={() => applyCursor(page.data.prevCursor)}>Previous</Button>
@@ -442,9 +423,9 @@ export function AuditScreen() {
             </div>
           </CardHeader>
           <CardContent>
-            <TableContainer>
-              <Table>
-                <TableHeader>
+            <TableContainer maxHeight="65dvh" aria-label="Audit events table">
+              <Table density="compact">
+                <TableHeader sticky>
                   <TableRow>
                     <TableHead>Occurred at</TableHead>
                     <TableHead>Severity</TableHead>

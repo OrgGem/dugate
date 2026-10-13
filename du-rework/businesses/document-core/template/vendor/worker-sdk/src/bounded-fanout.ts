@@ -1,7 +1,3 @@
-// VENDORED from @du/worker-sdk @ b088eececcb5f3df0b4edbe073a29401dafda624 (worktree 2026-10-06)
-// source: packages/worker-sdk/src/bounded-fanout.ts (lines=82) sha256=ED3A6217F9DFF56D2F64D05DC34E8D86153084C95E14E3FA8C6E76F673E4EF99
-// why: worker surface required by src/worker.ts, src/main.ts, types/context.ts, step-checkpoint, fanout
-
 /** A child identifier is the only business-specific field the executor needs. */
 export interface FanoutChildIdentity {
   readonly childId: string;

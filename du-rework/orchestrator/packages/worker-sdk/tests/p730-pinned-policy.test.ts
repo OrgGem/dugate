@@ -1,4 +1,4 @@
-import { RuntimeClient } from '../src/runtime-client';
+import { AmbiguousReportError, RuntimeClient } from '../src/runtime-client';
 import { mkSentinel } from '../../../../tests/harness/network-boundaries/sentinels';
 
 const TENANT_ID = '73000000-0000-4000-8000-000000000001';
@@ -97,7 +97,8 @@ describe('P730 W2-B Worker SDK pinned policy claim contract', () => {
       workerInstanceId: 'worker-p730',
       businessId: 'document-core',
     }).catch((error: unknown) => error);
-    expect(legacyError).toMatchObject({ status: 200, code: 'TEMPORARY_UNAVAILABLE', isRetryable: true });
+    expect(legacyError).toBeInstanceOf(AmbiguousReportError);
+    expect(legacyError).toMatchObject({ status: 0, code: 'TEMPORARY_UNAVAILABLE', isRetryable: true });
     expect((legacyError as Error).message).not.toContain(sentinel);
 
     const unknownNested = claimDto({ unrecognizedCredential: sentinel });
@@ -106,7 +107,8 @@ describe('P730 W2-B Worker SDK pinned policy claim contract', () => {
       workerInstanceId: 'worker-p730',
       businessId: 'document-core',
     }).catch((error: unknown) => error);
-    expect(nestedError).toMatchObject({ status: 200, code: 'TEMPORARY_UNAVAILABLE', isRetryable: true });
+    expect(nestedError).toBeInstanceOf(AmbiguousReportError);
+    expect(nestedError).toMatchObject({ status: 0, code: 'TEMPORARY_UNAVAILABLE', isRetryable: true });
     expect((nestedError as Error).message).not.toContain(sentinel);
   });
 
@@ -114,11 +116,13 @@ describe('P730 W2-B Worker SDK pinned policy claim contract', () => {
     const malformed = claimDto({
       credentialRef: { tenantId: TENANT_ID, profileId: PROFILE_ID, profileRevision: 0 },
     });
-    await expect(clientReturning(malformed).claimTask(TASK_ID, {
+    const malformedError = await clientReturning(malformed).claimTask(TASK_ID, {
       deliveryId: 'delivery-p730',
       workerInstanceId: 'worker-p730',
       businessId: 'document-core',
-    })).rejects.toMatchObject({ status: 200, code: 'TEMPORARY_UNAVAILABLE', isRetryable: true });
+    }).catch((error: unknown) => error);
+    expect(malformedError).toBeInstanceOf(AmbiguousReportError);
+    expect(malformedError).toMatchObject({ status: 0, code: 'TEMPORARY_UNAVAILABLE', isRetryable: true });
   });
 
   test.todo('GAP SDK-CONSUME: DefaultTaskContext and document-core do not yet consume pinned profile policy');

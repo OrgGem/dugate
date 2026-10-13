@@ -542,7 +542,9 @@ describe('connector local protocol functions', () => {
     expect(queryCalls[0]?.text).toContain("SET state = 'POLLING'");
     expect(queryCalls[0]?.text).toContain("state = 'PENDING'");
     expect(queryCalls[0]?.text).toContain('next_poll_at <= $3');
-    expect(queryCalls[0]?.text).toContain('poll_lease_expires_at <= $3');
+    expect(queryCalls[0]?.text).toContain('WHERE invocation_id = $1 AND input_hash = $2 AND state = \'PENDING\'');
+    expect(queryCalls[0]?.text).toContain("poll_lease_expires_at = $3::timestamptz + ($5 * interval '1 millisecond')");
+    expect(queryCalls[0]?.text).not.toContain('poll_lease_expires_at <= $3');
     expect(queryCalls[0]?.text).toContain("state = 'POLLING'");
     expect(queryCalls[0]?.parameters?.slice(0, 3)).toEqual(['inv-1', 'hash-1', new Date(nowMs).toISOString()]);
     expect(queryCalls[0]?.parameters?.[3]).toBeTruthy();

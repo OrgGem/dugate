@@ -37,6 +37,7 @@ interface FakeTask {
   kind: string;
   state: string;
   attempt: number;
+  max_attempts: number;
   lease_epoch: number;
   lease_expires_at: Date | null;
   leased_by: string | null;
@@ -68,6 +69,11 @@ function queryResult<T extends QueryResultRow>(rows: QueryResultRow[], command =
 interface WorldOptions {
   task?: Partial<FakeTask>;
   op?: Partial<FakeOp>;
+  businessEnabled?: boolean;
+  activeVersion?: string | null;
+  targetStatus?: string;
+  workerCapacity?: number;
+  activeLeaseCount?: number;
 }
 
 function makeWorld(options: WorldOptions = {}) {
@@ -78,6 +84,7 @@ function makeWorld(options: WorldOptions = {}) {
     kind: 'root',
     state: 'READY',
     attempt: 0,
+    max_attempts: 3,
     lease_epoch: 0,
     lease_expires_at: null,
     leased_by: null,
@@ -85,6 +92,14 @@ function makeWorld(options: WorldOptions = {}) {
     payload_ref: {},
     ...options.task,
   };
+
+  const businessEnabled = options.businessEnabled ?? true;
+  const activeVersion = options.activeVersion ?? '1.0.0';
+  const targetStatus = options.targetStatus ?? 'ENABLED';
+  const workerCapacity = options.workerCapacity ?? 4;
+  const activeLeaseCount = options.activeLeaseCount ?? 0;
+  let admissionParkReason: string | null = null;
+  let operationTerminalWrites = 0;
   const op: FakeOp = {
     tenant_id: TENANT_ID,
     business_id: BUSINESS_A,
@@ -113,6 +128,9 @@ function makeWorld(options: WorldOptions = {}) {
           params: unknown[] = []
         ): Promise<QueryResult<R>> => {
           if (/^\s*SELECT/i.test(sql) && /FROM tasks t/i.test(sql) && /JOIN operations o/i.test(sql)) {
+            if (sql.includes('SELECT o.business_id,o.business_version')) {
+              return queryResult<R>([{ business_id: op.business_id, business_version: op.business_version }]);
+            }
             selectSqls.push(sql);
             const row: Record<string, unknown> = {
               id: task.id,
@@ -122,10 +140,12 @@ function makeWorld(options: WorldOptions = {}) {
               payload_ref: task.payload_ref,
               state: task.state,
               attempt: task.attempt,
+              max_attempts: task.max_attempts,
               lease_epoch: task.lease_epoch,
               lease_expires_at: task.lease_expires_at,
               leased_by: task.leased_by,
               last_delivery_id: task.last_delivery_id,
+              lease_active: task.lease_expires_at !== null && task.lease_expires_at.getTime() > Date.now(),
               tenant_id: op.tenant_id,
               // Same-name override as the real join: o.business_id wins over t.*.
               business_id: op.business_id,
@@ -143,6 +163,22 @@ function makeWorld(options: WorldOptions = {}) {
             }
             return queryResult<R>([row]);
           }
+          if (/^\s*SELECT enabled,activation_revision,submissions_paused,pre_drain_version/i.test(sql)) {
+            return queryResult<R>([{
+              enabled: businessEnabled,
+              activation_revision: 1,
+              submissions_paused: false,
+              pre_drain_version: null,
+            }]);
+          }
+          if (/^\s*SELECT version,status,is_active FROM business_versions/i.test(sql)) {
+            const rows: Record<string, unknown>[] = [];
+            if (activeVersion !== null) rows.push({ version: activeVersion,
+              status: activeVersion === op.business_version ? targetStatus : 'ENABLED', is_active: true });
+            if (activeVersion !== op.business_version) rows.push({ version: op.business_version,
+              status: targetStatus, is_active: false });
+            return queryResult<R>(rows);
+          }
           if (/^\s*SELECT state FROM operations WHERE id=\$1/i.test(sql)) {
             opStateReads += 1;
             return queryResult<R>([{ state: op.state }]);
@@ -150,6 +186,42 @@ function makeWorld(options: WorldOptions = {}) {
           if (/^\s*SELECT/i.test(sql) && /FROM step_checkpoints/i.test(sql)) {
             return queryResult<R>([]);
           }
+          if (/^\s*INSERT INTO runtime_control_scopes/i.test(sql)) return queryResult<R>([], 'INSERT');
+          if (/^\s*SELECT scope_kind,scope_id,desired_state,revision/i.test(sql)) {
+            return queryResult<R>([
+              { scope_kind: 'platform', scope_id: 'all', desired_state: 'OPEN', revision: 1 },
+              { scope_kind: 'tenant', scope_id: op.tenant_id, desired_state: 'OPEN', revision: 1 },
+              { scope_kind: 'business', scope_id: op.business_id, desired_state: 'OPEN', revision: 1 },
+            ]);
+          }
+          if (/^\s*SELECT wi\.business_version/i.test(sql)) {
+            const worker = {
+              business_version: op.business_version,
+              heartbeat_manifest_digest: 'sha256:offline',
+              registered_manifest_digest: 'sha256:offline',
+              state: 'ONLINE',
+              heartbeat_fresh: true,
+              capacity: workerCapacity,
+              control_revision: 1,
+              control_state: 'OPEN',
+              desired_control_revision: 1,
+              desired_control_state: 'OPEN',
+            };
+            return queryResult<R>([worker]);
+          }
+          if (/^\s*SELECT count\(\*\)::int AS count FROM tasks/i.test(sql)) {
+            return queryResult<R>([{ count: activeLeaseCount }]);
+          }
+          if (/^\s*UPDATE tasks SET admission_parked_reason=/i.test(sql)) {
+            admissionParkReason = String(params[1]);
+            return queryResult<R>([], 'UPDATE');
+          }
+          if (/^\s*UPDATE outbox SET parked_reason=/i.test(sql)) return queryResult<R>([], 'UPDATE');
+          if (/^\s*UPDATE tasks SET state='FAILED',error_code='TASK_ATTEMPTS_EXHAUSTED'/i.test(sql)) {
+            task.state = 'FAILED';
+            return queryResult<R>([{ id: task.id }], 'UPDATE');
+          }
+          if (/^\s*SELECT parent_id, join_policy FROM task_dependencies/i.test(sql)) return queryResult<R>([]);
           if (/^\s*UPDATE tasks SET lease_epoch=\$2/i.test(sql)) {
             leaseWrites.push(sql);
             claimUpdateSqls.push(sql);
@@ -169,6 +241,11 @@ function makeWorld(options: WorldOptions = {}) {
             return queryResult<R>([{ id: TASK_ID }], 'UPDATE');
           }
           if (/^\s*UPDATE operations SET state=/i.test(sql)) {
+            if (sql.includes("SET state='FAILED'")) {
+              op.state = 'FAILED';
+              operationTerminalWrites += 1;
+              return queryResult<R>([{ id: OPERATION_ID }], 'UPDATE');
+            }
             const allowed = ['ACCEPTED', 'QUEUED', 'WAITING_CHILDREN', 'WAITING_INPUT', 'RETRY_PENDING'];
             if (allowed.includes(op.state)) {
               op.state = 'RUNNING';
@@ -176,6 +253,13 @@ function makeWorld(options: WorldOptions = {}) {
             }
             return queryResult<R>([], 'UPDATE');
           }
+          if (/^\s*SELECT id, tenant_id, state, state_version, callback_url/i.test(sql)) {
+            return queryResult<R>([{ id: OPERATION_ID, tenant_id: op.tenant_id, state: op.state,
+              state_version: 2, callback_url: null, updated_at: new Date().toISOString(),
+              completed_at: null, callback_policy: null, pipeline_json: [] }]);
+          }
+          if (/^\s*UPDATE worker_instances/i.test(sql)) return queryResult<R>([{ accepted_task_count: 1 }], 'UPDATE');
+          if (/^\s*UPDATE outbox SET parked_reason=NULL/i.test(sql)) return queryResult<R>([], 'UPDATE');
           throw new Error(`unexpected transaction query in offline claim-cancel test: ${sql}`);
         },
       } as never
@@ -183,7 +267,10 @@ function makeWorld(options: WorldOptions = {}) {
     close: async () => undefined,
   } as unknown as Db;
 
-  return { db, task, op, selectSqls, claimUpdateSqls, leaseWrites, get opStateReads() { return opStateReads; } };
+  return { db, task, op, selectSqls, claimUpdateSqls, leaseWrites,
+    get admissionParkReason() { return admissionParkReason; },
+    get operationTerminalWrites() { return operationTerminalWrites; },
+    get opStateReads() { return opStateReads; } };
 }
 
 const claim = (runtime: ReturnType<typeof createRuntimeService>) =>
@@ -235,6 +322,8 @@ describe('W-PLAT-CLAIM-CANCEL-FLAG-1: claim snapshot reflects the operation canc
         attempt: 2,
       },
       op: { state: 'RUNNING', cancel_requested: true },
+      // The v1 lease remains reportable after a v2 cutover.
+      activeVersion: '2.0.0',
     });
     const runtime = createRuntimeService(world.db);
 
@@ -242,6 +331,40 @@ describe('W-PLAT-CLAIM-CANCEL-FLAG-1: claim snapshot reflects the operation canc
 
     expect(result.executionSnapshot.cancelRequested).toBe(true);
     expect(result.leaseEpoch).toBe(4);
+    expect(world.leaseWrites).toEqual([]);
+  });
+
+  it('parks an inactive version delivery without consuming an attempt', async () => {
+    const world = makeWorld({ activeVersion: '2.0.0' });
+    const runtime = createRuntimeService(world.db);
+
+    await expect(claim(runtime)).rejects.toMatchObject({ status: 409, code: 'VERSION_NOT_ACTIVE' });
+
+    expect(world.task.attempt).toBe(0);
+    expect(world.task.state).toBe('READY');
+    expect(world.admissionParkReason).toBe('VERSION_NOT_ACTIVE');
+    expect(world.leaseWrites).toEqual([]);
+  });
+
+  it('refuses a new lease when worker capacity is zero without incrementing attempts', async () => {
+    const world = makeWorld({ workerCapacity: 0 });
+    const runtime = createRuntimeService(world.db);
+
+    await expect(claim(runtime)).rejects.toMatchObject({ status: 409, code: 'WORKER_CAPACITY_EXHAUSTED' });
+
+    expect(world.task.attempt).toBe(0);
+    expect(world.leaseWrites).toEqual([]);
+  });
+
+  it('durably terminalizes exhausted tasks before returning the ACK-safe terminal response', async () => {
+    const world = makeWorld({ task: { attempt: 3, max_attempts: 3 } });
+    const runtime = createRuntimeService(world.db);
+
+    await expect(claim(runtime)).rejects.toMatchObject({ status: 410, code: 'TASK_ATTEMPTS_EXHAUSTED' });
+
+    expect(world.task.state).toBe('FAILED');
+    expect(world.op.state).toBe('FAILED');
+    expect(world.operationTerminalWrites).toBe(1);
     expect(world.leaseWrites).toEqual([]);
   });
 
@@ -289,7 +412,7 @@ describe('W-PLAT-CLAIM-CANCEL-FLAG-1: claim snapshot reflects the operation canc
     expect(select).toContain('o.cancel_requested AS op_cancel_requested');
     expect(select).toContain('o.state AS op_state');
     // The row lock that serialises the claim against cancelOperation stays put,
-    // and no new bind parameter was introduced anywhere on the claim path.
+    // and the lease epoch is part of the final lease-update CAS.
     expect(select).toContain('FOR UPDATE OF t');
     expect(select).not.toMatch(/\$12/);
 
@@ -297,7 +420,7 @@ describe('W-PLAT-CLAIM-CANCEL-FLAG-1: claim snapshot reflects the operation canc
     expect(update).toMatch(/^\s*UPDATE tasks SET lease_epoch=\$2/);
     expect(update).toContain("state='RUNNING'");
     expect(update).toMatch(/attempt = attempt \+ 1/);
-    expect(update).not.toMatch(/\$6/);
+    expect(update).toContain('lease_epoch=$6');
   });
 
   it('mirror self-check: without the projection in the SQL text the fake withholds the cancel keys', () => {

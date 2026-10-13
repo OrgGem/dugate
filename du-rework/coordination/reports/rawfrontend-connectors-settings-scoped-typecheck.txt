@@ -1,0 +1,3 @@
+Command: scoped TypeScript compiler API check over the eight leased TSX entry points and transitive imports
+Result: PASS
+Scoped TypeScript check passed (8 leased TSX roots plus transitive imports).

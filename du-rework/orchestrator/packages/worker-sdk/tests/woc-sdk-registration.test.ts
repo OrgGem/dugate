@@ -99,6 +99,10 @@ function heartbeatRoute(): Route {
           capacity: 1,
           controlRevision: 0,
           controlState: 'OPEN',
+          activeVersion: MANIFEST.version,
+          activationRevision: 1,
+          admissionEligible: true,
+          admissionReason: 'ELIGIBLE',
           backupEffectFence: { state: 'OPEN', revision: 0, acknowledged: true },
         },
       }

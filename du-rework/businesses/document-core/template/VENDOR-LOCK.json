@@ -1,98 +1,487 @@
 {
   "baseCommit": "b088eececcb5f3df0b4edbe073a29401dafda624",
-  "generated": "2026-10-12",
+  "generated": "2026-10-13",
   "note": "Vendored hashes are authoritative. baseCommit is the legacy source pin; entries with source metadata identify independently synchronized canonical files and dirty-worktree captures.",
   "files": {
+    "contracts/src/admin-workbench.ts": {
+      "sha256": "29ef7218a29e73f48128d8d706ade0cd43c8017b025d64597fcd8603d7c61a8a",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/admin-workbench.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "29ef7218a29e73f48128d8d706ade0cd43c8017b025d64597fcd8603d7c61a8a"
+      }
+    },
+    "contracts/src/connector-management.ts": {
+      "sha256": "00afac851875a8120a37070151d7bc45ffd423fcfd3f11dfcfb9343bf35f02d3",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/connector-management.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "00afac851875a8120a37070151d7bc45ffd423fcfd3f11dfcfb9343bf35f02d3"
+      }
+    },
+    "contracts/src/connector-runtime-control.ts": {
+      "sha256": "ce9b46e98091a904db183f1443403b3f2d85165549260414cc99f9f4167d92b6",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/connector-runtime-control.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "ce9b46e98091a904db183f1443403b3f2d85165549260414cc99f9f4167d92b6"
+      }
+    },
+    "contracts/src/connector-signals.ts": {
+      "sha256": "dce2f3f82746fa041bc3c1bca56188967d2925afafc65b5b6e513adec50af403",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/connector-signals.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "dce2f3f82746fa041bc3c1bca56188967d2925afafc65b5b6e513adec50af403"
+      }
+    },
     "contracts/src/connector.ts": {
       "sha256": "582df049a558c9ea5492f9676817bc60a3b65f716ce7123377f30855b59bef81",
       "source": {
         "repositoryPath": "orchestrator/packages/contracts/src/connector.ts",
-        "baselineCommit": "b276ede4d3032d197a2ba96ba79c18b0f6e3c139",
-        "worktreeState": "clean-at-baseline",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
         "sha256": "582df049a558c9ea5492f9676817bc60a3b65f716ce7123377f30855b59bef81"
       }
     },
+    "contracts/src/cost-adjustments.ts": {
+      "sha256": "55edd9cad92ee185b82ec058cea3111753db280121e46d661556fabef3e01fcd",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/cost-adjustments.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "55edd9cad92ee185b82ec058cea3111753db280121e46d661556fabef3e01fcd"
+      }
+    },
+    "contracts/src/cost-alerts.ts": {
+      "sha256": "c27f2fe7df4b4c928e2a70b56a6b9606d42b03cc292680362fc6773b766ee939",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/cost-alerts.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "c27f2fe7df4b4c928e2a70b56a6b9606d42b03cc292680362fc6773b766ee939"
+      }
+    },
+    "contracts/src/cost-control.ts": {
+      "sha256": "e55bf9b7701225d84803f1770d1e93556919af4ec9c11864f4f06548ca63a16c",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/cost-control.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "e55bf9b7701225d84803f1770d1e93556919af4ec9c11864f4f06548ca63a16c"
+      }
+    },
+    "contracts/src/encryption-persistence.ts": {
+      "sha256": "2ab432692ebf8e3b971b9ae9cc4c4c296e0a40a94b477025e1cc905eb12c2318",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/encryption-persistence.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "2ab432692ebf8e3b971b9ae9cc4c4c296e0a40a94b477025e1cc905eb12c2318"
+      }
+    },
     "contracts/src/encryption.ts": {
-      "sha256": "85890b54c1d17b552cd1c30619559a00b587d993c8295a8a4214a2ac73c34e09"
+      "sha256": "395e08800e3e7d6b2131c36ae85b41b70289f6c38b1970803101f266ebb7342e",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/encryption.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "395e08800e3e7d6b2131c36ae85b41b70289f6c38b1970803101f266ebb7342e"
+      }
     },
     "contracts/src/errors.ts": {
-      "sha256": "07bfa3bbd7676b5ed36aba17a596de4eede64e0ea21855b3408fe6ba969d68d8",
+      "sha256": "508d1b93acf6aabfa882aaff55903d3b7576346c3a7608a9f2919a909fea3fcf",
       "source": {
         "repositoryPath": "orchestrator/packages/contracts/src/errors.ts",
-        "baselineCommit": "b276ede4d3032d197a2ba96ba79c18b0f6e3c139",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
         "worktreeState": "dirty-working-tree",
-        "sha256": "07bfa3bbd7676b5ed36aba17a596de4eede64e0ea21855b3408fe6ba969d68d8"
+        "copyMode": "exact",
+        "sha256": "508d1b93acf6aabfa882aaff55903d3b7576346c3a7608a9f2919a909fea3fcf"
       }
     },
     "contracts/src/global-settings.ts": {
       "sha256": "f2fada2d14c9f5ed6ddc13546198f34dcef1a09db7c6fe0b782c8ad289193c89",
       "source": {
         "repositoryPath": "orchestrator/packages/contracts/src/global-settings.ts",
-        "baselineCommit": "b276ede4d3032d197a2ba96ba79c18b0f6e3c139",
-        "worktreeState": "clean-at-baseline",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
         "sha256": "f2fada2d14c9f5ed6ddc13546198f34dcef1a09db7c6fe0b782c8ad289193c89"
       }
     },
     "contracts/src/hashing.ts": {
-      "sha256": "6ac6d421c2d650daa32cee5c61c02e4d570c09bc30a1148cebda7bd7ef769263"
+      "sha256": "4697d36b1672082904ef448fa63ddc37d9b6c08cff5a3bd1c05e7d1e114c2bb6",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/hashing.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "4697d36b1672082904ef448fa63ddc37d9b6c08cff5a3bd1c05e7d1e114c2bb6"
+      }
+    },
+    "contracts/src/identity.ts": {
+      "sha256": "f4a8dbe134635f6882c99bb6c6d028d6dda86380e05db98277801df15953d58c",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/identity.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "f4a8dbe134635f6882c99bb6c6d028d6dda86380e05db98277801df15953d58c"
+      }
+    },
+    "contracts/src/incidents.ts": {
+      "sha256": "923424aa406d6765e40707873bcbfe3595f276a64684141116c0d8e2f88ffc33",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/incidents.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "923424aa406d6765e40707873bcbfe3595f276a64684141116c0d8e2f88ffc33"
+      }
     },
     "contracts/src/index.ts": {
-      "sha256": "dc084c269fcc105142c8489578999d3e54b2736dd46fd35521beaee364d3d84c",
+      "sha256": "997d24057e5f0ddb56c10b35f24c2372639cadf8063e90b24ae3a92e9920a3f9",
       "source": {
         "repositoryPath": "orchestrator/packages/contracts/src/index.ts",
-        "baselineCommit": "b276ede4d3032d197a2ba96ba79c18b0f6e3c139",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
         "worktreeState": "dirty-working-tree",
-        "copyMode": "selected-exports",
-        "sha256": "1db649377f879b9d0f3c9c2bd4d5b2069719299a9a0a147bb2669c719b500cda"
+        "copyMode": "exact",
+        "sha256": "997d24057e5f0ddb56c10b35f24c2372639cadf8063e90b24ae3a92e9920a3f9"
       }
     },
     "contracts/src/ip-policy.ts": {
-      "sha256": "3d72028f4e9d455b3f8524e348487a2b815f9f23290f71475f5df511e9795081"
+      "sha256": "b5a78afbd8c16c5e991b18469214693fa38e2f284ad10db1c7b542b13ada2d77",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/ip-policy.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "b5a78afbd8c16c5e991b18469214693fa38e2f284ad10db1c7b542b13ada2d77"
+      }
     },
     "contracts/src/json-schema-guard.ts": {
-      "sha256": "bbd0f025bf3b2d09e59cbc9824834db1b28d622b73cbd2473f49c55563015682"
+      "sha256": "dd0f6a2ac68cf595acc32e81d9e2bbfcb8adfb7e73a35fb1669ba2c3de5df9ec",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/json-schema-guard.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "dd0f6a2ac68cf595acc32e81d9e2bbfcb8adfb7e73a35fb1669ba2c3de5df9ec"
+      }
+    },
+    "contracts/src/legacy-workflow.ts": {
+      "sha256": "5824e39d02a81d731745b1dcf8a124003f9d53ec666745bc1be3849830880660",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/legacy-workflow.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "5824e39d02a81d731745b1dcf8a124003f9d53ec666745bc1be3849830880660"
+      }
+    },
+    "contracts/src/maintenance.ts": {
+      "sha256": "b852071552701292bd03fa6aa9eaf7ca56bd6b9ddc3bdcca3f81d56f2f2f5c7d",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/maintenance.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "b852071552701292bd03fa6aa9eaf7ca56bd6b9ddc3bdcca3f81d56f2f2f5c7d"
+      }
     },
     "contracts/src/manifest-validator.ts": {
-      "sha256": "2f34ca9e60a50405ca355f311a8fe4a4011c4f1d2c5512b8c7de67fa638f1f36"
+      "sha256": "bca40a6c6760a8cf71a90dcdbabfb561335011d00fc34bfce577702f2bc6bf37",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/manifest-validator.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "bca40a6c6760a8cf71a90dcdbabfb561335011d00fc34bfce577702f2bc6bf37"
+      }
     },
     "contracts/src/manifest.ts": {
-      "sha256": "bc023ab3ca04ab9af96204ed858eb7c1e64c912a89d075f35e93ac48736fa6e6"
+      "sha256": "67a24b69f5f70cda4342e8bcd3c0a2a70357770cb479dff910c4605e4da8b77d",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/manifest.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "67a24b69f5f70cda4342e8bcd3c0a2a70357770cb479dff910c4605e4da8b77d"
+      }
+    },
+    "contracts/src/oidc-claim-shapes.ts": {
+      "sha256": "b9617b8a8d73e6bbb5a649598bb7fe336a831e4d3d01fc0bd78a25ce1b39321e",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/oidc-claim-shapes.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "b9617b8a8d73e6bbb5a649598bb7fe336a831e4d3d01fc0bd78a25ce1b39321e"
+      }
     },
     "contracts/src/operations.ts": {
-      "sha256": "57e06b0fe191d8b1155828aaf5c367c0dccbea7ba404519f2a8570acf68941c4"
+      "sha256": "de6689c9ba7113783b891e7612266076989aeb72c459fc663f7897cae99056c1",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/operations.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "de6689c9ba7113783b891e7612266076989aeb72c459fc663f7897cae99056c1"
+      }
+    },
+    "contracts/src/parity.ts": {
+      "sha256": "d31ea2d8ca1be09ddf52b68731a9572a1993a27fef878ea250b55a39f5bbb2d2",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/parity.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "d31ea2d8ca1be09ddf52b68731a9572a1993a27fef878ea250b55a39f5bbb2d2"
+      }
+    },
+    "contracts/src/pricing.ts": {
+      "sha256": "a7d87207e2619f0c1bbdc53d2dca04a953aa9fe211e71e0b52fa00e5ae508c49",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/pricing.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "a7d87207e2619f0c1bbdc53d2dca04a953aa9fe211e71e0b52fa00e5ae508c49"
+      }
+    },
+    "contracts/src/profile-callback.ts": {
+      "sha256": "0373f3e8bbe5d4650b144786d2f6f5bed4cf04e64bbb91a490ff8b0efb923f98",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/profile-callback.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "0373f3e8bbe5d4650b144786d2f6f5bed4cf04e64bbb91a490ff8b0efb923f98"
+      }
+    },
+    "contracts/src/profile-commands.ts": {
+      "sha256": "6275b491df417d4e27965db2a2e14f61fc15184a89ebed314ffcfa9efad9449f",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/profile-commands.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "6275b491df417d4e27965db2a2e14f61fc15184a89ebed314ffcfa9efad9449f"
+      }
+    },
+    "contracts/src/profile-groups.ts": {
+      "sha256": "d3bb59dc6ff6d9a740d3e54a5237fadc799bd3de39a5cd3e0ec81969e2535114",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/profile-groups.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "d3bb59dc6ff6d9a740d3e54a5237fadc799bd3de39a5cd3e0ec81969e2535114"
+      }
     },
     "contracts/src/profile-policy.ts": {
-      "sha256": "a142f61432813205d32cc914e02fc81e41e7a652b87fae2dbffbeaf867c04430"
+      "sha256": "dce82ffb1d671bb10bc351b3faf65cf6ed2d27dad56139bd795cd841847361b3",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/profile-policy.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "dce82ffb1d671bb10bc351b3faf65cf6ed2d27dad56139bd795cd841847361b3"
+      }
+    },
+    "contracts/src/profile-self-service.ts": {
+      "sha256": "21f5458e70818675bab7ae362283e059e69327b4148b9b13828d5853825732d6",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/profile-self-service.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "21f5458e70818675bab7ae362283e059e69327b4148b9b13828d5853825732d6"
+      }
+    },
+    "contracts/src/public-api.ts": {
+      "sha256": "129ef4e66cc93f88ad52e5edb05f2cde885b4b5888a392eaa52f6fab60e2a587",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/public-api.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "129ef4e66cc93f88ad52e5edb05f2cde885b4b5888a392eaa52f6fab60e2a587"
+      }
     },
     "contracts/src/queue.ts": {
-      "sha256": "d02c633397dcdd036934700a8e8b38ec134f98e199fd45cd3a87a74e0cc4a04e"
+      "sha256": "eb90c54bef5a081189fb7351f1bd4baa7ab6ee8a4cc8458c1983d0aa412e91bd",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/queue.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "eb90c54bef5a081189fb7351f1bd4baa7ab6ee8a4cc8458c1983d0aa412e91bd"
+      }
+    },
+    "contracts/src/registry.ts": {
+      "sha256": "f606355025c3891f85749da76091cfad3d266bfd44f541bbf764c4a925543f10",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/registry.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "f606355025c3891f85749da76091cfad3d266bfd44f541bbf764c4a925543f10"
+      }
     },
     "contracts/src/request-redaction.ts": {
-      "sha256": "381148cefb50a809e65222876deddc89836868e51939db7d699f9463f86b09ec"
+      "sha256": "39aac7f386092c03b4e55b030bd92d007a7d369cbd6f9be8e9534b95b6cfd952",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/request-redaction.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "39aac7f386092c03b4e55b030bd92d007a7d369cbd6f9be8e9534b95b6cfd952"
+      }
     },
     "contracts/src/runtime.ts": {
-      "sha256": "e28b6d8a9658f44512fe518974c5fbdcf55ba76a6ee88036cec865886363c91e",
+      "sha256": "9fcd1220f2a417dbba94866bf088ea5f141edca647189349e1fa1467f2344412",
       "source": {
         "repositoryPath": "orchestrator/packages/contracts/src/runtime.ts",
-        "baselineCommit": "b276ede4d3032d197a2ba96ba79c18b0f6e3c139",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
         "worktreeState": "dirty-working-tree",
-        "sha256": "e28b6d8a9658f44512fe518974c5fbdcf55ba76a6ee88036cec865886363c91e"
+        "copyMode": "exact",
+        "sha256": "9fcd1220f2a417dbba94866bf088ea5f141edca647189349e1fa1467f2344412"
       }
     },
     "contracts/src/sdk.ts": {
-      "sha256": "1c4210d0db10c853c36d9a40f6787d52a6eb777f3597c8d1a8d76e3d18b7a82e"
+      "sha256": "f27e5acf4a9a1ba2f58539fc7fbae32a621bbb1e7e7cea78c7aa148b0a86fa24",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/sdk.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "f27e5acf4a9a1ba2f58539fc7fbae32a621bbb1e7e7cea78c7aa148b0a86fa24"
+      }
+    },
+    "contracts/src/secret-catalog.ts": {
+      "sha256": "b70da64f9f428606a4126f274f783291217511a12872fbd49f527afcb7e9e8b1",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/secret-catalog.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "b70da64f9f428606a4126f274f783291217511a12872fbd49f527afcb7e9e8b1"
+      }
+    },
+    "contracts/src/service-runtime.ts": {
+      "sha256": "ba8cd71364bffbe81a59fbd29973c4f114fb3cca32ce11d79ad4c87cd91c65f1",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/service-runtime.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "ba8cd71364bffbe81a59fbd29973c4f114fb3cca32ce11d79ad4c87cd91c65f1"
+      }
+    },
+    "contracts/src/settings.ts": {
+      "sha256": "346fa78723c9d5ff0a46875b785e4028999f1108f625daf2dd047ab3a2b2cd48",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/settings.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "346fa78723c9d5ff0a46875b785e4028999f1108f625daf2dd047ab3a2b2cd48"
+      }
+    },
+    "contracts/src/tenant-connectors.ts": {
+      "sha256": "0ebc96044ea09dbce79760616affbe86d26c88cbc7a8b0ba6039810f1ecaa2ec",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/tenant-connectors.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "0ebc96044ea09dbce79760616affbe86d26c88cbc7a8b0ba6039810f1ecaa2ec"
+      }
+    },
+    "contracts/src/usage-budget.ts": {
+      "sha256": "25defe068fe5c5e9470f576a7a2bcbff54fc166e785693f2877e53eccb194ac3",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/usage-budget.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "25defe068fe5c5e9470f576a7a2bcbff54fc166e785693f2877e53eccb194ac3"
+      }
     },
     "contracts/src/usage-metrics.ts": {
       "sha256": "f0d13e30255d14058a071391162864114ea6332162f1d9baaebe515cf9e26b9a",
       "source": {
         "repositoryPath": "orchestrator/packages/contracts/src/usage-metrics.ts",
-        "baselineCommit": "b276ede4d3032d197a2ba96ba79c18b0f6e3c139",
-        "worktreeState": "clean-at-baseline",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
         "sha256": "f0d13e30255d14058a071391162864114ea6332162f1d9baaebe515cf9e26b9a"
       }
     },
+    "contracts/src/usage-reconciliation.ts": {
+      "sha256": "8bb190d84e06f3ee268819983373d4c3ec46049f05d3d1934c6697fda1f31d40",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/usage-reconciliation.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "8bb190d84e06f3ee268819983373d4c3ec46049f05d3d1934c6697fda1f31d40"
+      }
+    },
+    "contracts/src/vault-policies.ts": {
+      "sha256": "3f3e7219ebcffb79aafab17eeb02a0f08c67609e15ecdf20e52d40ce2868f7af",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/vault-policies.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "3f3e7219ebcffb79aafab17eeb02a0f08c67609e15ecdf20e52d40ce2868f7af"
+      }
+    },
+    "contracts/src/vault.ts": {
+      "sha256": "f11451d94e38ba6bf390ebf4ed55697a778195a0510810dd011b8d099f145ae2",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/vault.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "f11451d94e38ba6bf390ebf4ed55697a778195a0510810dd011b8d099f145ae2"
+      }
+    },
     "contracts/src/version.ts": {
-      "sha256": "1fb24037c4fc050e240783811751757a7ee057d283516bffbd4fea8e3c51d2ae"
+      "sha256": "c89bd00a02e63480a8ba227c2b4db2cb2589fc6e04873ec48b3eeb2ea90f0b35",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/version.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "c89bd00a02e63480a8ba227c2b4db2cb2589fc6e04873ec48b3eeb2ea90f0b35"
+      }
+    },
+    "contracts/src/workflow-import.ts": {
+      "sha256": "6d1f3b705084488d6ac7cb2e8b3844d67c814fc41e747ff4e116ace2fffc39ce",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/workflow-import.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "6d1f3b705084488d6ac7cb2e8b3844d67c814fc41e747ff4e116ace2fffc39ce"
+      }
     },
     "document-kit/src/archives/zip-extractor.ts": {
       "sha256": "ddd13f7a4d280f2dd4224d8396c32ddf2714d9571a4c372298010fa3d34bd073"
@@ -176,59 +565,142 @@
       "sha256": "2f2b15f2a8fc5810e5c2d953dd8b2ae2e48e48ee23c557681fa6bd09f7b2e840"
     },
     "worker-sdk/src/artifact-multipart.ts": {
-      "sha256": "e0c8bc6a8b3cde4de637a6bb6a2687e55a2f0f2d9f26f8dae040b3aaf0495ae8"
+      "sha256": "9c8d9fb0ecb10e96249872af1f26fa77e2f3edc4d97fe9834868bb82f2371b50",
+      "source": {
+        "repositoryPath": "orchestrator/packages/worker-sdk/src/artifact-multipart.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "9c8d9fb0ecb10e96249872af1f26fa77e2f3edc4d97fe9834868bb82f2371b50"
+      }
     },
     "worker-sdk/src/artifact-streams.ts": {
-      "sha256": "4641f2f20836f2a9af616017ce1a8fab5e7b9f6671bb89955c3bf65a1f5f9ed9"
+      "sha256": "3dc76b7d297cb8c8e6d4cfb79f0ebbd623696586c42fddf8afe94bc16bd6f90e",
+      "source": {
+        "repositoryPath": "orchestrator/packages/worker-sdk/src/artifact-streams.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "3dc76b7d297cb8c8e6d4cfb79f0ebbd623696586c42fddf8afe94bc16bd6f90e"
+      }
     },
     "worker-sdk/src/bounded-fanout.ts": {
-      "sha256": "f5ac2d77fbc42ca43b11058896da7767b4f40266ee01b578f136549813e14102"
+      "sha256": "ed3a6217f9dff56d2f64d05dc34e8d86153084c95e14e3fa8c6e76f673e4ef99",
+      "source": {
+        "repositoryPath": "orchestrator/packages/worker-sdk/src/bounded-fanout.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "ed3a6217f9dff56d2f64d05dc34e8d86153084c95e14e3fa8c6e76f673e4ef99"
+      }
     },
     "worker-sdk/src/connector-invoker.ts": {
       "sha256": "cc8aca7e54d4b8a00c4625822107d41f2d4564289a4321c04b8f12334b7bc221",
       "source": {
         "repositoryPath": "orchestrator/packages/worker-sdk/src/connector-invoker.ts",
-        "baselineCommit": "b276ede4d3032d197a2ba96ba79c18b0f6e3c139",
-        "worktreeState": "clean-at-baseline",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
         "sha256": "cc8aca7e54d4b8a00c4625822107d41f2d4564289a4321c04b8f12334b7bc221"
       }
     },
     "worker-sdk/src/connector-session.ts": {
-      "sha256": "2d7b50e2eca9a841f2abd65dee1509c2f08850fd9ec216120278f770f45d17cd"
+      "sha256": "5ae6281a5467de94bf303e4068679b19c13f41e29e7be88a3ebdd0d85816450c",
+      "source": {
+        "repositoryPath": "orchestrator/packages/worker-sdk/src/connector-session.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "5ae6281a5467de94bf303e4068679b19c13f41e29e7be88a3ebdd0d85816450c"
+      }
     },
     "worker-sdk/src/crypto-seam.ts": {
-      "sha256": "a7f1f8bd64af43607cabc81d729a05cd8da1c8e93605538aa17804f4d7d8ac5f"
+      "sha256": "54c238aa566bcf04a7ffb7ce9e71ebf9ce90fd8df8c65ff59e9a593646f2a071",
+      "source": {
+        "repositoryPath": "orchestrator/packages/worker-sdk/src/crypto-seam.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "54c238aa566bcf04a7ffb7ce9e71ebf9ce90fd8df8c65ff59e9a593646f2a071"
+      }
     },
     "worker-sdk/src/crypto-storage.ts": {
-      "sha256": "7a1a038e7414fbcc87ca231910b21779c098dd916969a5e573702e4c0d7d4518"
+      "sha256": "1d121c4ae2a3ceccd2cbc9d2f200225a8f6a70940b17faffa8558afcbda4e83b",
+      "source": {
+        "repositoryPath": "orchestrator/packages/worker-sdk/src/crypto-storage.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "1d121c4ae2a3ceccd2cbc9d2f200225a8f6a70940b17faffa8558afcbda4e83b"
+      }
     },
     "worker-sdk/src/fan-out.ts": {
-      "sha256": "8f694255415d81b161139ef24609d9e10a568633e0ba6ce377b14eb86f0fd450"
+      "sha256": "a523a77a5ed594739a47e5972230364b1895831296f67c92b928b0f06cd9c3f6",
+      "source": {
+        "repositoryPath": "orchestrator/packages/worker-sdk/src/fan-out.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "a523a77a5ed594739a47e5972230364b1895831296f67c92b928b0f06cd9c3f6"
+      }
     },
     "worker-sdk/src/index.ts": {
-      "sha256": "c5d1a3363806c183385b2ac7277b9153f7d0c3af8a1dd0caf66d41a1221c371a"
+      "sha256": "eb6a907fd3d84896e46dc358ab5161221e63d4f1bbdafe976a34bb756a384034",
+      "source": {
+        "repositoryPath": "orchestrator/packages/worker-sdk/src/index.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "eb6a907fd3d84896e46dc358ab5161221e63d4f1bbdafe976a34bb756a384034"
+      }
     },
     "worker-sdk/src/runtime-client.ts": {
-      "sha256": "6b705b4ccce271ae944ec873d144ae635873fd1bfad146c8429693362e264e67",
+      "sha256": "5743c85bb1ff939394b7e139ef50bba218a71ccb8122057710001d6217fedafe",
       "source": {
         "repositoryPath": "orchestrator/packages/worker-sdk/src/runtime-client.ts",
-        "baselineCommit": "b276ede4d3032d197a2ba96ba79c18b0f6e3c139",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
         "worktreeState": "dirty-working-tree",
-        "sha256": "6b705b4ccce271ae944ec873d144ae635873fd1bfad146c8429693362e264e67"
+        "copyMode": "exact",
+        "sha256": "5743c85bb1ff939394b7e139ef50bba218a71ccb8122057710001d6217fedafe"
       }
     },
     "worker-sdk/src/source-acquisition.ts": {
-      "sha256": "74233721cb67d8414f95a3a215f26d9d47dd0fd99bed5e9ed54775f3a60e8e30"
+      "sha256": "be7ac23af99e63916bfbfd4d1314f0d7d9eb04fe00703f3aec94cf9571563e1e",
+      "source": {
+        "repositoryPath": "orchestrator/packages/worker-sdk/src/source-acquisition.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "be7ac23af99e63916bfbfd4d1314f0d7d9eb04fe00703f3aec94cf9571563e1e"
+      }
     },
     "worker-sdk/src/source-ingestion.ts": {
-      "sha256": "653a3eb175a5e69073eecdb211ab291bbd7a84ec2b10b68488a16cd99e622e45"
+      "sha256": "af75077b69c42bb9015aacefe7dc2c33914ee18995945099e4ed1fa237e5f24c",
+      "source": {
+        "repositoryPath": "orchestrator/packages/worker-sdk/src/source-ingestion.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "af75077b69c42bb9015aacefe7dc2c33914ee18995945099e4ed1fa237e5f24c"
+      }
+    },
+    "worker-sdk/src/storage-policy.ts": {
+      "sha256": "0a96aacf29ec65eae308b9ab318b2505fcc96e7026d6ec0001c7425175925ac2",
+      "source": {
+        "repositoryPath": "orchestrator/packages/worker-sdk/src/storage-policy.ts",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
+        "sha256": "0a96aacf29ec65eae308b9ab318b2505fcc96e7026d6ec0001c7425175925ac2"
+      }
     },
     "worker-sdk/src/task-context.ts": {
       "sha256": "a52aca41e3883b9573402c54a32556699b836357cb14a2b731f46445391be02d",
       "source": {
         "repositoryPath": "orchestrator/packages/worker-sdk/src/task-context.ts",
-        "baselineCommit": "b276ede4d3032d197a2ba96ba79c18b0f6e3c139",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
         "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
         "sha256": "a52aca41e3883b9573402c54a32556699b836357cb14a2b731f46445391be02d"
       }
     },
@@ -236,8 +708,9 @@
       "sha256": "09b45c814bebd7d5dcf977acc26fc1118492ed5b14cc974be84e0eb14a632e0e",
       "source": {
         "repositoryPath": "orchestrator/packages/worker-sdk/src/types.ts",
-        "baselineCommit": "b276ede4d3032d197a2ba96ba79c18b0f6e3c139",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
         "worktreeState": "dirty-working-tree",
+        "copyMode": "exact",
         "sha256": "09b45c814bebd7d5dcf977acc26fc1118492ed5b14cc974be84e0eb14a632e0e"
       }
     },
@@ -245,12 +718,13 @@
       "sha256": "fb825c5d896db22a0cbe9e2aef1aa937fbaaa09ecdaa3a25195c3b975c16c55c"
     },
     "worker-sdk/src/worker.ts": {
-      "sha256": "c32c2c0d2b98d6c38d8059034be1dd85c68b45ff137ea18f6ce136a060dfe2d8",
+      "sha256": "6e8907dc6fbff71f28847fbe8ab0724de8d4091e1dc972a6df0af504969c9eae",
       "source": {
         "repositoryPath": "orchestrator/packages/worker-sdk/src/worker.ts",
-        "baselineCommit": "b276ede4d3032d197a2ba96ba79c18b0f6e3c139",
+        "baselineCommit": "5da9b82fa35bc2b55be3ded619c46f0dacb51fa5",
         "worktreeState": "dirty-working-tree",
-        "sha256": "c32c2c0d2b98d6c38d8059034be1dd85c68b45ff137ea18f6ce136a060dfe2d8"
+        "copyMode": "exact",
+        "sha256": "6e8907dc6fbff71f28847fbe8ab0724de8d4091e1dc972a6df0af504969c9eae"
       }
     }
   }

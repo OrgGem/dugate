@@ -36,14 +36,16 @@ function copyConnectorMigrations() {
 }
 
 async function main() {
+  const backendOnly = process.argv.slice(2).includes('--backend-only');
+  const buildOrder = backendOnly ? BUILD_ORDER.slice(0, -1) : BUILD_ORDER;
   const startTime = Date.now();
   log('\n======================================================', '\x1b[34m');
-  log('   Orchestrator: Building all packages & services', '\x1b[1m\x1b[34m');
+  log(backendOnly ? '   Orchestrator: Building runtime packages & services' : '   Orchestrator: Building all packages & services', '\x1b[1m\x1b[34m');
   log('======================================================\n', '\x1b[34m');
 
-  for (let i = 0; i < BUILD_ORDER.length; i++) {
-    const pkg = BUILD_ORDER[i];
-    const step = `[${i + 1}/${BUILD_ORDER.length}]`;
+  for (let i = 0; i < buildOrder.length; i++) {
+    const pkg = buildOrder[i];
+    const step = `[${i + 1}/${buildOrder.length}]`;
     process.stdout.write(`\x1b[33m${step} Building ${pkg.name}...\x1b[0m `);
 
     const stepStart = Date.now();
@@ -67,7 +69,7 @@ async function main() {
   copyConnectorMigrations();
 
   const totalElapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-  log(`\nAll ${BUILD_ORDER.length} services & packages built successfully in ${totalElapsed}s!\n`, '\x1b[1m\x1b[32m');
+  log(`\nAll ${buildOrder.length} services & packages built successfully in ${totalElapsed}s!\n`, '\x1b[1m\x1b[32m');
 }
 
 main().catch(err => {

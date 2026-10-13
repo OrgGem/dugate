@@ -23,7 +23,7 @@ function isCount(value: unknown): value is number {
 /** Runtime-check the platform worker inventory before it enters Overview state. */
 export function parseWorkerInstanceList(value: unknown): WorkerInstanceList | null {
   if (!isRecord(value) || !Array.isArray(value.items) || value.items.length > MAX_WORKER_INSTANCES) return null;
-  if (!isTimestamp(value.sampledAt) || typeof value.truncated !== 'boolean') return null;
+  if (!isTimestamp(value.sampledAt) || typeof value.truncated !== 'boolean' || !isCount(value.total)) return null;
 
   const items: WorkerInstance[] = [];
   const identities = new Set<string>();
@@ -37,6 +37,9 @@ export function parseWorkerInstanceList(value: unknown): WorkerInstanceList | nu
       !WORKER_HEALTH.has(candidate.health as WorkerInstance['health']) ||
       !isCount(candidate.capacity) ||
       !isCount(candidate.activeLeases) ||
+      !(candidate.reportedActiveTasks === null || isCount(candidate.reportedActiveTasks)) ||
+      !(candidate.reportedObservedAt === null || isTimestamp(candidate.reportedObservedAt)) ||
+      !isCount(candidate.durableLeases) ||
       !isTimestamp(candidate.lastSeenAt) ||
       !isTimestamp(candidate.observedAt)
     ) return null;
@@ -51,11 +54,14 @@ export function parseWorkerInstanceList(value: unknown): WorkerInstanceList | nu
       state: candidate.state as WorkerInstance['state'],
       health: candidate.health as WorkerInstance['health'],
       capacity: candidate.capacity,
+      reportedActiveTasks: candidate.reportedActiveTasks,
+      reportedObservedAt: candidate.reportedObservedAt,
       activeLeases: candidate.activeLeases,
+      durableLeases: candidate.durableLeases,
       lastSeenAt: candidate.lastSeenAt,
       observedAt: candidate.observedAt,
     });
   }
 
-  return { items, sampledAt: value.sampledAt, truncated: value.truncated };
+  return { items, total: value.total, sampledAt: value.sampledAt, truncated: value.truncated };
 }

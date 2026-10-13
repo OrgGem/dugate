@@ -18,14 +18,14 @@ export function RequestRedactionEditor({ rules, onChange, disabled }: {
       </p>
       {rules.map((rule, index) => (
         <div key={index} className="space-y-2">
-          <div className="flex flex-wrap gap-2">
-            <Input aria-label={`Redaction pattern ${index + 1}`} className="min-w-0 flex-1" value={rule.pattern}
+          <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(10rem,14rem)_auto] sm:items-start">
+            <Input aria-label={`Redaction pattern ${index + 1}`} className="min-w-0" value={rule.pattern}
               placeholder="Regex pattern, without / delimiters" maxLength={512}
               onChange={event => update(index, { pattern: event.target.value })} />
-            <Input aria-label={`Redaction replacement ${index + 1}`} className="w-full sm:w-48" value={rule.replacement ?? '[REDACTED]'}
+            <Input aria-label={`Redaction replacement ${index + 1}`} className="w-full min-w-0" value={rule.replacement ?? '[REDACTED]'}
               placeholder="[REDACTED]" maxLength={128}
               onChange={event => update(index, { replacement: event.target.value })} />
-            <Button type="button" size="sm" variant="ghost" onClick={() => onChange(rules.filter((_, position) => position !== index))}>
+            <Button type="button" size="sm" variant="ghost" className="justify-self-start sm:justify-self-end" onClick={() => onChange(rules.filter((_, position) => position !== index))}>
               Remove rule {index + 1}
             </Button>
           </div>
