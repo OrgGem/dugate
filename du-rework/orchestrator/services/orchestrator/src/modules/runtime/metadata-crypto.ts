@@ -11,9 +11,11 @@
  *  - The payload is a SMALL inline JSON document (never a document body),
  *    so the chunked streaming facade from ENC-03 is the wrong tool: this is
  *    one authenticated blob that round-trips inside the row it lives in.
- *  - Every value gets its own data-encryption key, wrapped by the ENC-02
- *    Vault Transit provider. No key material is ever persisted beside the
- *    ciphertext, and no caller-supplied key is accepted.
+ *  - Every value gets its own data-encryption key, wrapped by the configured
+ *    Vault Transit provider or the retained local keyring for PostgreSQL-only
+ *    deployments. The private provider discriminator is inside the wrapped
+ *    DEK; absent means a legacy Vault envelope. No key material is persisted
+ *    beside the ciphertext, and no caller-supplied key is accepted.
  *  - AAD binds (tenantId, slot, refId). A ciphertext copied from one tenant
     to another, or from one row to another, therefore fails authenticated
     decryption instead of silently decrypting. That is the cross-tenant
@@ -95,12 +97,14 @@ export interface MetadataContext {
   readonly refId: string;
 }
 
-/** The wrapped DEK, matching the ENC-02 Vault Transit provider output. */
+/** The wrapped DEK, adapted from the configured private key provider. */
 export interface MetadataWrappedDek {
   readonly version: number;
   readonly keyName: string;
   readonly keyVersion: number;
   readonly wrappedKey: string;
+  /** Private discriminator; missing means a legacy Vault Transit envelope. */
+  readonly providerKind?: 'vault-transit' | 'local-keyring';
 }
 
 /** The sealed value persisted in place of the plaintext JSON. */
@@ -136,6 +140,22 @@ export class MetadataCryptoError extends Error {
 
 function fail(code: MetadataCryptoErrorCode, message: string): never {
   throw new MetadataCryptoError(code, message);
+}
+
+function assertWrappedDekShape(value: unknown): asserts value is MetadataWrappedDek {
+  if (!isRecord(value)) {
+    fail('KEY_PROVIDER_FAILED', 'metadata key provider returned an invalid wrapped DEK envelope');
+  }
+  const { version, keyName, keyVersion, wrappedKey, providerKind } = value;
+  if (version !== 1
+      || typeof keyName !== 'string' || keyName.length < 1 || keyName.length > 256
+      || /[\u0000-\u001f\u007f-\u009f]/.test(keyName)
+      || typeof keyVersion !== 'number' || !Number.isSafeInteger(keyVersion) || keyVersion < 1
+      || typeof wrappedKey !== 'string' || wrappedKey.length < 1 || wrappedKey.length > 16 * 1024
+      || /[\u0000-\u001f\u007f-\u009f]/.test(wrappedKey)
+      || (providerKind !== undefined && providerKind !== 'vault-transit' && providerKind !== 'local-keyring')) {
+    fail('KEY_PROVIDER_FAILED', 'metadata key provider returned an invalid wrapped DEK envelope');
+  }
 }
 
 /**
@@ -284,10 +304,15 @@ function assertEnvelopeShape(value: unknown): asserts value is SealedMetadata {
   if (!isRecord(value.dek)) {
     fail('NOT_SEALED', 'sealed metadata dek is not a wrapped DEK envelope');
   }
+  if (value.dek.providerKind !== undefined
+      && value.dek.providerKind !== 'vault-transit'
+      && value.dek.providerKind !== 'local-keyring') {
+    fail('NOT_SEALED', 'sealed metadata DEK provider kind is unsupported');
+  }
 }
 
 /**
- * Build the metadata crypto seam over the ENC-02 Vault Transit provider.
+ * Build the metadata crypto seam over the configured DEK provider.
  *
  * The provider is injected rather than constructed here so the runtime has
  * exactly one configured key path, and so an offline test can drive the same
@@ -329,6 +354,7 @@ export function createMetadataCrypto(
     } catch (err) {
       fail('KEY_PROVIDER_FAILED', `failed to wrap metadata DEK: ${(err as Error).message}`);
     }
+    assertWrappedDekShape(wrapped);
     const cipher = createCipheriv('aes-256-gcm', dek, nonce, { authTagLength: TAG_BYTES });
     cipher.setAAD(aad);
     const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()]);

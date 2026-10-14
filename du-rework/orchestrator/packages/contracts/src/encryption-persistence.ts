@@ -212,6 +212,10 @@ export const SealedMetadataEnvelopeSchema = z
         keyName: z.string().min(1).max(256),
         keyVersion: z.number().int().min(1),
         wrappedKey: Base64NonEmptySchema,
+        // Private metadata-crypto discriminator. Optional so persisted
+        // envelopes written before local-keyring support remain valid; when
+        // present it selects the wrapped-DEK provider on read.
+        providerKind: z.enum(['vault-transit', 'local-keyring']).optional(),
       })
       .strict(),
     nonce: base64OfBytes(GCM_NONCE_BYTES),

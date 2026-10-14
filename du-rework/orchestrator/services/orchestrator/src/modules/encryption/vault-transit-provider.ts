@@ -43,6 +43,8 @@ export interface WrappedDek {
   readonly keyRef: string;
   readonly keyVersion: number;
   readonly ciphertext: string;
+  /** Private envelope discriminator; absent on previously stored Vault values. */
+  readonly providerKind?: 'vault-transit' | 'local-keyring';
 }
 
 export interface WrapDekInput {

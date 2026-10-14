@@ -57,6 +57,8 @@ function fakeSpawn(): typeof import('node:child_process').spawn {
           const connection = String(args.find((arg) => arg.startsWith('--dbname=')) ?? '');
           let result = '0';
           if (sql.includes('current_setting')) result = connection.includes('connector-source') ? 'connector-source' : 'orchestrator-source';
+          else if (sql.includes("to_regclass('public.connector_parity_credentials')")) result = 'f';
+          else if (sql.includes('WITH typed_source_rows')) result = '0|0';
           else if (sql.includes('connector_usage_outbox')) result = '0|0|0|0|0|0|0|0|0';
           else if (sql.includes('WITH credential_refs')) result = '0';
           else if (sql.includes('json_agg')) result = '[]';
@@ -308,12 +310,14 @@ describe('ORV14 Host trusted backup adapter', () => {
     const result = await adapter.createBundle({backupId,target:targets[0]!,scope:{kind:'platform'},execution});
     expect(result.verified).toBe(true);
     const bundle = JSON.parse(await readFile(path.join(result.bundleRef,'manifest.json'),'utf8')) as {
-      schemaVersion:number;backupRecoveryKey:{keyVersion:string;fingerprintSha256:string};secretCatalogRecoveryKeys:Array<{keyVersion:string;fingerprintSha256:string}>;connectorCredentialRecoveryKey:{keyVersion:string;fingerprintSha256:string};artifactTransitKeyPins:Array<{keyRef:string;keyVersion:number}>;components:Array<{name:string;sha256:string}>;counts:{artifacts:number;readyArtifacts:number;artifactObjectBytes:number;artifactManifestBytes:number;secretCatalogImports:number;connectorSecretImports:number;financialAdjustments:number;financialAdjustmentHeads:number;financialAdjustmentCommands:number};
+      schemaVersion:number;backupRecoveryKey:{keyVersion:string;fingerprintSha256:string};secretCatalogRecoveryKeys:Array<{keyVersion:string;fingerprintSha256:string}>;connectorCredentialRecoveryKey:{keyVersion:string;fingerprintSha256:string};connectorTypedCredentialReferenceCount:number;artifactTransitKeyPins:Array<{keyRef:string;keyVersion:number}>;components:Array<{name:string;sha256:string}>;counts:{artifacts:number;readyArtifacts:number;artifactObjectBytes:number;artifactManifestBytes:number;connectorParityCredentials:number;secretCatalogImports:number;connectorSecretImports:number;financialAdjustments:number;financialAdjustmentHeads:number;financialAdjustmentCommands:number};
     };
     expect(bundle.schemaVersion).toBe(7);
     expect(bundle.backupRecoveryKey).toEqual({keyVersion:'v1',fingerprintSha256:recoveryKeySha256});
     expect(bundle.secretCatalogRecoveryKeys).toEqual([{keyVersion:'catalog-v2',fingerprintSha256:catalogKeySha256}]);
     expect(bundle.connectorCredentialRecoveryKey).toEqual({keyVersion:'legacy-v1',fingerprintSha256:connectorCredentialSha256});
+    expect(bundle.connectorTypedCredentialReferenceCount).toBe(0);
+    expect(bundle.counts.connectorParityCredentials).toBe(0);
     expect(bundle.artifactTransitKeyPins).toEqual([{keyRef:'artifact-transit/key-a',keyVersion:1}]);
     expect(JSON.stringify(bundle)).not.toContain('file:/private/backup-recovery.key');
     expect(JSON.stringify(bundle)).not.toContain(recoveryKey.toString('hex'));

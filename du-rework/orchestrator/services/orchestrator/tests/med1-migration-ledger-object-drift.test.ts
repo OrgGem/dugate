@@ -187,10 +187,14 @@ function declaredObjects(sql: string): string[] {
  * that currently exist, and records of every ledger write / DDL statement.
  */
 class ScriptedCatalogDb {
+  trackingTableExists = false;
   ledger = new Map<number, string>();
   present = new Set<string>();
   inserts: Array<{ sequence: number; filename: string }> = [];
   ddl: string[] = [];
+  pool = {
+    connect: async () => ({ query: this.query.bind(this), release: () => {} }),
+  };
 
   query(
     sql: string,
@@ -199,14 +203,37 @@ class ScriptedCatalogDb {
     const t = String(sql).replace(/\s+/g, ' ').trim();
     const out = (rows: Record<string, unknown>[]) => Promise.resolve({ rows, rowCount: rows.length });
 
-    if (/^CREATE TABLE IF NOT EXISTS schema_migrations/.test(t)) return out([]);
-    if (/^SELECT sequence, filename FROM schema_migrations$/.test(t)) {
-      return out([...this.ledger].map(([sequence, filename]) => ({ sequence, filename })));
+    if (t === 'BEGIN' || t === 'COMMIT' || t === 'ROLLBACK' || /pg_advisory_(?:un)?lock\(/.test(t)) return out([]);
+    if (/^CREATE TABLE IF NOT EXISTS schema_migrations/.test(t)) {
+      this.trackingTableExists = true;
+      return out([]);
+    }
+    if (/^ALTER TABLE schema_migrations/.test(t)) return out([]);
+    if (/^SELECT column_name FROM information_schema\.columns/.test(t)) {
+      return out([
+        { column_name: 'checksum' },
+        { column_name: 'checksum_provenance' },
+        { column_name: 'baseline_reviewed_at' },
+      ]);
+    }
+    if (/^SELECT count\(\*\)::int AS count FROM schema_migrations$/.test(t)) {
+      return out([{ count: this.ledger.size }]);
+    }
+    if (/^SELECT sequence, filename, checksum, checksum_provenance/.test(t)) {
+      const checksums = new Map(migrationFiles().map((file) => [file.sequence, file.checksum]));
+      return out([...this.ledger].map(([sequence, filename]) => ({
+        sequence,
+        filename,
+        checksum: checksums.get(sequence) ?? '0'.repeat(64),
+        checksum_provenance: 'migration',
+        baseline_reviewed_at: null,
+      })));
     }
     if (/information_schema\.tables/i.test(t)) {
       // MED-1 object-existence probe (tables via information_schema, indexes
       // via pg_indexes): the scripted catalog answers by object name.
-      return out([{ exists: this.present.has(String(params[0] ?? '')) }]);
+      const name = String(params[0] ?? '');
+      return out([{ exists: name === 'schema_migrations' ? this.trackingTableExists : this.present.has(name) }]);
     }
     if (/^INSERT INTO schema_migrations/.test(t)) {
       this.inserts.push({ sequence: Number(params[0]), filename: String(params[1]) });

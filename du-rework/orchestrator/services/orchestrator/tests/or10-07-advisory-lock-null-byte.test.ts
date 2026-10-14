@@ -31,6 +31,18 @@ function result(rows: Record<string, unknown>[]) {
 }
 
 describe('OR10-07 advisory lock encoding', () => {
+  test('backup snapshot write fence accepts the canonical default tenant sentinel', async () => {
+    const query = jest.fn(async () => result([{ state: 'OPEN', fence_id: null, fence_revision: 0 }]));
+    const client = { query } as unknown as PoolClient;
+    const gate = createBackupSnapshotWriteGate();
+    await expect(gate.assertWriteAllowed(client, {
+      tenantId: '00000000-0000-0000-0000-000000000001',
+      domain: 'secret-catalog-write',
+      requestKey: 'tenant-sentinel-write-0001',
+    })).resolves.toBeUndefined();
+    expect(query).toHaveBeenCalledTimes(1);
+  });
+
   test('reserve sends a NUL-free, tuple-preserving lock key to PostgreSQL', async () => {
     const lockParameters: unknown[] = [];
     const client = {

@@ -26,6 +26,12 @@ import {
   summarizeEncryptionPolicy,
   type EnvReader,
 } from '../src/modules/encryption/boot-options';
+import {
+  LOCAL_ENCRYPTION_ACTIVE_KEY_VERSION_ENV,
+  LOCAL_ENCRYPTION_KEYRING_ENV,
+  LOCAL_METADATA_KEY_REF,
+  LOCAL_PUBLIC_UPLOAD_KEY_REF,
+} from '../src/modules/encryption/local-key-provider';
 
 const ENC = VAULT_ENCRYPT_TOKEN_ENV;
 const DEC = VAULT_DECRYPT_TOKEN_ENV;
@@ -352,18 +358,57 @@ describe('RV01-02 #8 encryption boot options', () => {
       ...VALID_TOKENS,
     };
 
-    it('real-data mode refuses postgres + flags off instead of defaulting to plaintext', () => {
+    it('real-data mode refuses PostgreSQL encryption when no retained local key exists', () => {
       expect(() => buildEncryptionBootOptions(real({ ARTIFACT_STORAGE_BACKEND: 'postgres' })))
-        .toThrow(VAULT_TRANSIT_OPTIONS_ENV + ' is required');
-      // The refusal names the explicit opt-out rather than suggesting a flag.
+        .toThrow('a retained local encryption key is required');
+      expect(() => buildEncryptionBootOptions(real({ ARTIFACT_STORAGE_BACKEND: 'postgres', ENCRYPTION_KEY: 'too-short' })))
+        .toThrow('at least 32 bytes');
+      // The refusal names the key requirement rather than suggesting a plaintext flag.
       expect(() => buildEncryptionBootOptions(real({ ARTIFACT_STORAGE_BACKEND: 'postgres' })))
-        .toThrow(new RegExp(DATA_MODE_ENV + '=synthetic'));
+        .toThrow(/ENCRYPTION_KEY|DU_LOCAL_ENCRYPTION/);
     });
 
-    it('real-data mode is required by default even with no env at all', () => {
-      expect(() => buildEncryptionBootOptions(real({}))).toThrow('real-data mode');
+    it('real-data mode is required by default and uses the retained local key for PostgreSQL', async () => {
+      expect(() => buildEncryptionBootOptions(real({}))).toThrow('retained local encryption key');
       expect(encryptionIsRequired(real({ ARTIFACT_STORAGE_BACKEND: 'postgres' }))).toBe(true);
       expect(encryptionIsRequired(real({}))).toBe(true);
+
+      const options = buildEncryptionBootOptions(real({ ENCRYPTION_KEY: 'k'.repeat(32) }));
+      expect(options?.metadataEncryption?.keyRef).toBe(LOCAL_METADATA_KEY_REF);
+      expect(options?.publicUploadEncryption?.keyRef).toBe(LOCAL_PUBLIC_UPLOAD_KEY_REF);
+      const wrapped = await options!.metadataEncryption!.keyProvider.wrapDek({
+        keyRef: LOCAL_METADATA_KEY_REF,
+        dek: Buffer.alloc(32, 9),
+      });
+      expect(wrapped.providerKind).toBe('local-keyring');
+      await expect(options!.metadataEncryption!.keyProvider.unwrapDek(wrapped)).resolves.toEqual(Buffer.alloc(32, 9));
+    });
+
+    it('accepts an explicit versioned local keyring when ENCRYPTION_KEY is absent', async () => {
+      const options = buildEncryptionBootOptions(real({
+        ARTIFACT_STORAGE_BACKEND: 'postgres',
+        [LOCAL_ENCRYPTION_ACTIVE_KEY_VERSION_ENV]: '7',
+        [LOCAL_ENCRYPTION_KEYRING_ENV]: JSON.stringify({ 7: Buffer.alloc(32, 7).toString('base64') }),
+      }));
+      const wrapped = await options!.metadataEncryption!.keyProvider.wrapDek({
+        keyRef: LOCAL_METADATA_KEY_REF,
+        dek: Buffer.alloc(32, 4),
+      });
+      expect(wrapped.keyVersion).toBe(7);
+      await expect(options!.metadataEncryption!.keyProvider.unwrapDek(wrapped)).resolves.toEqual(Buffer.alloc(32, 4));
+    });
+
+    it('does not turn a partial Vault setup into the local key path', () => {
+      expect(() => buildEncryptionBootOptions(real({
+        ARTIFACT_STORAGE_BACKEND: 'postgres',
+        ENCRYPTION_KEY: 'k'.repeat(32),
+        [VAULT_ENCRYPT_TOKEN_ENV]: 'configured-without-options',
+      }))).toThrow('refusing a partial Vault configuration');
+    });
+
+    it('keeps the S3 Vault configuration requirement', () => {
+      expect(() => buildEncryptionBootOptions(real({ ARTIFACT_STORAGE_BACKEND: 's3', ENCRYPTION_KEY: 'k'.repeat(32) })))
+        .toThrow(VAULT_TRANSIT_OPTIONS_ENV + ' is required for encrypted S3 artifact storage');
     });
 
     it('forces BOTH encryption blocks on postgres when the surface is complete', () => {
@@ -373,6 +418,25 @@ describe('RV01-02 #8 encryption boot options', () => {
       }));
       expect(options?.metadataEncryption?.keyRef).toBe('metadata');
       expect(options?.publicUploadEncryption?.keyRef).toBe('artifact');
+    });
+
+    it('keeps a short legacy profile key from blocking Transit-only boot and adds local refs only for hybrid reads', () => {
+      const transitOnly = buildEncryptionBootOptions(real({
+        ARTIFACT_STORAGE_BACKEND: 'postgres',
+        ENCRYPTION_KEY: 'legacy-profile-key',
+        ...completeSurface,
+      }));
+      expect(transitOnly?.metadataEncryption?.keyRef).toBe('metadata');
+      expect(transitOnly?.cryptoConfig.allowedKeyRefs).toEqual(['metadata', 'artifact']);
+
+      const hybrid = buildEncryptionBootOptions(real({
+        ARTIFACT_STORAGE_BACKEND: 'postgres',
+        ENCRYPTION_KEY: 'k'.repeat(32),
+        ...completeSurface,
+      }));
+      expect(hybrid?.metadataEncryption?.keyRef).toBe('metadata');
+      expect(hybrid?.cryptoConfig.allowedKeyRefs).toContain(LOCAL_METADATA_KEY_REF);
+      expect(hybrid?.cryptoConfig.allowedKeyRefs).toContain(LOCAL_PUBLIC_UPLOAD_KEY_REF);
     });
 
     it('synthetic mode without an acknowledgement refuses the boot', () => {

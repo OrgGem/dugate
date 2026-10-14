@@ -61,3 +61,7 @@ export * from './cost-alerts';
 export * from './cost-adjustments';
 export * from './tenant-connectors';
 export * from './profile-groups';
+// Keep this value export explicit for browser bundlers that statically scan
+// the CommonJS barrel (runtime `__exportStar` is not discoverable by Rollup).
+import { isTenantUuid as tenantUuidPredicate } from './tenant-identity';
+export const isTenantUuid = tenantUuidPredicate;

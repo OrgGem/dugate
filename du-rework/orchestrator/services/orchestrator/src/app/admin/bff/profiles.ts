@@ -20,6 +20,7 @@
  * dispatcher answers 404 ACTION_NOT_FOUND and the UI shows `requires backend`.
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { isTenantUuid } from '@du/contracts';
 import type { AdminShellRequest } from '../shell-types';
 import type { ShellRuntimeConfig } from '../shell-router';
 import { isHttpError } from '../../../http/errors';
@@ -288,7 +289,7 @@ export async function handleProfilesRoute(
       writeProblem(res, 405, 'METHOD_NOT_ALLOWED', 'profile reads are GET', correlationId);
       return;
     }
-    await forwardProfileRead(res, ctx, runtime, route, route.kind === 'api-keys' ? '/api-keys' : '', correlationId);
+    await forwardProfileRead(res, ctx, runtime, route, route.kind === 'api-keys' ? '/api-keys' : '', correlationId, query);
     return;
   }
 
@@ -425,6 +426,13 @@ export async function handleProfilesRoute(
     businessVersion: route.businessVersion,
     profileName: route.profileName,
   };
+  if (body.action !== undefined) {
+    if (typeof body.action !== 'string' || body.action.length < 1) {
+      writeProblem(res, 422, 'INVALID_SCHEMA', 'action must be a non-empty string', correlationId);
+      return;
+    }
+    params.action = body.action;
+  }
   // Δ7-A: the write commands name the api key — the frozen ProfileKey alone
   // cannot select a row. Forward the client's `apiKey` object as-is; the
   // dispatcher's strict command schema is the real validator (exactly one of
@@ -534,6 +542,33 @@ async function forwardProfileRead(
       return;
     }
     upstream.searchParams.set('tenantId', tenantIds[0]);
+  } else if (suffix === '') {
+    const tenantIds = query?.getAll('tenantId') ?? [];
+    const profileIds = query?.getAll('profileId') ?? [];
+    if (tenantIds.length > 1 || (tenantIds.length === 1 && !isTenantUuid(tenantIds[0]))) {
+      writeProblem(res, 422, 'INVALID_SCHEMA', 'tenantId must be a canonical UUID and must not be repeated', correlationId);
+      return;
+    }
+    if (profileIds.length > 1 || (profileIds.length === 1 && !isTenantUuid(profileIds[0]))) {
+      writeProblem(res, 422, 'INVALID_SCHEMA', 'profileId must be a canonical UUID and must not be repeated', correlationId);
+      return;
+    }
+    let scope: string;
+    try {
+      scope = authorizeAuditTenantRead(rbacPrincipal(ctx.principal), tenantIds[0] ?? '');
+    } catch (err) {
+      if (isHttpError(err)) {
+        writeProblem(res, err.status, err.code, boundedMessage(err.message) ?? 'request denied', correlationId);
+        return;
+      }
+      throw err;
+    }
+    if (profileIds.length === 1 && scope === '') {
+      writeProblem(res, 422, 'INVALID_SCHEMA', 'profileId requires a tenant-scoped detail read', correlationId);
+      return;
+    }
+    if (scope !== '') upstream.searchParams.set('tenantId', scope);
+    if (profileIds.length === 1) upstream.searchParams.set('profileId', profileIds[0]!);
   }
   const response = await callUpstream(runtime, upstream, { method: 'GET', credential, correlationId });
   await relayUpstream(res, response, correlationId);

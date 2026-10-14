@@ -1,10 +1,11 @@
 import { InitialBindings, type InitialBinding } from './initial-bindings';
-import { Fragment, type FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, type FormEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { FormField } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { ReferenceInput, type ReferenceOptionPage } from '@/components/ui/reference-input';
 import { Modal } from '@/components/ui/dialog';
 import { AlertBanner, DeniedState, ErrorState, LoadingState } from '@/components/ui/state-panel';
 import { Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TablePagination, TableRow } from '@/components/ui/table';
@@ -34,8 +35,10 @@ import { parseSecretListPage } from '@/features/secrets/state';
 import type { SecretOption } from '@/features/secrets/value-source-selector';
 import { useTenant } from '@/lib/tenant-context';
 import { parseBusinessPage, parseBusinessVersions } from '@/features/businesses/state';
+import { isLegacyConnectionId, settingsResponseMatchesScope, settingsScopeKey } from '@/features/settings/scope';
 import { ProfileGroupEditor } from './profile-group-editor';
 import { parseProfileGroupFunctionCatalog } from './profile-group-state';
+import { actionFromEndpointSlug, firstSuccessfulProfileTarget, newProfileAction, normalizeProfileTarget, profileTargetAfterSave, resolveProfileIdentityFromCatalog, type SavedProfileTarget } from './profile-identity';
 import { createProfileRequestScope, findCurrentActiveProfileApiKey } from './profile-request-scope';
 import { Link, useLocation, useNavigate } from 'react-router';
 
@@ -54,7 +57,12 @@ interface ParamDraft {
  * upsert several profile keys in one pass (T-UI-04).
  */
 interface RowDraft {
+  /** Resource identity in profile_names; remains independent from manifest action. */
   profileName: string;
+  /** Manifest action this named profile governs. */
+  action: string;
+  /** Endpoint selector for this row; empty means its action is generic. */
+  endpointSlug: string;
   enabled: boolean;
   jobPriority: Priority;
   extensionsCsv: string;
@@ -91,6 +99,12 @@ interface RowResult {
   profileName: string;
   ok: boolean;
   detail: string;
+}
+
+interface SaveRowOutcome {
+  result: RowResult;
+  problem?: AdminApiProblem;
+  savedTarget?: SavedProfileTarget;
 }
 
 type AssignedProfile = ProfileSelfServiceAssignedPage['items'][number];
@@ -682,7 +696,7 @@ export function ProfilesScreen() {
   });
 
   const [detail, setDetail] = useState<ProfileDetail | null>(null);
-  const [loadedAs, setLoadedAs] = useState<{ tenantId: string | null; businessId: string; businessVersion: string; profileName: string } | null>(null);
+  const [loadedAs, setLoadedAs] = useState<{ tenantId: string | null; businessId: string; businessVersion: string; profileName: string; profileId: string | null; action: string; endpointSlug: string | null } | null>(null);
   const profileRequestScope = useRef(createProfileRequestScope(globalTenantId));
   const busyOperationSequence = useRef(0);
   const busyOperationOwner = useRef<number | null>(null);
@@ -1000,9 +1014,49 @@ export function ProfilesScreen() {
 
   const identifiers = { businessId: businessId.trim(), businessVersion: businessVersion.trim() || 'latest', profileName: profileName.trim() || 'default' };
 
+  async function lookupStoredProfileIdentity(
+    target: { businessId: string; businessVersion: string; profileName: string },
+    tenantId: string | null,
+    isCurrentRequest: () => boolean,
+    profileId?: string,
+  ): Promise<ReturnType<typeof resolveProfileIdentityFromCatalog>> {
+    if (!tenantId) return { kind: 'missing' };
+    try {
+      const rows: ProfileListPage['items'] = [];
+      const seenCursors = new Set<string>();
+      let cursor: string | undefined;
+      while (true) {
+        const result = await client.listProfiles({
+          tenantId,
+          businessId: target.businessId,
+          limit: '100',
+          ...(cursor ? { cursor } : {}),
+        });
+        if (!isCurrentRequest()) return { kind: 'missing' };
+        if (!result.ok) return { kind: 'missing' };
+        const page = parseProfileListPage(result.data, tenantId, target.businessId);
+        if (page === null) return { kind: 'missing' };
+        rows.push(...page.items);
+        if (page.nextCursor === null) break;
+        if (seenCursors.has(page.nextCursor)) return { kind: 'ambiguous' };
+        seenCursors.add(page.nextCursor);
+        cursor = page.nextCursor;
+      }
+      return resolveProfileIdentityFromCatalog(rows, {
+        tenantId,
+        businessId: target.businessId,
+        businessVersion: target.businessVersion,
+        profileName: target.profileName,
+        ...(profileId ? { profileId } : {}),
+      });
+    } catch {
+      return { kind: 'missing' };
+    }
+  }
+
   async function load(
     nameToLoad?: string,
-    identityOverride?: { businessId: string; businessVersion: string; profileName: string },
+    identityOverride?: { businessId: string; businessVersion: string; profileName: string; profileId?: string; action?: string; endpointSlug?: string | null },
     preserveBusyOperation?: number,
   ): Promise<ProfileDetail | null> {
     const requestToken = profileRequestScope.current.beginRequest();
@@ -1018,7 +1072,7 @@ export function ProfilesScreen() {
     setDraft(null);
     setLoadedAs(null);
     const targetName = (identityOverride?.profileName ?? nameToLoad ?? profileName).trim() || 'default';
-    const target = identityOverride ?? {
+    const target: { businessId: string; businessVersion: string; profileName: string; profileId?: string; action?: string; endpointSlug?: string | null } = identityOverride ?? {
       businessId: identifiers.businessId,
       businessVersion: identifiers.businessVersion,
       profileName: targetName,
@@ -1033,7 +1087,10 @@ export function ProfilesScreen() {
         setProblem(sessionResult.problem);
         return null;
       }
-      const result = await client.getProfile(target.businessId, target.businessVersion, targetName);
+      const result = await client.getProfile(target.businessId, target.businessVersion, targetName, {
+        ...(requestToken.tenantId ? { tenantId: requestToken.tenantId } : {}),
+        ...(target.profileId ? { profileId: target.profileId } : {}),
+      });
       if (!isCurrentRequest()) return null;
       if (!result.ok) {
         setDetail(null);
@@ -1042,7 +1099,7 @@ export function ProfilesScreen() {
         setProblem(result.problem);
         return null;
       }
-      const parsed = parseProfileDetail(result.data);
+      let parsed = parseProfileDetail(result.data);
       if (!isCurrentRequest()) return null;
       if (parsed === null) {
         setDetail(null);
@@ -1054,13 +1111,107 @@ export function ProfilesScreen() {
       if (!parsed.profileName) {
         parsed.profileName = targetName;
       }
+      const resolvedTarget = normalizeProfileTarget(target, parsed);
+      const resolvedName = resolvedTarget.profileName;
+      let action = '';
+      let resolvedProfileId: string | null = identityOverride?.profileId ?? null;
+      let storedEndpointSlug: string | null | undefined;
+      if (parsed.revision > 0) {
+        const resolution = await lookupStoredProfileIdentity(
+          resolvedTarget,
+          requestToken.tenantId,
+          isCurrentRequest,
+          identityOverride?.profileId,
+        );
+        if (!isCurrentRequest()) return null;
+        if (resolution.kind !== 'resolved') {
+          setDetail(null);
+          setDraft(null);
+          setLoadedAs(null);
+          setProblem({
+            status: 409,
+            code: 'PROFILE_ACTION_UNRESOLVED',
+            title: resolution.kind === 'ambiguous'
+              ? 'The selected profile name maps to more than one manifest action in this tenant. Open a single-action catalog row.'
+              : 'The profile action could not be resolved from this tenant’s profile catalog. Select a tenant and open the exact catalog row before editing.',
+          });
+          return null;
+        }
+        if ((parsed.action && parsed.action !== resolution.action)
+            || (parsed.endpointSlug !== undefined && resolution.endpointSlug !== undefined && parsed.endpointSlug !== resolution.endpointSlug)
+            || (identityOverride?.action && identityOverride.action !== resolution.action)
+            || (identityOverride?.endpointSlug !== undefined && resolution.endpointSlug !== undefined && identityOverride.endpointSlug !== resolution.endpointSlug)) {
+          setDetail(null);
+          setDraft(null);
+          setLoadedAs(null);
+          setProblem({ status: 409, code: 'PROFILE_IDENTITY_MISMATCH', title: 'The selected Profile catalog identity does not match its stored action and endpoint binding. Reopen the catalog row.' });
+          return null;
+        }
+        if (resolvedProfileId !== resolution.profileId) {
+          const exactResult = await client.getProfile(resolvedTarget.businessId, resolvedTarget.businessVersion, resolvedName, {
+            tenantId: requestToken.tenantId ?? undefined,
+            profileId: resolution.profileId,
+          });
+          if (!isCurrentRequest()) return null;
+          if (!exactResult.ok) {
+            setDetail(null);
+            setDraft(null);
+            setLoadedAs(null);
+            setProblem(exactResult.problem);
+            return null;
+          }
+          const exactDetail = parseProfileDetail(exactResult.data);
+          if (exactDetail === null || exactDetail.businessId !== resolvedTarget.businessId
+              || exactDetail.businessVersion !== resolvedTarget.businessVersion
+              || exactDetail.profileName !== resolvedName
+              || (exactDetail.action && exactDetail.action !== resolution.action)
+              || (exactDetail.endpointSlug !== undefined && resolution.endpointSlug !== undefined && exactDetail.endpointSlug !== resolution.endpointSlug)) {
+            setDetail(null);
+            setDraft(null);
+            setLoadedAs(null);
+            setProblem({ status: 409, code: 'PROFILE_IDENTITY_MISMATCH', title: 'The exact Profile identity changed while it was loading. Reopen the catalog row.' });
+            return null;
+          }
+          parsed = exactDetail;
+        }
+        action = resolution.action;
+        resolvedProfileId = resolution.profileId;
+        storedEndpointSlug = resolution.endpointSlug;
+      }
+      const storedEndpoint = storedEndpointSlug !== undefined
+        ? storedEndpointSlug
+        : parsed.endpointSlug !== undefined
+          ? parsed.endpointSlug
+          : identityOverride?.endpointSlug;
+      if (parsed.revision > 0 && storedEndpoint === undefined) {
+        setDetail(null);
+        setDraft(null);
+        setLoadedAs(null);
+        setProblem({ status: 409, code: 'PROFILE_ENDPOINT_UNRESOLVED', title: 'The saved Profile endpoint is missing from its tenant catalog and detail metadata. Reopen the exact catalog row before editing.' });
+        return null;
+      }
+      const targetEndpointSlug = parsed.revision > 0
+        ? storedEndpoint?.trim() || ''
+        : parsed.endpointSlug?.trim() || identityOverride?.endpointSlug?.trim() || (resolvedTarget.businessId === 'document-core' ? endpointSlug : '');
+      if (parsed.revision === 0 && action.length === 0) {
+        action = newProfileAction(parsed, targetEndpointSlug) ?? '';
+      }
       setDetail(parsed);
-      setBusinessId(target.businessId);
-      setBusinessVersion(target.businessVersion);
-      setProfileName(targetName);
-      setLoadedAs({ tenantId: requestToken.tenantId, businessId: target.businessId, businessVersion: target.businessVersion, profileName: targetName });
-      setDraft(draftFromDetail(parsed));
-      setNotice(`Profile "${targetName}" loaded (Revision ${parsed.revision}).`);
+      setBusinessId(resolvedTarget.businessId);
+      setBusinessVersion(resolvedTarget.businessVersion);
+      setProfileName(resolvedName);
+      setEndpointSlug(targetEndpointSlug);
+      setLoadedAs({
+        tenantId: requestToken.tenantId,
+        businessId: resolvedTarget.businessId,
+        businessVersion: resolvedTarget.businessVersion,
+        profileName: resolvedName,
+        profileId: resolvedProfileId,
+        action,
+        endpointSlug: targetEndpointSlug || null,
+      });
+      setDraft(draftFromDetail(parsed, action, targetEndpointSlug));
+      setNotice(`Profile "${resolvedName}" loaded (Revision ${parsed.revision}, action ${action || 'unselected'}).`);
       return parsed;
     } finally {
       if (isCurrentRequest()) setLoading(false);
@@ -1160,6 +1311,7 @@ export function ProfilesScreen() {
     const bId = businessId.trim();
     const bVer = businessVersion.trim() || 'latest';
     const pName = profileName.trim() || 'default';
+    const selectedEndpointSlug = bId === 'document-core' ? endpointSlug.trim() : '';
     if (!bId) {
       setNotice('Please select or enter a business ID first.');
       setLoading(false);
@@ -1175,39 +1327,139 @@ export function ProfilesScreen() {
         setProblem(sessionResult.problem);
         return;
       }
-      const result = await client.getProfile(bId, bVer, pName);
+      const scope = { ...(requestToken.tenantId ? { tenantId: requestToken.tenantId } : {}) };
+      const result = await client.getProfile(bId, bVer, pName, scope);
       if (!isCurrentRequest()) return;
+      let readResult = result;
       let parsed: ProfileDetail | null = null;
       if (result.ok) {
         parsed = parseProfileDetail(result.data);
-      } else {
-        const fallback = await client.getProfile(bId, bVer, 'new');
+      } else if (result.problem.status === 404 || result.problem.code === 'NOT_FOUND') {
+        // Tenant-scoped detail reads intentionally return 404 for a named
+        // profile that is not stored under the selected tenant. The /new
+        // sentinel supplies that tenant's manifest for a new named draft.
+        const fallback = await client.getProfile(bId, bVer, 'new', scope);
         if (!isCurrentRequest()) return;
+        readResult = fallback;
         if (fallback.ok) {
           parsed = parseProfileDetail(fallback.data);
+        } else {
+          setDetail(null);
+          setDraft(null);
+          setLoadedAs(null);
+          setProblem(fallback.problem);
+          return;
         }
+      } else {
+        setDetail(null);
+        setDraft(null);
+        setLoadedAs(null);
+        setProblem(result.problem);
+        return;
       }
       if (!isCurrentRequest()) return;
       if (parsed === null) {
         setDetail(null);
         setDraft(null);
         setLoadedAs(null);
-        setProblem(result.ok ? { status: 502, code: 'UNREADABLE_RESPONSE', title: 'Unreadable profile payload.' } : result.problem);
+        setProblem(readResult.ok ? { status: 502, code: 'UNREADABLE_RESPONSE', title: 'Unreadable profile payload.' } : readResult.problem);
         return;
       }
       parsed.profileName = pName;
+      const resolvedTarget = normalizeProfileTarget({ businessId: bId, businessVersion: bVer, profileName: pName }, parsed);
       if (parsed.revision === 0 && selectedActiveApiKey) {
         parsed.apiKeyId = selectedActiveApiKey.id;
       }
+      let selectedProfileEndpoint = '';
+      let action = '';
+      let resolvedProfileId: string | null = null;
+      if (parsed.revision > 0) {
+        const resolution = await lookupStoredProfileIdentity(resolvedTarget, requestToken.tenantId, isCurrentRequest);
+        if (!isCurrentRequest()) return;
+        if (resolution.kind !== 'resolved') {
+          setDetail(null);
+          setDraft(null);
+          setLoadedAs(null);
+          setProblem({
+            status: 409,
+            code: 'PROFILE_ACTION_UNRESOLVED',
+            title: resolution.kind === 'ambiguous'
+              ? 'This resource name matches multiple saved Profiles in the selected tenant. Open its exact catalog row.'
+              : 'The saved Profile identity could not be resolved from this tenant’s catalog. Select a tenant and open the exact catalog row.',
+          });
+          return;
+        }
+        if ((parsed.action && parsed.action !== resolution.action)
+            || (parsed.endpointSlug !== undefined && resolution.endpointSlug !== undefined && parsed.endpointSlug !== resolution.endpointSlug)) {
+          setDetail(null);
+          setDraft(null);
+          setLoadedAs(null);
+          setProblem({ status: 409, code: 'PROFILE_IDENTITY_MISMATCH', title: 'The stored Profile action or endpoint does not match its tenant catalog row.' });
+          return;
+        }
+        const exactResult = await client.getProfile(resolvedTarget.businessId, resolvedTarget.businessVersion, resolvedTarget.profileName, {
+          tenantId: requestToken.tenantId ?? undefined,
+          profileId: resolution.profileId,
+        });
+        if (!isCurrentRequest()) return;
+        if (!exactResult.ok) {
+          setDetail(null);
+          setDraft(null);
+          setLoadedAs(null);
+          setProblem(exactResult.problem);
+          return;
+        }
+        const exactDetail = parseProfileDetail(exactResult.data);
+        if (exactDetail === null || exactDetail.businessId !== resolvedTarget.businessId
+            || exactDetail.businessVersion !== resolvedTarget.businessVersion
+            || exactDetail.profileName !== resolvedTarget.profileName
+            || (exactDetail.action && exactDetail.action !== resolution.action)
+            || (exactDetail.endpointSlug !== undefined && resolution.endpointSlug !== undefined && exactDetail.endpointSlug !== resolution.endpointSlug)) {
+          setDetail(null);
+          setDraft(null);
+          setLoadedAs(null);
+          setProblem({ status: 409, code: 'PROFILE_IDENTITY_MISMATCH', title: 'The exact Profile identity changed while it was loading. Reopen the catalog row.' });
+          return;
+        }
+        parsed = exactDetail;
+        action = resolution.action;
+        const storedEndpoint = resolution.endpointSlug !== undefined ? resolution.endpointSlug : parsed.endpointSlug;
+        if (storedEndpoint === undefined) {
+          setDetail(null);
+          setDraft(null);
+          setLoadedAs(null);
+          setProblem({ status: 409, code: 'PROFILE_ENDPOINT_UNRESOLVED', title: 'The saved Profile endpoint is missing from its tenant catalog and detail metadata. Reopen the exact catalog row before editing.' });
+          return;
+        }
+        selectedProfileEndpoint = storedEndpoint?.trim() || '';
+        resolvedProfileId = resolution.profileId;
+      } else {
+        selectedProfileEndpoint = parsed.endpointSlug === null
+          ? ''
+          : parsed.endpointSlug?.trim() || selectedEndpointSlug;
+        action = parsed.action?.trim() || '';
+        action = action || newProfileAction(parsed, selectedProfileEndpoint) || '';
+      }
       setDetail(parsed);
-      setLoadedAs({ tenantId: requestToken.tenantId, businessId: bId, businessVersion: bVer, profileName: pName });
-      const initialized = draftFromDetail(parsed);
-      if (parsed.revision === 0 && bId === 'document-core' && endpointSlug) initialized.rows = initialized.rows.map((r,i) => i === 0 ? { ...r, profileName: endpointSlug.split(':')[0]! } : r);
+      setBusinessId(resolvedTarget.businessId);
+      setBusinessVersion(resolvedTarget.businessVersion);
+      setProfileName(resolvedTarget.profileName);
+      setEndpointSlug(selectedProfileEndpoint);
+      setLoadedAs({
+        tenantId: requestToken.tenantId,
+        businessId: resolvedTarget.businessId,
+        businessVersion: resolvedTarget.businessVersion,
+        profileName: resolvedTarget.profileName,
+        profileId: resolvedProfileId,
+        action,
+        endpointSlug: selectedProfileEndpoint || null,
+      });
+      const initialized = draftFromDetail(parsed, action, selectedProfileEndpoint);
       setDraft(initialized);
       if (parsed.revision === 0) {
-        setNotice(`New profile "${pName}" initialized from manifest. Configure options below and click "Save Profile" to create it.`);
+        setNotice(`New profile "${pName}" initialized from manifest for action "${action || 'unselected'}". Configure options below and click "Save Profile" to create it.`);
       } else {
-        setNotice(`Existing profile "${pName}" loaded (Revision ${parsed.revision}). You can modify and save updates.`);
+        setNotice(`Existing profile "${pName}" loaded for action "${action}" (Revision ${parsed.revision}). You can modify and save updates.`);
       }
     } finally {
       if (isCurrentRequest()) setLoading(false);
@@ -1249,6 +1501,73 @@ export function ProfilesScreen() {
   const caps = detail?.capabilities ?? [];
   const policyShipped = true;
   const activeApiKeys = apiKeys.filter((key) => key.tenantId === globalTenantId && key.status === 'ACTIVE');
+  const promptConnectionScope = {
+    tenantId: globalTenantId,
+    apiKeyId: draft?.prompt.apiKeyId ?? '',
+    endpointSlug: draft?.prompt.endpointSlug ?? '',
+  };
+  const promptConnectionScopeKey = promptConnectionScope.tenantId
+    && promptConnectionScope.apiKeyId
+    && promptConnectionScope.endpointSlug
+    ? settingsScopeKey(promptConnectionScope)
+    : null;
+  const loadPromptApiKeySuggestions = useCallback(async (
+    query: string,
+    scopeKey: string,
+    cursor: string | null,
+  ): Promise<ReferenceOptionPage> => {
+    if (!globalTenantId || globalTenantId.toLowerCase() !== scopeKey.toLowerCase()
+      || access.kind !== 'ready' || access.session.localUser || access.session.role === 'viewer') {
+      return { items: [], nextCursor: null };
+    }
+    const result = await client.listApiKeys({ tenantId: scopeKey, limit: '50', ...(cursor ? { cursor } : {}) });
+    if (!result.ok) throw new Error('Tenant API key suggestions are unavailable.');
+    const normalizedQuery = query.trim().toLocaleLowerCase();
+    const items = result.data.items
+      .filter((key) => key.tenantId.toLowerCase() === scopeKey.toLowerCase() && key.status === 'ACTIVE')
+      .map((key) => ({
+        value: key.id,
+        label: key.name || 'Unnamed API key',
+        description: `Active · ${key.prefix}`,
+      }))
+      .filter((option) => `${option.value} ${option.label} ${option.description ?? ''}`.toLocaleLowerCase().includes(normalizedQuery));
+    return { items, nextCursor: result.data.nextCursor };
+  }, [access, client, globalTenantId]);
+  const loadPromptConnectionSuggestions = useCallback(async (
+    query: string,
+    scopeKey: string,
+    cursor: string | null,
+  ): Promise<ReferenceOptionPage> => {
+    if (cursor || promptConnectionScopeKey === null || scopeKey !== promptConnectionScopeKey
+      || access.kind !== 'ready' || access.session.localUser || access.session.role === 'viewer') {
+      return { items: [], nextCursor: null };
+    }
+    const target = promptConnectionScope;
+    const result = await client.getSettings({
+      ...(target.tenantId ? { tenantId: target.tenantId } : {}),
+      apiKeyId: target.apiKeyId,
+      endpointSlug: target.endpointSlug,
+    });
+    if (!result.ok) throw new Error('Scoped connection suggestions are unavailable.');
+    if (!settingsResponseMatchesScope(result.data, target)) throw new Error('Connection suggestions did not match the selected tenant, key, and endpoint.');
+    const rawPins = result.data['availableConnections'];
+    if (!Array.isArray(rawPins)) throw new Error('Scoped connection suggestions were unreadable.');
+    const normalizedQuery = query.trim().toLocaleLowerCase();
+    const items = rawPins.flatMap((raw): Array<{ value: string; label: string; description?: string }> => {
+      if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return [];
+      const pin = raw as Record<string, unknown>;
+      if (typeof pin['slot'] !== 'string' || pin['slot'].length === 0
+        || typeof pin['connectionId'] !== 'string' || !isLegacyConnectionId(pin['connectionId'])
+        || typeof pin['revision'] !== 'number' || !Number.isSafeInteger(pin['revision']) || pin['revision'] < 1) return [];
+      const option = {
+        value: pin['connectionId'],
+        label: pin['slot'],
+        description: `Legacy UUID mapping · revision ${pin['revision']}`,
+      };
+      return `${option.value} ${option.label} ${option.description}`.toLocaleLowerCase().includes(normalizedQuery) ? [option] : [];
+    });
+    return { items, nextCursor: null };
+  }, [access, client, promptConnectionScope, promptConnectionScopeKey]);
   const selectedActiveApiKey = findCurrentActiveProfileApiKey(apiKeys, selectedApiKeyId, globalTenantId);
   const loadedProfileScopeCurrent = detail !== null && loadedAs !== null && globalTenantId !== null
     && loadedAs.tenantId === globalTenantId;
@@ -1269,7 +1588,10 @@ export function ProfilesScreen() {
   const canPublish = detail !== null && detail.revision >= 1;
   const canRollback = detail !== null && detail.revision >= 2;
   const profileDraftHasChanges = detail !== null && draft !== null
-    && !sameJson(draft, draftFromDetail(detail));
+    && !sameJson(draft, draftFromDetail(detail, loadedAs?.action, loadedAs?.endpointSlug ?? ''));
+  const manifestActionOptions = detail?.manifest.actions
+    .map((item) => item.name?.trim() || item.action?.trim() || '')
+    .filter((action, index, actions) => action.length > 0 && actions.indexOf(action) === index) ?? [];
 
   function updateDraft(mutate: (current: Draft) => Draft): void {
     setDraft((current) => (current === null ? current : mutate(current)));
@@ -1307,12 +1629,16 @@ export function ProfilesScreen() {
     return policy;
   }
 
-  async function saveRow(row: RowDraft): Promise<{ result: RowResult; problem?: AdminApiProblem }> {
+  async function saveRow(row: RowDraft): Promise<SaveRowOutcome> {
     const target = loadedAs;
     if (detail === null || target === null) {
       return { result: { profileName: row.profileName, ok: false, detail: 'no profile loaded' } };
     }
     const profileKey = row.profileName.trim() || target.profileName;
+    const action = row.action.trim();
+    if (!action) {
+      return { result: { profileName: profileKey, ok: false, detail: 'Select a manifest action before saving this profile.' } };
+    }
     const currentScope = profileRequestScope.current.captureTenant();
     if (!globalTenantId || target.tenantId !== globalTenantId || currentScope.tenantId !== globalTenantId) {
       return {
@@ -1328,7 +1654,7 @@ export function ProfilesScreen() {
       };
     }
     if (detail.revision === 0 && (initialBindings.some(b => !b.slot.trim() || !b.connectorId) || new Set(initialBindings.map(b => b.slot.trim())).size !== initialBindings.length)) return { result: { profileName: profileKey, ok: false, detail: 'Every connector slot must be unique and have a selected revision.' } };
-    if (detail.revision === 0 && endpointSlug && endpointSlug.split(':')[0] !== profileKey) return { result: { profileName: profileKey, ok: false, detail: 'Endpoint action must match the profile action row.' } };
+    if (detail.revision === 0 && row.endpointSlug && actionFromEndpointSlug(row.endpointSlug) !== action) return { result: { profileName: profileKey, ok: false, detail: 'The selected Document Core endpoint must belong to this row’s manifest action.' } };
 
     if (row.callback !== null && row.callback.touched) {
       const callbackErrors = validateCallbackDraft(row.callback);
@@ -1350,11 +1676,18 @@ export function ProfilesScreen() {
       target.businessId,
       target.businessVersion,
       profileKey,
-      { ...buildUpsertBody(effectiveDetail, buildPolicy(row)), ...(detail.revision === 0 && target.businessId === 'document-core' && endpointSlug ? { endpointSlug } : {}), ...(detail.revision === 0 && initialBindings.length ? { connectorBindings: Object.fromEntries(initialBindings.map(b => [b.slot.trim(), { connectorId:b.connectorId, revision:b.revision }])) } : {}) },
+      {
+        ...buildUpsertBody(effectiveDetail, buildPolicy(row), action),
+        ...(row.endpointSlug ? { endpointSlug: row.endpointSlug } : {}),
+        ...(detail.revision === 0 && initialBindings.length ? { connectorBindings: Object.fromEntries(initialBindings.map(b => [b.slot.trim(), { connectorId: b.connectorId, revision: b.revision }])) } : {}),
+      },
       crypto.randomUUID(),
     );
     if (response.ok) {
-      return { result: { profileName: profileKey, ok: true, detail: `saved (revision ${response.data.revision ?? '?'})` } };
+      return {
+        result: { profileName: profileKey, ok: true, detail: `saved (revision ${response.data.revision ?? '?'})` },
+        savedTarget: profileTargetAfterSave(target, { ...row, profileName: profileKey, action }, response.data.profileId),
+      };
     }
     return {
       result: { profileName: profileKey, ok: false, detail: `${response.status} · ${response.problem.code ?? 'ERROR'}` },
@@ -1374,14 +1707,15 @@ export function ProfilesScreen() {
     setRowResults(null);
     setProblem(null);
     try {
-      const { result, problem: failure } = await saveRow(row);
+      const { result, problem: failure, savedTarget } = await saveRow(row);
       if (!profileRequestScope.current.isRequestCurrent(mutationToken)) return;
       if (result.ok) {
-        const refreshPromise = load(target.profileName, {
-          businessId: target.businessId,
-          businessVersion: target.businessVersion,
-          profileName: target.profileName,
-        }, busyOperation);
+        if (!savedTarget) {
+          setProblem({ status: 502, code: 'PROFILE_IDENTITY_UNRESOLVED', title: 'The Profile was saved, but its returned identity could not be used to reopen it. Open the exact catalog row to continue.' });
+          setRowResults([result]);
+          return;
+        }
+        const refreshPromise = load(savedTarget.profileName, savedTarget, busyOperation);
         const refreshToken = profileRequestScope.current.captureRequest();
         const refreshed = await refreshPromise;
         if (!refreshed || !profileRequestScope.current.isRequestCurrent(refreshToken)) return;
@@ -1418,11 +1752,17 @@ export function ProfilesScreen() {
           : { profileName: draft.rows[index]?.profileName ?? '?', ok: false, detail: 'transport error' },
       );
       if (rows.some((row) => row.ok)) {
-        const refreshPromise = load(target.profileName, {
-          businessId: target.businessId,
-          businessVersion: target.businessVersion,
-          profileName: target.profileName,
-        }, busyOperation);
+        const savedTarget = firstSuccessfulProfileTarget(settled.flatMap((entry) =>
+          entry.status === 'fulfilled'
+            ? [{ ok: entry.value.result.ok, ...(entry.value.savedTarget ? { savedTarget: entry.value.savedTarget } : {}) }]
+            : [],
+        ));
+        if (!savedTarget) {
+          setRowResults(rows);
+          setProblem({ status: 502, code: 'PROFILE_IDENTITY_UNRESOLVED', title: 'The Profiles were saved, but the first successful row did not return an identity that can be reopened. Open the exact catalog row to continue.' });
+          return;
+        }
+        const refreshPromise = load(savedTarget.profileName, savedTarget, busyOperation);
         const refreshToken = profileRequestScope.current.captureRequest();
         const refreshed = await refreshPromise;
         if (!refreshed || !profileRequestScope.current.isRequestCurrent(refreshToken)) return;
@@ -1458,7 +1798,7 @@ export function ProfilesScreen() {
         loadedAs.businessId,
         loadedAs.businessVersion,
         loadedAs.profileName,
-        buildPublishBody(effectiveDetail),
+        buildPublishBody(effectiveDetail, loadedAs.action),
         crypto.randomUUID(),
       );
       if (!profileRequestScope.current.isRequestCurrent(mutationToken)) return;
@@ -1467,6 +1807,9 @@ export function ProfilesScreen() {
           businessId: loadedAs.businessId,
           businessVersion: loadedAs.businessVersion,
           profileName: loadedAs.profileName,
+          ...(loadedAs.profileId ? { profileId: loadedAs.profileId } : {}),
+          action: loadedAs.action,
+          endpointSlug: loadedAs.endpointSlug,
         }, busyOperation);
         const refreshToken = profileRequestScope.current.captureRequest();
         const refreshed = await refreshPromise;
@@ -1497,7 +1840,7 @@ export function ProfilesScreen() {
         loadedAs.businessId,
         loadedAs.businessVersion,
         loadedAs.profileName,
-        buildRollbackBody(effectiveDetail, target),
+        buildRollbackBody(effectiveDetail, target, loadedAs.action),
         crypto.randomUUID(),
       );
       if (!profileRequestScope.current.isRequestCurrent(mutationToken)) return;
@@ -1506,6 +1849,9 @@ export function ProfilesScreen() {
           businessId: loadedAs.businessId,
           businessVersion: loadedAs.businessVersion,
           profileName: loadedAs.profileName,
+          ...(loadedAs.profileId ? { profileId: loadedAs.profileId } : {}),
+          action: loadedAs.action,
+          endpointSlug: loadedAs.endpointSlug,
         }, busyOperation);
         const refreshToken = profileRequestScope.current.captureRequest();
         const refreshed = await refreshPromise;
@@ -1725,7 +2071,14 @@ export function ProfilesScreen() {
                                 variant="outline"
                                 size="sm"
                                 disabled={loading}
-                                onClick={() => void load(undefined, { businessId: row.businessId, businessVersion: row.businessVersion, profileName: row.profileName })}
+                                onClick={() => void load(undefined, {
+                                  businessId: row.businessId,
+                                  businessVersion: row.businessVersion,
+                                  profileName: row.profileName,
+                                  ...(row.profileId ? { profileId: row.profileId } : {}),
+                                  ...(row.action ? { action: row.action } : row.boundActions.length === 1 ? { action: row.boundActions[0] } : {}),
+                                  ...(row.endpointSlug !== undefined ? { endpointSlug: row.endpointSlug } : {}),
+                                })}
                               >
                                 Open
                               </Button>
@@ -1767,7 +2120,19 @@ export function ProfilesScreen() {
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-6">
-            {businessId === 'document-core' && <label className="block min-w-0 text-sm sm:col-span-2 xl:col-span-3">Document Core endpoint (optional)<select aria-label="Legacy endpoint" className="mt-1 block w-full min-w-0 rounded border border-[var(--border-dark)] bg-[var(--bg-card)] p-2" value={endpointSlug} onChange={e => setEndpointSlug(e.target.value)} disabled={businessFunctionCatalogLoading || !businessFunctionCatalog}><option value="">Generic action profile</option>{businessFunctionCatalog?.functions.filter((fn) => fn.kind === 'endpoint').map((fn) => <option key={fn.functionId} value={fn.endpointSlug ?? ''} disabled={fn.available === false}>{fn.endpointSlug ?? fn.functionId}{fn.available === false ? ` — unavailable: ${fn.unavailableReason ?? 'not supported'}` : ''}</option>)}</select>{businessFunctionCatalogLoading ? <span className="mt-1 block text-xs text-[var(--text-sub)]">Loading endpoints from {businessVersion} manifest…</span> : null}{businessFunctionCatalogProblem ? <span role="alert" className="mt-1 block break-words text-xs text-[var(--badge-danger-text)]">{businessFunctionCatalogProblem}</span> : null}<span className="mt-1 block text-xs text-[var(--text-sub)]">Exact endpoint profiles override generic action profiles; endpoint choices come from the selected version manifest.</span></label>}
+            {businessId === 'document-core' && <label className="block min-w-0 text-sm sm:col-span-2 xl:col-span-3">Document Core endpoint (optional)<select aria-label="Legacy endpoint" className="mt-1 block w-full min-w-0 rounded border border-[var(--border-dark)] bg-[var(--bg-card)] p-2" value={endpointSlug} onChange={e => {
+              const selected = e.target.value;
+              setEndpointSlug(selected);
+              if (detail?.revision === 0) {
+                const action = selected ? actionFromEndpointSlug(selected) ?? '' : newProfileAction(detail, '') ?? '';
+                setDraft((current) => current === null ? current : {
+                  ...current,
+                  rows: current.rows.map((row, index) => index === 0 ? { ...row, action, endpointSlug: selected } : row),
+                  prompt: { ...current.prompt, endpointSlug: selected || action },
+                });
+                setLoadedAs((current) => current === null ? current : { ...current, action, endpointSlug: selected || null });
+              }
+            }} disabled={businessFunctionCatalogLoading || !businessFunctionCatalog}><option value="">Generic action profile</option>{businessFunctionCatalog?.functions.filter((fn) => fn.kind === 'endpoint').map((fn) => <option key={fn.functionId} value={fn.endpointSlug ?? ''} disabled={fn.available === false}>{fn.endpointSlug ?? fn.functionId}{fn.available === false ? ` — unavailable: ${fn.unavailableReason ?? 'not supported'}` : ''}</option>)}</select>{businessFunctionCatalogLoading ? <span className="mt-1 block text-xs text-[var(--text-sub)]">Loading endpoints from {businessVersion} manifest…</span> : null}{businessFunctionCatalogProblem ? <span role="alert" className="mt-1 block break-words text-xs text-[var(--badge-danger-text)]">{businessFunctionCatalogProblem}</span> : null}<span className="mt-1 block text-xs text-[var(--text-sub)]">Exact endpoint profiles override generic action profiles; endpoint choices come from the selected version manifest.</span></label>}
             <div className="min-w-0 sm:col-span-2 xl:col-span-3"><InitialBindings value={initialBindings} onChange={setInitialBindings} /></div>
             <div className="w-full min-w-0 max-w-xs xl:col-span-2">
               <FormField id="profile-business" label="Business Service">
@@ -1948,7 +2313,7 @@ export function ProfilesScreen() {
                       ...d,
                       rows: [
                         ...d.rows,
-                        { profileName: '', enabled: true, jobPriority: 'MEDIUM', extensionsCsv: '', params: [], connSteps: [], requestRedaction: [], callback: null, callbackConfiguredOnServer: false, callbackPolicyInvalid: false, callbackClearPending: false },
+                        { profileName: '', action: '', endpointSlug: '', enabled: true, jobPriority: 'MEDIUM', extensionsCsv: '', params: [], connSteps: [], requestRedaction: [], callback: null, callbackConfiguredOnServer: false, callbackPolicyInvalid: false, callbackClearPending: false },
                       ],
                     }))
                   }
@@ -2029,8 +2394,22 @@ export function ProfilesScreen() {
                     value={row.profileName}
                     disabled={!policyShipped}
                     onChange={(e) => updateRow(rowIndex, { ...row, profileName: e.target.value })}
-                    placeholder="profile / endpoint"
+                    placeholder="profile name"
                   />
+                  <label className="block w-full max-w-[12rem] text-xs text-[var(--text-sub)]">
+                    Manifest action
+                    <select
+                      aria-label="row manifest action"
+                      className="mt-1 h-9 w-full rounded-[var(--radius-sm)] border border-[var(--border-dark)] bg-[var(--bg-card)] px-3 text-sm text-[var(--text-main)]"
+                      value={row.action}
+                      disabled={!policyShipped}
+                      onChange={(event) => updateRow(rowIndex, { ...row, action: event.currentTarget.value })}
+                    >
+                      <option value="">Select action</option>
+                      {row.action && !manifestActionOptions.includes(row.action) ? <option value={row.action}>{row.action} (stored)</option> : null}
+                      {manifestActionOptions.map((action) => <option key={action} value={action}>{action}</option>)}
+                    </select>
+                  </label>
                   <label className="flex items-center gap-2 text-sm">
                     <input
                       type="checkbox"
@@ -2041,7 +2420,7 @@ export function ProfilesScreen() {
                     enabled
                   </label>
                 </div>
-                <CardDescription>Locked slots are display-only; the server rejects a locked field even when unchanged.</CardDescription>
+                <CardDescription>Profile name is the tenant-scoped resource key. Manifest action controls the API binding. Locked slots are display-only; the server rejects a locked field even when unchanged.</CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
                 <div className="flex flex-wrap gap-3">
@@ -2290,11 +2669,11 @@ export function ProfilesScreen() {
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-3">
-              <div className="flex flex-wrap gap-3">
-                <Input aria-label="connection id" className="w-full max-w-[16rem]" placeholder="connectionId (uuid)" value={draft.prompt.connectionId} onChange={(e) => updateDraft((d) => ({ ...d, prompt: { ...d.prompt, connectionId: e.target.value } }))} />
-                <Input aria-label="api key id" className="w-full max-w-[16rem]" placeholder="apiKeyId" value={draft.prompt.apiKeyId} onChange={(e) => updateDraft((d) => ({ ...d, prompt: { ...d.prompt, apiKeyId: e.target.value } }))} />
-                <Input aria-label="endpoint slug" className="w-full max-w-[10rem]" placeholder="endpointSlug" value={draft.prompt.endpointSlug} onChange={(e) => updateDraft((d) => ({ ...d, prompt: { ...d.prompt, endpointSlug: e.target.value } }))} />
-                <Input aria-label="step id" className="w-full max-w-[10rem]" placeholder="stepId (_default)" value={draft.prompt.stepId} onChange={(e) => updateDraft((d) => ({ ...d, prompt: { ...d.prompt, stepId: e.target.value } }))} />
+              <div className="flex flex-wrap items-start gap-3">
+                <div className="w-full max-w-[16rem]"><FormField id="prompt-connection-id" label="Connection ID" description="Choose a legacy connection UUID pinned to this tenant, key, and endpoint, or enter a UUID directly."><ReferenceInput id="prompt-connection-id" value={draft.prompt.connectionId} onValueChange={(value) => updateDraft((d) => ({ ...d, prompt: { ...d.prompt, connectionId: value } }))} scopeKey={promptConnectionScopeKey} loadOptions={loadPromptConnectionSuggestions} sourceVersion={access.kind} placeholder="connectionId (UUID)" autoComplete="off" /></FormField></div>
+                <div className="w-full max-w-[16rem]"><FormField id="prompt-api-key-id" label="API key ID" description="Select an active API key for the current tenant or enter its UUID directly."><ReferenceInput id="prompt-api-key-id" value={draft.prompt.apiKeyId} onValueChange={(value) => updateDraft((d) => ({ ...d, prompt: { ...d.prompt, apiKeyId: value } }))} scopeKey={globalTenantId} loadOptions={loadPromptApiKeySuggestions} sourceVersion={access.kind} placeholder="apiKeyId (UUID)" autoComplete="off" /></FormField></div>
+                <div className="w-full max-w-[10rem]"><FormField id="prompt-endpoint-slug" label="Endpoint slug"><Input id="prompt-endpoint-slug" placeholder="endpointSlug" value={draft.prompt.endpointSlug} onChange={(e) => updateDraft((d) => ({ ...d, prompt: { ...d.prompt, endpointSlug: e.target.value } }))} /></FormField></div>
+                <div className="w-full max-w-[10rem]"><FormField id="prompt-step-id" label="Step ID"><Input id="prompt-step-id" placeholder="stepId (_default)" value={draft.prompt.stepId} onChange={(e) => updateDraft((d) => ({ ...d, prompt: { ...d.prompt, stepId: e.target.value } }))} /></FormField></div>
                 <label className="flex items-center gap-2 text-sm">
                   <input type="checkbox" checked={draft.prompt.isActive} onChange={(e) => updateDraft((d) => ({ ...d, prompt: { ...d.prompt, isActive: e.target.checked } }))} />
                   active (off = delete)
@@ -2384,9 +2763,10 @@ function buildFileUrlAuth(draft: FileUrlAuthDraft): FileUrlAuthConfigWrite {
   return config;
 }
 
-function draftFromDetail(detail: ProfileDetail): Draft {
+function draftFromDetail(detail: ProfileDetail, actionOverride?: string, endpointSlug = ''): Draft {
   const firstAction = detail.manifest.actions[0];
-  const seededName = firstAction?.name ?? firstAction?.action ?? detail.profileName ?? 'new';
+  const resourceName = detail.profileName?.trim() || 'new';
+  const selectedAction = actionOverride?.trim() || firstAction?.name?.trim() || firstAction?.action?.trim() || '';
   const params: ParamDraft[] = Object.entries(detail.policy.parameters).map(([key, parameter]) => ({
     key,
     value: parameter.value === null || parameter.value === undefined ? '' : String(parameter.value),
@@ -2395,7 +2775,9 @@ function draftFromDetail(detail: ProfileDetail): Draft {
   return {
     rows: [
       {
-        profileName: seededName,
+        profileName: resourceName,
+        action: selectedAction,
+        endpointSlug,
         enabled: detail.policy.enabled,
         jobPriority: detail.policy.jobPriority,
         extensionsCsv: detail.policy.allowedFileExtensions,
@@ -2420,7 +2802,7 @@ function draftFromDetail(detail: ProfileDetail): Draft {
     prompt: {
       connectionId: '',
       apiKeyId: '',
-      endpointSlug: seededName,
+      endpointSlug: endpointSlug || selectedAction || resourceName,
       stepId: '_default',
       text: '',
       isActive: true,

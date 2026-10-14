@@ -1,86 +1,100 @@
 #!/usr/bin/env node
-/**
- * CLI migration runner (R08-06 / P2-01).
- *
- * Usage:
- *   npm run migrate           — apply all pending migrations
- *   npm run migrate:status    — show which migrations are applied/pending
- *   npm run migrate:verify    — verify all migrations are applied (read-only)
- *
- * Requires DATABASE_URL env var.
- *
- * Production deployment order:
- *   1. Set DATABASE_URL to the production database.
- *   2. npm run migrate   (applies pending SQL, verifies after)
- *   3. npm start          (server boots with autoMigrate=false — verify-only, no hidden writes)
- *
- * This CLI is an explicit operator opt-in. It applies pending migrations to
- * whatever database DATABASE_URL points to, including empty ones (first
- * deployment). The boot-time guard in server.ts (autoMigrate=false default)
- * prevents accidental schema creation at startup — use this CLI first.
- */
+/** Explicit operator entrypoint for Orchestrator migrations. */
 
+import { join } from 'node:path';
 import { createDb } from './db/db';
-import { migrate, migrationStatus, verifyMigrations } from './db/migrations';
-import { createLogger, safeErrorForLog } from '@du/observability';
-
-const logger = createLogger({ service: 'orchestrator', baseFields: { subsystem: 'migrations' } });
-
-const DATABASE_URL = process.env.DATABASE_URL;
-if (!DATABASE_URL) {
-  logger.error('migration command cannot start', { errorCode: 'DATABASE_URL_REQUIRED' });
-  process.exit(1);
-}
+import {
+  baselineMigrationsReviewed,
+  loadMigrationFiles,
+  migrate,
+  migrationStatus,
+  verifyMigrations,
+  type MigrationFile,
+} from './db/migrations';
+import {
+  migrationApplyReport,
+  migrationBaselineReport,
+  migrationFailureReport,
+  migrationStatusReport,
+  migrationVerifyReport,
+} from './migration-cli-report';
 
 const command = process.argv[2] ?? 'migrate';
+const databaseUrl = process.env.DATABASE_URL;
 
-async function main() {
-  const db = createDb(DATABASE_URL!);
+function writeReport(report: Record<string, unknown>): void {
+  process.stdout.write(`${JSON.stringify(report)}\n`);
+}
 
+async function main(): Promise<void> {
+  if (!databaseUrl) {
+    writeReport({
+      type: 'migration-command-error',
+      service: 'orchestrator',
+      command: ['migrate', 'status', 'verify', 'baseline-reviewed'].includes(command) ? command : 'unknown',
+      outcome: 'failed',
+      errorCode: 'DATABASE_URL_REQUIRED',
+      detail: 'Set DATABASE_URL in the process environment before running the migration command.',
+    });
+    process.exitCode = 1;
+    return;
+  }
+
+  let db: ReturnType<typeof createDb> | undefined;
+  let files: MigrationFile[] = [];
+  let report: Record<string, unknown>;
   try {
+    db = createDb(databaseUrl);
+    files = loadMigrationFiles(join(__dirname, '../migrations'));
     switch (command) {
       case 'migrate': {
         const result = await migrate(db);
-        if (result.applied.length === 0) {
-          logger.info('database is up-to-date', { pendingMigrationCount: 0 });
-        } else {
-          logger.info('migrations applied', {
-            appliedCount: result.applied.length,
-            migrations: result.applied,
-          });
-        }
-        // Verify after applying.
         await verifyMigrations(db);
-        logger.info('migration verification passed');
+        report = migrationApplyReport(result.applied, await migrationStatus(db), files);
         break;
       }
-
       case 'status': {
         const status = await migrationStatus(db);
-        logger.info('migration status', {
-          appliedCount: status.applied,
-          totalCount: status.total,
-          pending: status.pending,
-        });
+        report = migrationStatusReport(status, files);
+        if (status.unknownChecksums.length > 0 || status.integrityProblems.length > 0) process.exitCode = 1;
         break;
       }
-
-      case 'verify': {
+      case 'verify':
         await verifyMigrations(db);
-        logger.info('schema verification passed');
+        report = migrationVerifyReport(await migrationStatus(db), files);
+        break;
+      case 'baseline-reviewed': {
+        const result = await baselineMigrationsReviewed(db);
+        report = migrationBaselineReport(result.baselined, await migrationStatus(db), files);
         break;
       }
-
       default:
-        logger.error('unknown migration command', { errorCode: 'UNKNOWN_MIGRATION_COMMAND' });
-        process.exit(1);
+        throw new Error('unknown migration command');
     }
-  } finally {
-    await db.close();
+  } catch (error) {
+    report = migrationFailureReport(command, error, files);
+    process.exitCode = 1;
   }
+
+  try {
+    await db?.close();
+  } catch (error) {
+    if (process.exitCode !== 1) {
+      report = migrationFailureReport(command, error, files);
+      process.exitCode = 1;
+    }
+  }
+  writeReport(report!);
 }
 
-main().catch((err: unknown) => {
-  logger.error('migration command failed', { error: safeErrorForLog(err) });
-  process.exit(1);
+void main().catch(() => {
+  writeReport({
+    type: 'migration-command-error',
+    service: 'orchestrator',
+    command: ['migrate', 'status', 'verify', 'baseline-reviewed'].includes(command) ? command : 'unknown',
+    outcome: 'failed',
+    errorCode: 'MIGRATION_COMMAND_FAILED',
+    detail: 'The migration command failed before a safe report could be produced.',
+  });
+  process.exitCode = 1;
 });

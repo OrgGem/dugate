@@ -3,6 +3,7 @@ import {
   ConnectorBackupEffectFenceCommandSchema,
   ConnectorBackupEffectFenceObservationRequestSchema,
   ConnectorBackupEffectFenceObservationSchema,
+  isTenantUuid,
   type ConnectorBackupEffectFenceCommand,
   type ConnectorBackupEffectFenceObservation,
   type ConnectorBackupEffectFenceObservationRequest,
@@ -273,7 +274,7 @@ export class PostgresConnectorBackupEffectControl implements ConnectorBackupConf
   public async prepare(client: SqlClient, input: {
     effectId: string; tenantId: string; connectorId: string; idempotencyKey: string;
   }): Promise<void> {
-    if (!isUuid(input.effectId) || !isUuid(input.tenantId)
+    if (!isUuid(input.effectId) || !isTenantUuid(input.tenantId)
       || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(input.connectorId)
       || input.idempotencyKey.length < 8 || input.idempotencyKey.length > 200) {
       throw invalid('configuration effect identity is invalid');

@@ -95,7 +95,7 @@ const MANAGEMENT_REVISION_KEYS: ReadonlySet<string> = new Set([
 ]);
 
 /** Exactly the keys ConnectorCapabilitiesSchema declares (`.strict()` upstream). */
-const CAPABILITIES_KEYS: ReadonlySet<string> = new Set(['management', 'credentialWorkflow', 'test', 'knownConnectorIds']);
+const CAPABILITIES_KEYS: ReadonlySet<string> = new Set(['management', 'credentialWorkflow', 'typedCredentialStorage', 'secretCatalogImport', 'test', 'knownConnectorIds']);
 
 function hasOnlyKeys(record: Record<string, unknown>, allowed: ReadonlySet<string>): boolean {
   return Object.keys(record).every((key) => allowed.has(key));
@@ -155,14 +155,36 @@ export function parseConnectorCapabilities(value: unknown): ConnectorCapabilitie
   if (!hasOnlyKeys(value, CAPABILITIES_KEYS)) return null;
   const management = value['management'];
   const credentialWorkflow = value['credentialWorkflow'];
+  const typedCredentialStorage = value['typedCredentialStorage'];
+  const secretCatalogImport = value['secretCatalogImport'];
   const test = value['test'];
   const knownConnectorIds = value['knownConnectorIds'];
   if (typeof management !== 'boolean') return null;
   if (typeof credentialWorkflow !== 'boolean') return null;
+  if (typedCredentialStorage !== undefined && typeof typedCredentialStorage !== 'boolean') return null;
+  if (secretCatalogImport !== undefined && typeof secretCatalogImport !== 'boolean') return null;
   if (typeof test !== 'boolean') return null;
   if (!Array.isArray(knownConnectorIds)) return null;
   if (!knownConnectorIds.every((id): id is string => typeof id === 'string' && id.length > 0)) return null;
-  return { management, credentialWorkflow, test, knownConnectorIds };
+  return {
+    management,
+    credentialWorkflow,
+    ...(typedCredentialStorage === undefined ? {} : { typedCredentialStorage }),
+    ...(secretCatalogImport === undefined ? {} : { secretCatalogImport }),
+    test,
+    knownConnectorIds,
+  };
+}
+
+/** Separate managed Secret Catalog import from the legacy Vault credential workflow. */
+export function connectorCredentialActionGating(
+  capabilities: ConnectorCapabilities | null,
+  mayManageRecipes: boolean,
+): { replaceClear: boolean; secretCatalogImport: boolean } {
+  return {
+    replaceClear: mayManageRecipes && capabilities?.typedCredentialStorage === true,
+    secretCatalogImport: mayManageRecipes && capabilities?.secretCatalogImport === true,
+  };
 }
 
 /** Suggestions come from the management list when composed, otherwise from ID-only capabilities. */

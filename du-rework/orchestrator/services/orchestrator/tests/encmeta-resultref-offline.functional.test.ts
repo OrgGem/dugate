@@ -1,12 +1,11 @@
 import { createHmac } from 'node:crypto';
-import { join } from 'node:path';
 import { contentHash } from '@du/contracts';
 import { createApp, type App } from '../src/server';
 import { createMetadataCrypto, type MetadataKeyProvider } from '../src/modules/runtime/metadata-crypto';
 import { adaptKeyProviderForMetadata } from '../src/modules/encryption/metadata-key-adapter';
 import type { KeyProvider, WrapDekInput, WrappedDek } from '../src/modules/encryption/vault-transit-provider';
-import { loadMigrationFiles } from '../src/db/migrations';
 import { mockCreateStorageGenerationFixture, mockOpenBackupEffectGateResult } from './helpers/backup-effect-gate';
+import { currentAppliedMigrationLedger, mockMigrationMetadataColumnsResult } from './helpers/migration-ledger-fixture';
 import { buildOperationResult } from '../src/http/routes/public';
 import type { RouteContext } from '../src/http/route-context';
 
@@ -59,6 +58,8 @@ jest.mock('pg', () => {
       state.writes.push({ sql: text, params });
       return { rows: [], rowCount: 1 };
     };
+    const metadataColumns = mockMigrationMetadataColumnsResult(text, params);
+      if (metadataColumns) return metadataColumns;
     if (/information_schema\.tables/i.test(text)) return { rows: [{ exists: true }], rowCount: 1 };
     // MIGRATION-VERIFY-TRAP-FIX: verifyMigrations cross-checks the ledger read
     // against an independent count. Must be answered BEFORE the row branch below,
@@ -183,10 +184,7 @@ describe('ENCMETA-RESULTREF-IMPL — result_ref under the metadata seam', () => 
   const apps: App[] = [];
 
   beforeAll(() => {
-    scripted().schemaLedger = loadMigrationFiles(join(__dirname, '..', 'migrations')).map((file) => ({
-      sequence: file.sequence,
-      filename: file.filename,
-    }));
+    scripted().schemaLedger = currentAppliedMigrationLedger();
   });
 
   beforeEach(() => {

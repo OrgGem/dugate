@@ -21,7 +21,10 @@ describe('ORV15 connector and settings workspaces', () => {
     }
     assert.match(connectors, /const visibleListRows = listRows\.slice\(catalogPage \* catalogPageSize/);
     assert.match(connectors, /connectorActiveRevision\(listRows, row\.connectorId\)/);
-    assert.match(connectors, /connectorIdSuggestions\(caps, listRows\)/);
+    assert.match(connectors, /connectorIdSuggestions\(caps, scopedConnectorRows\)/);
+    assert.match(connectors, /typedCatalogRows/);
+    assert.match(connectors, /openTypedRecipe\(selectedTypedRecipeRevision\)/);
+    assert.match(connectors, /Load legacy revision/);
     assert.match(connectors, /Showing \$\{catalogRangeStart\}–\$\{catalogRangeEnd\} of \$\{listRows\.length\} readable loaded revisions/);
     assert.match(connectors, /setActiveTab\('inspector'\);\s*void fetchRevision\(id, String\(rev\)\)/);
   });

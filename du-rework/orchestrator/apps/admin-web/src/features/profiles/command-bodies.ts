@@ -31,10 +31,12 @@ export function apiKeyRefFromDetail(
 /** `profile.upsert` body: CAS baseline + policy + write identity. */
 export function buildUpsertBody(
   detail: ProfileDetail,
-  policy: Record<string, unknown>
+  policy: Record<string, unknown>,
+  action: string,
 ): PolicyUpsertBody {
   const apiKey = apiKeyRefFromDetail(detail);
   return {
+    action,
     expectedRevision: detail.revision,
     policy,
     ...(apiKey !== undefined ? { apiKey } : {}),
@@ -42,9 +44,10 @@ export function buildUpsertBody(
 }
 
 /** `profile.publish` body: the CAS move + write identity. */
-export function buildPublishBody(detail: ProfileDetail): ProfilePublishBody {
+export function buildPublishBody(detail: ProfileDetail, action: string): ProfilePublishBody {
   const apiKey = apiKeyRefFromDetail(detail);
   return {
+    action,
     expectedRevision: detail.revision,
     ...(apiKey !== undefined ? { apiKey } : {}),
   };
@@ -59,10 +62,12 @@ export function buildPublishBody(detail: ProfileDetail): ProfilePublishBody {
  */
 export function buildRollbackBody(
   detail: ProfileDetail,
-  targetRevision: number
+  targetRevision: number,
+  action: string,
 ): ProfileRollbackBody {
   const apiKey = apiKeyRefFromDetail(detail);
   return {
+    action,
     targetRevision,
     expectedRevision: detail.revision,
     ...(apiKey !== undefined ? { apiKey } : {}),

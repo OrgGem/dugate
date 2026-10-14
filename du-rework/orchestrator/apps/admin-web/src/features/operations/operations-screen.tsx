@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { DeniedState, EmptyState, ErrorState, LoadingState, AlertBanner } from '@/components/ui/state-panel';
+import { ReferenceInput, type ReferenceOptionPage } from '@/components/ui/reference-input';
 import { useTenant } from '@/lib/tenant-context';
 import {
   Table,
@@ -142,6 +143,28 @@ export function OperationsScreen() {
     { param: 'provider', id: 'ops-provider', label: 'Provider', value: providerFilter, set: setProviderFilter, placeholder: 'Recorded provider' },
     { param: 'model', id: 'ops-model', label: 'Model', value: modelFilter, set: setModelFilter, placeholder: 'Recorded model' },
   ];
+  const operationScopeKey = globalTenantId ?? 'platform-operations';
+  const loadOperationIdSuggestions = useCallback(async (
+    query: string,
+    scopeKey: string,
+    cursorValue: string | null,
+  ): Promise<ReferenceOptionPage> => {
+    if (cursorValue || scopeKey !== operationScopeKey || page.kind !== 'ready') return { items: [], nextCursor: null };
+    const normalizedQuery = query.trim().toLocaleLowerCase();
+    const items = page.data.items
+      .filter((operation) => !globalTenantId
+        || operation.tenantId?.toLowerCase() === globalTenantId.toLowerCase())
+      .map((operation) => ({
+        value: operation.id,
+        label: operation.id,
+        description: `Current operations page · ${operation.state}`,
+      }))
+      .filter((option) => `${option.value} ${option.description ?? ''}`.toLocaleLowerCase().includes(normalizedQuery));
+    return { items, nextCursor: null };
+  }, [globalTenantId, operationScopeKey, page]);
+  const operationSuggestionVersion = page.kind === 'ready'
+    ? JSON.stringify([page.data.items.map((operation) => operation.id), page.data.nextCursor])
+    : page.kind;
   const activeAdvancedFilterCount = [
     idFilter.trim(),
     ...operationSearchFields.map(({ value }) => value.trim()),
@@ -683,9 +706,11 @@ export function OperationsScreen() {
             </summary>
             <div className="grid grid-cols-1 gap-3 border-t border-[var(--border-subtle)] p-3 sm:grid-cols-2 xl:grid-cols-4">
               <div><label htmlFor="ops-id" className="text-xs font-semibold">Operation ID</label>
-                <input id="ops-id" aria-label="Search by operation id" className="mt-1 h-9 w-full rounded-[var(--radius-sm)] border border-[var(--border-dark)] bg-[var(--bg-card)] px-3 text-sm" value={idFilter}
-                  placeholder="id contains…"
-                  onChange={(e) => { applyCursor(null); setIdFilter(e.target.value); updateSearch({ id: e.target.value, cursor: null }); }} />
+                <ReferenceInput id="ops-id" aria-label="Search by operation id" className="mt-1" value={idFilter}
+                  onValueChange={(value) => { applyCursor(null); setIdFilter(value); updateSearch({ id: value, cursor: null }); }}
+                  scopeKey={operationScopeKey} loadOptions={loadOperationIdSuggestions} sourceVersion={operationSuggestionVersion}
+                  placeholder="id contains…" autoComplete="off" />
+                <p className="mt-1 text-xs text-[var(--text-sub)]">Suggestions show only the loaded operations page. You can still enter any partial operation ID.</p>
               </div>
               {operationSearchFields.map(field => <div key={field.param}>
                 <label htmlFor={field.id} className="text-xs font-semibold">{field.label}</label>

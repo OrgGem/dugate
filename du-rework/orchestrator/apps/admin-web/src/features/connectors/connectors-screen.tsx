@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { isTenantUuid } from '@du/contracts';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/ui/dialog';
 import { FormField } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { NativeSelect } from '@/components/ui/select';
+import { ReferenceInput, type ReferenceOption, type ReferenceOptionPage } from '@/components/ui/reference-input';
 import { AlertBanner, DeniedState, EmptyState, ErrorState, LoadingState } from '@/components/ui/state-panel';
 import {
   Table,
@@ -26,11 +27,18 @@ import {
   type ConnectorListPage,
   type ConnectorRevisionRead,
   type PostActionResult,
+  type TenantConnectorRecipeCatalogItem,
+  type TenantConnectorRecipeCatalogPage,
 } from '@/lib/api';
 import { type Loadable, paneStateFrom } from '@/features/overview/state';
 import { CurlImportPreview, CurlImportSummaryView } from './curl-import-preview';
 import { summarizeCurlImport } from './curl-import';
 import { ParityConnectorEditor } from './parity-connector-editor';
+import {
+  isCurrentTenantRequest,
+  parseTypedConnectorRecipeCatalogPage,
+  shouldShowTypedCatalogPageControls,
+} from './typed-recipe-catalog';
 import { useTenant } from '@/lib/tenant-context';
 import type { ProviderTestRequest } from '@du/contracts';
 import { TenantAttemptRegistry, type ImmutableAttempt } from '@/features/submissions/immutable-attempt';
@@ -51,7 +59,7 @@ import {
 
 type ListState = { kind: 'idle' } | Loadable<ConnectorListPage>;
 type LookupState = { kind: 'idle' } | Loadable<ConnectorRevisionRead>;
-const TENANT_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+type TypedCatalogState = { kind: 'idle' | 'loading' } | { kind: 'failed'; message: string } | { kind: 'ready'; data: TenantConnectorRecipeCatalogPage };
 
 const UNREADABLE_CAPABILITIES: AdminApiProblem = {
   status: 502,
@@ -74,6 +82,10 @@ const UNREADABLE_TEST: AdminApiProblem = {
   title: 'Unreadable connector test result.',
 };
 
+function errorText(problem: AdminApiProblem): string {
+  return `${problem.status} · ${problem.code ?? 'ERROR'}${problem.title ? ` — ${problem.title}` : ''}`;
+}
+
 /**
  * Connectors (AWEB-05, CONNECTOR-WIRE-B) — management surface.
  *
@@ -94,6 +106,8 @@ export function ConnectorsScreen() {
   // client and must ride every mutation below.
   const client = useMemo(() => createAdminApiClient(), []);
   const { tenantId } = useTenant();
+  const activeTenantId = useRef(tenantId);
+  activeTenantId.current = tenantId;
   const parityAttempts = useRef(new TenantAttemptRegistry<ImmutableAttempt<ProviderTestRequest>>());
   const [parityAttemptVersion, setParityAttemptVersion] = useState(0);
   const savedParityAttempt = useMemo(
@@ -105,13 +119,23 @@ export function ConnectorsScreen() {
   }, []);
   const [capabilities, setCapabilities] = useState<Loadable<ConnectorCapabilities>>({ kind: 'loading' });
   const [list, setList] = useState<ListState>({ kind: 'idle' });
+  const [typedCatalog, setTypedCatalog] = useState<TypedCatalogState>({ kind: 'idle' });
+  const [typedCatalogQuery, setTypedCatalogQuery] = useState('');
+  const [typedCatalogCursors, setTypedCatalogCursors] = useState<Array<string | null>>([null]);
+  const [typedCatalogPageIndex, setTypedCatalogPageIndex] = useState(0);
+  const [typedCatalogOpenRequest, setTypedCatalogOpenRequest] = useState<{
+    requestId: number;
+    tenantId: string;
+    connectorId: string;
+    revision: number;
+  } | null>(null);
   const [connectorId, setConnectorId] = useState(() => new URLSearchParams(window.location.search).get('connectorId') ?? '');
-  const [customConnectorIdMode, setCustomConnectorIdMode] = useState(false);
   const [revision, setRevision] = useState(() => new URLSearchParams(window.location.search).get('revision') ?? 'latest');
   const [lookup, setLookup] = useState<LookupState>({ kind: 'idle' });
   const [activeTab, setActiveTab] = useState<'catalog' | 'inspector' | 'recipe' | 'curl-import'>('catalog');
   const [catalogPage, setCatalogPage] = useState(0);
   const [selectedCatalogKey, setSelectedCatalogKey] = useState<string | null>(null);
+  const [selectedTypedCatalogKey, setSelectedTypedCatalogKey] = useState<string | null>(null);
   const [importDraft, setImportDraft] = useState<ConnectorImportDraft | null>(null);
   const [draftConnectorId, setDraftConnectorId] = useState('');
   const [draftAdapter, setDraftAdapter] = useState('');
@@ -121,8 +145,18 @@ export function ConnectorsScreen() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [editorBusy, setEditorBusy] = useState(false);
+  const notifyEditorBusy = useCallback((scope: string, value: boolean): void => {
+    const currentTenantId = activeTenantId.current;
+    if (!isTenantUuid(scope) || !isTenantUuid(currentTenantId) || scope.toLowerCase() !== currentTenantId.toLowerCase()) return;
+    setEditorBusy(value);
+  }, []);
   const busyRef = useRef(false);
   const loadGeneration = useRef(0);
+  const typedCatalogGeneration = useRef(0);
+  const typedCatalogQueryRef = useRef(typedCatalogQuery);
+  typedCatalogQueryRef.current = typedCatalogQuery;
+  const typedCatalogOpenSequence = useRef(0);
   const [confirmTarget, setConfirmTarget] = useState<{
     kind: 'disable' | 'retire';
     connectorId: string;
@@ -141,10 +175,45 @@ export function ConnectorsScreen() {
     setList(page === null ? { kind: 'failed', problem: UNREADABLE_LIST } : { kind: 'ready', data: page });
   }, [client]);
 
+  const refreshTypedRecipeCatalog = useCallback(async (cursor: string | null = null): Promise<void> => {
+    const requestedTenantId = tenantId;
+    if (!isCurrentTenantRequest(activeTenantId.current, requestedTenantId, loadGeneration.current, loadGeneration.current)) return;
+    if (!isTenantUuid(requestedTenantId)) {
+      setTypedCatalog({ kind: 'idle' });
+      return;
+    }
+    const generation = ++typedCatalogGeneration.current;
+    setTypedCatalog({ kind: 'loading' });
+    const result = await client.listTenantConnectorRecipeCatalog({
+      tenantId: requestedTenantId,
+      limit: 50,
+      ...(typedCatalogQueryRef.current.trim() ? { q: typedCatalogQueryRef.current.trim() } : {}),
+      ...(cursor ? { cursor } : {}),
+    });
+    if (!isCurrentTenantRequest(activeTenantId.current, requestedTenantId, generation, typedCatalogGeneration.current)) return;
+    if (!result.ok) {
+      setTypedCatalog({ kind: 'failed', message: errorText(result.problem) });
+      return;
+    }
+    const page = parseTypedConnectorRecipeCatalogPage(result.data, requestedTenantId);
+    setTypedCatalog(page === null
+      ? { kind: 'failed', message: 'Typed recipe catalog returned an unreadable response or crossed the selected tenant boundary.' }
+      : { kind: 'ready', data: page });
+  }, [client, tenantId]);
+
+  const onRecipeCatalogChange = useCallback((): void => {
+    if (!isCurrentTenantRequest(activeTenantId.current, tenantId, loadGeneration.current, loadGeneration.current)) return;
+    setTypedCatalogCursors([null]);
+    setTypedCatalogPageIndex(0);
+    void refreshTypedRecipeCatalog(null);
+  }, [refreshTypedRecipeCatalog, tenantId]);
+
   const load = useCallback(async (): Promise<void> => {
     const generation = ++loadGeneration.current;
     setCapabilities({ kind: 'loading' });
     setList({ kind: 'idle' });
+    setTypedCatalog({ kind: 'idle' });
+    typedCatalogGeneration.current += 1;
     setSessionFailed(false);
     setIsAdmin(false);
     // The client learns the server-issued CSRF proof from THIS read. Without it
@@ -172,7 +241,22 @@ export function ConnectorsScreen() {
     setCapabilities({ kind: 'ready', data: caps });
     if (!caps.management) return;
     await refreshList();
-  }, [client, refreshList]);
+    if (!isCurrentTenantRequest(activeTenantId.current, tenantId, generation, loadGeneration.current)) return;
+    if (isTenantUuid(tenantId)) {
+      setTypedCatalogCursors([null]);
+      setTypedCatalogPageIndex(0);
+      await refreshTypedRecipeCatalog();
+    }
+  }, [client, refreshList, refreshTypedRecipeCatalog, tenantId]);
+
+  useEffect(() => {
+    setTypedCatalog({ kind: 'idle' });
+    setTypedCatalogCursors([null]);
+    setTypedCatalogPageIndex(0);
+    setTypedCatalogOpenRequest(null);
+    setSelectedTypedCatalogKey(null);
+    setEditorBusy(false);
+  }, [tenantId]);
 
   useEffect(() => {
     void load();
@@ -181,7 +265,7 @@ export function ConnectorsScreen() {
 
   const caps = capabilities.kind === 'ready' ? capabilities.data : null;
   const gating = connectorActionGating(caps);
-  const validTenantSelected = typeof tenantId === 'string' && TENANT_UUID.test(tenantId);
+  const validTenantSelected = isTenantUuid(tenantId);
   const screenGating = {
     ...gating,
     upsert: gating.upsert && validTenantSelected,
@@ -353,7 +437,55 @@ export function ConnectorsScreen() {
   const readConnectorId = read === null ? '' : read.revision.connectorId;
   const readRevisionNumber = read === null ? 0 : read.revision.revision;
   const activeRevision = read === null ? null : connectorActiveRevision(listRows, readConnectorId);
-  const connectorSuggestions = connectorIdSuggestions(caps, listRows);
+  const scopedConnectorRows = useMemo(() => listRows.filter((row) => row.tenantId == null
+    || (isTenantUuid(tenantId) && row.tenantId.toLowerCase() === tenantId.toLowerCase())), [listRows, tenantId]);
+  const typedCatalogRows = useMemo(() => typedCatalog.kind === 'ready'
+    && isTenantUuid(tenantId)
+    && typedCatalog.data.tenantId === tenantId.toLowerCase()
+    ? typedCatalog.data.items
+    : [], [tenantId, typedCatalog]);
+  const connectorSuggestionOptions = useMemo(() => {
+    const options = new Map<string, ReferenceOption>();
+    const typedById = new Map<string, Array<{ revision: number; state: string }>>();
+    for (const row of typedCatalogRows) {
+      const revisions = typedById.get(row.connectorId) ?? [];
+      revisions.push({ revision: row.revision, state: row.state });
+      typedById.set(row.connectorId, revisions);
+    }
+    for (const [id, revisions] of typedById) {
+      const source = revisions.map(({ revision, state }) => `${state} revision ${revision}`).join(', ');
+      options.set(id, { value: id, label: id, description: `Typed tenant recipe · ${source} · current catalog page` });
+    }
+    if (caps?.management === true) {
+      for (const id of connectorIdSuggestions(caps, scopedConnectorRows)) {
+        if (!options.has(id)) options.set(id, { value: id, label: id, description: 'Persisted Connector ID · current management list' });
+      }
+    }
+    if (caps !== null && !caps.management) {
+      for (const id of caps.knownConnectorIds) {
+        if (!options.has(id)) options.set(id, { value: id, label: id, description: 'Configured Connector ID · persisted revision availability is unverified' });
+      }
+    }
+    return [...options.values()];
+  }, [caps, scopedConnectorRows, typedCatalogRows]);
+  const selectedTypedRecipeRevision = typedCatalogRows.find((row) => row.connectorId === connectorId.trim()
+    && String(row.revision) === revision.trim()) ?? null;
+  const selectedConnectorRevisions = [...new Set([
+    ...scopedConnectorRows.filter((row) => row.connectorId === connectorId.trim()).map((row) => row.revision),
+    ...typedCatalogRows.filter((row) => row.connectorId === connectorId.trim()).map((row) => row.revision),
+  ])];
+  const loadConnectorIdSuggestions = useCallback(async (
+    query: string,
+    scopeKey: string,
+    cursor: string | null,
+  ): Promise<ReferenceOptionPage> => {
+    if (cursor || !isTenantUuid(tenantId) || !isTenantUuid(scopeKey)
+      || tenantId.toLowerCase() !== scopeKey.toLowerCase()) return { items: [], nextCursor: null };
+    const normalizedQuery = query.trim().toLocaleLowerCase();
+    const items = connectorSuggestionOptions.filter((option) =>
+      `${option.value} ${option.label} ${option.description ?? ''}`.toLocaleLowerCase().includes(normalizedQuery));
+    return { items, nextCursor: null };
+  }, [connectorSuggestionOptions, tenantId]);
   const catalogPageSize = 10;
   const catalogPageCount = Math.max(1, Math.ceil(listRows.length / catalogPageSize));
   const visibleListRows = listRows.slice(catalogPage * catalogPageSize, (catalogPage + 1) * catalogPageSize);
@@ -371,6 +503,42 @@ export function ConnectorsScreen() {
     setRevision(String(rev));
     setActiveTab('inspector');
     void fetchRevision(id, String(rev));
+  }
+
+  function openTypedRecipe(row: TenantConnectorRecipeCatalogItem): void {
+    if (busyRef.current || editorBusy || !isTenantUuid(tenantId)) return;
+    setSelectedTypedCatalogKey(`${row.connectorId}@${row.revision}`);
+    setTypedCatalogOpenRequest({
+      requestId: ++typedCatalogOpenSequence.current,
+      tenantId: tenantId.toLowerCase(),
+      connectorId: row.connectorId,
+      revision: row.revision,
+    });
+    setActiveTab('recipe');
+  }
+
+  function searchTypedRecipeCatalog(): void {
+    setTypedCatalogCursors([null]);
+    setTypedCatalogPageIndex(0);
+    void refreshTypedRecipeCatalog(null);
+  }
+
+  function goToTypedCatalogPage(direction: 'previous' | 'next'): void {
+    if (typedCatalog.kind !== 'ready') return;
+    if (direction === 'next') {
+      const nextCursor = typedCatalog.data.nextCursor;
+      if (!nextCursor) return;
+      const nextIndex = typedCatalogPageIndex + 1;
+      setTypedCatalogCursors((cursors) => [...cursors.slice(0, nextIndex), nextCursor]);
+      setTypedCatalogPageIndex(nextIndex);
+      void refreshTypedRecipeCatalog(nextCursor);
+      return;
+    }
+    if (typedCatalogPageIndex < 1) return;
+    const previousIndex = typedCatalogPageIndex - 1;
+    const previousCursor = typedCatalogCursors[previousIndex] ?? null;
+    setTypedCatalogPageIndex(previousIndex);
+    void refreshTypedRecipeCatalog(previousCursor);
   }
 
   return (
@@ -410,7 +578,9 @@ export function ConnectorsScreen() {
       {caps !== null ? (
         <AlertBanner variant={caps.management ? 'success' : 'info'} title="Composition capabilities">
           management: <strong>{String(caps.management)}</strong> · credentialWorkflow:{' '}
-          <strong>{String(caps.credentialWorkflow)}</strong> · test: <strong>{String(caps.test)}</strong>
+          <strong>{String(caps.credentialWorkflow)}</strong> · typedCredentialStorage:{' '}
+          <strong>{String(caps.typedCredentialStorage === true)}</strong> · secretCatalogImport:{' '}
+          <strong>{String(caps.secretCatalogImport === true)}</strong> · test: <strong>{String(caps.test)}</strong>
           {caps.management ? (
             <>
               {' '}
@@ -475,7 +645,7 @@ export function ConnectorsScreen() {
         <Card>
           <CardHeader>
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <CardTitle>Connectors</CardTitle>
+              <CardTitle>Legacy Connector ledger</CardTitle>
               <Button size="sm" variant="outline" onClick={() => void refreshList()} disabled={busy}>
                 Refresh
               </Button>
@@ -593,6 +763,124 @@ export function ConnectorsScreen() {
         </Card>
       ) : null}
 
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <CardTitle>Typed recipe inventory</CardTitle>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => searchTypedRecipeCatalog()}
+              disabled={!validTenantSelected || typedCatalog.kind === 'loading'}
+            >
+              Refresh
+            </Button>
+          </div>
+          <CardDescription>
+            Tenant-owned typed recipe revisions across their persisted lifecycle states. The list contains safe metadata only; Open reads the exact revision into the recipe editor.
+          </CardDescription>
+          <div className="flex max-w-xl flex-col gap-2 sm:flex-row sm:items-end">
+            <FormField id="typed-recipe-catalog-search" label="Find a typed recipe" description="Search connector ID, adapter, or authentication kind.">
+              <Input
+                id="typed-recipe-catalog-search"
+                value={typedCatalogQuery}
+                onChange={(event) => setTypedCatalogQuery(event.target.value)}
+                maxLength={128}
+                disabled={!validTenantSelected || typedCatalog.kind === 'loading'}
+                onKeyDown={(event) => { if (event.key === 'Enter') searchTypedRecipeCatalog(); }}
+              />
+            </FormField>
+            <Button
+              variant="outline"
+              onClick={() => searchTypedRecipeCatalog()}
+              disabled={!validTenantSelected || typedCatalog.kind === 'loading'}
+            >
+              Search
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          {!validTenantSelected ? <AlertBanner variant="warning" title="Tenant scope required">Select a valid tenant to read typed recipes.</AlertBanner> : null}
+          {caps?.management === false ? <AlertBanner variant="info" title="Typed recipe catalog unavailable">Connector recipe management is not composed on this deployment.</AlertBanner> : null}
+          {typedCatalog.kind === 'idle' && validTenantSelected && caps?.management === true ? (
+            <Button variant="outline" onClick={() => void refreshTypedRecipeCatalog()}>
+              Load typed recipe catalog
+            </Button>
+          ) : null}
+          {typedCatalog.kind === 'loading' ? <LoadingState title="Loading typed recipe metadata…" /> : null}
+          {typedCatalog.kind === 'failed' ? (
+            <AlertBanner variant="error" title="Typed recipe catalog could not be read">
+              {typedCatalog.message} Refresh the page after the Connector catalog endpoint is available.
+            </AlertBanner>
+          ) : null}
+          {typedCatalog.kind === 'ready' && typedCatalog.data.items.length === 0 && typedCatalog.data.nextCursor === null && typedCatalogPageIndex === 0 ? (
+            <EmptyState
+              title="No typed recipe revisions"
+              description={typedCatalogQuery.trim() ? 'No typed recipes match this search.' : 'This tenant has no persisted typed Connector recipes.'}
+              actionText="Refresh"
+              onAction={() => searchTypedRecipeCatalog()}
+            />
+          ) : null}
+          {typedCatalog.kind === 'ready' && shouldShowTypedCatalogPageControls(typedCatalog.data, typedCatalogPageIndex) ? (
+            <>
+              {typedCatalog.data.items.length === 0 ? (
+                <AlertBanner
+                  variant="info"
+                  title={typedCatalog.data.nextCursor !== null ? 'No matches on this bounded page' : 'No further matches'}
+                >
+                  {typedCatalog.data.nextCursor !== null
+                    ? 'Continue to check the remaining typed recipe metadata pages.'
+                    : 'Return to the previous page to review the last matching typed recipe metadata.'}
+                </AlertBanner>
+              ) : null}
+              {typedCatalog.data.items.length > 0 ? <TableContainer maxHeight={360} aria-label="Typed Connector recipe inventory">
+                <Table aria-label="Typed recipes" density="compact">
+                  <TableHeader sticky>
+                    <TableRow>
+                      <TableHead>Connector</TableHead>
+                      <TableHead>Revision</TableHead>
+                      <TableHead>State</TableHead>
+                      <TableHead>Adapter</TableHead>
+                      <TableHead>Auth</TableHead>
+                      <TableHead>Credential</TableHead>
+                      <TableHead>Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {typedCatalog.data.items.map((row) => {
+                      const rowKey = `${row.connectorId}@${row.revision}`;
+                      return (
+                        <TableRow key={rowKey} data-state={selectedTypedCatalogKey === rowKey ? 'selected' : undefined}>
+                          <TableCell className="font-medium"><code className="break-all">{row.connectorId}</code></TableCell>
+                          <TableCell>{row.revision}</TableCell>
+                          <TableCell><Badge variant={connectorStateVariant(row.state)} dot>{row.state}</Badge></TableCell>
+                          <TableCell className="text-xs"><code>{row.adapter}</code></TableCell>
+                          <TableCell className="text-xs"><code>{row.authKind}</code></TableCell>
+                          <TableCell className="text-xs">{row.credentialConfigured ? 'Configured' : 'None'}</TableCell>
+                          <TableCell>
+                            <Button type="button" size="sm" variant="outline" disabled={busy || editorBusy} onClick={() => openTypedRecipe(row)}>
+                              Open
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </TableContainer> : null}
+              <TablePagination
+                hasPreviousPage={typedCatalogPageIndex > 0}
+                hasNextPage={typedCatalog.data.nextCursor !== null}
+                onPreviousPage={() => goToTypedCatalogPage('previous')}
+                onNextPage={() => goToTypedCatalogPage('next')}
+                status={`Page ${typedCatalogPageIndex + 1}; ${typedCatalog.data.items.length} typed recipe revision(s).`}
+                ariaLabel="Typed recipe catalog pagination"
+              />
+            </>
+          ) : null}
+        </CardContent>
+      </Card>
+
         </TabsPanel>
 
         <TabsPanel value="inspector" keepMounted className="space-y-4">
@@ -601,51 +889,24 @@ export function ConnectorsScreen() {
         <CardHeader>
           <CardTitle>Revision lookup</CardTitle>
           <CardDescription>
-            GET /admin/api/connectors/:id/revisions/:rev — the real ledger when management is
-            composed, otherwise the platform's honest degraded projection. Never a synthesised
-            revision.
+            Legacy revisions use GET /admin/api/connectors/:id/revisions/:rev. Exact typed tenant
+            recipe rows from the currently loaded catalog page have a separate Open Recipe action.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid min-w-0 grid-cols-1 items-start gap-3 md:grid-cols-[minmax(0,1fr)_minmax(9rem,0.4fr)_auto]">
           <div className="min-w-0 max-w-xl flex flex-col gap-2">
-            {customConnectorIdMode ? (
-              <FormField
-                id="custom-connector-id"
-                label="Custom Connector ID"
-                description="Leading and trailing spaces are trimmed before lookup."
-              >
-                <Input
-                  id="custom-connector-id"
-                  value={connectorId}
-                  onChange={(event) => setConnectorId(event.target.value)}
-                  placeholder="vendor-extract"
-                />
-              </FormField>
-            ) : (
-              <FormField id="connector-id" label="Connector ID">
-                <NativeSelect
-                  id="connector-id"
-                  value={connectorId}
-                  onChange={(event) => setConnectorId(event.currentTarget.value)}
-                >
-                  <option value="">
-                    {connectorSuggestions.length === 0 ? 'No connector IDs available' : 'Select a connector ID'}
-                  </option>
-                  {connectorSuggestions.map((id) => <option key={id} value={id}>{id}</option>)}
-                </NativeSelect>
-              </FormField>
-            )}
-            <Button
-              size="sm"
-              variant="link"
-              className="self-start"
-              onClick={() => {
-                setCustomConnectorIdMode(!customConnectorIdMode);
-                setConnectorId('');
-              }}
-            >
-              {customConnectorIdMode ? 'Choose a suggested ID' : 'Enter a custom ID'}
-            </Button>
+            <FormField id="connector-id" label="Connector ID" description="Choose a listed ID or enter an ID directly. Only persisted revisions for this exact ID are suggested below.">
+              <ReferenceInput
+                id="connector-id"
+                value={connectorId}
+                onValueChange={setConnectorId}
+                scopeKey={validTenantSelected ? tenantId : null}
+                loadOptions={loadConnectorIdSuggestions}
+                sourceVersion={JSON.stringify(connectorSuggestionOptions)}
+                placeholder="vendor-extract"
+                autoComplete="off"
+              />
+            </FormField>
           </div>
           <div className="min-w-0 max-w-[10rem]">
             <FormField id="connector-revision" label="Revision">
@@ -658,7 +919,7 @@ export function ConnectorsScreen() {
               />
               <datalist id="connector-revision-suggestions">
                 <option value="latest" />
-                {[...new Set(listRows.filter((row) => row.connectorId === connectorId.trim()).map((row) => row.revision))].map((rev) => <option key={rev} value={String(rev)} />)}
+                {selectedConnectorRevisions.map((rev) => <option key={rev} value={String(rev)} />)}
               </datalist>
             </FormField>
           </div>
@@ -667,8 +928,9 @@ export function ConnectorsScreen() {
             onClick={() => void fetchRevision(connectorId.trim(), revision.trim() || 'latest')}
             disabled={connectorId.trim().length === 0}
           >
-            Load revision
+            Load legacy revision
           </Button>
+          {selectedTypedRecipeRevision ? <Button variant="outline" disabled={busy || editorBusy} onClick={() => openTypedRecipe(selectedTypedRecipeRevision)}>Open Recipe {selectedTypedRecipeRevision.state} rev {selectedTypedRecipeRevision.revision}</Button> : null}
         </CardContent>
       </Card>
 
@@ -853,6 +1115,9 @@ export function ConnectorsScreen() {
             savedAttempt={savedParityAttempt}
             onAttemptChange={(attempt) => { if (tenantId) rememberParityAttempt(tenantId, attempt); }}
             capabilities={caps}
+            catalogSelection={typedCatalogOpenRequest}
+            onRecipeCatalogChange={onRecipeCatalogChange}
+            onEditorBusyChange={notifyEditorBusy}
           />
         </TabsPanel>
 

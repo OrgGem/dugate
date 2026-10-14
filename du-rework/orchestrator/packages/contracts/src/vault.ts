@@ -182,15 +182,24 @@ const VaultKvV2CredentialSourceCompatibility = VaultKv2RefObject.extend({
 export const LegacyDbCredentialSourceSchema = z
   .object({ kind: z.literal('legacy-db'), credentialRef: z.string().min(1).max(512) })
   .strict();
+/** Connector-owned typed credential envelope. A new opaque ref is minted for
+ * every revision; each ciphertext is sealed to that revision's row binding. */
+export const EncryptedDbCredentialSourceSchema = z.object({
+  kind: z.literal('encrypted-db'),
+  credentialRef: z.string().uuid(),
+  version: VaultVersionSchema,
+}).strict();
 export const ConnectorCredentialSourceSchema = z
   .union([
     LegacyDbCredentialSourceSchema,
+    EncryptedDbCredentialSourceSchema,
     VaultKv2CredentialSource,
     VaultKvV2CredentialSourceCompatibility,
   ])
   .transform((source) => source.kind === 'vault-kv-v2' ? { ...source, kind: 'vault-kv2' as const } : source);
 export type ConnectorCredentialSource = z.infer<typeof ConnectorCredentialSourceSchema>;
 export type VaultCredentialSource = Extract<ConnectorCredentialSource, { kind: 'vault-kv2' }>;
+export type EncryptedDbCredentialSource = Extract<ConnectorCredentialSource, { kind: 'encrypted-db' }>;
 
 /** Trusted coordinates stored independently on a connector revision row. */
 export const ConnectorRevisionBindingSchema = z.object({

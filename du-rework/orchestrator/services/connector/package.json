@@ -9,7 +9,11 @@
     "test": "jest --runInBand",
     "test:unit": "jest --config jest.unit.config.cjs --runInBand --forceExit",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "lint": "tsc --noEmit -p tsconfig.json"
+    "lint": "tsc --noEmit -p tsconfig.json",
+    "migrate": "pnpm run build && node dist/migrate-cli.js migrate",
+    "migrate:status": "pnpm run build && node dist/migrate-cli.js status",
+    "migrate:verify": "pnpm run build && node dist/migrate-cli.js verify",
+    "migrate:baseline-reviewed": "pnpm run build && node dist/migrate-cli.js baseline-reviewed"
   },
   "dependencies": {
     "@du/contracts": "workspace:*",

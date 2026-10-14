@@ -20,7 +20,6 @@
  *
  * Offline: scripted Pool, closed-port Redis, no PG/Redis/Vault.
  */
-import { join } from 'node:path';
 import { createHash, createHmac } from 'node:crypto';
 import { createApp, type App } from '../src/server';
 import {
@@ -29,7 +28,7 @@ import {
 } from '../src/modules/runtime/metadata-crypto';
 import { adaptKeyProviderForMetadata } from '../src/modules/encryption/metadata-key-adapter';
 import type { KeyProvider, WrapDekInput, WrappedDek } from '../src/modules/encryption/vault-transit-provider';
-import { loadMigrationFiles } from '../src/db/migrations';
+import { currentAppliedMigrationLedger, mockMigrationMetadataColumnsResult } from './helpers/migration-ledger-fixture';
 import { mockCreateStorageGenerationFixture, mockOpenBackupEffectGateResult } from './helpers/backup-effect-gate';
 
 const KEY_REF = 'crx01-createapp-v1';
@@ -101,6 +100,8 @@ jest.mock('pg', () => {
       return write();
     }
     if (text.includes('INSERT INTO outbox')) return write();
+    const metadataColumns = mockMigrationMetadataColumnsResult(text, params);
+      if (metadataColumns) return metadataColumns;
     if (/information_schema\.tables/i.test(text)) return { rows: [{ exists: true }], rowCount: 1 };
     if (/SELECT count\(\*\)::int/i.test(text)) return { rows: [{ count: state.schemaLedger.length }], rowCount: 1 }
     if (/FROM schema_migrations/i.test(text)) {
@@ -267,9 +268,7 @@ describe('CRX-01: createApp submit path seals control-plane metadata', () => {
   const apps: App[] = [];
 
   beforeAll(() => {
-    scripted().schemaLedger = loadMigrationFiles(join(__dirname, '..', 'migrations')).map(
-      (file) => ({ sequence: file.sequence, filename: file.filename }),
-    );
+    scripted().schemaLedger = currentAppliedMigrationLedger();
   });
 
   beforeEach(() => {

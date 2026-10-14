@@ -252,6 +252,9 @@ function validateWrappedDek(value: unknown): WrappedDek {
     || typeof value.ciphertext !== 'string'
     || value.ciphertext.length < 1
     || value.ciphertext.length > 16 * 1024
+    || (value.providerKind !== undefined
+      && value.providerKind !== 'vault-transit'
+      && value.providerKind !== 'local-keyring')
   ) {
     invalidManifest('Wrapped DEK metadata is invalid');
   }
@@ -259,6 +262,7 @@ function validateWrappedDek(value: unknown): WrappedDek {
     keyRef: value.keyRef,
     keyVersion: value.keyVersion as number,
     ciphertext: value.ciphertext,
+    ...(value.providerKind === undefined ? {} : { providerKind: value.providerKind }),
   };
 }
 
@@ -291,6 +295,7 @@ function unsignedManifest(manifest: EncryptedStorageManifest): Omit<EncryptedSto
       keyRef: manifest.dek.keyRef,
       keyVersion: manifest.dek.keyVersion,
       ciphertext: manifest.dek.ciphertext,
+      ...(manifest.dek.providerKind === undefined ? {} : { providerKind: manifest.dek.providerKind }),
     },
   };
 }
@@ -503,7 +508,7 @@ class CiphertextReader {
 
 /**
  * Application storage boundary. Each object gets a fresh random 256-bit DEK;
- * only the Vault Transit wrapped form is returned with persisted ciphertext.
+ * only the configured provider's wrapped form is returned with ciphertext.
  */
 export class CryptoStorageFacade {
   private readonly keyProvider: CryptoKeyProvider;

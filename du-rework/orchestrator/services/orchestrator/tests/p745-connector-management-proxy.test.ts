@@ -124,6 +124,155 @@ describe('CONNECTOR-WIRE-A management store', () => {
       .rejects.toMatchObject({ status: 502, code: 'CONNECTOR_API_ERROR' });
   });
 
+  it('claims an ordinary typed draft before sending its upsert', async () => {
+    const tenantId = '00000000-0000-0000-0000-000000000001';
+    const recipe = {
+      adapter: 'json-http',
+      method: 'POST',
+      endpointUrl: 'https://api.example.invalid/v1/generate',
+      auth: { kind: 'none' },
+      headers: [],
+      request: { promptField: 'prompt', modelField: 'model', inputField: 'input', fields: [] },
+      response: { contentPath: 'content' },
+      session: { capture: [], inject: [] },
+      timeoutMs: 30_000,
+      responseBytes: 262_144,
+    };
+    const { fetchImpl, calls } = scriptedFetch((url) => url.endsWith('/claim')
+      ? jsonResponse(200, { claimed: true, expectedHeadRevision: 0 })
+      : url.endsWith('/draft')
+        ? jsonResponse(201, {
+            revision: {
+              tenantId,
+              connectorId: 'mock-connector',
+              revision: 1,
+              state: 'PENDING',
+              recipe,
+              credentialRef: null,
+              credentialVersion: null,
+              expectedHeadRevision: 0,
+            },
+            expectedHeadRevision: 0,
+            replayed: false,
+          })
+        : jsonResponse(404, { error: { code: 'NOT_FOUND' } }));
+
+    await expect(store(fetchImpl).upsertRecipeDraft({
+      tenantId,
+      connectorId: 'mock-connector',
+      expectedHeadRevision: 0,
+      recipe,
+      credentialChange: { action: 'keep' },
+      idempotencyKey: 'draft-claim-key-001',
+    })).resolves.toMatchObject({ revision: { tenantId, connectorId: 'mock-connector', state: 'PENDING' } });
+
+    expect(calls.map(({ method, url }) => ({ method, url }))).toEqual([
+      { method: 'POST', url: 'http://connector.test/internal/admin/connector-revisions/mock-connector/claim' },
+      { method: 'PUT', url: 'http://connector.test/internal/admin/connector-revisions/mock-connector/draft' },
+    ]);
+    expect(calls[0]?.body).toEqual({ tenantId, expectedHeadRevision: 0, idempotencyKey: 'draft-claim-key-001' });
+    expect(calls[1]?.body).toMatchObject({ tenantId, expectedHeadRevision: 0, credentialChange: { action: 'keep' }, idempotencyKey: 'draft-claim-key-001' });
+  });
+
+  it('does not send a typed draft when the Connector claim is refused', async () => {
+    const { fetchImpl, calls } = scriptedFetch(() => jsonResponse(200, { claimed: false, expectedHeadRevision: 0 }));
+    await expect(store(fetchImpl).upsertRecipeDraft({
+      tenantId: '00000000-0000-0000-0000-000000000001',
+      connectorId: 'mock-connector',
+      expectedHeadRevision: 0,
+      recipe: {
+        adapter: 'json-http', method: 'POST', endpointUrl: 'https://api.example.invalid/v1/generate',
+        auth: { kind: 'none' }, headers: [],
+        request: { promptField: 'prompt', modelField: 'model', inputField: 'input', fields: [] },
+        response: { contentPath: 'content' }, session: { capture: [], inject: [] }, timeoutMs: 30_000, responseBytes: 262_144,
+      },
+      credentialChange: { action: 'keep' },
+      idempotencyKey: 'refused-claim-key-01',
+    })).rejects.toMatchObject({ status: 409, code: 'CONNECTOR_SCOPE_CONFLICT' });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.method).toBe('POST');
+  });
+
+  it('probes the exact configured Connector for Secret Catalog import and treats missing capability as false', async () => {
+    const calls: string[] = [];
+    const store = createConnectorManagementStore({
+      baseUrlFor: (connectorId) => {
+        if (connectorId === 'connector-alpha') return 'http://alpha.connector.test';
+        if (connectorId === 'connector-beta') return 'http://beta.connector.test';
+        throw new Error('no implicit service target');
+      },
+      capabilityProbeTargets: ['connector-alpha', 'connector-beta'],
+      authorizationForRequest: (scope) => {
+        expect(scope).toBe('connector:management');
+        return 'Bearer signed-capability-probe';
+      },
+      fetchImpl: async (url) => {
+        calls.push(String(url));
+        return jsonResponse(200, {
+          adapters: ['json-http'],
+          secretCatalogImport: String(url).includes('alpha'),
+          typedCredentialStorage: String(url).includes('alpha'),
+        });
+      },
+    });
+
+    await expect(store.secretCatalogImportAvailable?.('connector-beta')).resolves.toBe(false);
+    expect(calls).toEqual(['http://beta.connector.test/internal/admin/connector-capabilities']);
+
+    calls.length = 0;
+    await expect(store.typedCredentialStorageAvailableForAllConfiguredTargets?.()).resolves.toBe(false);
+    expect(calls).toEqual([
+      'http://alpha.connector.test/internal/admin/connector-capabilities',
+      'http://beta.connector.test/internal/admin/connector-capabilities',
+    ]);
+
+    calls.length = 0;
+    await expect(store.secretCatalogImportAvailableForAllConfiguredTargets?.()).resolves.toBe(false);
+    expect(calls).toEqual([
+      'http://alpha.connector.test/internal/admin/connector-capabilities',
+      'http://beta.connector.test/internal/admin/connector-capabilities',
+    ]);
+  });
+
+  it('requires every configured target to explicitly advertise Secret Catalog import', async () => {
+    let enabled = true;
+    const store = createConnectorManagementStore({
+      baseUrlFor: (connectorId) => connectorId === 'mock-connector'
+        ? 'http://connector.test'
+        : (() => { throw new Error('missing exact mapping'); })(),
+      capabilityProbeTargets: ['mock-connector'],
+      authorizationForRequest: () => 'Bearer signed-capability-probe',
+      fetchImpl: async () => jsonResponse(200, enabled ? { secretCatalogImport: true } : { adapters: ['json-http'] }),
+    });
+    await expect(store.secretCatalogImportAvailableForAllConfiguredTargets?.()).resolves.toBe(true);
+    enabled = false;
+    await expect(store.secretCatalogImportAvailableForAllConfiguredTargets?.()).resolves.toBe(false);
+
+    const oldConnector = createConnectorManagementStore({
+      baseUrlFor: () => 'http://old.connector.test',
+      authorizationForRequest: () => 'Bearer signed-capability-probe',
+      fetchImpl: async () => jsonResponse(404, { error: { code: 'NOT_FOUND' } }),
+    });
+    await expect(oldConnector.secretCatalogImportAvailable?.('mock-connector')).resolves.toBe(false);
+  });
+
+  it('requires every configured target to advertise typed credential storage', async () => {
+    let enabled = true;
+    const store = createConnectorManagementStore({
+      baseUrlFor: (connectorId) => connectorId === 'mock-connector'
+        ? 'http://connector.test'
+        : (() => { throw new Error('missing exact mapping'); })(),
+      capabilityProbeTargets: ['mock-connector'],
+      authorizationForRequest: () => 'Bearer signed-capability-probe',
+      fetchImpl: async () => jsonResponse(200, enabled
+        ? { typedCredentialStorage: true }
+        : { typedCredentialStorage: false, credentialWorkflow: true }),
+    });
+    await expect(store.typedCredentialStorageAvailableForAllConfiguredTargets?.()).resolves.toBe(true);
+    enabled = false;
+    await expect(store.typedCredentialStorageAvailableForAllConfiguredTargets?.()).resolves.toBe(false);
+  });
+
   it('transport failure is 503 TEMPORARY_UNAVAILABLE (reconcile — never assume no-write)', async () => {
     const fetchImpl = (async () => {
       throw new Error('ECONNREFUSED');
@@ -208,6 +357,8 @@ describe('CONNECTOR-WIRE-A admin routes (thin reads + capability advertisement)'
       body: {
         management: false,
         credentialWorkflow: false,
+        typedCredentialStorage: false,
+        secretCatalogImport: false,
         test: false,
         knownConnectorIds: ['vendor-alpha', 'vendor-beta'],
       },
@@ -216,11 +367,11 @@ describe('CONNECTOR-WIRE-A admin routes (thin reads + capability advertisement)'
     expect(JSON.stringify(response)).not.toContain('do-not-leak');
   });
 
-  it('capabilities are composition-derived and flip together with the store', async () => {
+  it('capabilities report managed Secret Catalog import separately from legacy Vault workflow', async () => {
     const without = await handleAdminRoutes(ctx({ pathname: '/api/v1/admin/connectors/capabilities' }));
     expect(without).toEqual({
       status: 200,
-      body: { management: false, credentialWorkflow: false, test: false, knownConnectorIds: [] },
+      body: { management: false, credentialWorkflow: false, typedCredentialStorage: false, secretCatalogImport: false, test: false, knownConnectorIds: [] },
     });
 
     const with_ = await handleAdminRoutes(
@@ -228,7 +379,21 @@ describe('CONNECTOR-WIRE-A admin routes (thin reads + capability advertisement)'
     );
     expect(with_).toEqual({
       status: 200,
-      body: { management: true, credentialWorkflow: true, test: true, knownConnectorIds: [] },
+      body: { management: true, credentialWorkflow: true, typedCredentialStorage: false, secretCatalogImport: false, test: true, knownConnectorIds: [] },
+    });
+
+    const importStore = createConnectorManagementStore({
+      baseUrlFor: () => 'http://connector.test',
+      capabilityProbeTargets: ['mock-connector'],
+      authorizationForRequest: () => 'Bearer signed-capability-probe',
+      fetchImpl: async () => jsonResponse(200, { typedCredentialStorage: true, secretCatalogImport: true }),
+    });
+    const managedImport = await handleAdminRoutes(
+      ctx({ pathname: '/api/v1/admin/connectors/capabilities', connectorManagement: importStore, connectorSecretImports: {} }),
+    );
+    expect(managedImport).toEqual({
+      status: 200,
+      body: { management: true, credentialWorkflow: false, typedCredentialStorage: true, secretCatalogImport: true, test: true, knownConnectorIds: [] },
     });
   });
 

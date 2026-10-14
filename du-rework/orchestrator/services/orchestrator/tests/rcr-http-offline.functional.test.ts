@@ -1,5 +1,4 @@
 import net from 'node:net';
-import { join } from 'node:path';
 import type { QueryResult, QueryResultRow } from 'pg';
 import { canonicalRequestHash } from '@du/contracts';
 import { createApp, type App } from '../src/server';
@@ -8,7 +7,7 @@ import { createSubmissionService } from '../src/modules/operations/submission';
 import type { Db } from '../src/db/db';
 import type { ProfileService } from '../src/modules/profiles/profiles';
 import type { RegistryService } from '../src/modules/registry/registry';
-import { loadMigrationFiles } from '../src/db/migrations';
+import { currentAppliedMigrationLedger, mockMigrationMetadataColumnsResult } from './helpers/migration-ledger-fixture';
 
 /**
  * RCR-HTTP regression pins (review orchestrator-app-core-review-2026-10-05):
@@ -45,6 +44,8 @@ jest.mock('pg', () => {
     if (backupGate) return backupGate;
     const storage = getMockStorage().answer(text, params);
     if (storage) return storage;
+    const metadataColumns = mockMigrationMetadataColumnsResult(text, params);
+      if (metadataColumns) return metadataColumns;
     if (/information_schema\.tables/i.test(text)) return { rows: [{ exists: true }], rowCount: 1 };
     if (/SELECT count\(\*\)::int/i.test(text)) return { rows: [{ count: state.schemaLedger.length }], rowCount: 1 }
     if (/FROM schema_migrations/i.test(text)) {
@@ -100,9 +101,7 @@ describe('RCR-01: listener failure boundary (real createApp listener)', () => {
   };
 
   beforeAll(async () => {
-    (jest.requireMock('pg') as { __duState: { schemaLedger: unknown[] } }).__duState.schemaLedger = loadMigrationFiles(
-      join(__dirname, '..', 'migrations'),
-    ).map((file) => ({ sequence: file.sequence, filename: file.filename }));
+    (jest.requireMock('pg') as { __duState: { schemaLedger: unknown[] } }).__duState.schemaLedger = currentAppliedMigrationLedger();
     process.on('unhandledRejection', onUnhandled);
     app = await createApp({
       port: 0,

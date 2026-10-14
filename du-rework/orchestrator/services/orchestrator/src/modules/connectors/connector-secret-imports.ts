@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import {
   ConnectorDraftUpsertSchema,
   ConnectorParityDraftResultSchema,
+  isTenantUuid,
   type ConnectorDraftUpsert,
   type ConnectorParityDraftResult,
 } from '@du/contracts';
@@ -15,8 +16,10 @@ import type { BackupSnapshotWriteGate } from '../maintenance/backup-effect-fence
 import type { MetadataCrypto, SealedMetadata } from '../runtime/metadata-crypto';
 import { metadataPlaintextHash } from '../runtime/metadata-crypto';
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const IMPORTED_CREDENTIAL_REF = /^recipe-[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+// Existing Vault-backed revisions use `recipe-<uuid>`; the encrypted-db
+// writer uses a canonical UUID. These are the only opaque reference shapes
+// accepted from the trusted Connector response.
+const IMPORTED_CREDENTIAL_REF = /^(?:recipe-)?[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CONNECTOR_ID = /^[A-Za-z0-9][A-Za-z0-9_.:@/-]{0,127}$/;
 const KEY_VERSION = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 const IMPORT_LEASE_MS = 90_000;
@@ -123,7 +126,7 @@ function parseResolvedPayload(value: unknown): ResolvedPayload {
     throw new HttpError(503, 'SECRET_IMPORT_UNAVAILABLE', 'stored Connector credential import is invalid');
   }
   const credential = row.credentialChange as Record<string, unknown>;
-  if (typeof row.tenantId !== 'string' || !UUID.test(row.tenantId)
+  if (!isTenantUuid(row.tenantId)
       || typeof row.connectorId !== 'string' || !CONNECTOR_ID.test(row.connectorId)
       || !Number.isSafeInteger(row.expectedHeadRevision) || (row.expectedHeadRevision as number) < 0
       || typeof row.idempotencyKey !== 'string' || row.idempotencyKey.length < 8

@@ -11,6 +11,7 @@ test('composition readiness includes both durable dependency probes and drains',
   let databaseReady = false;
   let redisReady = true;
   let closed = false;
+  const migrationCalls: string[] = [];
   const composition = createConnectorComposition({
     port: 0,
     databaseUrl: 'postgres://unused',
@@ -49,6 +50,8 @@ test('composition readiness includes both durable dependency probes and drains',
     },
     pingDatabase: async () => databaseReady,
     pingRedis: async () => redisReady,
+    migrate: async () => { migrationCalls.push('migrate'); },
+    verifyMigrations: async () => { migrationCalls.push('verify'); },
     close: async () => { closed = true; },
   });
 
@@ -56,6 +59,7 @@ test('composition readiness includes both durable dependency probes and drains',
   databaseReady = true;
   await expect(composition.dependencies.ready()).resolves.toBe(true);
   await composition.start();
+  expect(migrationCalls).toEqual(['migrate', 'verify']);
   await composition.shutdown();
   expect(closed).toBe(true);
 });

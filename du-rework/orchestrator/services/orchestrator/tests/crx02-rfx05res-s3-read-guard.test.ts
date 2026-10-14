@@ -27,7 +27,6 @@
 import http from 'node:http';
 import { createHmac, createHash } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
-import { join } from 'node:path';
 import { createApp, type App } from '../src/server';
 import { CryptoStorageFacade } from '../src/modules/encryption/crypto-storage-facade';
 import type { KeyProvider, WrapDekInput, WrappedDek } from '../src/modules/encryption/vault-transit-provider';
@@ -38,7 +37,7 @@ import {
   PUBLIC_UPLOAD_PURPOSE,
   manifestKeyFor,
 } from '../src/modules/encryption/artifact-read-decrypt';
-import { loadMigrationFiles } from '../src/db/migrations';
+import { currentAppliedMigrationLedger, mockMigrationMetadataColumnsResult } from './helpers/migration-ledger-fixture';
 
 const BUCKET = 'du-crx02-bucket';
 const KEY_REF = 'crx02-read-key-v1';
@@ -96,6 +95,8 @@ jest.mock('pg', () => {
   interface PgResult { rows: unknown[]; rowCount: number }
   function answer(sql: string, params: unknown[] = []): PgResult {
     const text = String(sql).replace(/\s+/g, ' ').trim();
+    const metadataColumns = mockMigrationMetadataColumnsResult(text, params);
+      if (metadataColumns) return metadataColumns;
     if (/information_schema\.tables/i.test(text)) return { rows: [{ exists: true }], rowCount: 1 };
     if (/SELECT count\(\*\)::int/i.test(text)) return { rows: [{ count: state.schemaLedger.length }], rowCount: 1 }
     if (/FROM schema_migrations/i.test(text)) {
@@ -414,9 +415,7 @@ describe('CRX-02 + RFX-05-residual: S3 read guard and manifest-version wiring th
     process.env.AWS_ACCESS_KEY_ID = 'du-crx02-test-key';
     process.env.AWS_SECRET_ACCESS_KEY = 'du-crx02-test-secret';
     process.env.AWS_EC2_METADATA_DISABLED = 'true';
-    scripted().schemaLedger = loadMigrationFiles(join(__dirname, '..', 'migrations')).map(
-      (file) => ({ sequence: file.sequence, filename: file.filename }),
-    );
+    scripted().schemaLedger = currentAppliedMigrationLedger();
     scripted().apiKeys.push({ id: 'k1', tenant_id: TENANT, hash: API_KEY_HASH, status: 'ACTIVE' });
     s3 = startS3Stub();
     await s3.listen();

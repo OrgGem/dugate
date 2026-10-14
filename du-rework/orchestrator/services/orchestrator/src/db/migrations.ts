@@ -1,113 +1,477 @@
 /**
- * Explicit one-shot migration runner (R08-06 / P2-01).
+ * Orchestrator migration runner.
  *
- * Tracks applied migrations in a `schema_migrations` table so each SQL file
- * runs exactly once, regardless of how many times the server boots. The
- * `migrate()` function is idempotent and safe to call on any database —
- * including test databases that already have the schema from a prior run.
- *
- * Production deployment order:
- *   1. `npm run migrate`  (apply pending SQL files, verify after)
- *   2. `npm start`        (server boots, skips migration)
- *
- * Rollback: each migration SQL is additive (CREATE IF NOT EXISTS). A
- * rollback would revert code to a prior version; the schema remains
- * forward-compatible. Down-migrations are not implemented in v1.
+ * Migration checksums use SHA-256 over UTF-8 SQL after converting CRLF to LF.
+ * This keeps a Windows checkout and a Unix checkout equivalent while still
+ * detecting every other content change. Existing ledgers have no trustworthy
+ * checksum; operators must run the explicit reviewed-baseline command once.
  */
 
+import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import type { PoolClient } from 'pg';
 import type { Db } from './db';
 
-// Migrations live next to the package root (services/orchestrator/migrations),
-// one level up from this file in both source (src/db) and compiled (dist/db).
 const MIGRATIONS_DIR = join(__dirname, '../../migrations');
+const TRACKING_TABLE = 'schema_migrations';
+const REQUIRED_METADATA_COLUMNS = ['checksum', 'checksum_provenance', 'baseline_reviewed_at'];
+const MIGRATION_LOCK_SQL = "SELECT pg_advisory_lock(hashtext('dugate'), hashtext('schema-migrations'))";
+const MIGRATION_UNLOCK_SQL = "SELECT pg_advisory_unlock(hashtext('dugate'), hashtext('schema-migrations'))";
 
-interface MigrationFile {
+export interface MigrationFile {
   filename: string;
   sequence: number;
   sql: string;
+  checksum: string;
+}
+
+interface LedgerRow {
+  sequence: number | string;
+  filename: string;
+  checksum: string | null;
+  checksum_provenance: string | null;
+  baseline_reviewed_at: Date | string | null;
+}
+
+interface MigrationInspection {
+  hasTable: boolean;
+  files: MigrationFile[];
+  rows: LedgerRow[];
+  rowsBySequence: Map<number, LedgerRow>;
+  pending: MigrationFile[];
+  unknownChecksums: string[];
+  baselineProvenance: string[];
+  problems: string[];
+}
+
+export interface MigrationStatus {
+  total: number;
+  applied: number;
+  pending: string[];
+  unknownChecksums: string[];
+  baselineProvenance: string[];
+  integrityProblems: string[];
 }
 
 /**
- * Load migration files from disk, sorted by their numeric prefix.
- * Only filenames matching /^\d{4}_.*\.sql$/ are considered.
+ * Hash SQL deterministically across Windows and Unix checkout line endings.
+ * Only CRLF pairs are normalized; all other bytes remain significant.
  */
+export function migrationChecksum(sql: string): string {
+  return createHash('sha256').update(sql.replace(/\r\n/g, '\n'), 'utf8').digest('hex');
+}
+
+/** Load migrations sorted by their unique four-digit numeric prefix. */
 export function loadMigrationFiles(dir: string): MigrationFile[] {
   const files = readdirSync(dir)
-    .filter((f) => /^\d{4}_.*\.sql$/.test(f))
+    .filter((filename) => /^\d{4}_.*\.sql$/.test(filename))
     .sort();
-  const loaded = files.map((filename) => ({
-    filename,
-    sequence: parseInt(filename.slice(0, 4), 10),
-    sql: readFileSync(join(dir, filename), 'utf8'),
-  }));
-  // Cycle-84 guard (reviewer R1-A/R2-A collision finding): two files
-  // sharing the 4-digit prefix produced two inserts of the same
-  // schema_migrations PK — migrate() crashed mid-run, the second file's
-  // DDL rolled back, and EVERY later verify/migrate false-greens because
-  // sequence 11 was already recorded. Duplicate prefixes are a packaging
-  // bug, so fail loudly at load time (boot, migrate and verify all call
-  // this) instead of corrupting the ledger.
+  const loaded = files.map((filename) => {
+    const sql = readFileSync(join(dir, filename), 'utf8');
+    return {
+      filename,
+      sequence: Number.parseInt(filename.slice(0, 4), 10),
+      sql,
+      checksum: migrationChecksum(sql),
+    };
+  });
   const seen = new Map<number, string>();
-  for (const m of loaded) {
-    const previous = seen.get(m.sequence);
+  for (const migration of loaded) {
+    const previous = seen.get(migration.sequence);
     if (previous !== undefined) {
       throw new Error(
-        `duplicate migration sequence ${m.sequence}: ${previous} and ${m.filename} — renumber one file before running`
+        `duplicate migration sequence ${migration.sequence}: ${previous} and ${migration.filename} — renumber one file before running`,
       );
     }
-    seen.set(m.sequence, m.filename);
+    seen.set(migration.sequence, migration.filename);
   }
   return loaded;
 }
 
-/**
- * Ensure the tracking table exists. Uses IF NOT EXISTS — safe to run
- * on every `migrate()` call or on a database that never saw a migration.
- */
-async function ensureTrackingTable(db: Db): Promise<void> {
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS schema_migrations (
-      sequence    integer PRIMARY KEY,
-      filename    text NOT NULL,
-      applied_at  timestamptz NOT NULL DEFAULT now()
-    )
-  `);
-}
-
-/**
- * Return the applied ledger keyed by sequence, keeping the recorded
- * filename. Cycle-84: filename matters — a sequence recorded under a
- * different filename means the ledger and the files on disk diverged
- * (renumbered/renamed migration), which sequence-only checks false-green.
- */
-async function appliedMigrations(db: Db): Promise<Map<number, string>> {
-  const res = await db.query<{ sequence: number; filename: string }>(
-    'SELECT sequence, filename FROM schema_migrations'
-  );
-  return new Map(res.rows.map((r) => [Number(r.sequence), r.filename]));
-}
-
-/**
- * Read-only check that the tracking table exists. Does not create it.
- */
 async function trackingTableExists(db: Db): Promise<boolean> {
-  const res = await db.query<{ exists: boolean }>(
+  const result = await db.query<{ exists: boolean }>(
     `SELECT EXISTS (
        SELECT 1 FROM information_schema.tables
-       WHERE table_schema = 'public' AND table_name = 'schema_migrations'
-     ) AS exists`
+       WHERE table_schema = current_schema() AND table_name = $1
+     ) AS exists`,
+    [TRACKING_TABLE],
   );
-  return res.rows[0]?.exists ?? false;
+  return result.rows[0]?.exists === true;
+}
+
+async function trackingMetadataColumns(db: Db): Promise<Set<string>> {
+  const result = await db.query<{ column_name: string }>(
+    `SELECT column_name FROM information_schema.columns
+     WHERE table_schema = current_schema() AND table_name = $1
+       AND column_name = ANY($2::text[])`,
+    [TRACKING_TABLE, REQUIRED_METADATA_COLUMNS],
+  );
+  return new Set(result.rows.map((row) => row.column_name));
+}
+
+/** Query-only inspection shared by status, verify, migration, and baseline. */
+async function inspectMigrations(db: Db, files: MigrationFile[]): Promise<MigrationInspection> {
+  const hasTable = await trackingTableExists(db);
+  if (!hasTable) {
+    return {
+      hasTable,
+      files,
+      rows: [],
+      rowsBySequence: new Map(),
+      pending: files,
+      unknownChecksums: [],
+      baselineProvenance: [],
+      problems: [],
+    };
+  }
+
+  const metadataColumns = await trackingMetadataColumns(db);
+  const hasCompleteMetadata = REQUIRED_METADATA_COLUMNS.every((column) => metadataColumns.has(column));
+  const countResult = await db.query<{ count: number | string }>(
+    `SELECT count(*)::int AS count FROM ${TRACKING_TABLE}`,
+  );
+  const count = Number(countResult.rows[0]?.count ?? 0);
+  const rowSql = hasCompleteMetadata
+    ? `SELECT sequence, filename, checksum, checksum_provenance, baseline_reviewed_at
+       FROM ${TRACKING_TABLE} ORDER BY sequence`
+    : `SELECT sequence, filename, NULL::text AS checksum, NULL::text AS checksum_provenance,
+         NULL::timestamptz AS baseline_reviewed_at FROM ${TRACKING_TABLE} ORDER BY sequence`;
+  const rowResult = await db.query<LedgerRow>(rowSql);
+  const rows = rowResult.rows;
+  const rowsBySequence = new Map<number, LedgerRow>();
+  const problems: string[] = [];
+  const unknownChecksums: string[] = [];
+  const baselineProvenance: string[] = [];
+  const filesBySequence = new Map(files.map((file) => [file.sequence, file]));
+
+  if (!Number.isSafeInteger(count) || count < 0 || count !== rows.length) {
+    problems.push(`ledger row count is ${count}, but the row query returned ${rows.length}`);
+  }
+
+  for (const row of rows) {
+    const sequence = Number(row.sequence);
+    if (!Number.isSafeInteger(sequence) || sequence < 0) {
+      problems.push(`ledger contains an unusable sequence value '${String(row.sequence)}'`);
+      continue;
+    }
+    if (rowsBySequence.has(sequence)) {
+      problems.push(`ledger contains duplicate sequence ${sequence}`);
+      continue;
+    }
+    rowsBySequence.set(sequence, row);
+
+    const file = filesBySequence.get(sequence);
+    if (!file) {
+      problems.push(`ledger sequence ${sequence} (${row.filename}) has no migration file on disk`);
+      continue;
+    }
+    if (row.filename !== file.filename) {
+      problems.push(
+        `sequence ${sequence} is recorded as '${row.filename}' but the file on disk is '${file.filename}'`,
+      );
+      continue;
+    }
+
+    if (row.checksum === null && row.checksum_provenance === null) {
+      unknownChecksums.push(file.filename);
+      continue;
+    }
+    if (row.checksum === null || row.checksum_provenance === null) {
+      problems.push(`checksum metadata is incomplete for ${file.filename}`);
+      continue;
+    }
+    if (!/^[a-f0-9]{64}$/.test(row.checksum)) {
+      problems.push(`ledger checksum for ${file.filename} is not a lowercase SHA-256 digest`);
+      continue;
+    }
+    if (row.checksum_provenance !== 'migration' && row.checksum_provenance !== 'reviewed-baseline') {
+      problems.push(`ledger checksum provenance for ${file.filename} is unrecognized`);
+      continue;
+    }
+    if (row.checksum_provenance === 'reviewed-baseline') {
+      if (row.baseline_reviewed_at === null) {
+        problems.push(`reviewed baseline timestamp is missing for ${file.filename}`);
+        continue;
+      }
+      baselineProvenance.push(file.filename);
+    } else if (row.baseline_reviewed_at !== null) {
+      problems.push(`migration-applied row unexpectedly has a baseline timestamp for ${file.filename}`);
+      continue;
+    }
+    if (row.checksum !== file.checksum) {
+      problems.push(`checksum drift for ${file.filename}: ledger ${row.checksum}, file ${file.checksum}`);
+    }
+  }
+
+  const pending = files.filter((file) => !rowsBySequence.has(file.sequence));
+  return { hasTable, files, rows, rowsBySequence, pending, unknownChecksums, baselineProvenance, problems };
+}
+
+function ledgerProblemMessage(inspection: MigrationInspection, allowUnknown: boolean): string | undefined {
+  const details = [...inspection.problems];
+  if (!allowUnknown && inspection.unknownChecksums.length > 0) {
+    details.push(
+      `checksum baseline is unknown for [${inspection.unknownChecksums.join(', ')}]; review the existing database and run "pnpm run migrate:baseline-reviewed" once`,
+    );
+  }
+  return details.length > 0 ? `migration ledger integrity check failed: ${details.join('; ')}` : undefined;
+}
+
+type MarkClientUnusable = (error: unknown) => void;
+
+function clientReleaseError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(`migration client cleanup failed: ${String(error)}`);
+}
+
+async function runTransaction<T>(
+  client: PoolClient,
+  work: () => Promise<T>,
+  markClientUnusable: MarkClientUnusable,
+): Promise<T> {
+  try {
+    await client.query('BEGIN');
+    const result = await work();
+    await client.query('COMMIT');
+    return result;
+  } catch (error) {
+    try {
+      await client.query('ROLLBACK');
+    } catch (rollbackError) {
+      markClientUnusable(rollbackError);
+    }
+    throw error;
+  }
 }
 
 /**
- * MED-1 (WFA section 8): the table/index objects a migration file declares as
- * its own — `CREATE [UNIQUE] [TABLE|INDEX] [CONCURRENTLY] [IF NOT EXISTS]
- * <name>`. Comment lines are stripped first (0019 carries commented-out DDL)
- * and column-level ALTERs are deliberately not covered: a dropped table or
- * index is the drift this guard exists to catch.
+ * Metadata bootstrap is intentionally separate from numbered schema files.
+ * Legacy rows remain NULL until the operator explicitly baselines them.
+ */
+async function ensureTrackingMetadata(client: PoolClient, markClientUnusable: MarkClientUnusable): Promise<void> {
+  await runTransaction(client, async () => {
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ${TRACKING_TABLE} (
+        sequence integer PRIMARY KEY,
+        filename text NOT NULL,
+        applied_at timestamptz NOT NULL DEFAULT now(),
+        checksum text,
+        checksum_provenance text,
+        baseline_reviewed_at timestamptz
+      )
+    `);
+    await client.query(`ALTER TABLE ${TRACKING_TABLE}
+      ADD COLUMN IF NOT EXISTS checksum text,
+      ADD COLUMN IF NOT EXISTS checksum_provenance text,
+      ADD COLUMN IF NOT EXISTS baseline_reviewed_at timestamptz`);
+  }, markClientUnusable);
+}
+
+async function withMigrationLock<T>(
+  db: Db,
+  work: (client: PoolClient, lockedDb: Db, markClientUnusable: MarkClientUnusable) => Promise<T>,
+): Promise<T> {
+  const client = await db.pool.connect();
+  let locked = false;
+  let releaseError: Error | undefined;
+  let primaryError: unknown;
+  let hasPrimaryError = false;
+  let result: T | undefined;
+  const markClientUnusable: MarkClientUnusable = (error) => {
+    releaseError ??= clientReleaseError(error);
+  };
+
+  try {
+    await client.query(MIGRATION_LOCK_SQL);
+    locked = true;
+    result = await work(client, databaseOnClient(db, client, markClientUnusable), markClientUnusable);
+  } catch (error) {
+    primaryError = error;
+    hasPrimaryError = true;
+    if (!locked) markClientUnusable(error);
+  }
+
+  if (locked && !releaseError) {
+    try {
+      await client.query(MIGRATION_UNLOCK_SQL);
+    } catch (unlockError) {
+      markClientUnusable(unlockError);
+      if (!hasPrimaryError) {
+        primaryError = unlockError;
+        hasPrimaryError = true;
+      }
+    }
+  }
+
+  try {
+    if (releaseError) client.release(releaseError);
+    else client.release();
+  } catch (releaseFailure) {
+    if (!hasPrimaryError) {
+      primaryError = releaseFailure;
+      hasPrimaryError = true;
+    }
+  }
+
+  if (hasPrimaryError) throw primaryError;
+  return result as T;
+}
+
+function databaseOnClient(db: Db, client: PoolClient, markClientUnusable: MarkClientUnusable): Db {
+  const query = ((text: string, params?: unknown[]) => client.query(text, params as never[])) as Db['query'];
+  return {
+    pool: db.pool,
+    query,
+    tx: async <T>(work: (transactionClient: PoolClient) => Promise<T>): Promise<T> =>
+      runTransaction(client, () => work(client), markClientUnusable),
+    close: async () => undefined,
+  };
+}
+
+/**
+ * Apply pending files in order. The session lock covers planning and every
+ * per-file transaction; each successful file and its ledger row commit as one.
+ */
+export async function migrate(db: Db, dir = MIGRATIONS_DIR): Promise<{ applied: string[] }> {
+  const files = loadMigrationFiles(dir);
+  return withMigrationLock(db, async (client, lockedDb, markClientUnusable) => {
+    await ensureTrackingMetadata(client, markClientUnusable);
+    const inspection = await inspectMigrations(lockedDb, files);
+    const problem = ledgerProblemMessage(inspection, false);
+    if (problem) throw new Error(problem);
+
+    const alreadyApplied = new Map(
+      [...inspection.rowsBySequence.entries()].map(([sequence, row]) => [sequence, row.filename]),
+    );
+    const drifted = await recordedMigrationsMissingObjects(lockedDb, files, alreadyApplied);
+    if (drifted.length > 0) {
+      throw new Error(
+        `refusing to skip recorded migrations against an incomplete schema: ${drifted
+          .map((entry) => `${entry.filename} → missing ${entry.objects.join(', ')}`)
+          .join('; ')}. schema_migrations claims these files were applied, but the database no longer has the table/index object(s) they declare. Restore the object(s), or delete the stale ledger row(s) and re-run migrate after verifying the schema, e.g. DELETE FROM schema_migrations WHERE sequence IN (${drifted.map((entry) => entry.sequence).join(', ')});`,
+      );
+    }
+
+    const applied: string[] = [];
+    for (const file of inspection.pending) {
+      await lockedDb.tx(async (transactionClient) => {
+        await transactionClient.query(file.sql);
+        await transactionClient.query(
+          `INSERT INTO ${TRACKING_TABLE}
+             (sequence, filename, checksum, checksum_provenance, baseline_reviewed_at)
+           VALUES ($1, $2, $3, 'migration', NULL)`,
+          [file.sequence, file.filename, file.checksum],
+        );
+      });
+      applied.push(file.filename);
+    }
+    return { applied };
+  });
+}
+
+/**
+ * Explicitly record current hashes for matching legacy rows whose checksums
+ * are unknown. This command never rewrites a known hash or applies migration
+ * SQL; the caller is responsible for reviewing the database before invoking it.
+ */
+export async function baselineMigrationsReviewed(
+  db: Db,
+  dir = MIGRATIONS_DIR,
+): Promise<{ baselined: string[] }> {
+  const files = loadMigrationFiles(dir);
+  return withMigrationLock(db, async (client, lockedDb, markClientUnusable) => {
+    await ensureTrackingMetadata(client, markClientUnusable);
+    const inspection = await inspectMigrations(lockedDb, files);
+    const problem = ledgerProblemMessage(inspection, true);
+    if (problem) throw new Error(problem);
+
+    const alreadyApplied = new Map(
+      [...inspection.rowsBySequence.entries()].map(([sequence, row]) => [sequence, row.filename]),
+    );
+    const missingObjects = await recordedMigrationsMissingObjects(lockedDb, files, alreadyApplied);
+    if (missingObjects.length > 0) {
+      throw new Error(
+        `refusing to baseline an incomplete schema: ${missingObjects
+          .map((entry) => `${entry.filename} → missing ${entry.objects.join(', ')}`)
+          .join('; ')}`,
+      );
+    }
+    if (inspection.unknownChecksums.length === 0) return { baselined: [] };
+
+    const filesByName = new Map(files.map((file) => [file.filename, file]));
+    await lockedDb.tx(async (transactionClient) => {
+      for (const filename of inspection.unknownChecksums) {
+        const file = filesByName.get(filename);
+        if (!file) throw new Error(`cannot baseline missing migration file ${filename}`);
+        const result = await transactionClient.query(
+          `UPDATE ${TRACKING_TABLE}
+             SET checksum = $1, checksum_provenance = 'reviewed-baseline', baseline_reviewed_at = now()
+           WHERE sequence = $2 AND filename = $3 AND checksum IS NULL AND checksum_provenance IS NULL`,
+          [file.checksum, file.sequence, file.filename],
+        );
+        if (result.rowCount !== 1) {
+          throw new Error(`ledger changed while baselining ${filename}; no baseline was committed`);
+        }
+      }
+    });
+    return { baselined: inspection.unknownChecksums };
+  });
+}
+
+/** Verify all files against the ledger without DDL or data writes. */
+export async function verifyMigrations(db: Db, dir = MIGRATIONS_DIR): Promise<void> {
+  const files = loadMigrationFiles(dir);
+  const inspection = await inspectMigrations(db, files);
+  if (!inspection.hasTable) {
+    throw new Error('schema is not up-to-date: no schema_migrations table found. Run "pnpm run migrate" before starting the server.');
+  }
+  const problem = ledgerProblemMessage(inspection, false);
+  if (problem) throw new Error(problem);
+  if (inspection.pending.length > 0) {
+    throw new Error(
+      `schema is not up-to-date: missing migrations [${inspection.pending.map((file) => file.filename).join(', ')}]. Run "pnpm run migrate" before starting the server.`,
+    );
+  }
+  const done = new Map(
+    [...inspection.rowsBySequence.entries()].map(([sequence, row]) => [sequence, row.filename]),
+  );
+  const drifted = await recordedMigrationsMissingObjects(db, files, done);
+  if (drifted.length > 0) {
+    throw new Error(
+      `schema verification failed: recorded migrations have missing table/index objects: ${drifted
+        .map((entry) => `${entry.filename} → missing ${entry.objects.join(', ')}`)
+        .join('; ')}`,
+    );
+  }
+}
+
+/** Query-only migration state for diagnostics. */
+export async function migrationStatus(db: Db, dir = MIGRATIONS_DIR): Promise<MigrationStatus> {
+  const files = loadMigrationFiles(dir);
+  const inspection = await inspectMigrations(db, files);
+  const integrityProblems = [...inspection.problems];
+  if (inspection.unknownChecksums.length === 0 && integrityProblems.length === 0 && inspection.hasTable) {
+    const done = new Map(
+      [...inspection.rowsBySequence.entries()].map(([sequence, row]) => [sequence, row.filename]),
+    );
+    const drifted = await recordedMigrationsMissingObjects(db, files, done);
+    for (const entry of drifted) {
+      integrityProblems.push(`${entry.filename} has missing table/index object(s): ${entry.objects.join(', ')}`);
+    }
+  }
+  return {
+    total: files.length,
+    applied: inspection.rows.length,
+    pending: inspection.pending.map((file) => file.filename),
+    unknownChecksums: inspection.unknownChecksums,
+    baselineProvenance: inspection.baselineProvenance,
+    integrityProblems,
+  };
+}
+
+/**
+ * Return table/index declarations owned by a migration. Column ALTERs are not
+ * covered: this guard detects dropped objects from additive CREATE statements.
  */
 function declaredSchemaObjects(sql: string): string[] {
   const names: string[] = [];
@@ -119,13 +483,8 @@ function declaredSchemaObjects(sql: string): string[] {
   return names;
 }
 
-/**
- * MED-1: does `name` still exist as a table or an index in the current
- * schema? Tables are visible through information_schema, indexes through
- * pg_indexes — both read-only catalog probes.
- */
 async function schemaObjectExists(db: Db, name: string): Promise<boolean> {
-  const res = await db.query<{ exists: boolean }>(
+  const result = await db.query<{ exists: boolean }>(
     `SELECT EXISTS (
        SELECT 1 FROM information_schema.tables
        WHERE table_schema = current_schema() AND table_name = $1
@@ -135,7 +494,7 @@ async function schemaObjectExists(db: Db, name: string): Promise<boolean> {
      ) AS exists`,
     [name],
   );
-  return res.rows[0]?.exists === true;
+  return result.rows[0]?.exists === true;
 }
 
 interface RecordedMigrationDrift {
@@ -144,13 +503,6 @@ interface RecordedMigrationDrift {
   objects: string[];
 }
 
-/**
- * MED-1 (WFA section 8 security review): a ledger row claims its file was
- * applied — but the shipped DDL is `CREATE ... IF NOT EXISTS`, so the loop in
- * `migrate()` skips the file even if the object was dropped since. Return the
- * recorded migrations whose declared table/index objects are missing so the
- * caller can fail closed instead of booting against an incomplete schema.
- */
 async function recordedMigrationsMissingObjects(
   db: Db,
   files: MigrationFile[],
@@ -158,178 +510,12 @@ async function recordedMigrationsMissingObjects(
 ): Promise<RecordedMigrationDrift[]> {
   const drift: RecordedMigrationDrift[] = [];
   for (const file of files) {
-    if (!done.has(file.sequence)) continue;
-    const declared = declaredSchemaObjects(file.sql);
-    if (declared.length === 0) continue;
+    if (done.get(file.sequence) !== file.filename) continue;
     const missing: string[] = [];
-    for (const name of declared) {
+    for (const name of declaredSchemaObjects(file.sql)) {
       if (!(await schemaObjectExists(db, name))) missing.push(name);
     }
-    if (missing.length > 0) {
-      drift.push({ sequence: file.sequence, filename: file.filename, objects: missing });
-    }
+    if (missing.length > 0) drift.push({ sequence: file.sequence, filename: file.filename, objects: missing });
   }
   return drift;
-}
-
-/**
- * Run all pending migrations in sequence order, recording each in
- * `schema_migrations`.  On failure the tracking row is NOT inserted
- * (the INSERT is inside the same transaction via `db.tx`), so the
- * next run re-attempts the failed migration.
- */
-export async function migrate(db: Db): Promise<{ applied: string[] }> {
-  const files = loadMigrationFiles(MIGRATIONS_DIR);
-  await ensureTrackingTable(db);
-  const done = await appliedMigrations(db);
-
-  // MED-1 (WFA section 8 security review): the loop below SKIPS every recorded
-  // sequence. Because the shipped DDL is `CREATE ... IF NOT EXISTS`, a ledger
-  // row whose object was dropped would be skipped in silence and the boot
-  // would false-green against an incomplete schema. Validate the recorded
-  // migrations' declared tables/indexes first and refuse to skip on drift.
-  const drifted = await recordedMigrationsMissingObjects(db, files, done);
-  if (drifted.length > 0) {
-    const detail = drifted
-      .map((d) => `${d.filename} → missing ${d.objects.join(', ')}`)
-      .join('; ');
-    throw new Error(
-      `refusing to skip recorded migrations against an incomplete schema: ${detail}. `
-        + 'schema_migrations claims these files were applied, but the database no longer has the '
-        + 'table/index object(s) they declare (an object was dropped while the ledger row stayed). '
-        + 'Restore the object(s), or delete the stale ledger row(s) and re-run migrate after verifying '
-        + `the schema, e.g. DELETE FROM schema_migrations WHERE sequence IN (${drifted.map((d) => d.sequence).join(', ')}); `
-        + '— never trust the ledger past this point.'
-    );
-  }
-
-  const applied: string[] = [];
-
-  for (const file of files) {
-    if (done.has(file.sequence)) continue;
-    await db.tx(async (client) => {
-      await client.query(file.sql);
-      await client.query(
-        'INSERT INTO schema_migrations (sequence, filename) VALUES ($1, $2)',
-        [file.sequence, file.filename],
-      );
-    });
-    applied.push(file.filename);
-  }
-
-  return { applied };
-}
-
-/**
- * Verify that every migration file on disk has been applied. Returns
- * without error if the database is up-to-date; throws with a clear
- * message listing missing migrations if not.  This function is
- * READ-ONLY — it never writes to the database, so a boot-time check
- * performs no hidden writes.
- */
-export async function verifyMigrations(db: Db): Promise<void> {
-  const files = loadMigrationFiles(MIGRATIONS_DIR);
-  const hasTable = await trackingTableExists(db);
-  if (!hasTable) {
-    throw new Error(
-      'schema is not up-to-date: no schema_migrations table found. Run "npm run migrate" before starting the server.'
-    );
-  }
-  // Cycle-85 guard (MIGRATION-VERIFY-TRAP): the ledger read is cross-checked
-  // against an independent COUNT so a read that silently dropped rows cannot
-  // pass as "up to date". `appliedMigrations` keys a Map by Number(sequence),
-  // so two rows collapsing onto one key (or a non-numeric sequence) leaves the
-  // Map SMALLER than the table while every file-level check below still
-  // succeeds — which is exactly the false-green this packet exists to close.
-  const countRes = await db.query<{ count: number | string }>(
-    'SELECT count(*)::int AS count FROM schema_migrations'
-  );
-  const ledgerRows = Number(countRes.rows[0]?.count ?? 0);
-  const done = await appliedMigrations(db);
-
-  if (!Number.isSafeInteger(ledgerRows) || ledgerRows < 0 || done.size !== ledgerRows) {
-    throw new Error(
-      `schema_migrations ledger is not readable as recorded: SELECT count(*) reports ${ledgerRows} row(s) `
-        + `but only ${done.size} distinct sequence(s) could be registered from the same table. Either a row's `
-        + `sequence is not a usable integer or rows collapsed onto one key, and the file-level checks below `
-        + `would false-green past it. Inspect the ledger directly: `
-        + 'SELECT sequence, filename FROM schema_migrations ORDER BY sequence; — never trust verify past this point.'
-    );
-  }
-
-  // Cycle-84 guard: sequence recorded under a DIFFERENT filename means the
-  // ledger was written by a file that no longer exists under that name
-  // (renumber/rename). Trusting sequence alone false-greens the real
-  // schema gap — fail with the exact repair hint instead.
-  const mislabeled = files.filter(
-    (f) => done.has(f.sequence) && done.get(f.sequence) !== f.filename
-  );
-  if (mislabeled.length > 0) {
-    const detail = mislabeled
-      .map((f) => `sequence ${f.sequence} is recorded as '${done.get(f.sequence)}' but the file on disk is '${f.filename}'`)
-      .join('; ');
-    throw new Error(
-      `schema_migrations ledger does not match files on disk: ${detail}. Delete the stale ledger row(s) and re-run migrate after verifying the corresponding objects, e.g. DELETE FROM schema_migrations WHERE sequence IN (${mislabeled.map((f) => f.sequence).join(', ')}); — never trust verify past this point.`
-    );
-  }
-  // A ledger row for a sequence that has no file on disk is either a leftover
-  // from a deleted/renumbered migration, or a hand-rolled change that wrote
-  // the ledger without writing the file. Either way the ledger claims applied
-  // work the files cannot account for — a mismatch the file-level checks below
-  // would never see.
-  const onDisk = new Set(files.map((f) => f.sequence));
-  const orphaned = [...done.keys()].filter((seq) => !onDisk.has(seq));
-  if (orphaned.length > 0) {
-    const listed = orphaned
-      .slice()
-      .sort((a, b) => {
-        const d = a - b;
-        return Number.isNaN(d) ? 0 : d;
-      })
-      .map(String)
-      .join(', ');
-    throw new Error(
-      `schema_migrations records sequence(s) [${listed}] that have no migration file on disk: `
-        + `the ledger claims applied work the files cannot account for. Delete the stale ledger row(s) and `
-        + `re-run migrate after verifying the corresponding objects, e.g. `
-        + `DELETE FROM schema_migrations WHERE sequence IN (${listed}); — never trust verify past this point.`
-    );
-  }
-
-  const missing = files.filter((f) => !done.has(f.sequence));
-  if (missing.length > 0) {
-    const names = missing.map((f) => f.filename).join(', ');
-    throw new Error(
-      `schema is not up-to-date: missing migrations [${names}]. Run "npm run migrate" before starting the server.`
-    );
-  }
-
-  const drifted = await recordedMigrationsMissingObjects(db, files, done);
-  if (drifted.length > 0) {
-    const detail = drifted
-      .map((d) => `${d.filename} → missing ${d.objects.join(', ')}`)
-      .join('; ');
-    throw new Error(
-      `schema verification failed: recorded migrations have missing table/index objects: ${detail}. `
-        + 'schema_migrations claims these files were applied, but the database no longer has the '
-        + 'table/index object(s) they declare. Restore the object(s), or delete the stale ledger '
-        + 'row(s) and re-run migrate after verifying the schema, then run verify again.'
-    );
-  }
-}
-
-/**
- * Return the current migration state for diagnostics. Read-only.
- */
-export async function migrationStatus(db: Db): Promise<{
-  total: number;
-  applied: number;
-  pending: string[];
-}> {
-  const files = loadMigrationFiles(MIGRATIONS_DIR);
-  const hasTable = await trackingTableExists(db);
-  if (!hasTable) return { total: files.length, applied: 0, pending: files.map((f) => f.filename) };
-  const done = await appliedMigrations(db);
-  const pending = files.filter((f) => !done.has(f.sequence)).map((f) => f.filename);
-  return { total: files.length, applied: files.length - pending.length, pending };
 }

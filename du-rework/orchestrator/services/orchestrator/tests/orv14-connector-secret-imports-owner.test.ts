@@ -1,8 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import type { Db } from '../src/db/db';
 import { createMetadataCrypto, type MetadataCrypto } from '../src/modules/runtime/metadata-crypto';
+import { adaptKeyProviderForMetadata } from '../src/modules/encryption/metadata-key-adapter';
+import {
+  createLocalKeyProvider,
+  LOCAL_METADATA_KEY_REF,
+  parseLocalEncryptionKeyring,
+} from '../src/modules/encryption/local-key-provider';
 import { encryptSecretValue } from '../src/modules/secrets/secret-catalog-store';
-import type { SecretCatalogKeyring } from '../src/modules/secrets/secret-revision-resolver';
+import { parseSecretCatalogKeyring, type SecretCatalogKeyring } from '../src/modules/secrets/secret-revision-resolver';
 import type { BackupSnapshotWriteGate } from '../src/modules/maintenance/backup-effect-fence';
 import {
   createConnectorSecretImportService,
@@ -10,7 +16,9 @@ import {
 } from '../src/modules/connectors/connector-secret-imports';
 import type { ConnectorDraftUpsert, ConnectorParityDraftResult } from '@du/contracts';
 
-const TENANT = '72b8d7bf-16bf-41b8-9e1e-67b9d7b59c61';
+// The seed tenant uses the canonical all-zero sentinel form; it is valid
+// tenant identity text even though it is not an RFC UUID version/variant.
+const TENANT = '00000000-0000-0000-0000-000000000001';
 const SECRET_ID = '3b2bbf03-d716-49f6-93c1-8fb75d8eb2d1';
 const CONNECTOR_ID = 'text.primary';
 const SECRET = 'catalog-secret-original';
@@ -46,7 +54,7 @@ function request(expectedHeadRevision = 0): ConnectorDraftUpsert {
   };
 }
 
-function result(): ConnectorParityDraftResult {
+function result(credentialRef = 'recipe-11111111-1111-4111-8111-111111111111'): ConnectorParityDraftResult {
   return {
     revision: {
       tenantId: TENANT,
@@ -54,7 +62,7 @@ function result(): ConnectorParityDraftResult {
       revision: 1,
       state: 'PENDING',
       recipe,
-      credentialRef: 'recipe-11111111-1111-4111-8111-111111111111',
+      credentialRef,
       credentialVersion: 1,
       expectedHeadRevision: 0,
     },
@@ -63,7 +71,7 @@ function result(): ConnectorParityDraftResult {
   };
 }
 
-function fakeDb() {
+function fakeDb(catalogKey: Buffer = CATALOG_KEY, catalogKeyVersion = 'catalog-key-v1') {
   let row: Record<string, unknown> | null = null;
   let catalogSecret = SECRET;
   let catalogRevision = 1;
@@ -88,8 +96,8 @@ function fakeDb() {
           purpose: 'connector.credential',
           services: ['connector'],
           provider_kind: 'managed_value',
-          encrypted_value: encryptSecretValue(catalogSecret, CATALOG_KEY),
-          encryption_key_version: 'catalog-key-v1',
+          encrypted_value: encryptSecretValue(catalogSecret, catalogKey),
+          encryption_key_version: catalogKeyVersion,
         }],
         rowCount: 1,
       };
@@ -156,6 +164,13 @@ function keyring(): SecretCatalogKeyring {
   return { activeVersion: 'catalog-key-v1', keys: { 'catalog-key-v1': CATALOG_KEY } };
 }
 
+function noVaultMetadataCrypto(master: string): MetadataCrypto {
+  const localKeyring = parseLocalEncryptionKeyring({ ENCRYPTION_KEY: master });
+  if (!localKeyring) throw new Error('test local keyring was not derived');
+  const provider = createLocalKeyProvider(localKeyring, [LOCAL_METADATA_KEY_REF]);
+  return createMetadataCrypto(adaptKeyProviderForMetadata(provider), LOCAL_METADATA_KEY_REF);
+}
+
 function audit() {
   return { record: jest.fn(async () => ({ id: randomUUID() })) } as never;
 }
@@ -165,6 +180,46 @@ function allowSnapshotWrites(): BackupSnapshotWriteGate {
 }
 
 describe('ORV14 Connector secret import journal', () => {
+  test('completes and replays a managed-value import with no Vault using retained local keys', async () => {
+    const master = 'orchestrator-no-vault-import-master-key'.padEnd(64, 'x');
+    const catalogKeyring = parseSecretCatalogKeyring({ ENCRYPTION_KEY: master });
+    const catalogKey = catalogKeyring?.keys[catalogKeyring.activeVersion];
+    if (!catalogKeyring || !catalogKey) throw new Error('test Catalog keyring was not derived');
+    const fixture = fakeDb(catalogKey, catalogKeyring.activeVersion);
+    const output = result(randomUUID());
+    const submit = jest.fn().mockRejectedValueOnce(new Error('ambiguous Connector timeout')).mockResolvedValue(output);
+    const claim = jest.fn(async (input: { expectedHeadRevision: number }) => ({
+      claimed: true,
+      expectedHeadRevision: input.expectedHeadRevision,
+    }));
+    const service = createConnectorSecretImportService({
+      db: fixture.db,
+      audit: audit(),
+      metadataCrypto: noVaultMetadataCrypto(master),
+      catalogKeyring,
+      backupSnapshotWriteGate: allowSnapshotWrites(),
+      connector: { claimRecipeDraft: claim, upsertResolvedRecipeDraft: submit },
+    });
+
+    await expect(service.importCredential(CONNECTOR_ID, request(), actor)).rejects.toMatchObject({ status: 503 });
+    expect(fixture.row?.state).toBe('PENDING');
+    expect(JSON.stringify(fixture.row?.resolved_payload)).not.toContain(SECRET);
+    expect((fixture.row?.resolved_payload as { dek?: { providerKind?: string } }).dek?.providerKind).toBe('local-keyring');
+
+    const completed = await service.importCredential(CONNECTOR_ID, request(), actor);
+    expect(completed.revision.credentialRef).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(fixture.row?.state).toBe('COMPLETED');
+    expect(JSON.stringify(fixture.row?.resolved_payload)).not.toContain(SECRET);
+    expect(JSON.stringify(fixture.row?.result)).not.toContain(SECRET);
+
+    const replay = await service.importCredential(CONNECTOR_ID, request(), actor);
+    expect(replay.replayed).toBe(true);
+    expect(replay.revision).toEqual(completed.revision);
+    expect(fixture.catalogReads).toBe(1);
+    expect(submit).toHaveBeenCalledTimes(2);
+    expect(claim).toHaveBeenCalledTimes(3);
+  });
+
   test('seals before network, retries the same exact Catalog revision, and replays the masked result', async () => {
     const fixture = fakeDb();
     const submit = jest.fn()

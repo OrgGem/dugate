@@ -34,6 +34,9 @@ const NAME = 'extract.invoice';
 interface BindingRow {
   profile_id: string;
   revision: number;
+  tenant_id?: string;
+  action?: string;
+  endpoint_slug?: string | null;
   enabled: boolean;
   parameters: unknown;
   job_priority: string;
@@ -60,7 +63,7 @@ function makeFake(opts: { pointer?: boolean; seedProfile?: boolean } = {}) {
             api_key_id: KEY_ID,
             business_id: BIZ,
             business_version: VER,
-            action: NAME,
+            action: 'analyze',
             profile_name: NAME,
           },
         ]
@@ -70,6 +73,9 @@ function makeFake(opts: { pointer?: boolean; seedProfile?: boolean } = {}) {
           {
             profile_id: PROFILE_ID,
             revision: 1,
+            tenant_id: TENANT,
+            action: 'analyze',
+            endpoint_slug: 'analyze:classify',
             enabled: true,
             parameters: {},
             job_priority: 'MEDIUM',
@@ -80,6 +86,9 @@ function makeFake(opts: { pointer?: boolean; seedProfile?: boolean } = {}) {
           {
             profile_id: PROFILE_ID,
             revision: 2,
+            tenant_id: TENANT,
+            action: 'analyze',
+            endpoint_slug: 'analyze:classify',
             enabled: true,
             parameters: { model: { value: 'gemini-2.0', isLocked: true }, temperature: { value: 0.2 } },
             job_priority: 'HIGH',
@@ -106,10 +115,63 @@ function makeFake(opts: { pointer?: boolean; seedProfile?: boolean } = {}) {
       );
       return { rows: bv ? [bv as unknown as Record<string, unknown>] : [], rowCount: bv ? 1 : 0 };
     }
+    if (/SELECT n\.profile_id, n\.tenant_id, n\.business_id, n\.business_version, n\.profile_name/.test(sql)) {
+      const tenantId = String(params[0]);
+      const businessId = typeof params[1] === 'string' ? params[1] : undefined;
+      const rows = state.names.flatMap((name) => {
+        if (name.tenant_id !== tenantId || (businessId !== undefined && name.business_id !== businessId)) return [];
+        const revision = state.pointers.get(name.profile_id);
+        const binding = revision === undefined ? undefined : state.bindings.find((candidate) =>
+          candidate.profile_id === name.profile_id && candidate.revision === revision);
+        if (revision === undefined || !binding) return [];
+        const timestamp = new Date('2026-10-14T00:00:00.000Z');
+        return [{
+          profile_id: name.profile_id,
+          tenant_id: name.tenant_id,
+          business_id: name.business_id,
+          business_version: name.business_version,
+          profile_name: name.profile_name,
+          revision,
+          enabled: binding.enabled,
+          key_count: 1,
+          bound_actions: [binding.action ?? name.action],
+          created_at: timestamp,
+          updated_at: timestamp,
+          created_at_cursor: timestamp.toISOString(),
+          updated_at_cursor: timestamp.toISOString(),
+        }];
+      });
+      return { rows, rowCount: rows.length };
+    }
+    if (/SELECT count\(\*\)::int AS total FROM profile_names/.test(sql)) {
+      const tenantId = String(params[0]);
+      const businessId = typeof params[1] === 'string' ? params[1] : undefined;
+      const total = state.names.filter((name) => name.tenant_id === tenantId
+        && (businessId === undefined || name.business_id === businessId)
+        && state.pointers.has(name.profile_id)).length;
+      return { rows: [{ total }], rowCount: 1 };
+    }
+    if (/SELECT binding\.profile_id, binding\.revision, binding\.action, binding\.endpoint_slug/.test(sql)) {
+      const tenantId = String(params[0]);
+      const profileIds = params[1] as string[];
+      const revisions = params[2] as number[];
+      const rows = state.bindings.flatMap((binding) => {
+        const index = profileIds.indexOf(binding.profile_id);
+        if (binding.tenant_id !== tenantId || index < 0 || revisions[index] !== binding.revision) return [];
+        return [{
+          profile_id: binding.profile_id,
+          revision: binding.revision,
+          action: binding.action ?? 'analyze',
+          endpoint_slug: binding.endpoint_slug ?? null,
+        }];
+      });
+      return { rows, rowCount: rows.length };
+    }
     if (/SELECT n\.profile_id, a\.revision/.test(sql)) {
       const name = state.names.find(
         (n) => n.business_id === params[0] && n.business_version === params[1] && n.profile_name === params[2]
           && (params[3] === undefined || n.tenant_id === params[3])
+          && (params[4] === undefined || n.profile_id === params[4])
       );
       const revision = name ? state.pointers.get(name.profile_id) : undefined;
       const binding = name && revision !== undefined
@@ -134,10 +196,22 @@ function makeFake(opts: { pointer?: boolean; seedProfile?: boolean } = {}) {
         rowCount: 1,
       };
     }
+    if (/SELECT action, endpoint_slug FROM profile_bindings/.test(sql)) {
+      const [profileId, revision, tenantId] = params as [string, number, string?];
+      const binding = state.bindings.find((candidate) => candidate.profile_id === profileId
+        && candidate.revision === revision
+        && (tenantId === undefined || candidate.tenant_id === tenantId));
+      const row = binding ? {
+        action: binding.action ?? 'analyze',
+        endpoint_slug: binding.endpoint_slug ?? null,
+      } : undefined;
+      return { rows: row ? [row] : [], rowCount: row ? 1 : 0 };
+    }
     if (/SELECT 1 FROM profile_names/.test(sql)) {
       const hit = state.names.some(
         (n) => n.business_id === params[0] && n.business_version === params[1] && n.profile_name === params[2]
           && (params[3] === undefined || n.tenant_id === params[3])
+          && (params[4] === undefined || n.profile_id === params[4])
       );
       return { rows: hit ? [{ '?column?': 1 }] : [], rowCount: hit ? 1 : 0 };
     }
@@ -232,7 +306,7 @@ function makeFake(opts: { pointer?: boolean; seedProfile?: boolean } = {}) {
       const hit = state.bindings.find((b) => b.profile_id === params[0] && b.revision === params[1]);
       return {
         rows: hit
-          ? [{ enabled: hit.enabled, parameters: hit.parameters, job_priority: hit.job_priority, allowed_file_extensions: hit.allowed_file_extensions, connections_override: hit.connections_override, file_url_auth_cipher: hit.cipher }]
+          ? [{ enabled: hit.enabled, parameters: hit.parameters, job_priority: hit.job_priority, allowed_file_extensions: hit.allowed_file_extensions, connections_override: hit.connections_override, file_url_auth_cipher: hit.cipher, endpoint_slug: hit.endpoint_slug ?? null }]
           : [],
         rowCount: hit ? 1 : 0,
       };
@@ -242,6 +316,8 @@ function makeFake(opts: { pointer?: boolean; seedProfile?: boolean } = {}) {
       state.bindings.push({
         profile_id: String(p[0]),
         revision: Number(p[1]),
+        tenant_id: String(p[2]),
+        action: String(p[6]),
         connector_bindings: JSON.parse(String(p[7])) as unknown,
         enabled: Boolean(p[8]),
         parameters: JSON.parse(String(p[9])) as unknown,
@@ -249,6 +325,7 @@ function makeFake(opts: { pointer?: boolean; seedProfile?: boolean } = {}) {
         allowed_file_extensions: String(p[11]),
         cipher: (p[12] as string | null) ?? null,
         connections_override: JSON.parse(String(p[13])) as unknown,
+        endpoint_slug: typeof p[17] === 'string' ? p[17] : null,
       });
       undo.push(() => state.bindings.pop());
       return { rows: [], rowCount: 1 };
@@ -372,7 +449,7 @@ async function expectHttpError(promise: Promise<unknown>, status: number, messag
 }
 
 describe('T-API-01 closure — profile detail reads REAL data', () => {
-  it('returns the active revision, read policy and ONLY the opaque apiKeyId (no cipher)', async () => {
+  it('returns the active revision, policy, opaque apiKeyId and exact persisted action binding (no cipher)', async () => {
     const fake = makeFake();
     const res = await handleAdminRoutes(adminCtx(fake, `/api/v1/admin/profiles/${BIZ}/${VER}/${NAME}`));
     expect(res).not.toBeNull();
@@ -380,6 +457,8 @@ describe('T-API-01 closure — profile detail reads REAL data', () => {
     const parsed = ProfileDetailReadSchema.parse(res!.body);
     expect(parsed.revision).toBe(2);
     expect(parsed.apiKeyId).toBe(KEY_ID);
+    expect(parsed.action).toBe('analyze');
+    expect(parsed.endpointSlug).toBe('analyze:classify');
     expect(parsed.currentValues).toEqual({ model: 'gemini-2.0', temperature: '0.2' });
     expect(parsed.policy.jobPriority).toBe('HIGH');
     expect(parsed.policy.allowedFileExtensions).toBe('.pdf');
@@ -390,6 +469,35 @@ describe('T-API-01 closure — profile detail reads REAL data', () => {
     const wire = JSON.stringify(res!.body);
     expect(wire).not.toContain(CIPHER);
     expect(wire).not.toContain('fileUrlAuthCipher');
+    expect(wire).not.toContain('profileId');
+  });
+
+  it('projects the exact active binding and stable profile id into the tenant catalog', async () => {
+    const fake = makeFake();
+    const res = await handleAdminRoutes(adminCtx(fake, '/api/v1/admin/profiles', {
+      searchParams: new URLSearchParams({ tenantId: TENANT, businessId: BIZ }),
+    }));
+    expect(res?.status).toBe(200);
+    expect(res?.body).toMatchObject({
+      items: [{ profileId: PROFILE_ID, tenantId: TENANT, businessId: BIZ, businessVersion: VER, profileName: NAME, action: 'analyze', endpointSlug: 'analyze:classify' }],
+    });
+  });
+
+  it('projects an explicit null endpoint for a saved generic action profile', async () => {
+    const fake = makeFake();
+    const activeBinding = fake.state.bindings.find((binding) => binding.profile_id === PROFILE_ID && binding.revision === 2)!;
+    activeBinding.endpoint_slug = null;
+    const detail = await handleAdminRoutes(adminCtx(fake, `/api/v1/admin/profiles/${BIZ}/${VER}/${NAME}`, {
+      searchParams: new URLSearchParams({ tenantId: TENANT, profileId: PROFILE_ID }),
+    }));
+    const catalog = await handleAdminRoutes(adminCtx(fake, '/api/v1/admin/profiles', {
+      searchParams: new URLSearchParams({ tenantId: TENANT, businessId: BIZ }),
+    }));
+
+    expect(ProfileDetailReadSchema.parse(detail?.body).endpointSlug).toBeNull();
+    expect(catalog?.body).toMatchObject({
+      items: [{ profileId: PROFILE_ID, action: 'analyze', endpointSlug: null }],
+    });
   });
 
   it('allows a tenant bearer to read its own profile through a tenant-bound SQL lookup', async () => {
@@ -419,6 +527,71 @@ describe('T-API-01 closure — profile detail reads REAL data', () => {
     const detailLookup = fake.state.queries.find((query) => query.sql.includes('SELECT n.profile_id, a.revision'));
     expect(detailLookup?.sql).toContain('n.tenant_id=$4');
     expect(detailLookup?.params[3]).toBe('99999999-9999-4999-8999-999999999999');
+  });
+
+  it('same profile name in two tenants returns the binding for the explicitly selected tenant', async () => {
+    const fake = makeFake();
+    const otherTenant = '99999999-9999-4999-8999-999999999999';
+    const otherProfile = '40000000-0000-4000-8000-000000000004';
+    fake.state.names.push({
+      profile_id: otherProfile,
+      tenant_id: otherTenant,
+      api_key_id: '50000000-0000-4000-8000-000000000005',
+      business_id: BIZ,
+      business_version: VER,
+      action: 'extract',
+      profile_name: NAME,
+    });
+    fake.state.bindings.push({
+      ...fake.state.bindings.find((binding) => binding.profile_id === PROFILE_ID && binding.revision === 2)!,
+      profile_id: otherProfile,
+      tenant_id: otherTenant,
+      action: 'extract',
+      endpoint_slug: 'extract.invoice',
+    });
+    fake.state.pointers.set(otherProfile, 2);
+
+    const first = await handleAdminRoutes(adminCtx(fake, `/api/v1/admin/profiles/${BIZ}/${VER}/${NAME}`, {
+      searchParams: new URLSearchParams({ tenantId: TENANT, profileId: PROFILE_ID }),
+    }));
+    const second = await handleAdminRoutes(adminCtx(fake, `/api/v1/admin/profiles/${BIZ}/${VER}/${NAME}`, {
+      searchParams: new URLSearchParams({ tenantId: otherTenant, profileId: otherProfile }),
+    }));
+
+    expect(ProfileDetailReadSchema.parse(first?.body)).toMatchObject({ action: 'analyze', endpointSlug: 'analyze:classify' });
+    expect(ProfileDetailReadSchema.parse(second?.body)).toMatchObject({ action: 'extract', endpointSlug: 'extract.invoice' });
+  });
+
+  it('same-tenant same-name profiles on different API keys read only the selected catalog profile id', async () => {
+    const fake = makeFake();
+    const otherProfile = '40000000-0000-4000-8000-000000000004';
+    fake.state.names.push({
+      profile_id: otherProfile,
+      tenant_id: TENANT,
+      api_key_id: '50000000-0000-4000-8000-000000000005',
+      business_id: BIZ,
+      business_version: VER,
+      action: 'extract',
+      profile_name: NAME,
+    });
+    fake.state.bindings.push({
+      ...fake.state.bindings.find((binding) => binding.profile_id === PROFILE_ID && binding.revision === 2)!,
+      profile_id: otherProfile,
+      tenant_id: TENANT,
+      action: 'extract',
+      endpoint_slug: 'extract.invoice',
+    });
+    fake.state.pointers.set(otherProfile, 2);
+
+    const first = await handleAdminRoutes(adminCtx(fake, `/api/v1/admin/profiles/${BIZ}/${VER}/${NAME}`, {
+      searchParams: new URLSearchParams({ tenantId: TENANT, profileId: PROFILE_ID }),
+    }));
+    const second = await handleAdminRoutes(adminCtx(fake, `/api/v1/admin/profiles/${BIZ}/${VER}/${NAME}`, {
+      searchParams: new URLSearchParams({ tenantId: TENANT, profileId: otherProfile }),
+    }));
+
+    expect(ProfileDetailReadSchema.parse(first?.body)).toMatchObject({ action: 'analyze', endpointSlug: 'analyze:classify' });
+    expect(ProfileDetailReadSchema.parse(second?.body)).toMatchObject({ action: 'extract', endpointSlug: 'extract.invoice' });
   });
 
   it('`/new` yields the blank editor with no write identity (sentinel predates the stored-profile schema)', async () => {
@@ -498,6 +671,8 @@ describe('T-API-01 closure — detail → upsert end-to-end (offline)', () => {
       params: {
         businessId: detail.businessId,
         businessVersion: detail.businessVersion,
+        action: detail.action,
+        endpointSlug: detail.endpointSlug,
         profileName: detail.profileName,
         apiKey: { apiKeyId: detail.apiKeyId },
         policy: {},
@@ -513,6 +688,8 @@ describe('T-API-01 closure — detail → upsert end-to-end (offline)', () => {
     const res2 = await handleAdminRoutes(adminCtx(fake, `/api/v1/admin/profiles/${BIZ}/${VER}/${NAME}`));
     const after = ProfileDetailReadSchema.parse(res2!.body);
     expect(after.revision).toBe(3);
+    expect(after.action).toBe('analyze');
+    expect(after.endpointSlug).toBe('analyze:classify');
     expect(after.policy.jobPriority).toBe('HIGH');
     expect(after.policy.fileUrlAuthConfigured).toBe(true);
     expect(after.apiKeyId).toBe(KEY_ID);

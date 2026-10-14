@@ -3,6 +3,7 @@ import type { PoolClient, QueryResultRow } from 'pg';
 import type { Db } from '../../db/db';
 import { conflict, unavailable } from '../../http/errors';
 import type { MaintenanceExecutionFence } from './maintenance-service';
+import { isTenantUuid } from '@du/contracts';
 
 export type BackupSnapshotWriteDomain =
   | 'work-admission'
@@ -56,7 +57,7 @@ export function createBackupSnapshotWriteGate(): BackupSnapshotWriteGate {
     async assertWriteAllowed(client, input) {
       if (!input || typeof input.domain !== 'string' || input.domain.length > 64
         || typeof input.requestKey !== 'string' || input.requestKey.length < 1 || input.requestKey.length > 200
-        || (input.tenantId !== null && !isUuid(input.tenantId))) {
+        || (input.tenantId !== null && !isTenantUuid(input.tenantId))) {
         throw conflict('INVALID_ARGUMENT', 'Backup snapshot write identity is invalid.');
       }
       let selected;
@@ -668,7 +669,7 @@ function validateBegin(input: BackupArtifactEffectBegin): void {
   if (!input || typeof input.effectKey !== 'string' || input.effectKey.length < 8 || input.effectKey.length > 512
     || !['grant-issue','ingestion-write','encrypted-upload','multipart-part','multipart-complete','multipart-abort',
       'metadata-mutation','artifact-delete','generation-activation','storage-generation-test','cleanup'].includes(input.category)
-    || (input.tenantId !== null && !isUuid(input.tenantId)) || (input.artifactId != null && !isUuid(input.artifactId))
+    || (input.tenantId !== null && !isTenantUuid(input.tenantId)) || (input.artifactId != null && !isUuid(input.artifactId))
     || !isUuid(input.storageGenerationId)
     || (input.objectKeySha256 != null && !/^[a-f0-9]{64}$/.test(input.objectKeySha256))) {
     throw conflict('INVALID_ARGUMENT', 'Artifact effect request is invalid.');

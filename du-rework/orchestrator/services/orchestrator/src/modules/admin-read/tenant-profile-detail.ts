@@ -13,8 +13,11 @@ export async function loadTenantProfileDetail(
   businessVersion: string,
   profileName: string,
   tenantId: string,
+  profileId?: string,
 ): Promise<ProfileDetailLookup> {
-  const params = [businessId, businessVersion, profileName, tenantId];
+  const params: unknown[] = [businessId, businessVersion, profileName, tenantId];
+  const profileFilter = profileId === undefined ? '' : ' AND n.profile_id=$5';
+  if (profileId !== undefined) params.push(profileId);
   const hit = await db.query<ProfileDetailDbRow>(
     `SELECT n.profile_id, a.revision, n.api_key_id,
             p.enabled, p.parameters, p.job_priority, p.allowed_file_extensions,
@@ -25,7 +28,7 @@ export async function loadTenantProfileDetail(
        JOIN profile_bindings p
          ON p.profile_id = a.profile_id AND p.revision = a.revision
       WHERE n.business_id=$1 AND n.business_version=$2 AND n.profile_name=$3
-        AND n.tenant_id=$4 AND n.group_id IS NULL
+        AND n.tenant_id=$4 AND n.group_id IS NULL${profileFilter}
       ORDER BY a.moved_at DESC, n.profile_id
       LIMIT 1`,
     params,
@@ -35,7 +38,7 @@ export async function loadTenantProfileDetail(
   const orphan = await db.query(
     `SELECT 1 FROM profile_names
       WHERE business_id=$1 AND business_version=$2 AND profile_name=$3
-        AND tenant_id=$4 AND group_id IS NULL
+        AND tenant_id=$4 AND group_id IS NULL${profileId === undefined ? '' : ' AND profile_id=$5'}
       LIMIT 1`,
     params,
   );

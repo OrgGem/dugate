@@ -20,7 +20,6 @@
  *      either direction is visible.
  */
 import { createHmac } from 'node:crypto';
-import { join } from 'node:path';
 import {
   contentHash,
   HumanWaitViewSchema,
@@ -35,8 +34,8 @@ import {
 } from '../src/modules/runtime/metadata-crypto';
 import { adaptKeyProviderForMetadata } from '../src/modules/encryption/metadata-key-adapter';
 import type { KeyProvider, WrapDekInput, WrappedDek } from '../src/modules/encryption/vault-transit-provider';
-import { loadMigrationFiles } from '../src/db/migrations';
 import { mockCreateStorageGenerationFixture, mockOpenBackupEffectGateResult } from './helpers/backup-effect-gate';
+import { currentAppliedMigrationLedger, mockMigrationMetadataColumnsResult } from './helpers/migration-ledger-fixture';
 
 const KEY_REF = 'enc-meta-sentinel-v1';
 const TENANT = '44444444-4444-4444-8444-444444444444';
@@ -162,6 +161,8 @@ jest.mock('pg', () => {
       };
     }
     if (/FROM operations WHERE id=\$1/i.test(text)) return { rows: [], rowCount: 0 };
+    const metadataColumns = mockMigrationMetadataColumnsResult(text, params);
+      if (metadataColumns) return metadataColumns;
     if (/information_schema\.tables/i.test(text)) return { rows: [{ exists: true }], rowCount: 1 };
     // MIGRATION-VERIFY-TRAP-FIX: verifyMigrations cross-checks the ledger read
     // against an independent count. Answered BEFORE the row branch below, which
@@ -283,9 +284,7 @@ describe('ENC-META-SENTINEL G2: result_ref / human_waits / resume through the re
   const apps: App[] = [];
 
   beforeAll(() => {
-    scripted().schemaLedger = loadMigrationFiles(join(__dirname, '..', 'migrations')).map(
-      (file) => ({ sequence: file.sequence, filename: file.filename }),
-    );
+    scripted().schemaLedger = currentAppliedMigrationLedger();
   });
 
   beforeEach(() => {

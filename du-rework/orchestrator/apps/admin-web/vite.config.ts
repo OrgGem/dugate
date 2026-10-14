@@ -15,6 +15,9 @@ export default defineConfig({
   // @du/contracts is a linked CommonJS workspace dependency. Include it in
   // Vite's browser prebundle so runtime schema imports work in dev mode too.
   optimizeDeps: {
+    // The workspace build can change without lockfile metadata changing;
+    // re-optimize at dev startup so persisted cache cannot keep stale exports.
+    force: true,
     include: ['@du/contracts'],
   },
   resolve: {

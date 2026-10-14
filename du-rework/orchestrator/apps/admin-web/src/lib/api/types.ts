@@ -9,6 +9,7 @@
 import type {
   ProviderReportedCost,
   TenantActiveConnectorCatalogQuery,
+  TenantConnectorRecipeCatalogQuery,
 } from '@du/contracts';
 
 // ORV14 leaf contracts are authored in `@du/contracts`; the shared browser
@@ -131,6 +132,9 @@ export type {
   TenantActiveConnectorCatalogItem,
   TenantActiveConnectorCatalogPage,
   TenantActiveConnectorCatalogQuery,
+  TenantConnectorRecipeCatalogItem,
+  TenantConnectorRecipeCatalogPage,
+  TenantConnectorRecipeCatalogQuery,
   ProviderReportedCost,
   ProfileGroup,
   ProfileGroupFunctionCatalog,
@@ -360,6 +364,10 @@ export interface ConnectorListPage {
 export interface ConnectorCapabilities {
   management: boolean;
   credentialWorkflow: boolean;
+  /** Typed recipe credentials use Connector AES-GCM storage or configured Vault KV2. */
+  typedCredentialStorage?: boolean;
+  /** Managed Secret Catalog import is composed independently from legacy Vault credential writes. */
+  secretCatalogImport?: boolean;
   test: boolean;
   knownConnectorIds: string[];
 }
@@ -464,6 +472,8 @@ export interface ProfileCapability {
 
 /** Safe metadata projection for the tenant-scoped profile catalog. */
 export interface ProfileListRow {
+  /** Opaque saved-resource identity used only to make tenant-scoped detail reads exact. */
+  profileId?: string;
   tenantId: string;
   businessId: string;
   businessVersion: string;
@@ -473,6 +483,10 @@ export interface ProfileListRow {
   /** Memberships whose profile link and API key are both active. */
   keyCount: number;
   boundActions: string[];
+  /** Persisted action identity from the active binding; optional for older responses. */
+  action?: string;
+  /** Persisted endpoint selector from the active binding; null is generic, absent is an older response. */
+  endpointSlug?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -491,6 +505,10 @@ export interface ProfileDetail {
   profileName: string;
   /** Real active revision (0 only if the backend has no pointer yet). */
   revision: number;
+  /** Persisted action identity from the active binding; absent on blank/older reads. */
+  action?: string;
+  /** Persisted endpoint selector from the active binding; null is generic, absent is blank or an older response. */
+  endpointSlug?: string | null;
   currentValues: Record<string, unknown>;
   policy: ProfilePolicyRead;
   manifest: { actions: { name?: string; action?: string }[] };
@@ -506,7 +524,14 @@ export interface ProfileDetail {
   apiKeyId?: string;
 }
 
+/** Optional read scope for exact tenant-fenced Profile detail reads. */
+export interface ProfileDetailReadScope {
+  tenantId?: string;
+  profileId?: string;
+}
+
 export interface ProfileMutationResult {
+  profileId?: string;
   revision?: number;
   [key: string]: unknown;
 }
@@ -517,6 +542,7 @@ export interface ApiKeyIdRef {
 }
 
 export interface PolicyUpsertBody {
+  action?: string;
   endpointSlug?: string;
   connectorBindings?: Record<string, { connectorId: string; revision: number }>;
   expectedRevision?: number;
@@ -525,11 +551,13 @@ export interface PolicyUpsertBody {
 }
 
 export interface ProfilePublishBody {
+  action?: string;
   expectedRevision: number;
   apiKey?: ApiKeyIdRef;
 }
 
 export interface ProfileRollbackBody {
+  action?: string;
   targetRevision: number;
   expectedRevision?: number;
   apiKey?: ApiKeyIdRef;
@@ -1010,6 +1038,9 @@ export interface SecretCatalogListQuery {
 /** Tenant comes from the validated session unless a platform Admin selects one. */
 export type TenantActiveConnectorCatalogClientQuery =
   Omit<TenantActiveConnectorCatalogQuery, 'tenantId'> & { tenantId?: string };
+
+export type TenantConnectorRecipeCatalogClientQuery =
+  Omit<TenantConnectorRecipeCatalogQuery, 'tenantId'> & { tenantId?: string };
 
 export interface SecretCatalogCreateBody {
   tenantId: string;

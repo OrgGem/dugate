@@ -29,6 +29,9 @@ import {
   ConnectorBackupEffectFenceObservationSchema,
   TenantActiveConnectorCatalogQuerySchema,
   TenantActiveConnectorCatalogPageSchema,
+  TenantConnectorRecipeCatalogQuerySchema,
+  TenantConnectorRecipeCatalogPageSchema,
+  isTenantUuid,
   type ConnectorRevisionBinding,
   type ConnectorReplicaControlAck,
   type ConnectorReplicaControlCommand,
@@ -303,6 +306,9 @@ async function route(
     return writeJson(response, ready ? 200 : 503, { ok: ready });
   }
   if (method === 'GET' && path === '/capabilities') return writeJson(response, 200, dependencies.capabilities());
+  if (method === 'GET' && path === '/internal/admin/connector-capabilities') {
+    return writeJson(response, 200, dependencies.capabilities());
+  }
   if (method === 'GET' && path === '/internal/admin/signals/usage') {
     if (!dependencies.runtime.getSignalSnapshot) {
       throw new ConnectorError('PROVIDER_UNAVAILABLE', 'Connector signal projection is not configured.');
@@ -424,6 +430,34 @@ async function route(
     if (!parsedPage.success) throw new ConnectorError('INVALID_PROVIDER_RESPONSE', 'Tenant Connector catalog response is invalid.');
     return writeJson(response, 200, parsedPage.data);
   }
+  if (method === 'GET' && path === '/internal/admin/connector-revisions/catalog') {
+    if (!dependencies.parityManagement) {
+      throw new ConnectorError('PROVIDER_UNAVAILABLE', 'Typed Connector recipe management is not configured.');
+    }
+    const queryValues = (name: string): string | undefined => {
+      const values = url.searchParams.getAll(name);
+      if (values.length > 1) throw new ConnectorError('INVALID_INPUT', `Typed Connector catalog query parameter ${name} must appear once.`);
+      return values[0];
+    };
+    const rawQuery: Record<string, unknown> = { tenantId: queryValues('tenantId') };
+    const q = queryValues('q');
+    const cursor = queryValues('cursor');
+    const limit = queryValues('limit');
+    if (q !== undefined) rawQuery['q'] = q;
+    if (cursor !== undefined) rawQuery['cursor'] = cursor;
+    if (limit !== undefined) rawQuery['limit'] = limit;
+    for (const name of url.searchParams.keys()) {
+      if (!['tenantId', 'q', 'cursor', 'limit'].includes(name)) {
+        throw new ConnectorError('INVALID_INPUT', 'Typed Connector catalog query contains an unsupported parameter.');
+      }
+    }
+    const parsedQuery = TenantConnectorRecipeCatalogQuerySchema.safeParse(rawQuery);
+    if (!parsedQuery.success) throw new ConnectorError('INVALID_INPUT', 'Tenant typed Connector catalog query is invalid.');
+    const page = await dependencies.parityManagement.listConnectorRecipeCatalog(parsedQuery.data);
+    const parsedPage = TenantConnectorRecipeCatalogPageSchema.safeParse(page);
+    if (!parsedPage.success) throw new ConnectorError('INVALID_PROVIDER_RESPONSE', 'Tenant typed Connector catalog response is invalid.');
+    return writeJson(response, 200, parsedPage.data);
+  }
   if (method === 'POST' && path === '/internal/admin/provider-tests') {
     if (dependencies.acceptingInvocations && !dependencies.acceptingInvocations()) {
       throw new ConnectorError('PROVIDER_UNAVAILABLE', 'Connector is draining and is not accepting provider tests.');
@@ -447,10 +481,13 @@ async function route(
       let connectorId: string;
       try { connectorId = decodeURIComponent(base[1] ?? ''); }
       catch { throw new ConnectorError('INVALID_INPUT', 'Connector identifier is invalid.'); }
+      if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(connectorId) || connectorId.includes('..')) {
+        throw new ConnectorError('INVALID_INPUT', 'Connector identifier is invalid.');
+      }
       const tail = base[2] ?? '';
       if (method === 'GET' && tail === 'chain') {
         const tenantId = singleQueryValue(url, 'tenantId');
-        if (!tenantId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(tenantId)) {
+        if (!isTenantUuid(tenantId)) {
           throw new ConnectorError('INVALID_INPUT', 'Tenant scope is invalid.');
         }
         const hasTypedChain = await dependencies.parityManagement.hasTypedChain(tenantId, connectorId);
@@ -460,7 +497,7 @@ async function route(
         const body = await readJson(request, dependencies.maxBodyBytes ?? 16_384);
         if (!isRecord(body) || !hasExactly(body, ['tenantId', 'expectedHeadRevision', 'idempotencyKey'])
           || typeof body.tenantId !== 'string'
-          || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.tenantId)
+          || !isTenantUuid(body.tenantId)
           || typeof body.expectedHeadRevision !== 'number'
           || !Number.isSafeInteger(body.expectedHeadRevision) || body.expectedHeadRevision < 0
           || typeof body.idempotencyKey !== 'string' || body.idempotencyKey.length < 8 || body.idempotencyKey.length > 200) {
@@ -476,7 +513,7 @@ async function route(
       }
       if (method === 'GET' && /^\d+$/.test(tail)) {
         const tenantId = singleQueryValue(url, 'tenantId');
-        if (!tenantId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(tenantId)) {
+        if (!isTenantUuid(tenantId)) {
           throw new ConnectorError('INVALID_INPUT', 'Tenant scope is invalid.');
         }
         const revision = Number(tail);
@@ -530,7 +567,7 @@ async function route(
         const body = await readJson(request, dependencies.maxBodyBytes ?? 16_384);
         if (!isRecord(body) || !hasExactly(body, ['tenantId', 'expectedCurrentRevision'])
           || typeof body.tenantId !== 'string'
-          || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.tenantId)
+          || !isTenantUuid(body.tenantId)
           || typeof body.expectedCurrentRevision !== 'number'
           || !Number.isSafeInteger(body.expectedCurrentRevision) || body.expectedCurrentRevision < 0) {
           throw new ConnectorError('INVALID_INPUT', 'Connector activation request is invalid.');
@@ -563,7 +600,7 @@ async function route(
         const body = await readJson(request, dependencies.maxBodyBytes ?? 16_384);
         if (!isRecord(body) || !hasExactly(body, ['tenantId', 'sourceRevision', 'expectedHeadRevision', 'idempotencyKey'])
           || typeof body.tenantId !== 'string'
-          || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.tenantId)
+          || !isTenantUuid(body.tenantId)
           || typeof body.sourceRevision !== 'number' || !Number.isSafeInteger(body.sourceRevision) || body.sourceRevision < 1
           || typeof body.expectedHeadRevision !== 'number' || !Number.isSafeInteger(body.expectedHeadRevision) || body.expectedHeadRevision < 0
           || typeof body.idempotencyKey !== 'string' || body.idempotencyKey.length < 8 || body.idempotencyKey.length > 200) {
@@ -801,6 +838,7 @@ async function route(
 
 function requiredInternalScope(path: string): string {
   if (path.startsWith('/internal/admin/runtime-control/')) return 'connector:runtime-control';
+  if (path === '/internal/admin/connector-capabilities') return 'connector:management';
   if (path === '/internal/admin/provider-tests' || path.startsWith('/internal/admin/provider-test-invocations/')) {
     return 'connector:provider-test';
   }

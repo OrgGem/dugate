@@ -132,6 +132,18 @@ describe('SEC-ENC-01 small metadata envelope', () => {
 
   it('accepts the runtime envelope shape and rejects byte-length drift', () => {
     expect(SealedMetadataEnvelopeSchema.safeParse(valid).success).toBe(true);
+    expect(SealedMetadataEnvelopeSchema.safeParse({
+      ...valid,
+      dek: { ...valid.dek, providerKind: 'local-keyring' },
+    }).success).toBe(true);
+    expect(SealedMetadataEnvelopeSchema.safeParse({
+      ...valid,
+      dek: { ...valid.dek, providerKind: 'vault-transit' },
+    }).success).toBe(true);
+    expect(SealedMetadataEnvelopeSchema.safeParse({
+      ...valid,
+      dek: { ...valid.dek, providerKind: 'unknown-provider' },
+    }).success).toBe(false);
     expect(SealedMetadataEnvelopeSchema.safeParse({ ...valid, nonce: b64(Buffer.alloc(11, 1)) }).success).toBe(false);
     expect(SealedMetadataEnvelopeSchema.safeParse({ ...valid, tag: b64(Buffer.alloc(15, 2)) }).success).toBe(false);
     expect(SealedMetadataEnvelopeSchema.safeParse({ ...valid, aad: b64(Buffer.alloc(31, 3)) }).success).toBe(false);

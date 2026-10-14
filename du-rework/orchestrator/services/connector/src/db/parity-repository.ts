@@ -7,14 +7,20 @@ import {
   matchesVaultRevisionBinding,
   TenantActiveConnectorCatalogItemSchema,
   TenantActiveConnectorCatalogPageSchema,
+  TenantConnectorRecipeCatalogItemSchema,
+  TenantConnectorRecipeCatalogPageSchema,
   type TenantActiveConnectorCatalogPage,
   type TenantActiveConnectorCatalogQuery,
+  type TenantConnectorRecipeCatalogPage,
+  type TenantConnectorRecipeCatalogQuery,
   type ConnectorParityRevision,
   type ConnectorRecipe,
-  type VaultCredentialSource,
+  type ConnectorCredentialSource,
+  type EncryptedDbCredentialSource,
 } from '@du/contracts';
 import { ConnectorError } from '../errors';
 import { isSealedInvocationField, type InvocationFieldCrypto } from './invocation-crypto';
+import { PostgresTypedCredentialStore, type TypedCredentialBinding } from './credential-store';
 import { assertConnectorBackupEffectGateOpen, lockConnectorBackupEffectGate, type ConnectorBackupConfigWritePort } from './backup-effect-fences';
 import type { SqlClient } from './sql';
 
@@ -24,7 +30,14 @@ export interface ConnectorParityCredentialImportSource {
 }
 
 export interface ConnectorParityStoredRevision extends ConnectorParityRevision {
-  credentialSource: VaultCredentialSource | null;
+  credentialSource: ConnectorCredentialSource | null;
+}
+
+export interface ConnectorParityCredentialCopyFrom {
+  revision: number;
+  credentialRef: string;
+  credentialVersion: number;
+  credentialSource: EncryptedDbCredentialSource;
 }
 
 export interface ConnectorParityIntentInput {
@@ -38,11 +51,16 @@ export interface ConnectorParityIntentInput {
   recipe: ConnectorRecipe;
   credentialRef: string | null;
   credentialVersion: number | null;
-  credentialSource: VaultCredentialSource | null;
+  credentialSource: ConnectorCredentialSource | null;
   credentialImportSource: ConnectorParityCredentialImportSource | null;
   vaultExpectedVersion: number | null;
   vaultTargetVersion: number | null;
   vaultSecretSha256: string | null;
+  /** Ephemeral input only. The repository seals this inside the same
+   * transaction that stores the draft intent and never writes it to SQL. */
+  credentialSecret?: string;
+  /** Ephemeral source binding for keep/rollback resealing. */
+  credentialCopyFrom?: ConnectorParityCredentialCopyFrom;
 }
 
 export interface ConnectorParityClaimInput {
@@ -121,7 +139,7 @@ export interface ConnectorParityIntentResult {
   vaultExpectedVersion: number | null;
   vaultTargetVersion: number | null;
   vaultSecretSha256: string | null;
-  credentialSource: VaultCredentialSource | null;
+  credentialSource: ConnectorCredentialSource | null;
   credentialRef: string | null;
   credentialVersion: number | null;
   credentialImportSource: ConnectorParityCredentialImportSource | null;
@@ -137,6 +155,7 @@ export class PostgresConnectorParityRepository {
     private readonly db: SqlClient,
     private readonly crypto?: InvocationFieldCrypto,
     private readonly backupConfigWrites?: ConnectorBackupConfigWritePort,
+    private readonly credentialStore?: PostgresTypedCredentialStore,
   ) {}
 
   private requireCrypto(): InvocationFieldCrypto {
@@ -282,6 +301,16 @@ export class PostgresConnectorParityRepository {
     if (!/^[a-f0-9]{64}$/.test(input.payloadHash)) throw new ConnectorError('INVALID_INPUT', 'Draft identity is invalid.');
     const parsedRecipe = ConnectorRecipeSchema.safeParse(input.recipe);
     if (!parsedRecipe.success) throw new ConnectorError('INVALID_INPUT', 'Connector recipe is invalid.');
+    if ((input.credentialSecret !== undefined && input.credentialCopyFrom !== undefined)
+      || (input.credentialCopyFrom !== undefined && input.credentialSource?.kind !== 'encrypted-db')
+      || (input.credentialSecret !== undefined && input.credentialSource?.kind === 'encrypted-db'
+        && input.vaultTargetVersion !== null)
+      || (input.credentialSecret !== undefined && input.credentialSource?.kind === 'vault-kv2'
+        && (input.vaultTargetVersion === null || !input.vaultSecretSha256))
+      || (input.credentialSecret !== undefined && input.credentialSource?.kind !== 'vault-kv2'
+        && input.credentialSource?.kind !== 'encrypted-db')) {
+      throw new ConnectorError('INVALID_INPUT', 'Typed Connector credential staging plan is invalid.');
+    }
     return this.db.transaction(async (tx) => {
       const backupFence = await lockConnectorBackupEffectGate(tx);
       assertConnectorBackupEffectGateOpen(backupFence);
@@ -366,6 +395,40 @@ export class PostgresConnectorParityRepository {
       );
       const row = inserted.rows[0];
       if (!row) throw new ConnectorError('PROVIDER_UNAVAILABLE', 'Connector draft intent could not be stored.');
+      if (input.credentialSource?.kind === 'encrypted-db') {
+        if (!this.credentialStore) {
+          throw new ConnectorError('PROVIDER_UNAVAILABLE', 'Typed Connector credential encryption is not configured.');
+        }
+        const targetBinding: TypedCredentialBinding = {
+          tenantId: input.tenantId,
+          connectorId: input.connectorId,
+          revision,
+          credentialRef: input.credentialSource.credentialRef,
+          credentialVersion: input.credentialSource.version,
+        };
+        if (input.credentialSecret !== undefined) {
+          await this.credentialStore.stage(tx, targetBinding, input.credentialSource, input.credentialSecret);
+        } else if (input.credentialCopyFrom !== undefined) {
+          const sourceBinding: TypedCredentialBinding = {
+            tenantId: input.tenantId,
+            connectorId: input.connectorId,
+            revision: input.credentialCopyFrom.revision,
+            credentialRef: input.credentialCopyFrom.credentialRef,
+            credentialVersion: input.credentialCopyFrom.credentialVersion,
+          };
+          await this.credentialStore.copy(
+            tx,
+            sourceBinding,
+            input.credentialCopyFrom.credentialSource,
+            targetBinding,
+            input.credentialSource,
+          );
+        } else {
+          throw new ConnectorError('CREDENTIAL_INVALID', 'Encrypted Connector credential write is missing its source value.');
+        }
+      } else if (input.credentialCopyFrom !== undefined) {
+        throw new ConnectorError('INVALID_INPUT', 'Typed Connector credential staging plan is invalid.');
+      }
       return this.toIntentResult(tx, row, true);
     });
   }
@@ -395,7 +458,14 @@ export class PostgresConnectorParityRepository {
       if (intent.vault_target_version !== null && Number(intent.credential_version) !== Number(intent.vault_target_version)) {
         throw new ConnectorError('CREDENTIAL_INVALID', 'Connector draft credential version does not match its write plan.');
       }
-      const source = intent.credential_source === null ? null : intent.credential_source as VaultCredentialSource;
+      const source = intent.credential_source === null ? null : parseParityCredentialSource(
+        intent.credential_source,
+        intent.tenant_id,
+        intent.connector_id,
+        Number(intent.revision),
+        intent.credential_ref,
+        intent.credential_version === null ? null : Number(intent.credential_version),
+      );
       const inserted = await tx.query<RevisionRow>(
         `INSERT INTO connector_parity_revisions
           (tenant_id,connector_id,revision,state,recipe_envelope,credential_ref,credential_version,credential_source)
@@ -543,6 +613,85 @@ export class PostgresConnectorParityRepository {
         }, key)
         : null;
       return TenantActiveConnectorCatalogPageSchema.parse({ tenantId: query.tenantId, items, limit: query.limit, nextCursor });
+    } finally {
+      key.fill(0);
+    }
+  }
+
+  /** Bounded safe metadata inventory of every tenant-owned typed recipe
+   * revision. The legacy ACTIVE-only picker continues to use
+   * listActiveRevisions above. */
+  public async listRecipeCatalog(query: TenantConnectorRecipeCatalogQuery): Promise<TenantConnectorRecipeCatalogPage> {
+    const tenantId = query.tenantId.toLowerCase();
+    const normalizedQuery = query.q?.trim().toLocaleLowerCase('en-US') ?? '';
+    const queryHash = createHash('sha256').update(`typed-recipe-catalog\0${normalizedQuery}`).digest('hex');
+    const key = await this.catalogCursorKey();
+    try {
+      let after: Pick<CatalogCursor, 'afterConnectorId' | 'afterRevision'> | null = query.cursor
+        ? parseCatalogCursor(query.cursor, key, tenantId, queryHash, query.limit)
+        : null;
+      const items: TenantConnectorRecipeCatalogPage['items'] = [];
+      let scanned = 0;
+      let hasUnscanned = false;
+
+      while (scanned < CATALOG_MAX_SCAN && items.length < query.limit) {
+        const result = await this.db.query<RevisionRow>(
+          `SELECT * FROM connector_parity_revisions
+            WHERE tenant_id=$1
+              AND ($2::text IS NULL OR (connector_id,revision)>($2::text,$3::integer))
+            ORDER BY connector_id,revision LIMIT $4`,
+          [tenantId, after?.afterConnectorId ?? null, after?.afterRevision ?? null,
+            Math.min(CATALOG_SCAN_BATCH, CATALOG_MAX_SCAN - scanned)],
+        );
+        if (result.rows.length === 0) break;
+        for (let index = 0; index < result.rows.length; index += 1) {
+          const row = result.rows[index]!;
+          const recipe = await this.openRecipe(row);
+          const item = TenantConnectorRecipeCatalogItemSchema.parse({
+            tenantId,
+            connectorId: row.connector_id,
+            revision: Number(row.revision),
+            state: row.state,
+            adapter: recipe.adapter,
+            authKind: recipe.auth.kind,
+            credentialConfigured: row.credential_ref !== null,
+          });
+          after = { afterConnectorId: row.connector_id, afterRevision: Number(row.revision) };
+          scanned += 1;
+          if (!normalizedQuery || [item.connectorId, item.adapter, item.authKind]
+            .some((value) => value.toLocaleLowerCase('en-US').includes(normalizedQuery))) {
+            items.push(item);
+            if (items.length === query.limit) {
+              hasUnscanned = index < result.rows.length - 1 || result.rows.length === CATALOG_SCAN_BATCH;
+              break;
+            }
+          }
+          if (scanned >= CATALOG_MAX_SCAN) {
+            hasUnscanned = result.rows.length === CATALOG_SCAN_BATCH;
+            break;
+          }
+        }
+        if (items.length === query.limit || scanned >= CATALOG_MAX_SCAN) break;
+        if (result.rows.length < CATALOG_SCAN_BATCH) break;
+      }
+
+      const nextCursor = hasUnscanned && after
+        ? createCatalogCursor({
+          version: 1,
+          tenantId,
+          queryHash,
+          limit: query.limit,
+          afterConnectorId: after.afterConnectorId,
+          afterRevision: after.afterRevision,
+          expiresAt: Date.now() + CATALOG_CURSOR_TTL_MS,
+        }, key)
+        : null;
+      return TenantConnectorRecipeCatalogPageSchema.parse({
+        tenantId,
+        items,
+        limit: query.limit,
+        nextCursor,
+      });
     } finally {
       key.fill(0);
     }
@@ -715,7 +864,14 @@ export class PostgresConnectorParityRepository {
     } catch {
       throw new ConnectorError('CREDENTIAL_INVALID', 'Connector draft recipe could not be opened.');
     }
-    const source = row.credential_source === null ? null : row.credential_source as VaultCredentialSource;
+    const source = row.credential_source === null ? null : parseParityCredentialSource(
+      row.credential_source,
+      row.tenant_id,
+      row.connector_id,
+      Number(row.revision),
+      row.credential_ref,
+      row.credential_version === null ? null : Number(row.credential_version),
+    );
     const base = {
       created,
       payloadHash: row.payload_hash,
@@ -746,21 +902,14 @@ export class PostgresConnectorParityRepository {
 
   private async toRevision(row: RevisionRow): Promise<ConnectorParityStoredRevision> {
     const expectedHeadRevision = Number(row.revision) - 1;
-    let credentialSource: VaultCredentialSource | null = null;
-    if (row.credential_source !== null) {
-      const parsedSource = ConnectorCredentialSourceSchema.safeParse(row.credential_source);
-      if (!parsedSource.success || parsedSource.data.kind !== 'vault-kv2'
-        || parsedSource.data.version !== Number(row.credential_version)
-        || parsedSource.data.account !== 'recipe'
-        || !matchesVaultRevisionBinding(parsedSource.data, {
-          tenantId: row.tenant_id,
-          connectorId: row.connector_id,
-          accountId: 'recipe',
-        })) {
-        throw new ConnectorError('CREDENTIAL_INVALID', 'Stored Connector recipe credential binding is invalid.');
-      }
-      credentialSource = parsedSource.data;
-    }
+    const credentialSource = row.credential_source === null ? null : parseParityCredentialSource(
+      row.credential_source,
+      row.tenant_id,
+      row.connector_id,
+      Number(row.revision),
+      row.credential_ref,
+      row.credential_version === null ? null : Number(row.credential_version),
+    );
     if ((row.credential_ref === null) !== (credentialSource === null)
       || (row.credential_version === null) !== (credentialSource === null)) {
       throw new ConnectorError('CREDENTIAL_INVALID', 'Stored Connector recipe credential pin is incomplete.');
@@ -795,6 +944,39 @@ async function lockConnectorChain(client: SqlClient, connectorId: string): Promi
 
 function sameTenant(left: string, right: string): boolean {
   return left.toLowerCase() === right.toLowerCase();
+}
+
+function parseParityCredentialSource(
+  value: unknown,
+  tenantId: string,
+  connectorId: string,
+  revision: number,
+  credentialRef: string | null,
+  credentialVersion: number | null,
+): ConnectorCredentialSource {
+  const parsed = ConnectorCredentialSourceSchema.safeParse(value);
+  if (!parsed.success || credentialRef === null || credentialVersion === null) {
+    throw new ConnectorError('CREDENTIAL_INVALID', 'Stored Connector recipe credential binding is invalid.');
+  }
+  const source = parsed.data;
+  if (source.kind === 'vault-kv2') {
+    if (source.version !== credentialVersion
+      || source.account !== 'recipe'
+      || !matchesVaultRevisionBinding(source, { tenantId, connectorId, accountId: 'recipe' })) {
+      throw new ConnectorError('CREDENTIAL_INVALID', 'Stored Connector recipe credential binding is invalid.');
+    }
+    return source;
+  }
+  if (source.kind === 'encrypted-db') {
+    if (source.credentialRef !== credentialRef || source.version !== credentialVersion
+      || !Number.isSafeInteger(revision) || revision < 1) {
+      throw new ConnectorError('CREDENTIAL_INVALID', 'Stored Connector recipe credential binding is invalid.');
+    }
+    return source;
+  }
+  // The typed chain has its own tenant/revision-bound credential stores.
+  // `legacy-db` remains supported by the separate legacy revision/runtime path.
+  throw new ConnectorError('CREDENTIAL_INVALID', 'Stored Connector recipe credential source is unsupported.');
 }
 
 function modelFromRecipe(recipe: ConnectorRecipe): string | null {

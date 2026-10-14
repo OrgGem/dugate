@@ -1,8 +1,7 @@
-import { join } from 'node:path';
 import type { QueryResult, QueryResultRow } from 'pg';
 import IORedis from 'ioredis';
 import { createApp, type App } from '../src/server';
-import { loadMigrationFiles } from '../src/db/migrations';
+import { currentAppliedMigrationLedger, mockMigrationMetadataColumnsResult } from './helpers/migration-ledger-fixture';
 
 /**
  * CONNECTOR-WIRE-A — boot composition.
@@ -62,6 +61,8 @@ jest.mock('pg', () => {
         ? { rows: [{ active_generation_id: state.activeGenerationId }], rowCount: 1 }
         : { rows: [], rowCount: 0 };
     }
+    const metadataColumns = mockMigrationMetadataColumnsResult(text, params);
+      if (metadataColumns) return metadataColumns;
     if (/information_schema\.tables/i.test(text)) return { rows: [{ exists: true }], rowCount: 1 };
     if (/SELECT count\(\*\)::int/i.test(text)) return { rows: [{ count: state.schemaLedger.length }], rowCount: 1 }
     if (/FROM schema_migrations/i.test(text)) {
@@ -70,8 +71,8 @@ jest.mock('pg', () => {
     return { rows: [], rowCount: 0 };
   }
   class ScriptedPool {
-    async query(sql: string): Promise<PgResult> {
-      return answer(sql);
+    async query(sql: string, params: unknown[] = []): Promise<PgResult> {
+      return answer(sql, params);
     }
     async connect(): Promise<{ query: (sql: string, params?: unknown[]) => Promise<PgResult>; release: () => void }> {
       return { query: (sql, params = []) => Promise.resolve(answer(sql, params)), release: () => undefined };
@@ -125,9 +126,7 @@ describe('CONNECTOR-WIRE-A boot composition', () => {
   const apps: App[] = [];
 
   beforeAll(() => {
-    scripted().schemaLedger = loadMigrationFiles(join(__dirname, '..', 'migrations')).map(
-      (file) => ({ sequence: file.sequence, filename: file.filename }),
-    );
+    scripted().schemaLedger = currentAppliedMigrationLedger();
   });
 
   afterAll(async () => {

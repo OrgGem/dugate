@@ -199,7 +199,15 @@ function decodeSecretListCursor(raw: string | null, secret: string, context: str
 }
 
 export function resolveSecretStoreKey(customKey?: string): Buffer {
-  const rawKey = customKey || process.env.ENCRYPTION_KEY || process.env.NEXTAUTH_SECRET || 'du-secret-catalog-default-fallback-key';
+  const rawKey = customKey || process.env.ENCRYPTION_KEY;
+  if (!rawKey) {
+    throw new HttpError(503, 'SECRET_KEY_VERSION_UNAVAILABLE', 'a retained Secret Catalog encryption key is not configured');
+  }
+  if (customKey === undefined && Buffer.byteLength(rawKey, 'utf8') < 32) {
+    throw new HttpError(503, 'SECRET_KEY_VERSION_UNAVAILABLE', 'ENCRYPTION_KEY must contain at least 32 bytes for managed Secret Catalog values');
+  }
+  // Preserve the original unversioned derivation for explicitly selected
+  // legacy callers. New boot-configured writes use the versioned keyring.
   return createHash('sha256').update(rawKey).digest();
 }
 
@@ -302,9 +310,6 @@ export async function createSecretInDb(
   backupSnapshotWriteGate?: BackupSnapshotWriteGate,
 ): Promise<SecretCatalogEntryRead> {
   const keyVersion = keyring?.activeVersion ?? null;
-  const key = keyring
-    ? versionedKey(keyring, keyVersion!)
-    : resolveSecretStoreKey(encryptionKey);
   const secretId = randomUUID();
 
   let encryptedValue: unknown = null;
@@ -314,6 +319,9 @@ export async function createSecretInDb(
     if (!input.value || typeof input.value.value !== 'string') {
       throw new HttpError(422, 'INVALID_SCHEMA', 'managed_value requires a literal value');
     }
+    const key = keyring
+      ? versionedKey(keyring, keyVersion!)
+      : resolveSecretStoreKey(encryptionKey);
     encryptedValue = encryptSecretValue(input.value.value, key);
   } else {
     providerConfig = { ...input.provider };

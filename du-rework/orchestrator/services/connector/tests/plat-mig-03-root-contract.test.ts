@@ -93,6 +93,13 @@ describe('PLAT-MIG-03 real Connector router and signed identity', () => {
     expect(allowed.body).toEqual({ adapters: ['json-http'] });
   });
 
+  test('managed-import capabilities use the additive management-scoped endpoint', async () => {
+    expect((await request('/internal/admin/connector-capabilities', token(['connector:invoke']))).status).toBe(403);
+    const allowed = await request('/internal/admin/connector-capabilities', token(['connector:management']));
+    expect(allowed.status).toBe(200);
+    expect(allowed.body).toEqual({ adapters: ['json-http'] });
+  });
+
   test.each(['/internal/v1/connectors', '/management/connectors', '/management/capabilities', '/connectors/c1'])('%s is not a supported alias', async (path) => {
     expect((await request(path, token(['connector:manage', 'connector:invoke']))).status).toBe(404);
     expect(list).not.toHaveBeenCalled();

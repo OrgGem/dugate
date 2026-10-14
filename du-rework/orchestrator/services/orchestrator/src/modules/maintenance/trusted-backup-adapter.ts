@@ -476,7 +476,7 @@ export interface IsolatedRestoreRuntimeProbeResult extends Record<string, unknow
   artifactTransitKeyRecoveries: Array<{keyRef:string;keyVersion:number;verifiedArtifactCount:number;evidenceSha256:string}>;
   secretCatalogKeyRecoveries: Array<{keyVersion:string;verifiedRevisionCount:number;verifiedCurrentSecretCount:number;evidenceSha256:string}>;
   connectorInvocationKeyRecoveries: Array<{keyRef:string;keyVersion:number;verifiedEnvelopeCount:number;evidenceSha256:string}>;
-  connectorCredentialRecovery: {keyVersion:string;verifiedSecretVersionCount:number;evidenceSha256:string};
+  connectorCredentialRecovery: {keyVersion:string;verifiedSecretVersionCount:number;verifiedTypedCredentialCount:number;evidenceSha256:string};
   metadataTransitKeyRecoveries: Array<{keyRef:string;keyVersion:number;verifiedEnvelopeCount:number;evidenceSha256:string}>;
   vaultCredentialRecoveries: Array<{pinSha256:string;verifiedRead:true;evidenceSha256:string}>;
   checks: { login: 'PASSED'; history: 'PASSED'; artifactDecryption: 'PASSED'; artifactDownload: 'PASSED'; artifactTransitKeyRecovery:'PASSED'; secretCatalogDecryption:'PASSED'; connectorInvocationDecryption:'PASSED'; connectorCredentialDecryption:'PASSED'; metadataTransitDecryption:'PASSED'; vaultCredentialReads:'PASSED'; dispatchDisabled: 'PASSED'; providerCallsDisabled: 'PASSED'; usageDeliveryDisabled: 'PASSED'; externalEffects: Record<'admission'|'dispatch'|'providerInvocation'|'connectorPoll'|'usageDelivery'|'webhookDelivery'|'alertEmission'|'cleanup'|'historicalMaintenance'|'migrations','PASSED'> };
@@ -502,6 +502,7 @@ export interface IsolatedRestoreRuntimeProbe {
     expectedConnectorInvocationKeyCounts: readonly ConnectorInvocationKeyCount[];
     expectedConnectorCredentialKey: {keyVersion:string;fingerprintSha256:string};
     expectedConnectorSecretVersionCount: number;
+    expectedConnectorTypedCredentialCount: number;
     expectedMetadataTransitKeyCounts: readonly MetadataTransitKeyCount[];
     expectedVaultCredentialPinDigests: readonly string[];
     services: { orchestrator: string; connector: string };
@@ -551,6 +552,8 @@ interface BundleIndex {
   metadataTransitKeyCounts: MetadataTransitKeyCount[];
   connectorVaultCredentialPinDigests: string[];
   connectorReferencedSecretVersionCount: number;
+  /** Absent only on schema-version-7 bundles created before typed DB credentials existed. */
+  connectorTypedCredentialReferenceCount?: number;
   sourceClusterNames: { orchestrator: string; connector: string };
   components: Component[];
   counts: {
@@ -560,6 +563,8 @@ interface BundleIndex {
     priceRevisions: number; reservationGroups: number; budgetHolds: number;
     financialAdjustments: number; financialAdjustmentHeads: number; financialAdjustmentCommands: number;
     connectorInvocations: number; connectorUsageEvents: number; connectorSecretVersions: number;
+    /** Absent only on historical bundles; restore accepts absence only after proving zero typed refs and rows. */
+    connectorParityCredentials?: number;
     connectorRevisions: number; connectorRuntimeControls: number; connectorParityChains: number;
     connectorParityRevisions: number; connectorParityClaimIntents: number; connectorParityDraftIntents: number;
     artifactObjectBytes: number; artifactManifestBytes: number;
@@ -613,6 +618,7 @@ const BundleIndexSchema = z.object({
   metadataTransitKeyCounts: z.array(z.object({keyRef:TransitKeyRef,keyVersion:z.number().int().min(1).max(2_147_483_647),envelopeCount:z.number().int().nonnegative()}).strict()).max(512),
   connectorVaultCredentialPinDigests: z.array(z.string().regex(SHA256)).max(100_000),
   connectorReferencedSecretVersionCount: z.number().int().nonnegative(),
+  connectorTypedCredentialReferenceCount: z.number().int().nonnegative().optional(),
   sourceClusterNames: z.object({ orchestrator: SafeId, connector: SafeId }).strict(),
   components: z.array(ComponentSchema).min(3).max(2_000_000),
   counts: z.object({ operations: z.number().int().nonnegative(), artifacts: z.number().int().nonnegative(),
@@ -629,7 +635,8 @@ const BundleIndexSchema = z.object({
     connectorRuntimeControls: z.number().int().nonnegative(), connectorParityChains: z.number().int().nonnegative(),
     connectorParityRevisions: z.number().int().nonnegative(), connectorParityClaimIntents: z.number().int().nonnegative(),
     connectorParityDraftIntents: z.number().int().nonnegative(), artifactObjectBytes: z.number().int().nonnegative(),
-    artifactManifestBytes: z.number().int().nonnegative() }).strict(),
+    artifactManifestBytes: z.number().int().nonnegative(),
+    connectorParityCredentials: z.number().int().nonnegative().optional() }).strict(),
   credentialVersionRefs: z.array(z.string().regex(SECRET_REF)).max(256),
   credentialVersionPins: z.array(z.object({ reference:z.string().regex(SECRET_REF),ownerTenantId:z.string().uuid() }).strict()).max(512),
   encryptionKeyVersionRefs: z.array(z.string().min(1).max(512)).max(2048),
@@ -660,6 +667,8 @@ const BundleIndexSchema = z.object({
   const invocationIds = index.connectorInvocationRecoveryKeys.map((pin)=>`${pin.keyRef}@${pin.keyVersion}`);
   const invocationCounts = index.connectorInvocationKeyCounts.map((pin)=>`${pin.keyRef}@${pin.keyVersion}`);
   const metadataIds = index.metadataTransitKeyCounts.map((pin)=>`${pin.keyRef}@${pin.keyVersion}`);
+  const hasTypedReferenceCount = index.connectorTypedCredentialReferenceCount !== undefined;
+  const hasTypedRowCount = index.counts.connectorParityCredentials !== undefined;
   const expectedKeys = [`backup-recovery:${index.backupRecoveryKey.keyVersion}:${index.backupRecoveryKey.fingerprintSha256}`,
     ...index.secretCatalogRecoveryKeys.map((pin) => `secret-catalog:${pin.keyVersion}:${pin.fingerprintSha256}`),
     `connector-credential:${index.connectorCredentialRecoveryKey.keyVersion}:${index.connectorCredentialRecoveryKey.fingerprintSha256}`,
@@ -670,6 +679,8 @@ const BundleIndexSchema = z.object({
     || new Set(catalogCounts).size !== catalogCounts.length || canonical(catalogVersions.slice().sort()) !== canonical(catalogCounts.slice().sort())
     || new Set(invocationIds).size !== invocationIds.length || new Set(invocationCounts).size !== invocationCounts.length
     || new Set(metadataIds).size !== metadataIds.length || canonical(invocationIds.slice().sort()) !== canonical(invocationCounts.slice().sort())
+    || hasTypedReferenceCount !== hasTypedRowCount
+    || (hasTypedReferenceCount && index.connectorTypedCredentialReferenceCount !== index.counts.connectorParityCredentials)
     || new Set(index.connectorVaultCredentialPinDigests).size !== index.connectorVaultCredentialPinDigests.length
     || canonical(index.encryptionKeyVersionRefs) !== canonical(expectedKeys)) {
     ctx.addIssue({code:z.ZodIssueCode.custom,path:['encryptionKeyVersionRefs'],message:'key refs and per-version counts must exactly match the bundle, Catalog, and artifact Transit pins'});
@@ -1215,9 +1226,62 @@ export function createTrustedMaintenanceBackupAdapter(options: TrustedMaintenanc
     } finally { await rm(out,{force:true}); }
   }
 
+  async function connectorTypedCredentialInventory(man:Manifest):Promise<{ referenceCount:number; rowCount:number }> {
+    const present = await capturePsql(man,man.services.connectorSource,
+      "SELECT to_regclass('public.connector_parity_credentials') IS NOT NULL",128);
+    if (present !== 't' && present !== 'f') throw fail('CONNECTOR_TYPED_CREDENTIAL_TABLE_STATE_INVALID');
+    const sourceRows = `WITH typed_source_rows AS (
+         SELECT tenant_id,connector_id,revision,credential_ref,credential_version,
+                credential_source->>'credentialRef' AS source_ref,credential_source->>'version' AS source_version
+           FROM connector_parity_revisions WHERE credential_source->>'kind'='encrypted-db'
+         UNION ALL
+         SELECT tenant_id,connector_id,revision,credential_ref,credential_version,
+                credential_source->>'credentialRef' AS source_ref,credential_source->>'version' AS source_version
+           FROM connector_parity_draft_intents WHERE credential_source->>'kind'='encrypted-db'
+       ), typed_refs AS (
+         SELECT DISTINCT tenant_id,connector_id,revision,credential_ref,credential_version FROM typed_source_rows
+       )`;
+    if (present === 'f') {
+      const raw = await capturePsql(man,man.services.connectorSource,
+        `${sourceRows} SELECT (SELECT count(*)::bigint FROM typed_refs),
+           (SELECT count(*)::bigint FROM typed_source_rows WHERE credential_ref IS NULL OR credential_version IS NULL
+             OR source_ref IS DISTINCT FROM credential_ref::text OR source_version IS DISTINCT FROM credential_version::text)`,128);
+      const [referencesText,invalidText] = raw.split('|');
+      const references = Number(referencesText), invalid = Number(invalidText);
+      if (!Number.isSafeInteger(references) || references < 0 || !Number.isSafeInteger(invalid) || invalid < 0
+        || references !== 0 || invalid !== 0) throw fail('CONNECTOR_TYPED_CREDENTIAL_TABLE_MISSING');
+      return { referenceCount:0,rowCount:0 };
+    }
+    const raw = await capturePsql(man,man.services.connectorSource,
+      `${sourceRows}, typed_rows AS (
+         SELECT tenant_id,connector_id,revision,credential_ref,credential_version FROM connector_parity_credentials
+       )
+       SELECT (SELECT count(*)::bigint FROM typed_refs),
+              (SELECT count(*)::bigint FROM typed_rows),
+              (SELECT count(*)::bigint FROM typed_refs refs WHERE NOT EXISTS
+                (SELECT 1 FROM typed_rows rows WHERE rows.tenant_id=refs.tenant_id AND rows.connector_id=refs.connector_id
+                  AND rows.revision=refs.revision AND rows.credential_ref::text=refs.credential_ref
+                  AND rows.credential_version=refs.credential_version)),
+              (SELECT count(*)::bigint FROM typed_rows rows WHERE NOT EXISTS
+                (SELECT 1 FROM typed_refs refs WHERE refs.tenant_id=rows.tenant_id AND refs.connector_id=rows.connector_id
+                  AND refs.revision=rows.revision AND refs.credential_ref=rows.credential_ref::text
+                  AND refs.credential_version=rows.credential_version)),
+              (SELECT count(*)::bigint FROM typed_source_rows WHERE credential_ref IS NULL OR credential_version IS NULL
+                OR source_ref IS DISTINCT FROM credential_ref::text OR source_version IS DISTINCT FROM credential_version::text)`,128);
+    const [referencesText,rowsText,missingText,orphanText,invalidText] = raw.split('|');
+    const referenceCount=Number(referencesText??'NaN'),rowCount=Number(rowsText??'NaN'),missing=Number(missingText??'NaN');
+    const orphan=Number(orphanText??'NaN'),invalid=Number(invalidText??'NaN');
+    if ([referenceCount,rowCount,missing,orphan,invalid].some((value)=>!Number.isSafeInteger(value)||value<0)
+      || referenceCount !== rowCount || missing !== 0 || orphan !== 0 || invalid !== 0) {
+      throw fail('CONNECTOR_TYPED_CREDENTIAL_BINDING_SET_INVALID');
+    }
+    return { referenceCount,rowCount };
+  }
+
   async function connectorCryptoInventory(man:Manifest):Promise<{
     connectorInvocationKeyCounts:ConnectorInvocationKeyCount[];
     connectorReferencedSecretVersionCount:number;
+    connectorTypedCredentialReferenceCount:number;
     connectorVaultCredentialPinDigests:string[];
   }> {
     const invocationRows = await capturePsql(man,man.services.connectorSource,
@@ -1298,6 +1362,7 @@ export function createTrustedMaintenanceBackupAdapter(options: TrustedMaintenanc
           WHERE EXISTS (SELECT 1 FROM credential_refs refs WHERE refs.credential_ref=versioned.credential_ref)`,128);
     const connectorReferencedSecretVersionCount = Number(legacyCountText);
     if (!Number.isSafeInteger(connectorReferencedSecretVersionCount) || connectorReferencedSecretVersionCount < 0) throw fail('CONNECTOR_SECRET_VERSION_COUNT_INVALID');
+    const typedCredentials = await connectorTypedCredentialInventory(man);
 
     const vaultRaw = await capturePsql(man,man.services.connectorSource,
       `SELECT COALESCE(json_agg(json_build_object('recordKind',record_kind,'tenantId',tenant_id,'connectorId',connector_id,
@@ -1327,6 +1392,7 @@ export function createTrustedMaintenanceBackupAdapter(options: TrustedMaintenanc
     const expectedVault = man.connectorVaultCredentialPins.slice().sort((a,b)=>sha(Buffer.from(canonical(a))).localeCompare(sha(Buffer.from(canonical(b)))));
     if (canonical(observedVault) !== canonical(expectedVault)) throw fail('CONNECTOR_VAULT_PIN_SET_CHANGED');
     return {connectorInvocationKeyCounts,connectorReferencedSecretVersionCount,
+      connectorTypedCredentialReferenceCount:typedCredentials.referenceCount,
       connectorVaultCredentialPinDigests:observedVault.map((pin)=>sha(Buffer.from(canonical(pin)))).sort()};
   }
 
@@ -1438,7 +1504,7 @@ export function createTrustedMaintenanceBackupAdapter(options: TrustedMaintenanc
     secretCatalogRecoveryKeys:SecretCatalogRecoveryKeyPin[]; secretCatalogKeyCounts:SecretCatalogKeyCount[];
     connectorCredentialRecoveryKey:{keyVersion:string;fingerprintSha256:string};
     connectorInvocationRecoveryKeys:ConnectorInvocationKeyPin[]; connectorInvocationKeyCounts:ConnectorInvocationKeyCount[];
-    connectorReferencedSecretVersionCount:number; connectorVaultCredentialPinDigests:string[];
+    connectorReferencedSecretVersionCount:number; connectorTypedCredentialReferenceCount:number; connectorVaultCredentialPinDigests:string[];
     metadataTransitKeyCounts:MetadataTransitKeyCount[];
   }> {
     const rows = await options.db.query<{ credential_version_ref: string | null; credential_owner_tenant_id: string | null }>(
@@ -1484,10 +1550,11 @@ export function createTrustedMaintenanceBackupAdapter(options: TrustedMaintenanc
     return { credentialVersionRefs,credentialVersionPins,encryptionKeyVersionRefs,artifactTransitKeyPins,secretCatalogRecoveryKeys,secretCatalogKeyCounts,
       connectorCredentialRecoveryKey,connectorInvocationRecoveryKeys,connectorInvocationKeyCounts:connector.connectorInvocationKeyCounts,
       connectorReferencedSecretVersionCount:connector.connectorReferencedSecretVersionCount,
+      connectorTypedCredentialReferenceCount:connector.connectorTypedCredentialReferenceCount,
       connectorVaultCredentialPinDigests:connector.connectorVaultCredentialPinDigests,metadataTransitKeyCounts };
   }
 
-  async function sourceCounts(man: Manifest): Promise<BundleIndex['counts']> {
+  async function sourceCounts(man: Manifest, expectedTypedCredentialCount:number): Promise<BundleIndex['counts']> {
     const orchestrator = await options.db.query<Record<string, number | string>>(
       `SELECT (SELECT count(*) FROM operations)::bigint AS operations,
               (SELECT count(*) FROM artifacts WHERE state<>'DELETED')::bigint AS artifacts,
@@ -1517,6 +1584,7 @@ export function createTrustedMaintenanceBackupAdapter(options: TrustedMaintenanc
               (SELECT count(*) FROM connector_parity_claim_intents)::bigint,
               (SELECT count(*) FROM connector_parity_draft_intents)::bigint`,256);
     const connector = connectorText.split('|').map((entry) => Number(entry));
+    const typedCredentials = await connectorTypedCredentialInventory(man);
     const source = orchestrator.rows[0];
     if (!source || connector.length !== 9 || connector.some((value) => !Number.isSafeInteger(value) || value < 0)) throw fail('BACKUP_SOURCE_COUNTS_INVALID');
     const count = (key: string) => Number(source[key] ?? NaN);
@@ -1528,12 +1596,16 @@ export function createTrustedMaintenanceBackupAdapter(options: TrustedMaintenanc
       count('financial_adjustment_heads'),count('financial_adjustment_commands')];
     if (values.some((value) => !Number.isSafeInteger(value) || value < 0)
       || !Number.isSafeInteger(readyArtifacts) || readyArtifacts < 0 || readyArtifacts > values[1]!) throw fail('BACKUP_SOURCE_COUNTS_INVALID');
+    if (typedCredentials.referenceCount !== expectedTypedCredentialCount || typedCredentials.rowCount !== expectedTypedCredentialCount) {
+      throw fail('CONNECTOR_TYPED_CREDENTIAL_COUNT_CHANGED');
+    }
     return { operations:values[0]!,artifacts:values[1]!,readyArtifacts,secretRevisions:values[2]!,storageGenerations:values[3]!,
       secretCatalogImports:values[4]!,connectorSecretImports:values[5]!,globalSettingsRevisions:values[6]!,retentionRevisions:values[7]!,budgetRevisions:values[8]!,priceRevisions:values[9]!,
       reservationGroups:values[10]!,budgetHolds:values[11]!,financialAdjustments:values[12]!,
       financialAdjustmentHeads:values[13]!,financialAdjustmentCommands:values[14]!,connectorInvocations:connector[0]!,connectorUsageEvents:connector[1]!,
       connectorSecretVersions:connector[2]!,connectorRevisions:connector[3]!,connectorRuntimeControls:connector[4]!,
       connectorParityChains:connector[5]!,connectorParityRevisions:connector[6]!,connectorParityClaimIntents:connector[7]!,connectorParityDraftIntents:connector[8]!,
+      connectorParityCredentials:typedCredentials.rowCount,
       artifactObjectBytes:0,artifactManifestBytes:0 };
   }
 
@@ -1718,6 +1790,7 @@ export function createTrustedMaintenanceBackupAdapter(options: TrustedMaintenanc
     expectedSecretCatalogKeys: readonly SecretCatalogRecoveryKeyPin[], expectedSecretCatalogCounts: readonly SecretCatalogKeyCount[],
     expectedConnectorInvocationKeys:readonly ConnectorInvocationKeyPin[],expectedConnectorInvocationCounts:readonly ConnectorInvocationKeyCount[],
     expectedConnectorCredentialKey:{keyVersion:string;fingerprintSha256:string},expectedConnectorSecretVersionCount:number,
+    expectedConnectorTypedCredentialCount:number,
     expectedMetadataTransitCounts:readonly MetadataTransitKeyCount[],expectedVaultCredentialPinDigests:readonly string[]): void {
     if (!result || typeof result !== 'object' || !result.orchestrator || !result.connector || !result.recoverySourceIsolation
       || !result.checks || !Array.isArray(result.artifactTransitKeyRecoveries) || !Array.isArray(result.secretCatalogKeyRecoveries)
@@ -1802,6 +1875,7 @@ export function createTrustedMaintenanceBackupAdapter(options: TrustedMaintenanc
     }
     if (result.connectorCredentialRecovery.keyVersion !== expectedConnectorCredentialKey.keyVersion
       || result.connectorCredentialRecovery.verifiedSecretVersionCount !== expectedConnectorSecretVersionCount
+      || result.connectorCredentialRecovery.verifiedTypedCredentialCount !== expectedConnectorTypedCredentialCount
       || !SHA256.test(result.connectorCredentialRecovery.evidenceSha256)) throw fail('RESTORE_CONNECTOR_CREDENTIAL_RECOVERY_UNVERIFIED');
     const observedMetadata = result.metadataTransitKeyRecoveries.map((proof)=>`${proof.keyRef}@${proof.keyVersion}`).sort();
     const expectedMetadata = expectedMetadataTransitCounts.map((pin)=>`${pin.keyRef}@${pin.keyVersion}`).sort();
@@ -1973,13 +2047,19 @@ export function createTrustedMaintenanceBackupAdapter(options: TrustedMaintenanc
       await writeFile(connectorSqlFile,`${controls}\n`,{flag:'wx',mode:0o600});
       await assertExecutionFence(input.execution);
       await runTool(man.tools.psql.path,[`--dbname=service=${man.services.connectorRestoreAdmin} dbname=${connectorDb}`,'--set=ON_ERROR_STOP=1','--single-transaction',`--file=${connectorSqlFile}`],privateEnv(man),60_000,spawnImpl);
-      const expectedCounts = { ...bundle.index.counts,connectorRuntimeControls:bundle.index.counts.connectorRuntimeControls + 1 };
+      const expectedConnectorTypedCredentialCount = bundle.index.connectorTypedCredentialReferenceCount ?? 0;
+      const expectedConnectorTypedCredentialRows = bundle.index.counts.connectorParityCredentials ?? 0;
+      const expectedCounts = { ...bundle.index.counts,connectorParityCredentials:expectedConnectorTypedCredentialRows,
+        connectorRuntimeControls:bundle.index.counts.connectorRuntimeControls + 1 };
       const reconciled = await reconcile(man,man.services.orchestratorRestoreAdmin,man.services.connectorRestoreAdmin,orchDb,connectorDb,expectedCounts,spawnImpl);
       const secretCatalogReconciled = await reconcileSecretCatalogKeyCounts(man,man.services.orchestratorRestoreAdmin,orchDb,bundle.index.secretCatalogKeyCounts,spawnImpl);
       const manifestCount = artifactIndex.artifacts.length;
       const connectorSecretsReconciled = await reconcileConnectorSecretVersionCount(man,man.services.connectorRestoreAdmin,connectorDb,
         bundle.index.connectorReferencedSecretVersionCount,spawnImpl);
-      if (!reconciled || !secretCatalogReconciled || !connectorSecretsReconciled || remapped.length !== manifestCount) throw fail('RESTORE_RECONCILIATION_FAILED');
+      const connectorTypedCredentialsReconciled = await reconcileConnectorTypedCredentialBindings(man,man.services.connectorRestoreAdmin,
+        connectorDb,expectedConnectorTypedCredentialCount,expectedConnectorTypedCredentialRows,spawnImpl);
+      if (!reconciled || !secretCatalogReconciled || !connectorSecretsReconciled || !connectorTypedCredentialsReconciled
+        || remapped.length !== manifestCount) throw fail('RESTORE_RECONCILIATION_FAILED');
       await assertExecutionFence(input.execution);
       const runtimeProbe = await options.isolatedRuntimeProbe.run({backupId:input.backupId,orchestratorDatabase:orchDb,connectorDatabase:connectorDb,
         orchestratorClusterName:man.orchestratorRestoreClusterName,connectorClusterName:man.connectorRestoreClusterName,
@@ -1990,6 +2070,7 @@ export function createTrustedMaintenanceBackupAdapter(options: TrustedMaintenanc
         expectedConnectorInvocationKeyCounts:bundle.index.connectorInvocationKeyCounts,
         expectedConnectorCredentialKey:bundle.index.connectorCredentialRecoveryKey,
         expectedConnectorSecretVersionCount:bundle.index.connectorReferencedSecretVersionCount,
+        expectedConnectorTypedCredentialCount,
         expectedMetadataTransitKeyCounts:bundle.index.metadataTransitKeyCounts,
         expectedVaultCredentialPinDigests:bundle.index.connectorVaultCredentialPinDigests,
         services:{orchestrator:`service=${man.services.orchestratorRestoreAdmin} dbname=${orchDb}`,
@@ -1997,6 +2078,7 @@ export function createTrustedMaintenanceBackupAdapter(options: TrustedMaintenanc
       validateProbe(man,bundle.index,runtimeProbe,expectedCounts,bundle.index.artifactTransitKeyPins,
         bundle.index.secretCatalogRecoveryKeys,bundle.index.secretCatalogKeyCounts,bundle.index.connectorInvocationRecoveryKeys,
         bundle.index.connectorInvocationKeyCounts,bundle.index.connectorCredentialRecoveryKey,bundle.index.connectorReferencedSecretVersionCount,
+        expectedConnectorTypedCredentialCount,
         bundle.index.metadataTransitKeyCounts,bundle.index.connectorVaultCredentialPinDigests);
       const result = { isolated:true as const,dispatchDisabled:true as const,providerCallsDisabled:true as const,checksummed:true as const,
         reconciled:true as const,counts:{artifacts:manifestCount,objects:remapped.length+remapped.filter((entry)=>entry.manifestVersionId!==null).length,
@@ -2067,7 +2149,7 @@ export function createTrustedMaintenanceBackupAdapter(options: TrustedMaintenanc
         const connectorCluster = await capturePsql(man,man.services.connectorSource,"SELECT current_setting('cluster_name',true)",256);
         if (sourceCluster !== man.orchestratorSourceClusterName || connectorCluster !== man.connectorSourceClusterName
           || sourceCluster === man.orchestratorRestoreClusterName || connectorCluster === man.connectorRestoreClusterName) throw fail('BACKUP_SOURCE_CLUSTER_IDENTITY_MISMATCH');
-        const counts = await sourceCounts(man);
+        const counts = await sourceCounts(man,refs.connectorTypedCredentialReferenceCount);
         const components: Component[] = [];
         const artifactIndex = await exportArtifacts(man,input.backupId,staging,key,components);
         if (artifactIndex.count !== counts.readyArtifacts) throw fail('BACKUP_ARTIFACT_COUNT_MISMATCH');
@@ -2105,6 +2187,7 @@ export function createTrustedMaintenanceBackupAdapter(options: TrustedMaintenanc
           connectorCredentialRecoveryKey:refs.connectorCredentialRecoveryKey,
           connectorInvocationRecoveryKeys:refs.connectorInvocationRecoveryKeys,connectorInvocationKeyCounts:refs.connectorInvocationKeyCounts,
           connectorReferencedSecretVersionCount:refs.connectorReferencedSecretVersionCount,
+          connectorTypedCredentialReferenceCount:refs.connectorTypedCredentialReferenceCount,
           metadataTransitKeyCounts:refs.metadataTransitKeyCounts,connectorVaultCredentialPinDigests:refs.connectorVaultCredentialPinDigests,
           capabilitySnapshot:{openCapabilities:capabilitySnapshot.openCapabilities,
             includedExactVersion:capabilitySnapshot.includedExactVersion,excludedIncomplete:capabilitySnapshot.excludedIncomplete,
@@ -2270,6 +2353,56 @@ async function reconcileConnectorSecretVersionCount(man:Manifest,service:string,
         WHERE EXISTS (SELECT 1 FROM credential_refs refs WHERE refs.credential_ref=versioned.credential_ref)`,spawnImpl);
   const actual = Number(value);
   return Number.isSafeInteger(actual) && actual === expected;
+}
+
+async function reconcileConnectorTypedCredentialBindings(man:Manifest,service:string,database:string,
+  expectedReferences:number,expectedRows:number,spawnImpl:typeof spawn):Promise<boolean> {
+  if (![expectedReferences,expectedRows].every((value)=>Number.isSafeInteger(value)&&value>=0)
+    || expectedReferences !== expectedRows) return false;
+  const connection = `service=${service} dbname=${database}`;
+  const present = await captureTool(man,connection,"SELECT to_regclass('public.connector_parity_credentials') IS NOT NULL",spawnImpl);
+  if (present !== 't' && present !== 'f') return false;
+  const sourceRows = `WITH typed_source_rows AS (
+       SELECT tenant_id,connector_id,revision,credential_ref,credential_version,
+              credential_source->>'credentialRef' AS source_ref,credential_source->>'version' AS source_version
+         FROM connector_parity_revisions WHERE credential_source->>'kind'='encrypted-db'
+       UNION ALL
+       SELECT tenant_id,connector_id,revision,credential_ref,credential_version,
+              credential_source->>'credentialRef' AS source_ref,credential_source->>'version' AS source_version
+         FROM connector_parity_draft_intents WHERE credential_source->>'kind'='encrypted-db'
+     ), typed_refs AS (
+       SELECT DISTINCT tenant_id,connector_id,revision,credential_ref,credential_version FROM typed_source_rows
+     )`;
+  if (present === 'f') {
+    const raw = await captureTool(man,connection,
+      `${sourceRows} SELECT (SELECT count(*)::bigint FROM typed_refs),
+        (SELECT count(*)::bigint FROM typed_source_rows WHERE credential_ref IS NULL OR credential_version IS NULL
+          OR source_ref IS DISTINCT FROM credential_ref::text OR source_version IS DISTINCT FROM credential_version::text)`,spawnImpl);
+    const [referencesText,invalidText] = raw.split('|');
+    const references = Number(referencesText), invalid = Number(invalidText);
+    return expectedReferences === 0 && expectedRows === 0 && references === 0 && invalid === 0;
+  }
+  const raw = await captureTool(man,connection,
+    `${sourceRows}, typed_rows AS (
+       SELECT tenant_id,connector_id,revision,credential_ref,credential_version FROM connector_parity_credentials
+     )
+     SELECT (SELECT count(*)::bigint FROM typed_refs),
+            (SELECT count(*)::bigint FROM typed_rows),
+            (SELECT count(*)::bigint FROM typed_refs refs WHERE NOT EXISTS
+              (SELECT 1 FROM typed_rows rows WHERE rows.tenant_id=refs.tenant_id AND rows.connector_id=refs.connector_id
+                AND rows.revision=refs.revision AND rows.credential_ref::text=refs.credential_ref
+                AND rows.credential_version=refs.credential_version)),
+            (SELECT count(*)::bigint FROM typed_rows rows WHERE NOT EXISTS
+              (SELECT 1 FROM typed_refs refs WHERE refs.tenant_id=rows.tenant_id AND refs.connector_id=rows.connector_id
+                AND refs.revision=rows.revision AND refs.credential_ref=rows.credential_ref::text
+                AND refs.credential_version=rows.credential_version)),
+            (SELECT count(*)::bigint FROM typed_source_rows WHERE credential_ref IS NULL OR credential_version IS NULL
+              OR source_ref IS DISTINCT FROM credential_ref::text OR source_version IS DISTINCT FROM credential_version::text)`,spawnImpl);
+  const [referencesText,rowsText,missingText,orphanText,invalidText] = raw.split('|');
+  const references=Number(referencesText??'NaN'),rows=Number(rowsText??'NaN'),missing=Number(missingText??'NaN');
+  const orphan=Number(orphanText??'NaN'),invalid=Number(invalidText??'NaN');
+  return [references,rows,missing,orphan,invalid].every((value)=>Number.isSafeInteger(value)&&value>=0)
+    && references === expectedReferences && rows === expectedRows && missing === 0 && orphan === 0 && invalid === 0;
 }
 
 async function reconcileSecretCatalogKeyCounts(man:Manifest,service:string,database:string,

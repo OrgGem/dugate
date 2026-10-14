@@ -586,11 +586,10 @@ describe('CR28-06 submit metadata crypto: key-service outage', () => {
     expect(h.writes).toHaveLength(0);
   });
 
-  it('FINDING: the seal path does not validate the wrapped DEK a provider returns', async () => {
+  it('fails closed before writing when a provider returns an invalid wrapped DEK envelope', async () => {
     const brokenProvider: KeyProvider = {
       // A misbehaving provider answers the wrap call with a shape that is not a
-      // wrapped DEK at all. Nothing on the WRITE path inspects the result, so
-      // this lands in the column verbatim.
+      // wrapped DEK at all. The metadata seam must reject it before persistence.
       async wrapDek(): Promise<WrappedDek> {
         return {} as unknown as WrappedDek;
       },
@@ -603,20 +602,30 @@ describe('CR28-06 submit metadata crypto: key-service outage', () => {
     };
 
     const h = harness({ keyProvider: brokenProvider });
-    await serviceOf(h, true).submit({ ...SUBMIT_CTX, submission: SUBMISSION });
-    const op = findWrite(h.writes, /INSERT INTO operations/);
-    const stored = String(op.params[8]);
-
-    // The submit SUCCEEDED and the column now holds an envelope that can never
-    // be opened: assertEnvelopeShape accepts any record as a dek, and unwrapDek
-    // fails from then on. The plaintext is still not leaked.
-    // The adapter normalizes whatever the provider returns, so the column gets
-    // a record with the version but none of the DEK identity fields.
-    expect(JSON.parse(stored).dek).toEqual({ version: 1 });
-    expect(leaksSentinel(op.params[8])).toBe(false);
     await expect(
-      h.crypto.readStored(JSON.parse(stored), { tenantId: TENANT, slot: 'operations.input_ref', refId: String(op.params[0]) }, false),
-    ).rejects.toMatchObject({ name: 'MetadataCryptoError' });
+      serviceOf(h, true).submit({ ...SUBMIT_CTX, submission: SUBMISSION }),
+    ).rejects.toMatchObject({ name: 'MetadataCryptoError', code: 'KEY_PROVIDER_FAILED' });
+    expect(h.writes).toHaveLength(0);
+    expect(h.writes.some((write) => leaksSentinel(write.params))).toBe(false);
+  });
+
+  it('rejects an unsupported private provider discriminator before writing', async () => {
+    const base = makeKeyProvider();
+    const unsupportedKindProvider: KeyProvider = {
+      ...base,
+      async wrapDek(input: WrapDekInput): Promise<WrappedDek> {
+        return {
+          ...await base.wrapDek(input),
+          providerKind: 'unsupported-provider',
+        } as unknown as WrappedDek;
+      },
+    };
+    const h = harness({ keyProvider: unsupportedKindProvider });
+
+    await expect(
+      serviceOf(h, true).submit({ ...SUBMIT_CTX, submission: SUBMISSION }),
+    ).rejects.toMatchObject({ name: 'MetadataCryptoError', code: 'KEY_PROVIDER_FAILED' });
+    expect(h.writes).toHaveLength(0);
   });
 });
 

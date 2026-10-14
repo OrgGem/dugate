@@ -1,12 +1,11 @@
-import { join } from 'node:path';
 import type { Db } from '../src/db/db';
 import { dispatchAdminAction } from '../src/modules/admin-actions/dispatcher';
 import { createConnectorManagementStore } from '../src/modules/connectors/connector-management-store';
 import { createCredentialWorkflow, type ConnectorRevisionStore, type RevisionRow } from '../src/modules/connector-credentials/workflow';
 import type { AuditService } from '../src/modules/audit/audit';
 import { createApp, type App } from '../src/server';
-import { loadMigrationFiles } from '../src/db/migrations';
 import { mockCreateStorageGenerationFixture, mockOpenBackupEffectGateResult } from './helpers/backup-effect-gate';
+import { currentAppliedMigrationLedger, mockMigrationMetadataColumnsResult } from './helpers/migration-ledger-fixture';
 import { createConnectorManagementAuthorizationProvider } from '../src/modules/connectors/management-service-identity';
 
 /**
@@ -354,6 +353,8 @@ jest.mock('pg', () => {
     if (backupGate) return backupGate;
     const storage = getMockStorage().answer(text, params);
     if (storage) return storage;
+    const metadataColumns = mockMigrationMetadataColumnsResult(text, params);
+      if (metadataColumns) return metadataColumns;
     if (/information_schema\.tables/i.test(text)) return { rows: [{ exists: true }], rowCount: 1 };
     // CRED-LIMITS-801: verifyMigrations cross-checks the ledger with an
     // independent COUNT (migrations.ts:151). The mock below used to answer that
@@ -384,9 +385,7 @@ describe('CREDWORKFLOW-IMPL — boot composition flip', () => {
   const saved: Record<string, string | undefined> = {};
 
   beforeAll(() => {
-    (jest.requireMock('pg') as { __duState: { schemaLedger: unknown[] } }).__duState.schemaLedger = loadMigrationFiles(
-      join(__dirname, '..', 'migrations'),
-    ).map((file) => ({ sequence: file.sequence, filename: file.filename }));
+    (jest.requireMock('pg') as { __duState: { schemaLedger: unknown[] } }).__duState.schemaLedger = currentAppliedMigrationLedger();
     for (const name of ['DU_VAULT_KV_OPTIONS', 'DU_VAULT_KV_TOKEN', 'DU_CONNECTOR_INITIAL_BINDINGS']) {
       saved[name] = process.env[name];
     }

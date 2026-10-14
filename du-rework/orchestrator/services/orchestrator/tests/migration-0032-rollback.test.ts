@@ -34,8 +34,12 @@ const MIGRATIONS_DIR = join(__dirname, '..', 'migrations');
  * statement so a test can count how many times the DDL actually ran.
  */
 class FakeMigrateDb {
+  trackingTableExists = false;
   ledger = new Map<number, string>();
   statements: string[] = [];
+  pool = {
+    connect: async () => ({ query: this.query.bind(this), release: () => {} }),
+  };
   columns = new Set([
     'task_id', 'step_key', 'generation', 'input_hash', 'output_ref', 'status', 'created_at',
   ]);
@@ -44,15 +48,31 @@ class FakeMigrateDb {
     const t = String(sql).replace(/\s+/g, ' ').trim();
     const out = (rows: Record<string, unknown>[]) => Promise.resolve({ rows, rowCount: rows.length });
 
-    if (/^CREATE TABLE IF NOT EXISTS schema_migrations/.test(t)) return out([]);
+    if (t === 'BEGIN' || t === 'COMMIT' || t === 'ROLLBACK' || /pg_advisory_(?:un)?lock\(/.test(t)) return out([]);
+    if (/^CREATE TABLE IF NOT EXISTS schema_migrations/.test(t)) {
+      this.trackingTableExists = true;
+      return out([]);
+    }
+    if (/^ALTER TABLE schema_migrations/.test(t)) return out([]);
+    if (/^SELECT column_name FROM information_schema\.columns/.test(t)) {
+      return out([
+        { column_name: 'checksum' },
+        { column_name: 'checksum_provenance' },
+        { column_name: 'baseline_reviewed_at' },
+      ]);
+    }
     if (/^SELECT count\(\*\)::int AS count FROM schema_migrations$/.test(t)) {
       return out([{ count: this.ledger.size }]);
     }
-    if (/^SELECT sequence, filename FROM schema_migrations$/.test(t)) {
-      return out([...this.ledger].map(([sequence, filename]) => ({ sequence, filename })));
+    if (/^SELECT sequence, filename, checksum, checksum_provenance/.test(t)) {
+      const checksums = new Map(loadMigrationFiles(MIGRATIONS_DIR).map((file) => [file.sequence, file.checksum]));
+      return out([...this.ledger].map(([sequence, filename]) => ({
+        sequence, filename, checksum: checksums.get(sequence) ?? '0'.repeat(64),
+        checksum_provenance: 'migration', baseline_reviewed_at: null,
+      })));
     }
     if (/^SELECT EXISTS \(/.test(t)) return out([{ exists: true }]);
-    if (/^INSERT INTO schema_migrations \(sequence, filename\) VALUES \(\$1, \$2\)$/.test(t)) {
+    if (/^INSERT INTO schema_migrations/.test(t)) {
       this.ledger.set(Number(params[0]), String(params[1]));
       return out([]);
     }

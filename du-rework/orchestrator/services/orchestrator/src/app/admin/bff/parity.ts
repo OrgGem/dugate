@@ -7,6 +7,7 @@ import {
   ApiKeyRotateSchema,
   ConnectorDraftUpsertSchema,
   ProviderTestRequestSchema,
+  isTenantUuid,
 } from '@du/contracts';
 import { z } from 'zod';
 import type { AdminShellRequest } from '../shell-types';
@@ -31,13 +32,15 @@ export type ParityRoute =
   | { kind: 'connector-draft' | 'connector-rollback'; connectorId: string }
   | { kind: 'connector-activate'; connectorId: string; revision: string }
   | { kind: 'tenant-connector-list' }
+  | { kind: 'typed-connector-catalog' }
   | { kind: 'tenant-connector-chain'; connectorId: string }
   | { kind: 'provider-test' }
   | { kind: 'invalid' };
 
 const RevokeBodySchema = z.object({ expectedVersion: z.number().int().min(1) }).strict();
-const RollbackBodySchema = z.object({ tenantId: z.string().uuid(), sourceRevision: z.number().int().min(1), expectedHeadRevision: z.number().int().min(0), idempotencyKey: z.string().min(8).max(200) }).strict();
-const ActivateBodySchema = z.object({ tenantId: z.string().uuid(), expectedCurrentRevision: z.number().int().min(0) }).strict();
+const TenantUuidSchema = z.string().refine(isTenantUuid, 'tenantId must use canonical UUID syntax');
+const RollbackBodySchema = z.object({ tenantId: TenantUuidSchema, sourceRevision: z.number().int().min(1), expectedHeadRevision: z.number().int().min(0), idempotencyKey: z.string().min(8).max(200) }).strict();
+const ActivateBodySchema = z.object({ tenantId: TenantUuidSchema, expectedCurrentRevision: z.number().int().min(0) }).strict();
 
 export function matchParityRoute(relative: string): ParityRoute | null {
   if (relative === '/parity/api-keys') return { kind: 'api-key-list' };
@@ -75,6 +78,7 @@ export function matchParityRoute(relative: string): ParityRoute | null {
   }
   if (relative === '/parity/provider-tests') return { kind: 'provider-test' };
   if (relative === '/parity/tenant-connectors') return { kind: 'tenant-connector-list' };
+  if (relative === '/parity/typed-connector-recipes') return { kind: 'typed-connector-catalog' };
   const chain = /^\/parity\/connectors\/([^/]+)\/chain$/.exec(relative);
   if (chain) {
     const connectorId = connectorSegment(chain[1] ?? '');
@@ -105,14 +109,18 @@ export async function handleParityRoute(
   }
 
   const method = (req.method ?? 'GET').toUpperCase();
-  const read = route.kind === 'api-key-list' || route.kind === 'connector-revision' || route.kind === 'tenant-connector-list' || route.kind === 'tenant-connector-chain';
+  const read = route.kind === 'api-key-list' || route.kind === 'connector-revision'
+    || route.kind === 'tenant-connector-list' || route.kind === 'typed-connector-catalog'
+    || route.kind === 'tenant-connector-chain';
   if ((read && method !== 'GET') || (!read && method !== 'POST' && method !== 'PUT' && method !== 'PATCH')) {
     writeProblem(res, 405, 'METHOD_NOT_ALLOWED', 'parity read routes require GET and mutations require POST, PUT or PATCH', correlationId); return;
   }
   if (!read && !ctx.verifyCsrf(firstHeaderValue(req.headers['x-csrf-token']))) {
     writeProblem(res, 403, 'CSRF_REJECTED', 'missing or invalid CSRF proof', correlationId); return;
   }
-  if (route.kind !== 'api-key-list' && route.kind !== 'connector-revision' && route.kind !== 'tenant-connector-list' && route.kind !== 'tenant-connector-chain' && !localUserProviderTest && (ctx.role !== 'admin' || ctx.principal.kind !== 'platform')) {
+  if (route.kind !== 'api-key-list' && route.kind !== 'connector-revision'
+      && route.kind !== 'tenant-connector-list' && route.kind !== 'typed-connector-catalog'
+      && route.kind !== 'tenant-connector-chain' && !localUserProviderTest && (ctx.role !== 'admin' || ctx.principal.kind !== 'platform')) {
     writeProblem(res, 403, 'ADMIN_CREDENTIAL_REQUIRED', 'API-key and Connector changes require platform Admin access', correlationId); return;
   }
 
@@ -124,12 +132,13 @@ export async function handleParityRoute(
   }
 
   for (const key of query.keys()) {
-    const allowedForTenantCatalog = route.kind === 'tenant-connector-list' && ['q', 'cursor', 'limit'].includes(key);
+    const allowedForTenantCatalog = (route.kind === 'tenant-connector-list' || route.kind === 'typed-connector-catalog')
+      && ['q', 'cursor', 'limit'].includes(key);
     if (key !== 'tenantId' && !(route.kind === 'api-key-list' && ['query', 'cursor', 'limit', 'status'].includes(key)) && !allowedForTenantCatalog) {
       writeProblem(res, 422, 'INVALID_SCHEMA', 'parity query contains an unsupported parameter', correlationId); return;
     }
   }
-  if (route.kind === 'tenant-connector-list') {
+  if (route.kind === 'tenant-connector-list' || route.kind === 'typed-connector-catalog') {
     const allowed = new Set(['tenantId', 'q', 'cursor', 'limit']);
     const seen = new Set<string>();
     for (const [name, value] of query.entries()) {
@@ -151,7 +160,8 @@ export async function handleParityRoute(
     && typeof (body as Record<string, unknown>).tenantId === 'string'
     ? (body as Record<string, unknown>).tenantId as string
     : null;
-  const tenantId = scopedTenant(ctx, query.get('tenantId') ?? bodyTenantId);
+  const tenantId = scopedTenant(ctx, query.get('tenantId') ?? bodyTenantId,
+    route.kind === 'typed-connector-catalog' || route.kind === 'connector-revision');
   if (!tenantId) { writeProblem(res, 404, 'NOT_FOUND', 'not found', correlationId); return; }
   const normalized = body === undefined ? undefined : normalizeBody(route, body as unknown, tenantId, correlationId, res);
   if (!read && normalized === null) return;
@@ -173,7 +183,7 @@ export async function handleParityRoute(
       url.searchParams.set(name, value);
     }
   }
-  if (read && route.kind === 'tenant-connector-list') {
+  if (read && (route.kind === 'tenant-connector-list' || route.kind === 'typed-connector-catalog')) {
     for (const name of ['q', 'cursor', 'limit']) {
       const value = query.get(name);
       if (value !== null) url.searchParams.set(name, value);
@@ -183,15 +193,22 @@ export async function handleParityRoute(
   await relayUpstream(res, response, correlationId);
 }
 
-function scopedTenant(ctx: NonNullable<Awaited<ReturnType<typeof resolveBffContext>>>, requested: string | null): string | null {
+function scopedTenant(
+  ctx: NonNullable<Awaited<ReturnType<typeof resolveBffContext>>>,
+  requested: string | null,
+  canonicalUuid = false,
+): string | null {
   if (ctx.principal.kind === 'tenant_operator') {
-    if (requested && requested !== ctx.principal.tenantId) return null;
-    return ctx.principal.tenantId;
+    if (!isTenantUuid(ctx.principal.tenantId)) return null;
+    const principalTenant = canonicalUuid ? ctx.principal.tenantId.toLowerCase() : ctx.principal.tenantId;
+    const requestedTenant = canonicalUuid && isTenantUuid(requested) ? requested.toLowerCase() : requested;
+    if (requestedTenant && requestedTenant !== principalTenant) return null;
+    return principalTenant;
   }
-  if (!requested || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requested)) {
+  if (!isTenantUuid(requested)) {
     return null;
   }
-  return requested;
+  return canonicalUuid ? requested.toLowerCase() : requested;
 }
 
 function activeSessionProof(request: AdminShellRequest, ctx: NonNullable<Awaited<ReturnType<typeof resolveBffContext>>>): UpstreamCallOptions['sessionProof'] {
@@ -240,6 +257,7 @@ function routePath(route: ParityRoute, tenantId: string): string {
     case 'connector-activate': return `/api/internal/parity/connectors/${encodeURIComponent(route.connectorId)}/revisions/${route.revision}/activate`;
     case 'connector-rollback': return `/api/internal/parity/connectors/${encodeURIComponent(route.connectorId)}/rollback/draft`;
     case 'tenant-connector-list': return `/api/internal/parity/tenant-connectors?tenantId=${encodeURIComponent(tenantId)}`;
+    case 'typed-connector-catalog': return `/api/internal/parity/typed-connector-recipes?tenantId=${encodeURIComponent(tenantId)}`;
     case 'tenant-connector-chain': return `/api/internal/parity/connectors/${encodeURIComponent(route.connectorId)}/chain?tenantId=${encodeURIComponent(tenantId)}`;
     case 'provider-test': return '/api/internal/parity/provider-tests';
     case 'invalid': throw new Error('invalid parity route');

@@ -17,6 +17,7 @@ import { loadMigrationFiles, verifyMigrations } from '../src/db/migrations';
 const MIGRATIONS_DIR = join(__dirname, '..', 'migrations');
 
 function fakeLedgerDb(rows: { sequence: number; filename: string }[]): Db {
+  const files = new Map(loadMigrationFiles(MIGRATIONS_DIR).map((file) => [file.sequence, file]));
   return {
     pool: undefined,
     query: async (text: string) => {
@@ -24,11 +25,25 @@ function fakeLedgerDb(rows: { sequence: number; filename: string }[]): Db {
       if (sql.includes('information_schema.tables')) {
         return { rows: [{ exists: true }], rowCount: 1 };
       }
+      if (sql.includes('information_schema.columns')) {
+        return { rows: [{ column_name: 'checksum' }, { column_name: 'checksum_provenance' }, { column_name: 'baseline_reviewed_at' }], rowCount: 3 };
+      }
       if (sql.startsWith('SELECT count(*)::int AS count FROM schema_migrations')) {
         return { rows: [{ count: rows.length }], rowCount: 1 };
       }
-      if (sql.startsWith('SELECT sequence, filename FROM schema_migrations')) {
-        return { rows, rowCount: rows.length };
+      if (sql.startsWith('SELECT sequence, filename, checksum, checksum_provenance')) {
+        return {
+          rows: rows.map((row) => ({
+            ...row,
+            checksum: files.get(row.sequence)?.checksum ?? '0'.repeat(64),
+            checksum_provenance: 'migration',
+            baseline_reviewed_at: null,
+          })),
+          rowCount: rows.length,
+        };
+      }
+      if (sql.startsWith('SELECT EXISTS (') && sql.includes('pg_indexes')) {
+        return { rows: [{ exists: true }], rowCount: 1 };
       }
       throw new Error('unexpected SQL in fake ledger db: ' + sql.slice(0, 60));
     },
@@ -201,9 +216,8 @@ describe('cycle-84 verifyMigrations matches recorded filenames, not just sequenc
       .map((filename) => ({ sequence: parseInt(filename.slice(0, 4), 10), filename }))
       .filter((r) => r.filename !== '0011_artifact_finalize_epoch.sql');
     rows.push({ sequence: 11, filename: '0011_admin_idempotency.sql' }); // exactly what Tester Round 7's DB would contain
-    await expect(verifyMigrations(fakeLedgerDb(rows))).rejects.toThrow(/does not match files on disk/);
+    await expect(verifyMigrations(fakeLedgerDb(rows))).rejects.toThrow(/is recorded as/);
     await expect(verifyMigrations(fakeLedgerDb(rows))).rejects.toThrow(/0011_artifact_finalize_epoch\.sql/);
-    await expect(verifyMigrations(fakeLedgerDb(rows))).rejects.toThrow(/DELETE FROM schema_migrations WHERE sequence IN \(11\)/);
   });
 
   it('a consistent ledger covering every file on disk passes', async () => {

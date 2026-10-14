@@ -245,6 +245,8 @@ export interface RestoreConnectorInvocationRecoveryItem {
 }
 
 export interface RestoreConnectorCredentialRecoveryItem {
+  recordKind: 'legacy-secret-version' | 'typed-credential';
+  /** Legacy row id hash or, for typed rows, the full row-binding tuple hash. */
   secretVersionIdSha256: string;
   keyVersion: string;
   ciphertextSha256: string;
@@ -513,7 +515,7 @@ function validateInput(input: ProbeInput): { orchestrator: RestoreDatabaseIdenti
     || !SAFE_ID.test(input.expectedConnectorCredentialKey.keyVersion)
     || typeof input.expectedConnectorCredentialKey.fingerprintSha256 !== 'string'
     || !SHA256.test(input.expectedConnectorCredentialKey.fingerprintSha256)
-    || !checkedCount(input.expectedConnectorSecretVersionCount)) {
+    || !checkedCount(input.expectedConnectorSecretVersionCount) || !checkedCount(input.expectedConnectorTypedCredentialCount)) {
     throw fail('RESTORE_RUNTIME_PROBE_RECOVERY_PINS_INVALID');
   }
   const requireUnique = (ids: string[]) => ids.every((id) => typeof id === 'string') && new Set(ids).size === ids.length;
@@ -875,6 +877,7 @@ function validateInvocationItem(item: RestoreConnectorInvocationRecoveryItem, pi
 
 function validateCredentialItem(item: RestoreConnectorCredentialRecoveryItem, keyVersion: string): void {
   if (!item || !SHA256.test(item.secretVersionIdSha256) || item.keyVersion !== keyVersion
+    || (item.recordKind !== 'legacy-secret-version' && item.recordKind !== 'typed-credential')
     || !SHA256.test(item.ciphertextSha256) || !SHA256.test(item.plaintextSha256)) {
     throw fail('RESTORE_CONNECTOR_CREDENTIAL_DECRYPTION_UNVERIFIED');
   }
@@ -1168,13 +1171,20 @@ async function runProbe(
   }), signal);
   keyObservationMatches(credentialRecovery?.key, credentialPin.keyVersion, undefined, credentialPin.fingerprintSha256, now().getTime());
   recoveryObservationTimes.push(credentialRecovery.key.observedAt);
-  const seenSecretVersions = new Set<string>();
+  const seenCredentialItems = new Set<string>();
+  let verifiedSecretVersionCount = 0;
+  let verifiedTypedCredentialCount = 0;
   const credentialEvidence = await collectEvidence(credentialRecovery.items, (item) => {
     validateCredentialItem(item, credentialPin.keyVersion);
-    if (seenSecretVersions.has(item.secretVersionIdSha256)) throw fail('RESTORE_CONNECTOR_CREDENTIAL_DUPLICATE_VERSION');
-    seenSecretVersions.add(item.secretVersionIdSha256);
+    const identity = `${item.recordKind}:${item.secretVersionIdSha256}`;
+    if (seenCredentialItems.has(identity)) throw fail('RESTORE_CONNECTOR_CREDENTIAL_DUPLICATE_VERSION');
+    seenCredentialItems.add(identity);
+    if (item.recordKind === 'typed-credential') verifiedTypedCredentialCount += 1;
+    else verifiedSecretVersionCount += 1;
   }, (item) => item, { signal, maxRows: maxEvidenceRows });
-  if (credentialEvidence.count !== input.expectedConnectorSecretVersionCount) {
+  if (verifiedSecretVersionCount !== input.expectedConnectorSecretVersionCount
+    || verifiedTypedCredentialCount !== input.expectedConnectorTypedCredentialCount
+    || credentialEvidence.count !== verifiedSecretVersionCount + verifiedTypedCredentialCount) {
     throw fail('RESTORE_CONNECTOR_CREDENTIAL_DECRYPTION_UNVERIFIED');
   }
 
@@ -1399,7 +1409,8 @@ async function runProbe(
     connectorInvocationKeyRecoveries: invocationRecoveries,
     connectorCredentialRecovery: {
       keyVersion: credentialPin.keyVersion,
-      verifiedSecretVersionCount: credentialEvidence.count,
+      verifiedSecretVersionCount,
+      verifiedTypedCredentialCount,
       evidenceSha256: credentialEvidence.sha256,
     },
     metadataTransitKeyRecoveries: metadataRecoveries,

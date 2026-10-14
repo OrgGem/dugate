@@ -1,4 +1,5 @@
 import { randomBytes, randomUUID } from 'node:crypto';
+import { SecretCatalogCreateSchema } from '@du/contracts';
 import {
   createSecretInDb,
   decryptSecretValue,
@@ -88,6 +89,70 @@ describe('SecretCatalogStore (SC-01 / SC-03)', () => {
     const saved = rows[0] as { encrypted_value: { ct: string } };
     expect(saved.encrypted_value.ct).toBeDefined();
     expect(JSON.stringify(saved.encrypted_value)).not.toContain('secret-token-to-encrypt');
+  });
+
+  it('fails closed for managed values without a valid default key but stores Vault references as locators', async () => {
+    const previous = process.env.ENCRYPTION_KEY;
+    const managed = SecretCatalogCreateSchema.parse({
+      tenantId: randomUUID(),
+      name: 'managed-provider-key',
+      purpose: 'connector.credential',
+      services: ['connector'],
+      provider: { kind: 'managed_value' },
+      value: { kind: 'literal', value: 'sensitive-managed-value' },
+    });
+    const noWriteDb = { tx: jest.fn(), query: jest.fn() };
+    try {
+      for (const value of [undefined, 'short-legacy-profile-key']) {
+        if (value === undefined) delete process.env.ENCRYPTION_KEY;
+        else process.env.ENCRYPTION_KEY = value;
+        await expect(createSecretInDb(noWriteDb as never, managed, undefined, undefined, writeGate as never))
+          .rejects.toMatchObject({ status: 503, code: 'SECRET_KEY_VERSION_UNAVAILABLE' });
+      }
+      expect(noWriteDb.tx).not.toHaveBeenCalled();
+
+      delete process.env.ENCRYPTION_KEY;
+      const vaultInput = SecretCatalogCreateSchema.parse({
+        tenantId: randomUUID(),
+        name: 'vault-provider-key',
+        purpose: 'connector.credential',
+        services: ['connector'],
+        provider: {
+          kind: 'vault_reference',
+          connectionId: 'vault-primary',
+          mount: 'secret',
+          path: 'tenants/example/provider',
+          field: 'api_key',
+          version: { mode: 'pinned', version: 4 },
+        },
+      });
+      let storedProviderConfig: Record<string, unknown> | undefined;
+      const mockDb = {
+        query: jest.fn(async (_sql: string, params: unknown[]) => {
+          storedProviderConfig = JSON.parse(String(params[6])) as Record<string, unknown>;
+          return {
+            rowCount: 1,
+            rows: [{
+              secret_id: params[0], tenant_id: params[1], name: params[2], purpose: params[3], services: params[4],
+              provider_kind: params[5], provider_config: storedProviderConfig, state: 'ACTIVE', revision: 1,
+              encrypted_value: null, created_at: new Date(), updated_at: new Date(),
+            }],
+          };
+        }),
+        tx: async <T>(run: (client: { query: (sql: string, params: unknown[]) => Promise<unknown> }) => Promise<T>) =>
+          run({ query: mockDb.query as never }),
+      };
+      const linked = await createSecretInDb(mockDb as never, vaultInput, undefined, undefined, writeGate as never);
+      expect(linked.valueConfigured).toBe(true);
+      expect(storedProviderConfig).toMatchObject({
+        kind: 'vault_reference', connectionId: 'vault-primary', mount: 'secret',
+        path: 'tenants/example/provider', field: 'api_key', version: { mode: 'pinned', version: 4 },
+      });
+      expect(JSON.stringify(storedProviderConfig)).not.toContain('sensitive-managed-value');
+    } finally {
+      if (previous === undefined) delete process.env.ENCRYPTION_KEY;
+      else process.env.ENCRYPTION_KEY = previous;
+    }
   });
 
   it('rotateSecretInDb enforces CAS revision matching and re-encrypts', async () => {

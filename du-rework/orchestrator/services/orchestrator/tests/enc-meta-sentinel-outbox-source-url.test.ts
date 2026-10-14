@@ -30,7 +30,6 @@
  *      is the PG `outbox.payload` column, not Redis job data.
  */
 import { createHmac } from 'node:crypto';
-import { join } from 'node:path';
 import { createApp, type App } from '../src/server';
 import {
   createMetadataCrypto,
@@ -39,8 +38,8 @@ import {
 import { adaptKeyProviderForMetadata } from '../src/modules/encryption/metadata-key-adapter';
 import type { KeyProvider, WrapDekInput, WrappedDek } from '../src/modules/encryption/vault-transit-provider';
 import { openDispatchSourceUrl } from '../src/modules/operations/ingestion-consumer';
-import { loadMigrationFiles } from '../src/db/migrations';
 import { mockCreateStorageGenerationFixture, mockOpenBackupEffectGateResult } from './helpers/backup-effect-gate';
+import { currentAppliedMigrationLedger, mockMigrationMetadataColumnsResult } from './helpers/migration-ledger-fixture';
 
 const KEY_REF = 'enc-meta-sentinel-v1';
 const TENANT = '86000000-0000-4000-8000-000000000001';
@@ -186,6 +185,8 @@ jest.mock('pg', () => {
       const row = state.operations.get(String(params[0]));
       return row ? { rows: [row], rowCount: 1 } : { rows: [], rowCount: 0 };
     }
+    const metadataColumns = mockMigrationMetadataColumnsResult(text, params);
+      if (metadataColumns) return metadataColumns;
     if (/information_schema\.tables/i.test(text)) return { rows: [{ exists: true }], rowCount: 1 };
     // MIGRATION-VERIFY-TRAP-FIX: answer the count cross-check BEFORE the row
     // branch below, which would otherwise return the whole ledger for it.
@@ -351,9 +352,7 @@ describe('ENC-META-SENTINEL G1: URL submission through the real createApp', () =
   const apps: App[] = [];
 
   beforeAll(() => {
-    scripted().schemaLedger = loadMigrationFiles(join(__dirname, '..', 'migrations')).map(
-      (file) => ({ sequence: file.sequence, filename: file.filename }),
-    );
+    scripted().schemaLedger = currentAppliedMigrationLedger();
   });
 
   beforeEach(() => {

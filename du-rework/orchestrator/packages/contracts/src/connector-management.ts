@@ -50,6 +50,10 @@ export const ConnectorCapabilitiesSchema = z
   .object({
     management: z.boolean(),
     credentialWorkflow: z.boolean(),
+    /** Typed recipe Enter/Keep/Clear storage, independent of the legacy Vault workflow. */
+    typedCredentialStorage: z.boolean().optional(),
+    /** Managed Secret Catalog import is independent of the legacy Vault KV workflow. */
+    secretCatalogImport: z.boolean().optional(),
     test: z.boolean(),
     knownConnectorIds: z.array(z.string().min(1)),
   })

@@ -17,6 +17,7 @@
     "migrate": "npm run build && node dist/migrate-cli.js migrate",
     "migrate:status": "npm run build && node dist/migrate-cli.js status",
     "migrate:verify": "npm run build && node dist/migrate-cli.js verify",
+    "migrate:baseline-reviewed": "npm run build && node dist/migrate-cli.js baseline-reviewed",
     "backfill:metadata": "npm run build && node dist/modules/encryption/backfill-metadata-cli.js",
     "migrate:artifact-blobs": "pnpm run build && node dist/storage-migration-cli.js"
   },

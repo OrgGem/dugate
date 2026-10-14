@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } f
 import {
   ConnectorRecipeSchema,
   ProviderTestRequestSchema,
+  isTenantUuid,
   type ConnectorRecipe,
   type ConnectorParityRevision,
   type ProviderTestResult,
@@ -11,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { FormField } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { ReferenceInput, type ReferenceOptionPage } from '@/components/ui/reference-input';
 import { NativeSelect } from '@/components/ui/select';
 import { AlertBanner, LoadingState } from '@/components/ui/state-panel';
 import {
@@ -24,11 +26,17 @@ import {
 import { useTenant } from '@/lib/tenant-context';
 import { createImmutableAttempt, FileArtifactCache, markAttemptDispatched, retainAfterFailure, type ImmutableAttempt } from '@/features/submissions/immutable-attempt';
 import { createProviderRecipePreset, detectProviderPreset, type ProviderPreset, withDefaultProviderModel } from './provider-presets';
+import { connectorCredentialActionGating } from './state';
+import { isCurrentTenantConnectorRequest, isCurrentTenantRequest, isTypedRecipeRevisionCoveredByHead, parseTypedConnectorRecipeCatalogPage, resolveTypedRecipeChainHead } from './typed-recipe-catalog';
+import { parseSecretListPage } from '@/features/secrets/state';
 
 type ParityConnectorEditorProps = {
   savedAttempt: ImmutableAttempt<ProviderTestRequest> | null;
   onAttemptChange: (attempt: ImmutableAttempt<ProviderTestRequest> | null) => void;
   capabilities: ConnectorCapabilities | null;
+  catalogSelection: { requestId: number; tenantId: string; connectorId: string; revision: number } | null;
+  onRecipeCatalogChange: () => void;
+  onEditorBusyChange: (tenantId: string, busy: boolean) => void;
 };
 
 type CredentialMode = 'keep' | 'replace' | 'clear' | 'vault-ref';
@@ -64,7 +72,6 @@ const EMPTY_RECIPE: ProviderRecipe = {
 };
 
 const SECRET_HEADER_NAMES = new Set(['authorization', 'cookie', 'set-cookie', 'x-api-key', 'api-key', 'x-goog-api-key']);
-const TENANT_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const keyFor = () => globalThis.crypto?.randomUUID?.() ?? `connector-parity-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 function profileRowKey(input: { businessId: string; businessVersion: string; profileName: string }): string {
@@ -106,7 +113,7 @@ function errorText(problem: AdminApiProblem): string {
  * strict recipe; ordinary changes use bounded controls and retain every
  * mapping/session/header row already present in the loaded revision.
  */
-export function ParityConnectorEditor({ savedAttempt, onAttemptChange, capabilities }: ParityConnectorEditorProps) {
+export function ParityConnectorEditor({ savedAttempt, onAttemptChange, capabilities, catalogSelection, onRecipeCatalogChange, onEditorBusyChange }: ParityConnectorEditorProps) {
   const client = useMemo(() => createAdminApiClient(), []);
   const { tenantId } = useTenant();
   const activeTenantId = useRef(tenantId);
@@ -133,8 +140,11 @@ export function ParityConnectorEditor({ savedAttempt, onAttemptChange, capabilit
   const [profileLoading, setProfileLoading] = useState(false);
   const [apiKeyId, setApiKeyId] = useState('');
   const [connectorId, setConnectorId] = useState('');
+  const connectorIdRef = useRef(connectorId);
+  connectorIdRef.current = connectorId;
   const [revisionText, setRevisionText] = useState('');
   const [expectedHeadRevision, setExpectedHeadRevision] = useState(0);
+  const [headVerificationFailed, setHeadVerificationFailed] = useState(false);
   const [expectedActiveRevision, setExpectedActiveRevision] = useState(0);
   const [loadedRevision, setLoadedRevision] = useState<ConnectorParityRevision | null>(null);
   const [providerPreset, setProviderPreset] = useState<ProviderPreset>('custom');
@@ -158,10 +168,17 @@ export function ParityConnectorEditor({ savedAttempt, onAttemptChange, capabilit
     savedAttempt && savedAttempt.state !== 'ACCEPTED' ? savedAttempt.request as ProviderTestRequest : null,
   );
   const uploadedFiles = useRef(new FileArtifactCache<File>());
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusyState] = useState(false);
+  const setBusy = useCallback((value: boolean): void => {
+    setBusyState(value);
+    onEditorBusyChange(tenantId ?? '', value);
+  }, [onEditorBusyChange, tenantId]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const lastCatalogOpenRequest = useRef<number | null>(null);
+  const revisionReadGeneration = useRef(0);
+  const revisionReadBusy = useRef(false);
 
   function rememberProviderAttempt(attempt: ImmutableAttempt<ProviderTestRequest> | null): void {
     setTestAttempt(attempt);
@@ -174,10 +191,47 @@ export function ParityConnectorEditor({ savedAttempt, onAttemptChange, capabilit
     && session.principal.kind === 'tenant_operator'
     && session.principal.tenantId === tenantId;
   const platformAdmin = session?.role === 'admin' && session.principal.kind === 'platform';
-  const validTenantSelected = typeof tenantId === 'string' && TENANT_UUID.test(tenantId);
+  const validTenantSelected = isTenantUuid(tenantId);
   const mayRunProviderTest = (platformAdmin || localUser) && validTenantSelected && capabilities?.test === true;
   const mayManageRecipes = platformAdmin && validTenantSelected && capabilities?.management === true;
-  const mayManageCredentials = mayManageRecipes && capabilities?.credentialWorkflow === true;
+  const credentialActionGating = connectorCredentialActionGating(capabilities, mayManageRecipes);
+  const mayManageCredentials = credentialActionGating.replaceClear;
+  const mayImportManagedSecrets = credentialActionGating.secretCatalogImport;
+  const loadManagedSecretSuggestions = useCallback(async (
+    query: string,
+    scopeKey: string,
+    cursor: string | null,
+  ): Promise<ReferenceOptionPage> => {
+    if (!mayImportManagedSecrets || !isTenantUuid(tenantId) || tenantId.toLowerCase() !== scopeKey.toLowerCase()) {
+      return { items: [], nextCursor: null };
+    }
+    const result = await client.listSecrets({
+      tenantId: scopeKey,
+      ...(query.trim() ? { q: query.trim() } : {}),
+      purpose: 'connector.credential',
+      service: 'connector',
+      state: 'ACTIVE',
+      limit: '50',
+      ...(cursor ? { cursor } : {}),
+    });
+    if (!result.ok) throw new Error('Secret Catalog suggestions are unavailable.');
+    const page = parseSecretListPage(result.data);
+    if (page === null) throw new Error('Secret Catalog returned an unreadable response.');
+    const items = page.items
+      .filter((secret) => secret.tenantId.toLowerCase() === scopeKey.toLowerCase()
+        && secret.state === 'ACTIVE'
+        && secret.purpose === 'connector.credential'
+        && secret.services.includes('connector')
+        && secret.provider.kind === 'managed_value')
+      .map((secret) => ({
+        value: secret.secretId,
+        label: secret.name,
+        description: `Active managed credential · revision ${secret.revision}`,
+      }));
+    return { items, nextCursor: page.nextCursor };
+  }, [client, mayImportManagedSecrets, tenantId]);
+  const credentialModeAvailable = credentialMode === 'keep'
+    || (credentialMode === 'vault-ref' ? mayImportManagedSecrets : mayManageCredentials);
   const rowsLoading = !sessionReady || loadingRows;
 
   const loadProfileChoices = useCallback(async () => {
@@ -386,13 +440,13 @@ export function ParityConnectorEditor({ savedAttempt, onAttemptChange, capabilit
     setProviderModel(next.defaultModel ?? '');
   }
 
-  function applyRecipe(next: ProviderRecipe): void {
+  const applyRecipe = useCallback((next: ProviderRecipe): void => {
     setRecipe(next);
     setAdvancedJson(jsonText(next));
     setAdvancedError(null);
     setProviderPreset(detectProviderPreset(next));
     setProviderModel(next.defaultModel ?? '');
-  }
+  }, []);
 
   function selectProviderPreset(value: ProviderPreset): void {
     setProviderPreset(value);
@@ -400,7 +454,9 @@ export function ParityConnectorEditor({ savedAttempt, onAttemptChange, capabilit
     const next = createProviderRecipePreset(value, providerModel);
     applyRecipe(next);
     setProviderPreset(value);
-    setCredentialMode(next.auth.kind === 'none' || loadedRevision !== null || !mayManageCredentials ? 'keep' : 'replace');
+    setCredentialMode(next.auth.kind === 'none' || loadedRevision !== null
+      ? 'keep'
+      : mayManageCredentials ? 'replace' : mayImportManagedSecrets ? 'vault-ref' : 'keep');
     setCredentialValue('');
     setVaultReference('');
     setResult(null);
@@ -412,30 +468,135 @@ export function ParityConnectorEditor({ savedAttempt, onAttemptChange, capabilit
     setRecipeValue((current) => withDefaultProviderModel(current, value));
   }
 
-  async function loadRevision(): Promise<void> {
-    if (!validTenantSelected || !connectorId.trim() || !/^\d+$/.test(revisionText)) {
+  const loadRevision = useCallback(async (selection?: { tenantId: string; connectorId: string; revision: number }): Promise<void> => {
+    const requestGeneration = ++revisionReadGeneration.current;
+    const requestedTenantId = selection?.tenantId ?? tenantId;
+    const requestedConnectorId = selection?.connectorId ?? connectorId.trim();
+    const requestedRevision = selection?.revision ?? Number(revisionText);
+    const isCurrentRead = (): boolean => isCurrentTenantConnectorRequest(
+      activeTenantId.current,
+      requestedTenantId,
+      requestGeneration,
+      revisionReadGeneration.current,
+      connectorIdRef.current,
+      requestedConnectorId,
+    );
+    if (!validTenantSelected || !isTenantUuid(requestedTenantId)
+      || !isCurrentTenantRequest(tenantId, requestedTenantId, requestGeneration, requestGeneration) || !requestedConnectorId
+      || !Number.isSafeInteger(requestedRevision) || requestedRevision < 1) {
       setError('Choose a valid tenant, Connector ID and exact revision number.');
       return;
     }
-    setError(null); setNotice(null); setBusy(true);
+    if (selection) {
+      connectorIdRef.current = requestedConnectorId;
+      setConnectorId(requestedConnectorId);
+      setRevisionText(String(requestedRevision));
+    }
+    setLoadedRevision(null);
+    setExpectedHeadRevision(0);
+    setExpectedActiveRevision(0);
+    setHeadVerificationFailed(true);
+    applyRecipe(EMPTY_RECIPE);
+    setCredentialMode('keep');
+    setCredentialValue('');
+    setVaultReference('');
+    setResult(null);
+    setTestedPin(null);
+    setError(null); setNotice(null); revisionReadBusy.current = true; setBusy(true);
     try {
-      const response = await client.getConnectorParityRevision(connectorId.trim(), Number(revisionText), tenantId);
+      const response = await client.getConnectorParityRevision(requestedConnectorId, requestedRevision, requestedTenantId);
+      if (!isCurrentRead()) return;
       if (!response.ok) { setError(errorText(response.problem)); return; }
-      if (response.data.tenantId !== tenantId
-        || response.data.connectorId !== connectorId.trim()
-        || response.data.revision !== Number(revisionText)) {
+      if (!isTenantUuid(response.data.tenantId) || response.data.tenantId.toLowerCase() !== requestedTenantId.toLowerCase()
+        || response.data.connectorId !== requestedConnectorId
+        || response.data.revision !== requestedRevision) {
         setError('The Connector response did not match the selected tenant, ID and exact revision.'); return;
       }
+
+      let currentHeadRevision: number;
+      try {
+        currentHeadRevision = await resolveTypedRecipeChainHead(requestedTenantId, requestedConnectorId, async (cursor) => {
+          if (!isCurrentRead()) throw new Error('The tenant or Connector selection changed while verifying the recipe head.');
+          const catalog = await client.listTenantConnectorRecipeCatalog({
+            tenantId: requestedTenantId,
+            q: requestedConnectorId,
+            limit: 100,
+            ...(cursor ? { cursor } : {}),
+          });
+          if (!isCurrentRead()) throw new Error('The tenant or Connector selection changed while verifying the recipe head.');
+          if (!catalog.ok) throw new Error('Could not verify the current typed recipe head. Reload the revision before saving.');
+          const page = parseTypedConnectorRecipeCatalogPage(catalog.data, requestedTenantId);
+          if (page === null) throw new Error('The typed recipe catalog returned an unreadable page. Reload before saving.');
+          return page;
+        });
+      } catch (headError) {
+        if (isCurrentRead()) {
+          setError(headError instanceof Error
+            ? headError.message
+            : 'Could not verify the current typed recipe head. Reload the revision before saving.');
+        }
+        return;
+      }
+      if (!isCurrentRead()) return;
+      if (!isTypedRecipeRevisionCoveredByHead(currentHeadRevision, requestedRevision)) {
+        setError('The typed recipe catalog did not confirm this exact revision or its current head. Refresh the catalog and load it again.');
+        return;
+      }
+
       setLoadedRevision(response.data);
       setRevisionText(String(response.data.revision));
-      setExpectedHeadRevision(response.data.expectedHeadRevision);
+      setExpectedHeadRevision(currentHeadRevision);
+      setHeadVerificationFailed(false);
       applyRecipe(response.data.recipe);
       setCredentialMode('keep'); setCredentialValue(''); setVaultReference(''); setResult((current) => current?.state === 'UNKNOWN' ? current : null);
       setNotice(`Loaded ${response.data.connectorId}@${response.data.revision} (${response.data.state}).`);
-    } finally { setBusy(false); }
-  }
+    } catch (error) {
+      if (isCurrentRead()) {
+        setError(error instanceof Error ? error.message : 'The exact Connector revision could not be loaded.');
+      }
+    } finally {
+      if (isCurrentRead()) {
+        revisionReadBusy.current = false;
+        setBusy(false);
+      }
+    }
+  }, [applyRecipe, client, connectorId, revisionText, setBusy, tenantId, validTenantSelected]);
+
+  useEffect(() => {
+    revisionReadGeneration.current += 1;
+    lastCatalogOpenRequest.current = null;
+    if (revisionReadBusy.current) {
+      revisionReadBusy.current = false;
+      setBusy(false);
+    }
+    setLoadedRevision(null);
+    connectorIdRef.current = '';
+    setConnectorId('');
+    setRevisionText('');
+    setExpectedHeadRevision(0);
+    setHeadVerificationFailed(false);
+    setExpectedActiveRevision(0);
+    applyRecipe(EMPTY_RECIPE);
+    setCredentialMode('keep');
+    setCredentialValue('');
+    setVaultReference('');
+    setResult(null);
+    setTestedPin(null);
+    setError(null);
+    setNotice(null);
+  }, [applyRecipe, setBusy, tenantId]);
+
+  useEffect(() => {
+    if (!catalogSelection || lastCatalogOpenRequest.current === catalogSelection.requestId) return;
+    lastCatalogOpenRequest.current = catalogSelection.requestId;
+    void loadRevision(catalogSelection);
+  }, [catalogSelection, loadRevision]);
 
   async function saveDraft(): Promise<void> {
+    if (headVerificationFailed) {
+      setError('The current Connector chain head could not be verified. Load the exact revision again or enter a different ID for a new Connector.');
+      return;
+    }
     if (!validTenantSelected || !mayManageRecipes || !parsedRecipe.success) {
       setError(!validTenantSelected
         ? 'Select a valid tenant before saving a Connector revision.'
@@ -444,8 +605,12 @@ export function ParityConnectorEditor({ savedAttempt, onAttemptChange, capabilit
           : parsedRecipeProblem ?? 'Correct the Connector recipe before saving.');
       return;
     }
-    if (credentialMode !== 'keep' && !mayManageCredentials) {
-      setError('Credential changes are unavailable until the credential workflow is configured. Choose “Keep existing credential” or retry after setup.');
+    if ((credentialMode === 'replace' || credentialMode === 'clear') && !mayManageCredentials) {
+      setError('Entering or clearing credentials is unavailable until the legacy credential workflow is configured. Choose “Keep existing credential” or retry after setup.');
+      return;
+    }
+    if (credentialMode === 'vault-ref' && !mayImportManagedSecrets) {
+      setError('Managed Secret Catalog import is unavailable for this deployment or session. Choose another credential action or retry after setup.');
       return;
     }
     const id = connectorId.trim();
@@ -468,47 +633,109 @@ export function ParityConnectorEditor({ savedAttempt, onAttemptChange, capabilit
       credentialChange = { action: 'vault-ref', reference: vaultReference.trim() };
     } else credentialChange = { action: 'keep' };
 
+    const requestedTenantId = tenantId;
+    const requestedConnectorId = id;
+    const requestGeneration = ++revisionReadGeneration.current;
+    const isCurrentMutation = (): boolean => isCurrentTenantConnectorRequest(
+      activeTenantId.current,
+      requestedTenantId,
+      requestGeneration,
+      revisionReadGeneration.current,
+      connectorIdRef.current,
+      requestedConnectorId,
+    );
+    revisionReadBusy.current = true;
     setBusy(true); setError(null); setNotice(null); setResult((current) => current?.state === 'UNKNOWN' ? current : null);
     try {
       const response = await client.upsertConnectorDraft(id, {
-        tenantId,
+        tenantId: requestedTenantId,
         expectedHeadRevision,
         recipe: parsedRecipe.data,
         credentialChange,
       }, idempotencyKey());
+      if (!isCurrentMutation()) return;
       if (!response.ok) { setError(errorText(response.problem)); return; }
-      setLoadedRevision(response.data.revision);
-      setRevisionText(String(response.data.revision.revision));
-      setExpectedHeadRevision(response.data.expectedHeadRevision);
-      applyRecipe(response.data.revision.recipe);
+      const revision = response.data.revision;
+      if (!isTenantUuid(revision.tenantId)
+        || revision.tenantId.toLowerCase() !== requestedTenantId.toLowerCase()
+        || revision.connectorId !== requestedConnectorId
+        || !Number.isSafeInteger(revision.revision)
+        || revision.revision < 1) {
+        setError('The saved Connector response did not match the selected tenant and Connector ID.');
+        return;
+      }
+      setLoadedRevision(revision);
+      setRevisionText(String(revision.revision));
+      setExpectedHeadRevision(revision.revision);
+      setHeadVerificationFailed(false);
+      applyRecipe(revision.recipe);
       setCredentialMode('keep'); setCredentialValue(''); setVaultReference('');
-      setNotice(`${id}@${response.data.revision.revision} saved as PENDING${response.data.replayed ? ' (idempotent replay)' : ''}. Test it before activation.`);
-    } finally { setBusy(false); }
+      setNotice(`${id}@${revision.revision} saved as PENDING${response.data.replayed ? ' (idempotent replay)' : ''}. Test it before activation.`);
+      onRecipeCatalogChange();
+    } finally {
+      if (isCurrentMutation()) {
+        revisionReadBusy.current = false;
+        setBusy(false);
+      }
+    }
   }
 
   async function createRollbackDraft(): Promise<void> {
-    if (!validTenantSelected || !mayManageRecipes || !loadedRevision) {
+    if (!validTenantSelected || !mayManageRecipes || !loadedRevision || headVerificationFailed) {
       setError(!validTenantSelected
         ? 'Select a valid tenant before creating a rollback draft.'
         : 'Connector recipe management is unavailable for this session or deployment.');
       return;
     }
+    const requestedTenantId = tenantId;
+    const requestedConnectorId = loadedRevision.connectorId;
     const sourceRevision = loadedRevision.revision;
+    const requestGeneration = ++revisionReadGeneration.current;
+    const isCurrentMutation = (): boolean => isCurrentTenantConnectorRequest(
+      activeTenantId.current,
+      requestedTenantId,
+      requestGeneration,
+      revisionReadGeneration.current,
+      connectorIdRef.current,
+      requestedConnectorId,
+    );
+    if (connectorId.trim() !== requestedConnectorId) {
+      setError('The selected Connector ID changed after this revision was loaded. Load the exact target again before creating a rollback.');
+      return;
+    }
+    revisionReadBusy.current = true;
     setBusy(true); setError(null); setNotice(null); setResult((current) => current?.state === 'UNKNOWN' ? current : null);
     try {
-      const response = await client.rollbackConnectorRevision(loadedRevision.connectorId, tenantId, sourceRevision, expectedHeadRevision, idempotencyKey());
+      const response = await client.rollbackConnectorRevision(requestedConnectorId, requestedTenantId, sourceRevision, expectedHeadRevision, idempotencyKey());
+      if (!isCurrentMutation()) return;
       if (!response.ok) { setError(errorText(response.problem)); return; }
-      setLoadedRevision(response.data.revision);
-      setRevisionText(String(response.data.revision.revision));
-      setExpectedHeadRevision(response.data.expectedHeadRevision);
-      applyRecipe(response.data.revision.recipe);
+      const revision = response.data.revision;
+      if (!isTenantUuid(revision.tenantId)
+        || revision.tenantId.toLowerCase() !== requestedTenantId.toLowerCase()
+        || revision.connectorId !== requestedConnectorId
+        || !Number.isSafeInteger(revision.revision)
+        || revision.revision < 1) {
+        setError('The rollback response did not match the selected tenant and Connector ID.');
+        return;
+      }
+      setLoadedRevision(revision);
+      setRevisionText(String(revision.revision));
+      setExpectedHeadRevision(revision.revision);
+      setHeadVerificationFailed(false);
+      applyRecipe(revision.recipe);
       setCredentialMode('keep'); setResult((current) => current?.state === 'UNKNOWN' ? current : null);
-      setNotice(`Rollback created PENDING revision ${response.data.revision.revision}; test it and activate separately.`);
-    } finally { setBusy(false); }
+      setNotice(`Rollback created PENDING revision ${revision.revision}; test it and activate separately.`);
+      onRecipeCatalogChange();
+    } finally {
+      if (isCurrentMutation()) {
+        revisionReadBusy.current = false;
+        setBusy(false);
+      }
+    }
   }
 
   async function activateDraft(): Promise<void> {
-    if (!validTenantSelected || !mayManageRecipes || !loadedRevision || loadedRevision.state !== 'PENDING') {
+    if (!validTenantSelected || !mayManageRecipes || !loadedRevision || loadedRevision.state !== 'PENDING' || headVerificationFailed) {
       setError(!validTenantSelected
         ? 'Select a valid tenant before activating a Connector revision.'
         : 'Connector recipe management is unavailable for this session or deployment.');
@@ -518,21 +745,52 @@ export function ParityConnectorEditor({ savedAttempt, onAttemptChange, capabilit
     if (!Number.isSafeInteger(expectedActiveRevision) || expectedActiveRevision < 0) { setError('Expected current ACTIVE revision must be a non-negative integer.'); return; }
     const targetConnectorId = loadedRevision.connectorId;
     const targetRevision = loadedRevision.revision;
+    const requestedTenantId = tenantId;
+    const requestGeneration = ++revisionReadGeneration.current;
+    const isCurrentMutation = (): boolean => isCurrentTenantConnectorRequest(
+      activeTenantId.current,
+      requestedTenantId,
+      requestGeneration,
+      revisionReadGeneration.current,
+      connectorIdRef.current,
+      targetConnectorId,
+    );
+    if (connectorId.trim() !== targetConnectorId) {
+      setError('The selected Connector ID changed after this revision was loaded. Load the exact target again before activation.');
+      return;
+    }
+    revisionReadBusy.current = true;
     setBusy(true); setError(null); setNotice(null);
     try {
-      const response = await client.activateConnectorRevision(targetConnectorId, targetRevision, tenantId, expectedActiveRevision, idempotencyKey());
+      const response = await client.activateConnectorRevision(targetConnectorId, targetRevision, requestedTenantId, expectedActiveRevision, idempotencyKey());
+      if (!isCurrentMutation()) return;
       if (!response.ok) { setError(errorText(response.problem)); return; }
       if (!response.data.activated) { setError(`Activation CAS lost. Current ACTIVE revision is ${response.data.currentRevision ?? 'unknown'}; refresh and review before retrying.`); return; }
-      const reread = await client.getConnectorParityRevision(targetConnectorId, targetRevision, tenantId);
+      const reread = await client.getConnectorParityRevision(targetConnectorId, targetRevision, requestedTenantId);
+      if (!isCurrentMutation()) return;
       if (reread.ok) {
-        if (reread.data.tenantId !== tenantId || reread.data.connectorId !== targetConnectorId || reread.data.revision !== targetRevision) {
+        if (!isTenantUuid(reread.data.tenantId)
+          || reread.data.tenantId.toLowerCase() !== requestedTenantId.toLowerCase()
+          || reread.data.connectorId !== targetConnectorId
+          || reread.data.revision !== targetRevision) {
           setError('Activation completed, but the reread did not match the exact tenant and Connector revision.');
           return;
         }
-        setLoadedRevision(reread.data); applyRecipe(reread.data.recipe); setExpectedHeadRevision(reread.data.expectedHeadRevision);
+        setLoadedRevision(reread.data);
+        applyRecipe(reread.data.recipe);
+      } else {
+        setNotice(`Revision ${targetRevision} activated, but its exact revision reread failed. Reload it before further recipe edits.`);
+        onRecipeCatalogChange();
+        return;
       }
       setNotice(`Revision ${targetRevision} activated. Profile bindings still require an explicit versioned publish.`);
-    } finally { setBusy(false); }
+      onRecipeCatalogChange();
+    } finally {
+      if (isCurrentMutation()) {
+        revisionReadBusy.current = false;
+        setBusy(false);
+      }
+    }
   }
 
   async function runProviderTest(): Promise<void> {
@@ -724,14 +982,20 @@ export function ParityConnectorEditor({ savedAttempt, onAttemptChange, capabilit
         {!mayManageRecipes && !mayRunProviderTest ? <AlertBanner variant="warning" title="Admin or assigned local USER access required">Recipe management is platform Admin only. A validated local USER can run tests only against the exact ACTIVE revision in an assigned Profile; all calls are checked again by the server.</AlertBanner> : null}
         {capabilities === null ? <AlertBanner variant="info" title="Connector capabilities are unavailable">The deployment has not confirmed Connector management or test support. Revision inspection stays available; write and test actions remain disabled until capabilities can be read.</AlertBanner> : null}
         {validTenantSelected && capabilities?.management === false ? <AlertBanner variant="info" title="Connector revision changes are unavailable">This deployment has not enabled Connector management. You can still inspect a saved revision; creating, rolling back or activating revisions remains disabled.</AlertBanner> : null}
-        {mayManageRecipes && capabilities?.credentialWorkflow !== true ? <AlertBanner variant="info" title="Credential changes are unavailable">Connector revisions can be saved while keeping their existing credential. Replace, clear and Vault-reference actions stay disabled until credential workflow is configured.</AlertBanner> : null}
+        {mayManageRecipes && !mayManageCredentials ? <AlertBanner variant="info" title="Credential entry and removal are unavailable">Connector revisions can be saved while keeping their existing credential. Enter and clear actions require the legacy credential workflow.</AlertBanner> : null}
+        {mayManageRecipes && !mayImportManagedSecrets ? <AlertBanner variant="info" title="Managed Secret Catalog import is unavailable">Managed import requires an available Connector credential writer. This deployment has not advertised that capability.</AlertBanner> : null}
         {error ? <AlertBanner variant="error" title="Connector parity action failed">{error}</AlertBanner> : null}
         {notice ? <AlertBanner variant="success" title="Connector parity status">{notice}</AlertBanner> : null}
         {loadError ? <AlertBanner variant="error" title="Profile/key assignments unavailable">{loadError}</AlertBanner> : null}
 
         <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
           <FormField id="parity-connector-id" label="Name (stable Connector ID)" description="Choose a stable name used by Profile bindings, or load an existing Connector chain.">
-            <Input id="parity-connector-id" value={connectorId} onChange={(event) => setConnectorId(event.target.value)} maxLength={128} placeholder="provider-text" disabled={busy} />
+            <Input id="parity-connector-id" value={connectorId} onChange={(event) => {
+              const nextConnectorId = event.target.value;
+              if (nextConnectorId.trim() !== connectorIdRef.current.trim()) setHeadVerificationFailed(false);
+              connectorIdRef.current = nextConnectorId;
+              setConnectorId(nextConnectorId);
+            }} maxLength={128} placeholder="provider-text" disabled={busy} />
           </FormField>
           <FormField id="parity-connector-revision" label="Exact revision" description="Load a persisted recipe revision by number.">
             <Input id="parity-connector-revision" inputMode="numeric" value={revisionText} onChange={(event) => setRevisionText(event.target.value)} placeholder="1" disabled={busy} />
@@ -755,14 +1019,14 @@ export function ParityConnectorEditor({ savedAttempt, onAttemptChange, capabilit
           {mayManageRecipes ? <div className="flex flex-col gap-3 rounded border border-[var(--border-subtle)] p-3">
             <div><h4 className="font-medium">Credential</h4><p className="text-xs text-[var(--text-sub)]">Credential values are write-only and are never returned by revision reads.</p></div>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <FormField id="credential-change" label="Credential action"><NativeSelect id="credential-change" value={credentialMode} onChange={(event) => { setCredentialMode(event.currentTarget.value as CredentialMode); setCredentialValue(''); setVaultReference(''); }} disabled={busy}><option value="keep">Keep existing credential</option><option value="replace" disabled={!mayManageCredentials}>Enter credential</option><option value="clear" disabled={!mayManageCredentials}>Clear credential</option><option value="vault-ref" disabled={!mayManageCredentials}>Use approved Vault reference</option></NativeSelect></FormField>
+              <FormField id="credential-change" label="Credential action"><NativeSelect id="credential-change" value={credentialMode} onChange={(event) => { setCredentialMode(event.currentTarget.value as CredentialMode); setCredentialValue(''); setVaultReference(''); }} disabled={busy}><option value="keep">Keep existing credential</option><option value="replace" disabled={!mayManageCredentials}>Enter credential</option><option value="clear" disabled={!mayManageCredentials}>Clear credential</option><option value="vault-ref" disabled={!mayImportManagedSecrets}>Import managed Secret Catalog reference</option></NativeSelect></FormField>
               {credentialMode === 'replace' ? <FormField id="credential-replacement" label="API credential" description="Sent only when saving this draft, then cleared from the form."><Input id="credential-replacement" type="password" autoComplete="new-password" value={credentialValue} onChange={(event) => setCredentialValue(event.target.value)} disabled={busy || !mayManageCredentials} maxLength={16_384} /></FormField> : null}
-              {credentialMode === 'vault-ref' ? <FormField id="credential-vault-reference" label="Secret Catalog reference ID" description="Enter the opaque UUID for an active tenant-owned Connector credential. The server verifies permission and imports it into a pinned revision."><Input id="credential-vault-reference" value={vaultReference} onChange={(event) => setVaultReference(event.target.value)} disabled={busy || !mayManageCredentials} maxLength={36} autoComplete="off" /></FormField> : null}
+              {credentialMode === 'vault-ref' ? <FormField id="credential-vault-reference" label="Secret Catalog reference ID" description="Choose an active tenant-owned managed Connector credential or enter its opaque UUID. The server verifies permission and imports it into a pinned revision."><ReferenceInput id="credential-vault-reference" value={vaultReference} onValueChange={setVaultReference} scopeKey={validTenantSelected && mayImportManagedSecrets ? tenantId : null} loadOptions={loadManagedSecretSuggestions} disabled={busy || !mayImportManagedSecrets} maxLength={36} autoComplete="off" placeholder="Secret Catalog UUID" /></FormField> : null}
               {credentialMode === 'clear' ? <p className="self-end text-sm text-[var(--badge-warning-text)]">Saving explicitly removes this credential from the new revision.</p> : null}
             </div>
-            {loadedRevision === null && recipe.auth.kind !== 'none' && credentialMode === 'keep' ? <p className="text-xs text-[var(--badge-warning-text)]">A new authenticated Connector needs an entered credential or an approved Vault reference.</p> : null}
-            <div className="flex flex-wrap gap-2"><Button disabled={busy || !validTenantSelected || !mayManageRecipes || !parsedRecipe.success || (credentialMode !== 'keep' && !mayManageCredentials) || (loadedRevision === null && recipe.auth.kind !== 'none' && credentialMode === 'keep')} isLoading={busy} onClick={() => void saveDraft()}>{loadedRevision ? 'Save PENDING draft' : 'Create PENDING Connector'}</Button>
-              {loadedRevision ? <Button variant="outline" disabled={busy || !mayManageRecipes} onClick={() => void createRollbackDraft()}>Create rollback draft</Button> : null}
+            {loadedRevision === null && recipe.auth.kind !== 'none' && credentialMode === 'keep' ? <p className="text-xs text-[var(--badge-warning-text)]">A new authenticated Connector needs an entered credential or an imported managed Secret Catalog reference.</p> : null}
+            <div className="flex flex-wrap gap-2"><Button disabled={busy || headVerificationFailed || !validTenantSelected || !mayManageRecipes || !parsedRecipe.success || !credentialModeAvailable || (loadedRevision === null && recipe.auth.kind !== 'none' && credentialMode === 'keep')} isLoading={busy} onClick={() => void saveDraft()}>{loadedRevision ? 'Save PENDING draft' : 'Create PENDING Connector'}</Button>
+              {loadedRevision ? <Button variant="outline" disabled={busy || headVerificationFailed || !mayManageRecipes} onClick={() => void createRollbackDraft()}>Create rollback draft</Button> : null}
             </div>
           </div> : null}
 

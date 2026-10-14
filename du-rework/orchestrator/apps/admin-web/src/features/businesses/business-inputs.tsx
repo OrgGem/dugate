@@ -1,10 +1,11 @@
-import { useEffect, useId, useMemo, useState } from 'react';
-import { Input } from '@/components/ui/input';
+import { useCallback, useId, useMemo } from 'react';
+import { FormField } from '@/components/ui/field';
+import { ReferenceInput, type ReferenceOptionPage } from '@/components/ui/reference-input';
 import { createAdminApiClient } from '@/lib/api';
 import { parseBusinessPage, parseBusinessVersions } from './state';
 
-/** Suggestions are session-scoped reads. Manual entry remains available when
- * the registry is incomplete or the current account cannot list it. */
+/** Business IDs and versions are registry references; typing remains available
+ * when a caller is absent from the registry or a bounded suggestion read fails. */
 export function BusinessInputs({
   businessId, businessVersion, onBusinessChange, onVersionChange, businessInputId, versionInputId,
 }: {
@@ -16,64 +17,85 @@ export function BusinessInputs({
   versionInputId?: string;
 }) {
   const client = useMemo(() => createAdminApiClient(), []);
-  const id = useId();
+  const id = useId().replaceAll(':', '');
   const businessFieldId = businessInputId ?? `${id}-business`;
   const versionFieldId = versionInputId ?? `${id}-version`;
-  const [businesses, setBusinesses] = useState<string[]>([]);
-  const [versions, setVersions] = useState<string[]>([]);
-  const [businessHint, setBusinessHint] = useState('Loading business suggestions…');
-  const [versionHint, setVersionHint] = useState('Select or enter a business first.');
 
-  useEffect(() => {
-    let active = true;
-    void client.listBusinesses().then((result) => {
-      if (!active) return;
-      const page = result.ok ? parseBusinessPage(result.data) : null;
-      setBusinesses(page?.items.map((row) => row.businessId) ?? []);
-      setBusinessHint(page !== null && page.items.length > 0
-        ? 'Choose a registered business or enter its ID.'
-        : 'Business suggestions unavailable; enter the ID manually.');
-    });
-    return () => { active = false; };
+  const loadBusinessSuggestions = useCallback(async (
+    query: string,
+    scopeKey: string,
+    cursor: string | null,
+  ): Promise<ReferenceOptionPage> => {
+    if (scopeKey !== 'business-registry') return { items: [], nextCursor: null };
+    const result = await client.listBusinesses({ limit: '50', ...(cursor ? { cursor } : {}) });
+    if (!result.ok) throw new Error('Business registry suggestions are unavailable.');
+    const page = parseBusinessPage(result.data);
+    if (page === null) throw new Error('Business registry returned an unreadable response.');
+    const normalizedQuery = query.trim().toLocaleLowerCase();
+    const items = page.items.map((business) => ({
+      value: business.businessId,
+      label: business.businessId,
+      ...(business.activeVersion ? { description: `Active version ${business.activeVersion}` } : {}),
+    })).filter((option) => `${option.value} ${option.label} ${option.description ?? ''}`
+      .toLocaleLowerCase().includes(normalizedQuery));
+    return { items, nextCursor: page.nextCursor ?? null };
   }, [client]);
 
-  useEffect(() => {
-    let active = true;
-    setVersions([]);
-    const business = businessId.trim();
-    if (business.length === 0) {
-      setVersionHint('Select or enter a business first.');
-      return;
-    }
-    setVersionHint('Loading version suggestions…');
-    const timer = window.setTimeout(() => {
-      void client.getBusinessVersions(business).then((result) => {
-        if (!active) return;
-        const page = result.ok ? parseBusinessVersions(result.data) : null;
-        setVersions(page?.rows.map((row) => row.version) ?? []);
-        setVersionHint(page !== null && page.rows.length > 0
-          ? 'Choose a registered version, latest, or enter a version.'
-          : 'Version suggestions unavailable; enter a version or use latest.');
-      });
-    }, 250);
-    return () => { active = false; window.clearTimeout(timer); };
-  }, [client, businessId]);
+  const loadVersionSuggestions = useCallback(async (
+    query: string,
+    scopeKey: string,
+    cursor: string | null,
+  ): Promise<ReferenceOptionPage> => {
+    if (!scopeKey || scopeKey !== businessId.trim() || cursor) return { items: [], nextCursor: null };
+    const result = await client.getBusinessVersions(scopeKey);
+    if (!result.ok) throw new Error('Business version suggestions are unavailable.');
+    const page = parseBusinessVersions(result.data);
+    if (page === null || page.businessId !== scopeKey) throw new Error('Business versions did not match the selected Business ID.');
+    const options = [
+      { value: 'latest', label: 'latest', description: page.activeVersion ? `Active version ${page.activeVersion}` : 'Resolve the active version' },
+      ...page.rows.map((row) => ({
+        value: row.version,
+        label: row.version,
+        description: `${row.status}${row.isActive ? ' · active' : ''}`,
+      })),
+    ];
+    const normalizedQuery = query.trim().toLocaleLowerCase();
+    const items = options.filter((option) => `${option.value} ${option.label} ${option.description}`
+      .toLocaleLowerCase().includes(normalizedQuery));
+    return { items: [...new Map(items.map((option) => [option.value, option])).values()], nextCursor: null };
+  }, [businessId, client]);
 
   return (
     <>
       <div className="w-full max-w-sm">
-        <label htmlFor={businessFieldId} className="block text-sm font-medium">Business ID</label>
-        <Input id={businessFieldId} aria-label="businessId" aria-describedby={`${id}-business-hint`} list={`${id}-businesses`} value={businessId}
-          onChange={(event) => { onBusinessChange(event.target.value); onVersionChange('latest'); }} placeholder="Business ID" />
-        <datalist id={`${id}-businesses`}>{[...new Set(businesses)].map((value) => <option key={value} value={value} />)}</datalist>
-        <p id={`${id}-business-hint`} className="mt-1 text-xs text-[var(--text-sub)]">{businessHint}</p>
+        <FormField id={businessFieldId} label="Business ID" description="Choose a registered business or enter its ID. More registry rows can be loaded as needed.">
+          <ReferenceInput
+            id={businessFieldId}
+            aria-label="businessId"
+            value={businessId}
+            onValueChange={(value) => { onBusinessChange(value); onVersionChange(''); }}
+            scopeKey="business-registry"
+            loadOptions={loadBusinessSuggestions}
+            maxLength={256}
+            autoComplete="off"
+            placeholder="Business ID"
+          />
+        </FormField>
       </div>
       <div className="w-full max-w-sm">
-        <label htmlFor={versionFieldId} className="block text-sm font-medium">Business version</label>
-        <Input id={versionFieldId} aria-label="businessVersion" aria-describedby={`${id}-version-hint`} list={`${id}-versions`} value={businessVersion}
-          onChange={(event) => onVersionChange(event.target.value)} placeholder="latest" />
-        <datalist id={`${id}-versions`}>{[...new Set(['latest', ...versions])].map((value) => <option key={value} value={value} />)}</datalist>
-        <p id={`${id}-version-hint`} className="mt-1 text-xs text-[var(--text-sub)]">{versionHint}</p>
+        <FormField id={versionFieldId} label="Business version" description="Choose a registered version, latest, or enter a version.">
+          <ReferenceInput
+            id={versionFieldId}
+            aria-label="businessVersion"
+            value={businessVersion}
+            onValueChange={onVersionChange}
+            scopeKey={businessId.trim() || null}
+            loadOptions={loadVersionSuggestions}
+            maxLength={256}
+            autoComplete="off"
+            placeholder="latest"
+          />
+        </FormField>
       </div>
     </>
   );

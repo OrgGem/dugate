@@ -70,7 +70,7 @@ export interface FormFieldProps {
 }
 
 const FORM_CONTROL_TAGS = new Set(['input', 'select', 'textarea', 'button']);
-const FORM_CONTROL_COMPONENTS = new Set(['Input', 'NativeSelect', 'SelectTrigger']);
+const FORM_CONTROL_COMPONENTS = new Set(['Input', 'ReferenceInput', 'NativeSelect', 'SelectTrigger']);
 
 type FormControlElement = React.ReactElement<Record<string, unknown>>;
 

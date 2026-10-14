@@ -9,12 +9,11 @@
  * Offline: scripted `pg` for the boot's verify-only migration check and a
  * closed-port Redis (no connection is attempted by any assertion here).
  */
-import { join } from 'node:path';
 import { createApp, route } from '../src/server';
 import type { ServerConfig } from '../src/server';
 import type { RouteContext } from '../src/http/route-context';
-import { loadMigrationFiles } from '../src/db/migrations';
 import { mockCreateStorageGenerationFixture, mockOpenBackupEffectGateResult } from './helpers/backup-effect-gate';
+import { currentAppliedMigrationLedger, mockMigrationMetadataColumnsResult } from './helpers/migration-ledger-fixture';
 import { createArtifactService } from '../src/modules/artifacts/artifacts';
 import { createMultipartService } from '../src/modules/artifacts/multipart-service';
 import type { KeyProvider } from '../src/modules/encryption/vault-transit-provider';
@@ -70,6 +69,8 @@ jest.mock('pg', () => {
     if (backupGate) return backupGate;
     const storage = getMockStorage().answer(text, params);
     if (storage) return storage;
+    const metadataColumns = mockMigrationMetadataColumnsResult(text, params);
+      if (metadataColumns) return metadataColumns;
     if (/information_schema\.tables/i.test(text)) return { rows: [{ exists: true }], rowCount: 1 };
     if (/SELECT count\(\*\)::int/i.test(text)) return { rows: [{ count: state.schemaLedger.length }], rowCount: state.schemaLedger.length };
     if (/FROM schema_migrations/i.test(text)) return { rows: state.schemaLedger, rowCount: state.schemaLedger.length };
@@ -135,10 +136,7 @@ async function boot(overrides: Partial<ServerConfig>): Promise<App> {
 
 beforeAll(() => {
   const state = (jest.requireMock('pg') as { __duState: MinimalState }).__duState;
-  state.schemaLedger = loadMigrationFiles(join(__dirname, '..', 'migrations')).map((file) => ({
-    sequence: file.sequence,
-    filename: file.filename,
-  }));
+  state.schemaLedger = currentAppliedMigrationLedger();
 });
 
 beforeEach(() => {

@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID } from 'node:crypto';
+import { createHmac, randomBytes, randomUUID } from 'node:crypto';
 import {
   encryptSecretValue,
   writeImportedManagedSecret,
@@ -54,6 +54,30 @@ describe('ORV14 exact managed secret revisions', () => {
     } as NodeJS.ProcessEnv)).toThrow(/32-byte/);
   });
 
+  it('derives a retained production keyring from ENCRYPTION_KEY and lets explicit versions win', () => {
+    const master = 'retained-orchestrator-master-key'.padEnd(64, 'x');
+    const derived = parseSecretCatalogKeyring({ ENCRYPTION_KEY: master } as NodeJS.ProcessEnv);
+    const expected = createHmac('sha256', Buffer.from(master, 'utf8'))
+      .update('du-secret-catalog/encryption-key/v1', 'utf8')
+      .digest();
+    expect(derived?.activeVersion).toBe('encryption-key-v1');
+    expect(derived?.keys['encryption-key-v1']).toEqual(expected);
+
+    const explicitKey = randomBytes(32);
+    const explicit = parseSecretCatalogKeyring({
+      ENCRYPTION_KEY: master,
+      DU_SECRET_CATALOG_ACTIVE_KEY_VERSION: 'catalog-k7',
+      DU_SECRET_CATALOG_KEYRING_JSON: JSON.stringify({ 'catalog-k7': explicitKey.toString('base64') }),
+    } as NodeJS.ProcessEnv);
+    expect(explicit?.activeVersion).toBe('catalog-k7');
+    expect(explicit?.keys['catalog-k7']).toEqual(explicitKey);
+    expect(Object.keys(explicit?.keys ?? {})).toEqual(['catalog-k7']);
+  });
+
+  it('does not synthesize a managed-value key from a weak legacy profile key', () => {
+    expect(parseSecretCatalogKeyring({ ENCRYPTION_KEY: 'short-key' } as NodeJS.ProcessEnv)).toBeUndefined();
+  });
+
   it('resolves a pinned old revision after current disable and returns owner metadata only', async () => {
     const db = mockVersionDb();
     const ref = `${SECRET_ID}@7`;
@@ -69,6 +93,14 @@ describe('ORV14 exact managed secret revisions', () => {
     await expect(verifyManagedSecretVersion(db as never, KEYRING, ref, {
       tenantId: TENANT, purpose: 'storage.credential', service: 'orchestrator',
     })).resolves.toBeUndefined();
+  });
+
+  it('accepts the canonical default tenant sentinel for tenant-fenced resolution', async () => {
+    const tenantId = '00000000-0000-0000-0000-000000000001';
+    const db = mockVersionDb({ tenant_id: tenantId });
+    await expect(resolveManagedSecretVersion(db as never, KEYRING, `${SECRET_ID}@7`, {
+      tenantId, purpose: 'storage.credential', service: 'orchestrator',
+    })).resolves.toBe(VALUE);
   });
 
   it('rejects cross-tenant, wrong-purpose, wrong-service, revoked and missing-key reads', async () => {

@@ -76,6 +76,7 @@ const input: ProbeInput = {
   expectedConnectorInvocationKeyCounts: [{ keyRef: 'connector-invocation/key-a', keyVersion: 4, envelopeCount: 1 }],
   expectedConnectorCredentialKey: { keyVersion: 'connector-legacy-v1', fingerprintSha256: 'e'.repeat(64) },
   expectedConnectorSecretVersionCount: 1,
+  expectedConnectorTypedCredentialCount: 0,
   expectedMetadataTransitKeyCounts: [{ keyRef: 'metadata-transit/key-a', keyVersion: 3, envelopeCount: 1 }],
   expectedVaultCredentialPinDigests: ['f'.repeat(64)],
   services: {
@@ -238,7 +239,7 @@ function fixturePorts(fixtureOptions: {
       async recoverConnectorCredentialKey({ pin }) {
         return { key: { keyVersion: pin.keyVersion, fingerprintSha256: pin.fingerprintSha256,
           registryIdentity: 'independent-connector-registry', observedAt: timestamp() },
-          items: [{ secretVersionIdSha256: 'e'.repeat(64), keyVersion: pin.keyVersion,
+          items: [{ recordKind: 'legacy-secret-version' as const, secretVersionIdSha256: 'e'.repeat(64), keyVersion: pin.keyVersion,
             ciphertextSha256: 'f'.repeat(64), plaintextSha256: '0'.repeat(64) }] };
       },
       async recoverMetadataTransitKey({ pin }) {

@@ -108,8 +108,12 @@ export function parseProfileDetail(value: unknown): ProfileDetail | null {
   const businessVersion = str(value['businessVersion']);
   const profileName = str(value['profileName']);
   const revision = value['revision'];
+  const action = value['action'];
+  const endpointSlug = value['endpointSlug'];
   if (businessId === null || businessVersion === null || profileName === null) return null;
   if (typeof revision !== 'number' || !Number.isInteger(revision) || revision < 0) return null;
+  if (action !== undefined && (typeof action !== 'string' || action.trim().length === 0 || action.length > 128)) return null;
+  if (endpointSlug !== undefined && endpointSlug !== null && (typeof endpointSlug !== 'string' || endpointSlug.length === 0 || endpointSlug.length > 512)) return null;
   const policy = parsePolicyRead(value['policy']);
   if (policy === null) return null;
 
@@ -144,6 +148,8 @@ export function parseProfileDetail(value: unknown): ProfileDetail | null {
     businessVersion,
     profileName,
     revision,
+    ...(typeof action === 'string' ? { action } : {}),
+    ...(endpointSlug === null ? { endpointSlug: null } : typeof endpointSlug === 'string' ? { endpointSlug } : {}),
     currentValues: isRecord(value['currentValues']) ? value['currentValues'] : {},
     policy,
     manifest: { actions },
@@ -179,6 +185,7 @@ export function parseProfileWorkflowPage(
 
 function parseProfileListRow(value: unknown): ProfileListRow | null {
   if (!isRecord(value)) return null;
+  const profileId = value['profileId'];
   const tenantId = str(value['tenantId']);
   const businessId = str(value['businessId']);
   const businessVersion = str(value['businessVersion']);
@@ -187,9 +194,12 @@ function parseProfileListRow(value: unknown): ProfileListRow | null {
   const revision = value['revision'];
   const keyCount = value['keyCount'];
   const boundActions = value['boundActions'];
+  const action = value['action'];
+  const endpointSlug = value['endpointSlug'];
   const createdAt = str(value['createdAt']);
   const updatedAt = str(value['updatedAt']);
   if (
+    (profileId !== undefined && (typeof profileId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(profileId))) ||
     tenantId === null || tenantId.length === 0 ||
     businessId === null || businessId.length === 0 ||
     businessVersion === null || businessVersion.length === 0 ||
@@ -198,9 +208,12 @@ function parseProfileListRow(value: unknown): ProfileListRow | null {
     typeof revision !== 'number' || !Number.isInteger(revision) || revision < 1 ||
     typeof keyCount !== 'number' || !Number.isInteger(keyCount) || keyCount < 0 ||
     !Array.isArray(boundActions) || !boundActions.every((action) => typeof action === 'string' && action.length > 0) ||
+    (action !== undefined && (typeof action !== 'string' || action.trim().length === 0 || action.length > 128)) ||
+    (endpointSlug !== undefined && endpointSlug !== null && (typeof endpointSlug !== 'string' || endpointSlug.length === 0 || endpointSlug.length > 512)) ||
     createdAt === null || updatedAt === null
   ) return null;
   return {
+    ...(typeof profileId === 'string' ? { profileId } : {}),
     tenantId,
     businessId,
     businessVersion,
@@ -209,6 +222,8 @@ function parseProfileListRow(value: unknown): ProfileListRow | null {
     status,
     keyCount,
     boundActions,
+    ...(typeof action === 'string' ? { action } : {}),
+    ...(endpointSlug === null ? { endpointSlug: null } : typeof endpointSlug === 'string' ? { endpointSlug } : {}),
     createdAt,
     updatedAt,
   };

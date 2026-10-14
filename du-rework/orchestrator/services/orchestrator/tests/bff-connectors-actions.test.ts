@@ -30,6 +30,7 @@ const SECRET = 'cwb-bff-cookie-secret';
 const ADMIN_TOKEN = 'cwb-bff-platform-admin-token';
 const TENANT_A_TOKEN = 'cwb-bff-tenant-a-token';
 const TENANT_A = '11111111-1111-4111-8111-111111111111';
+const DEFAULT_TENANT = '00000000-0000-0000-0000-000000000001';
 const OPERATOR_SESSION = 'O'.repeat(43);
 const VIEWER_SESSION = 'W'.repeat(43);
 /** Must never appear on a BFF wire, in any status class. */
@@ -153,7 +154,12 @@ function startStub(port: number): Promise<Stub> {
 
       if (url.pathname === '/api/v1/admin/connectors/capabilities') {
         res.statusCode = 200;
-        res.end(JSON.stringify({ management: true, credentialWorkflow: false, test: true, knownConnectorIds: ['vendor-a'] }));
+        res.end(JSON.stringify({ management: true, credentialWorkflow: false, typedCredentialStorage: true, secretCatalogImport: true, test: true, knownConnectorIds: ['vendor-a'] }));
+        return;
+      }
+      if (url.pathname === '/api/internal/parity/api-keys') {
+        res.statusCode = 200;
+        res.end(JSON.stringify({ items: [] }));
         return;
       }
       if (url.pathname === '/api/v1/admin/connectors') {
@@ -366,10 +372,21 @@ describe('CONNECTOR-WIRE-B BFF connector reads + actions', () => {
     expect(JSON.parse(res.body)).toEqual({
       management: true,
       credentialWorkflow: false,
+      typedCredentialStorage: true,
+      secretCatalogImport: true,
       test: true,
       knownConnectorIds: ['vendor-a'],
     });
     expect(last()?.path).toBe('/api/v1/admin/connectors/capabilities');
+    expect(last()?.auth).toBe(`Bearer ${ADMIN_TOKEN}`);
+  });
+
+  it('platform admin can scope parity reads to the canonical default tenant sentinel', async () => {
+    const res = await httpRequest(`${baseUrl}/admin/api/parity/api-keys?tenantId=${DEFAULT_TENANT}`, {
+      headers: { cookie: adminCookie },
+    });
+    expect(res.status).toBe(200);
+    expect(last()?.path).toBe(`/api/internal/parity/api-keys?tenantId=${DEFAULT_TENANT}`);
     expect(last()?.auth).toBe(`Bearer ${ADMIN_TOKEN}`);
   });
 

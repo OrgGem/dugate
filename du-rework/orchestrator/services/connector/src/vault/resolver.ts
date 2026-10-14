@@ -100,7 +100,10 @@ export class SecretResolver {
 
   public async resolve(source: CredentialSource): Promise<ResolvedSecret> {
     if (source.kind === 'legacy-db') return this.resolveLegacy(source);
-    return this.resolveVault(source);
+    if (source.kind === 'vault-kv2') return this.resolveVault(source);
+    // Typed encrypted-db sources require authenticated tenant/connector/
+    // revision coordinates and are resolved by PostgresTypedCredentialStore.
+    throw new ConnectorError('CREDENTIAL_INVALID', 'Typed Connector credentials require a bound credential store.');
   }
 
   /** Safe probe for management test(connectorId) — never throws. */

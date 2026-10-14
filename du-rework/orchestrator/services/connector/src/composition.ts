@@ -23,6 +23,7 @@ import type { ConnectorReplicaRuntimeObservation } from '@du/contracts';
 import { PostgresConnectorReplicaRuntimeControl } from './db/replica-runtime-controls';
 import { PostgresConnectorBackupEffectControl } from './db/backup-effect-fences';
 import { PostgresConnectorParityRepository } from './db/parity-repository';
+import { PostgresTypedCredentialStore } from './db/credential-store';
 import { createConnectorParityManagement } from './modules/parity-management';
 import { connectorVaultRuntimeFromEnv, type ConnectorVaultRuntime } from './vault/runtime';
 import { HttpConnectorCostControlClient, type ConnectorCostControlClient } from './cost-control-client';
@@ -38,6 +39,8 @@ export interface ConnectorConfig {
   redisUrl: string;
   redisKeyPrefix?: string;
   migrationDirectory?: string;
+  /** Defaults to automatic forward migrations at startup for existing deployments. */
+  autoMigrate?: boolean;
   drainTimeoutMs?: number;
   serviceIdentityVerifier?: ConnectorHttpDependencies['identityVerifier'];
   grantVerifier?: GrantVerifier;
@@ -82,6 +85,7 @@ export interface ConnectorComposition {
 export interface ConnectorCompositionOverrides {
   http: ConnectorHttpDependencies;
   migrate?: () => Promise<void>;
+  verifyMigrations?: () => Promise<void>;
   pingDatabase?: () => Promise<boolean>;
   pingRedis?: () => Promise<boolean>;
   close?: () => Promise<void>;
@@ -92,6 +96,7 @@ export function createConnectorComposition(
   overrides?: ConnectorCompositionOverrides,
 ): ConnectorComposition {
   const isolatedRestoreRehearsal = config.isolatedRestoreRehearsal === true;
+  const autoMigrate = config.autoMigrate ?? connectorAutoMigrateFromEnvironment(process.env.CONNECTOR_AUTO_MIGRATE);
   if (isolatedRestoreRehearsal && !config.runtimeControl) {
     throw new Error('Connector restore rehearsal requires an exact runtime-control identity.');
   }
@@ -129,7 +134,13 @@ export function createConnectorComposition(
     return {
       dependencies,
       lifecycle,
-      start: () => lifecycle.start(config.port, config.host),
+      start: async () => {
+        if (!isolatedRestoreRehearsal) {
+          if (autoMigrate) await overrides.migrate?.();
+          await overrides.verifyMigrations?.();
+        }
+        await lifecycle.start(config.port, config.host);
+      },
       shutdown: (options) => lifecycle.shutdown(options),
       address: () => lifecycle.address(),
     };
@@ -169,10 +180,12 @@ export function createConnectorComposition(
     } : {}),
   });
   const connectorConfig = new PostgresConnectorConfigRepository(database);
+  const typedCredentialStore = new PostgresTypedCredentialStore(database, config.credentialCipher);
   const parityRepository = new PostgresConnectorParityRepository(
     database,
     invocationCrypto.fieldCrypto,
     backupEffectControl,
+    typedCredentialStore,
   );
   const vaultRuntime = config.vaultRuntime === null
     ? undefined
@@ -200,6 +213,7 @@ export function createConnectorComposition(
     config.providerTestGrantVerifier,
     parityRepository,
     costControl,
+    typedCredentialStore,
   );
   const replicaRuntimeControl = config.runtimeControl
     ? new PostgresConnectorReplicaRuntimeControl(database, replicaIdentity!, undefined,
@@ -228,13 +242,19 @@ export function createConnectorComposition(
     management: new DurableConnectorManagement(connectorConfig, config.credentialCipher, registry, vaultRuntime?.secretResolver),
     parityManagement: createConnectorParityManagement({
       repository: parityRepository,
+      typedCredentialStore,
       ...(vaultRuntime === undefined ? {} : { secretWriter: vaultRuntime.secretWriter }),
+      typedCredentialStorage: Boolean(typedCredentialStore || vaultRuntime?.secretWriter),
       vaultMount: config.vaultMount ?? process.env.VAULT_KV_MOUNT ?? 'secret',
     }),
     runtime,
     ...(replicaRuntimeControl ? { replicaRuntimeControl } : {}),
     ...(replicaRuntimeControl ? { runtimeHealth } : {}),
-    capabilities: () => ({ adapters: registry.list() }),
+    capabilities: () => ({
+      adapters: registry.list(),
+      typedCredentialStorage: Boolean(typedCredentialStore || vaultRuntime?.secretWriter),
+      secretCatalogImport: Boolean(typedCredentialStore || vaultRuntime?.secretWriter),
+    }),
     ready: async () => true,
     identityVerifier: config.serviceIdentityVerifier,
     ...(isolatedRestoreRehearsal ? { isolatedReadOnly: true } : {}),
@@ -280,7 +300,8 @@ export function createConnectorComposition(
         await redis.ping();
       } else {
         await vaultRuntime?.start();
-        await database.migrate();
+        if (autoMigrate) await database.migrate();
+        await database.verifyMigrations();
         await replicaRuntimeControl?.register();
       }
       await lifecycle.start(config.port, config.host);
@@ -288,6 +309,12 @@ export function createConnectorComposition(
     shutdown: (options) => lifecycle.shutdown(options),
     address: () => lifecycle.address(),
   };
+}
+
+function connectorAutoMigrateFromEnvironment(value: string | undefined): boolean {
+  if (value === undefined || value === 'true') return true;
+  if (value === 'false') return false;
+  throw new Error('CONNECTOR_AUTO_MIGRATE must be "true" or "false".');
 }
 
 function connectorRestoreEffectStatus(input: {

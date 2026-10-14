@@ -15,6 +15,7 @@ const {
 const { createAdminWebDevServerOptions } = require('./dev-admin-web.cjs');
 const { assertExternalDependenciesReachable } = require('./runtime-dependencies.cjs');
 const { resolveLocalPath } = require('./local-paths.cjs');
+const sourceWatch = require('./dev-source-watch.cjs');
 
 const ROOT = path.resolve(__dirname, '..');
 const WORKSPACE_ROOT = ROOT;
@@ -29,6 +30,8 @@ let shutdownPromise;
 let viteServer;
 let buildChild;
 let reloadTimer;
+let sourceFingerprintTimer;
+let sourceInputTracker;
 let reloadPending = false;
 let reloadPromise;
 let reloadSequence = 0;
@@ -83,6 +86,7 @@ async function shutdown(code = 0) {
   stopping = true;
   process.exitCode = code;
   clearTimeout(reloadTimer);
+  clearTimeout(sourceFingerprintTimer);
   for (const watcher of sourceWatchers) watcher.close();
 
   shutdownPromise = (async () => {
@@ -237,28 +241,28 @@ async function startAdminWebDevServer(portalPort) {
   return server;
 }
 
-function watchConfigDirectory(directory, filename) {
-  const expected = path.basename(filename);
+function watchConfigDirectory(directory) {
   const watcher = fs.watch(directory, (_eventType, changed) => {
-    if (changed === null || changed === undefined || String(changed) === expected) scheduleRuntimeReload();
+    if (sourceWatch.isRootConfigWatchEvent(changed)) scheduleBuildInputFingerprintCheck();
   });
   watcher.on('error', (error) => {
-    console.error(`[dev] Config watcher failed for ${filename}: ${error.message}`);
+    console.error(`[dev] Root config watcher failed: ${error.message}`);
     void shutdown(1);
   });
   sourceWatchers.push(watcher);
 }
 
-function isBuildInput(filename) {
-  if (filename === null || filename === undefined) return true;
-  const relative = Buffer.isBuffer(filename) ? filename.toString() : String(filename);
-  const normalized = relative.replace(/\\/g, '/').replace(/^\/+/, '');
-  const parts = normalized.split('/');
-  if (parts.some((part) => ['dist', 'node_modules', 'coverage', 'tests', '__tests__'].includes(part))) return false;
-  return normalized === 'src'
-    || normalized.includes('/src/')
-    || normalized.endsWith('/src')
-    || /(^|\/)(package\.json|tsconfig(?:\.[^/]+)?\.json)$/.test(normalized);
+function scheduleBuildInputFingerprintCheck() {
+  clearTimeout(sourceFingerprintTimer);
+  sourceFingerprintTimer = setTimeout(() => {
+    sourceFingerprintTimer = undefined;
+    if (!sourceInputTracker || stopping) return;
+    try {
+      if (sourceInputTracker.hasChanged()) scheduleRuntimeReload();
+    } catch (error) {
+      console.error(`[dev] Could not compare runtime build inputs: ${error.message}`);
+    }
+  }, 250);
 }
 
 function scheduleRuntimeReload() {
@@ -311,10 +315,11 @@ async function reloadRuntimeServices() {
 }
 
 function startRuntimeWatchers() {
+  sourceInputTracker = sourceWatch.createBuildInputTracker(ROOT);
   for (const directory of ['packages', 'services']) {
     const target = path.join(ROOT, directory);
     const watcher = fs.watch(target, { recursive: true }, (_eventType, filename) => {
-      if (isBuildInput(filename)) scheduleRuntimeReload();
+      if (sourceWatch.isRelevantWatchEvent(filename)) scheduleBuildInputFingerprintCheck();
     });
     watcher.on('error', (error) => {
       console.error(`[dev] Source watcher failed for ${directory}: ${error.message}`);
@@ -322,7 +327,7 @@ function startRuntimeWatchers() {
     });
     sourceWatchers.push(watcher);
   }
-  watchConfigDirectory(ROOT, path.join(ROOT, 'tsconfig.base.json'));
+  watchConfigDirectory(ROOT);
 }
 
 function printReadyBanner(publicPort, internalPort, portalPort, connectorPort) {

@@ -236,6 +236,20 @@ describe('profile detail read (T-API-01, fixes revision: 0)', () => {
     expect(JSON.stringify(round)).not.toContain('fileUrlAuthCipher');
   });
 
+  it('accepts persisted action and endpoint selectors as additive read metadata', () => {
+    const parsed = ProfileDetailReadSchema.parse({
+      ...detail,
+      action: 'analyze',
+      endpointSlug: 'analyze:classify',
+    });
+    expect(parsed.action).toBe('analyze');
+    expect(parsed.endpointSlug).toBe('analyze:classify');
+    expect(ProfileDetailReadSchema.parse({ ...detail, action: 'analyze', endpointSlug: null }).endpointSlug).toBeNull();
+    expect(ProfileDetailReadSchema.parse(detail).action).toBeUndefined();
+    expect(ProfileDetailReadSchema.safeParse({ ...detail, action: '' }).success).toBe(false);
+    expect(ProfileDetailReadSchema.safeParse({ ...detail, endpointSlug: 'x'.repeat(513) }).success).toBe(false);
+  });
+
   it('closure T-API-01: the write identity (apiKeyId) is optional and strictly a uuid', () => {
     // The detail read reveals ONLY the opaque key id (never the hash) so the
     // client can address profile.* commands (Δ7-A).

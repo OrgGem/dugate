@@ -603,6 +603,10 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
       ? createConnectorManagementStore({
           baseUrlFor: connectorBaseUrl,
           authorizationForRequest: config.connectorManagementAuthorizationForRequest,
+          capabilityProbeTargets: [
+            ...(Object.hasOwn(connectorBaseUrls, '*') ? [undefined] : []),
+            ...Object.keys(connectorBaseUrls).filter((id) => id !== '*'),
+          ],
         })
       : undefined;
 
@@ -646,11 +650,10 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
   // function declaration below, so a lazy accessor keeps creation order free.
   // CRX-01: build the metadata crypto seam FIRST and hand the SAME instance to
   // every durable control-plane writer below (submission, runtime, ingestion
-  // consumer). Sealing stays opt-in per deployment — with no
-  // `metadataEncryption` config this is undefined and every column keeps its
-  // historical plaintext shape — but when it IS configured, one seam (not one
-  // per module) is what makes the three writers agree on key policy and AAD
-  // binding.
+  // consumer). `main.ts` composes a retained local key provider for PostgreSQL
+  // real-data mode without Transit, or Vault Transit when explicitly configured.
+  // Direct in-process callers may omit the seam for isolated fixtures; a real
+  // service boot does not use that path.
   const metadataCrypto = config.metadataEncryption
     ? createMetadataCrypto(
         adaptKeyProviderForMetadata(config.metadataEncryption.keyProvider),

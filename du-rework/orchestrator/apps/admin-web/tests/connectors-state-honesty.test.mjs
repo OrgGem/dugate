@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { describe, it } from 'node:test';
 import { parseCurlImport, summarizeCurlImport } from '../src/features/connectors/curl-import.ts';
+import { isTenantUuid } from '../../../packages/contracts/src/tenant-identity.ts';
 import ts from 'typescript';
 
 const stateSource = await readFile(new URL('../src/features/connectors/state.ts', import.meta.url), 'utf8');
@@ -28,6 +29,7 @@ const connectorState = await import(stateModuleUrl);
 const {
   buildConnectorUpsertParams,
   connectorActionGating,
+  connectorCredentialActionGating,
   connectorConfigFromDraft,
   parseConnectorCapabilities,
   summarizeConnectorConfig,
@@ -62,6 +64,11 @@ function importCurlWithSecrets() {
 }
 
 describe('Connectors state honesty', () => {
+  it('accepts canonical PostgreSQL UUID syntax without imposing RFC version bits', () => {
+    assert.equal(isTenantUuid('00000000-0000-0000-0000-000000000001'), true);
+    assert.equal(isTenantUuid('not-a-tenant'), false);
+  });
+
   it('fails closed when the capability advertisement is absent or unreadable', () => {
     assert.equal(parseConnectorCapabilities(null), null);
     assert.equal(parseConnectorCapabilities({ management: true, test: true }), null);
@@ -107,6 +114,8 @@ describe('Connectors state honesty', () => {
     const managed = parseConnectorCapabilities({
       management: true,
       credentialWorkflow: false,
+      typedCredentialStorage: true,
+      secretCatalogImport: true,
       test: false,
       knownConnectorIds: [],
     });
@@ -119,6 +128,22 @@ describe('Connectors state honesty', () => {
       test: false,
       rotate: false,
     });
+    assert.deepEqual(connectorCredentialActionGating(managed, true), {
+      replaceClear: true,
+      secretCatalogImport: true,
+    });
+    assert.deepEqual(connectorCredentialActionGating(readOnly, true), {
+      replaceClear: false,
+      secretCatalogImport: false,
+    });
+    assert.equal(parseConnectorCapabilities({
+      management: true,
+      credentialWorkflow: false,
+      typedCredentialStorage: 'true',
+      secretCatalogImport: 'true',
+      test: false,
+      knownConnectorIds: [],
+    }), null);
   });
 
   it('summarizes connector configuration as sorted keys and header names only', () => {
@@ -220,7 +245,7 @@ describe('Connectors state honesty', () => {
   it('wires the tested fail-closed state into Connectors screen controls offline', () => {
     assert.match(screenSource, /const caps = capabilities\.kind === 'ready' \? capabilities\.data : null;/);
     assert.match(screenSource, /const gating = connectorActionGating\(caps\);/);
-    assert.match(screenSource, /const validTenantSelected = typeof tenantId === 'string' && TENANT_UUID\.test\(tenantId\);/);
+    assert.match(screenSource, /const validTenantSelected = isTenantUuid\(tenantId\);/);
     assert.match(screenSource, /upsert: gating\.upsert && validTenantSelected/);
     assert.match(screenSource, /disabled=\{!screenGating\.test \|\| busy\}/);
     assert.match(screenSource, /disabled=\{!screenGating\.activate \|\| activeRevision === null \|\| busy\}/);
@@ -235,10 +260,23 @@ describe('Connectors state honesty', () => {
     assert.match(paritySource, /capabilities\?\.management === true/);
     assert.match(paritySource, /capabilities\?\.test === true/);
     assert.match(paritySource, /session\.principal\.kind === 'tenant_operator'[\s\S]*?session\.principal\.tenantId === tenantId/);
-    assert.match(paritySource, /if \(credentialMode !== 'keep' && !mayManageCredentials\)/);
+    assert.match(paritySource, /credentialMode === 'vault-ref' && !mayImportManagedSecrets/);
+    assert.match(paritySource, /Managed import requires an available Connector credential writer/);
+    assert.match(paritySource, /const validTenantSelected = isTenantUuid\(tenantId\);/);
     assert.match(paritySource, /option value="replace" disabled=\{!mayManageCredentials\}/);
-    assert.match(paritySource, /client\.activateConnectorRevision\(targetConnectorId, targetRevision, tenantId/);
-    assert.match(paritySource, /response\.data\.revision !== Number\(revisionText\)/);
+    assert.match(paritySource, /option value="vault-ref" disabled=\{!mayImportManagedSecrets\}/);
+    assert.match(paritySource, /client\.activateConnectorRevision\(targetConnectorId, targetRevision, requestedTenantId/);
+    assert.match(paritySource, /const requestedTenantId = tenantId;[\s\S]*?const isCurrentMutation = \(\): boolean => isCurrentTenantConnectorRequest\(/);
+    assert.match(paritySource, /const response = await client\.activateConnectorRevision\(targetConnectorId, targetRevision, requestedTenantId,[\s\S]*?if \(!isCurrentMutation\(\)\) return;/);
+    assert.match(paritySource, /setExpectedHeadRevision\(revision\.revision\)/);
+    assert.doesNotMatch(paritySource, /setExpectedHeadRevision\(reread\.data\.expectedHeadRevision\)/);
+    assert.match(paritySource, /setExpectedHeadRevision\(currentHeadRevision\)/);
+    assert.match(paritySource, /const requestedTenantId = selection\?\.tenantId \?\? tenantId;/);
+    assert.match(paritySource, /const requestedConnectorId = selection\?\.connectorId \?\? connectorId\.trim\(\);/);
+    assert.match(paritySource, /const requestedRevision = selection\?\.revision \?\? Number\(revisionText\);/);
+    assert.match(paritySource, /response\.data\.tenantId\.toLowerCase\(\) !== requestedTenantId\.toLowerCase\(\)/);
+    assert.match(paritySource, /response\.data\.connectorId !== requestedConnectorId/);
+    assert.match(paritySource, /response\.data\.revision !== requestedRevision/);
     assert.match(screenSource, /summarizeConnectorConfig\(row\.config\)/);
     assert.match(screenSource, /summarizeConnectorConfig\(read\.revision\.config\)/);
   });

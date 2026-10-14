@@ -8,15 +8,16 @@ jest.mock('../src/modules/admin-actions/rbac', () => {
 });
 
 const TENANT = '11111111-1111-4111-8111-111111111111';
+const DEFAULT_TENANT = '00000000-0000-0000-0000-000000000001';
 const resolvedAuth = jest.mocked(resolveAdminActionAuthAsync);
 
-function context(input: { pathname: string; method: string; body: unknown; store?: Record<string, jest.Mock> }): RouteContext {
+function context(input: { pathname: string; method: string; body: unknown; tenantId?: string; store?: Record<string, jest.Mock> }): RouteContext {
   const db = { query: jest.fn(), tx: jest.fn() };
   return {
     ingressAudience: 'internal',
     method: input.method,
     pathname: input.pathname,
-    searchParams: new URLSearchParams(`tenantId=${TENANT}`),
+    searchParams: new URLSearchParams(`tenantId=${input.tenantId ?? TENANT}`),
     headers: {},
     body: input.body,
     rawBody: Buffer.from(''),
@@ -60,5 +61,63 @@ describe('internal parity mutation authority', () => {
     await expect(handleInternalParityRoutes(ctx)).rejects.toMatchObject({ status: 403, code: 'PERMISSION_DENIED' });
     expect(store.upsertRecipeDraft).not.toHaveBeenCalled();
     expect(ctx.db.tx).not.toHaveBeenCalled();
+  });
+
+  it('accepts the canonical default tenant sentinel for platform tenant catalog reads', async () => {
+    resolvedAuth.mockResolvedValueOnce({ kind: 'bearer', principal: { role: 'platform' } });
+    const store = {
+      listActiveRecipeRevisions: jest.fn().mockResolvedValue({ tenantId: DEFAULT_TENANT, items: [] }),
+    };
+    const ctx = context({
+      pathname: '/api/internal/parity/tenant-connectors', method: 'GET', body: undefined,
+      tenantId: DEFAULT_TENANT, store,
+    });
+
+    await expect(handleInternalParityRoutes(ctx)).resolves.toEqual({ status: 200, body: { tenantId: DEFAULT_TENANT, items: [] } });
+    expect(store.listActiveRecipeRevisions).toHaveBeenCalledWith({ tenantId: DEFAULT_TENANT, limit: 100 });
+  });
+
+  it('fails managed import before claim or Catalog decryption when the mapped Connector lacks its KV writer', async () => {
+    resolvedAuth.mockResolvedValueOnce({ kind: 'bearer', principal: { role: 'platform' } });
+    const capabilityProbe = jest.fn().mockResolvedValue(false);
+    const importCredential = jest.fn();
+    const store = { secretCatalogImportAvailable: capabilityProbe };
+    const ctx = context({ pathname: '/api/internal/parity/connectors/provider-a/draft', method: 'PUT', body: {
+      tenantId: TENANT,
+      expectedHeadRevision: 0,
+      recipe,
+      credentialChange: { action: 'vault-ref', reference: '11111111-1111-4111-8111-111111111111' },
+      idempotencyKey: 'parity-connector-import-0001',
+    }, store });
+    ctx.connectorSecretImports = { importCredential } as never;
+
+    await expect(handleInternalParityRoutes(ctx)).rejects.toMatchObject({
+      status: 503,
+      code: 'SECRET_IMPORT_UNAVAILABLE',
+      message: 'Managed Secret Catalog import is unavailable for this Connector',
+    });
+    expect(capabilityProbe).toHaveBeenCalledWith('provider-a');
+    // The import service owns both claimRecipeDraft and the secret decrypt;
+    // neither is entered until the mapped Connector advertises a writer.
+    expect(importCredential).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when an older ConnectorManagementStore has no capability hook', async () => {
+    resolvedAuth.mockResolvedValueOnce({ kind: 'bearer', principal: { role: 'platform' } });
+    const importCredential = jest.fn();
+    const ctx = context({ pathname: '/api/internal/parity/connectors/provider-a/draft', method: 'PUT', body: {
+      tenantId: TENANT,
+      expectedHeadRevision: 0,
+      recipe,
+      credentialChange: { action: 'vault-ref', reference: '11111111-1111-4111-8111-111111111111' },
+      idempotencyKey: 'parity-connector-import-0002',
+    }, store: {} });
+    ctx.connectorSecretImports = { importCredential } as never;
+
+    await expect(handleInternalParityRoutes(ctx)).rejects.toMatchObject({
+      status: 503,
+      code: 'SECRET_IMPORT_UNAVAILABLE',
+    });
+    expect(importCredential).not.toHaveBeenCalled();
   });
 });

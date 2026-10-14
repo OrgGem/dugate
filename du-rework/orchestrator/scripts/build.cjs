@@ -21,18 +21,71 @@ function log(msg, color = '\x1b[0m') {
   console.log(`${color}${msg}\x1b[0m`);
 }
 
-function copyConnectorMigrations() {
-  const srcDir = path.join(WORKSPACE_ROOT, 'services/connector/src/db/migrations');
-  const destDir = path.join(WORKSPACE_ROOT, 'services/connector/dist/db/migrations');
-
-  if (fs.existsSync(srcDir)) {
-    fs.mkdirSync(destDir, { recursive: true });
-    const sqlFiles = fs.readdirSync(srcDir).filter(f => f.endsWith('.sql'));
-    for (const f of sqlFiles) {
-      fs.copyFileSync(path.join(srcDir, f), path.join(destDir, f));
-    }
-    log(`  [post-build] Copied ${sqlFiles.length} migration SQL files to ${path.relative(WORKSPACE_ROOT, destDir)}`, '\x1b[36m');
+function ensureProjectDirectory(root, segments) {
+  let directory = path.resolve(root);
+  const rootStat = fs.lstatSync(directory);
+  if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) {
+    throw new Error('Refusing to copy Connector migrations from a non-directory project root.');
   }
+
+  for (const segment of segments) {
+    directory = path.join(directory, segment);
+    let entry;
+    try {
+      entry = fs.lstatSync(directory);
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+      fs.mkdirSync(directory);
+      entry = fs.lstatSync(directory);
+    }
+    if (!entry.isDirectory() || entry.isSymbolicLink()) {
+      throw new Error(`Refusing to copy Connector migrations through a non-directory or symbolic link: ${directory}`);
+    }
+  }
+
+  return directory;
+}
+
+function sqlFileNames(directory) {
+  return fs.readdirSync(directory, { withFileTypes: true })
+    .filter((entry) => entry.name.endsWith('.sql') && (entry.isFile() || entry.isSymbolicLink()))
+    .map((entry) => entry.name)
+    .sort();
+}
+
+function copyConnectorMigrations(workspaceRoot = WORKSPACE_ROOT, writeLog = log) {
+  const srcDir = path.join(workspaceRoot, 'services/connector/src/db/migrations');
+  if (!fs.existsSync(srcDir)) return;
+
+  const destDir = ensureProjectDirectory(workspaceRoot, [
+    'services', 'connector', 'dist', 'db', 'migrations',
+  ]);
+  const sqlFiles = sqlFileNames(srcDir);
+  const sourceNames = new Set(sqlFiles);
+
+  for (const entry of fs.readdirSync(destDir, { withFileTypes: true })) {
+    if (!entry.name.endsWith('.sql') || sourceNames.has(entry.name)) continue;
+    if (entry.isFile() || entry.isSymbolicLink()) {
+      fs.unlinkSync(path.join(destDir, entry.name));
+    }
+  }
+
+  for (const fileName of sqlFiles) {
+    const destination = path.join(destDir, fileName);
+    let existing;
+    try {
+      existing = fs.lstatSync(destination);
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+    if (existing?.isSymbolicLink()) fs.unlinkSync(destination);
+    else if (existing && !existing.isFile()) {
+      throw new Error(`Refusing to overwrite a non-file Connector migration artifact: ${destination}`);
+    }
+    fs.copyFileSync(path.join(srcDir, fileName), destination);
+  }
+
+  writeLog(`  [post-build] Mirrored ${sqlFiles.length} migration SQL files to ${path.relative(workspaceRoot, destDir)}`, '\x1b[36m');
 }
 
 async function main() {
@@ -72,7 +125,11 @@ async function main() {
   log(`\nAll ${buildOrder.length} services & packages built successfully in ${totalElapsed}s!\n`, '\x1b[1m\x1b[32m');
 }
 
-main().catch(err => {
-  console.error(err);
-  process.exit(1);
-});
+module.exports = { copyConnectorMigrations };
+
+if (require.main === module) {
+  main().catch(err => {
+    console.error(err);
+    process.exit(1);
+  });
+}

@@ -19,6 +19,7 @@ const SECRET = 'aweb04-cookie-secret';
 const ADMIN_TOKEN = 'aweb04-platform-admin-token';
 const TENANT_A_TOKEN = 'aweb04-tenant-a-token';
 const TENANT_A = '11111111-1111-4111-8111-111111111111';
+const PROFILE_ID = '30000000-0000-4000-8000-000000000003';
 const OPERATOR_SESSION = 'O'.repeat(43);
 const VIEWER_SESSION = 'W'.repeat(43);
 const COOKIE_POLICY: NonNullable<ShellRuntimeConfig['cookiePolicy']> = {
@@ -247,9 +248,39 @@ describe('AWEB-04 BFF profile routes (T-UI-05 fence + dispatcher forwarding)', (
     });
     expect(res.status).toBe(200);
     const upstream = last();
-    expect(upstream?.path).toBe('/api/v1/admin/profiles/doc-core/latest/new');
+    expect(upstream?.path).toBe(`/api/v1/admin/profiles/doc-core/latest/new?tenantId=${TENANT_A}`);
     expect(upstream?.auth).toBe(`Bearer ${TENANT_A_TOKEN}`);
     expect(upstream?.auth).not.toBe(`Bearer ${ADMIN_TOKEN}`);
+  });
+
+  it('detail read forwards and fences the selected tenant for platform and tenant principals', async () => {
+    const platformRead = await httpRequest(`${baseUrl}${PROFILE}?tenantId=${TENANT_A}&profileId=${PROFILE_ID}`, {
+      headers: { cookie: adminCookie },
+    });
+    expect(platformRead.status).toBe(200);
+    expect(last()?.path).toBe(`/api/v1/admin/profiles/doc-core/latest/new?tenantId=${TENANT_A}&profileId=${PROFILE_ID}`);
+    expect(last()?.auth).toBe(`Bearer ${ADMIN_TOKEN}`);
+
+    stub.requests.length = 0;
+    const tenantRead = await httpRequest(`${baseUrl}${PROFILE}?tenantId=${TENANT_A}`, {
+      headers: { cookie: `du_session=${OPERATOR_SESSION}` },
+    });
+    expect(tenantRead.status).toBe(200);
+    expect(last()?.path).toBe(`/api/v1/admin/profiles/doc-core/latest/new?tenantId=${TENANT_A}`);
+    expect(last()?.auth).toBe(`Bearer ${TENANT_A_TOKEN}`);
+
+    stub.requests.length = 0;
+    const duplicate = await httpRequest(`${baseUrl}${PROFILE}?tenantId=${TENANT_A}&tenantId=${TENANT_A}`, {
+      headers: { cookie: adminCookie },
+    });
+    expect(duplicate.status).toBe(422);
+    expect(stub.requests).toHaveLength(0);
+
+    const unscopedSelector = await httpRequest(`${baseUrl}${PROFILE}?profileId=${PROFILE_ID}`, {
+      headers: { cookie: adminCookie },
+    });
+    expect(unscopedSelector.status).toBe(422);
+    expect(stub.requests).toHaveLength(0);
   });
 
   it('profile list → forwards only approved filters and derives selected tenant scope', async () => {
@@ -312,6 +343,7 @@ describe('AWEB-04 BFF profile routes (T-UI-05 fence + dispatcher forwarding)', (
       method: 'POST',
       headers: { ...adminHeaders(), 'idempotency-key': 'aweb04-1' },
       body: JSON.stringify({
+        action: 'generate',
         expectedRevision: 7,
         policy: { endpointSlug: 'extract', enabled: true, parameters: { ai_model: { value: 'gpt-4o-mini' } } },
       }),
@@ -327,36 +359,56 @@ describe('AWEB-04 BFF profile routes (T-UI-05 fence + dispatcher forwarding)', (
     expect(sent.params.businessId).toBe('doc-core');
     expect(sent.params.businessVersion).toBe('latest');
     expect(sent.params.profileName).toBe('new');
+    expect(sent.params.action).toBe('generate');
     expect(sent.params.expectedRevision).toBe(7);
     expect(sent.params.policy).toMatchObject({ endpointSlug: 'extract' });
     const body = JSON.parse(res.body) as { data: { revision: number } };
     expect(body.data.revision).toBe(8);
   });
 
-  it('publish without expectedRevision → 422; rollback requires targetRevision', async () => {
+  it('publish and rollback forward lifecycle action; publish requires expectedRevision and rollback targetRevision', async () => {
     const publish = await httpRequest(`${baseUrl}${PROFILE}/publish`, {
       method: 'POST',
       headers: adminHeaders(),
       body: JSON.stringify({}),
     });
     expect(publish.status).toBe(422);
+    const published = await httpRequest(`${baseUrl}${PROFILE}/publish`, {
+      method: 'POST',
+      headers: adminHeaders(),
+      body: JSON.stringify({ action: 'publish-extract', expectedRevision: 7 }),
+    });
+    expect(published.status).toBe(200);
+    const publishSent = JSON.parse(last()?.body ?? '{}') as { action: string; params: Record<string, unknown> };
+    expect(publishSent.action).toBe('profile.publish');
+    expect(publishSent.params.action).toBe('publish-extract');
+
     const rollback = await httpRequest(`${baseUrl}${PROFILE}/rollback`, {
       method: 'POST',
       headers: adminHeaders(),
       body: JSON.stringify({ expectedRevision: 7 }),
     });
     expect(rollback.status).toBe(422);
-    expect(stub.requests).toHaveLength(0);
+    expect(stub.requests).toHaveLength(1);
 
     const ok = await httpRequest(`${baseUrl}${PROFILE}/rollback`, {
       method: 'POST',
       headers: adminHeaders(),
-      body: JSON.stringify({ targetRevision: 3, expectedRevision: 7 }),
+      body: JSON.stringify({ action: 'rollback-extract', targetRevision: 3, expectedRevision: 7 }),
     });
     expect(ok.status).toBe(200);
     const sent = JSON.parse(last()?.body ?? '{}') as { action: string; params: Record<string, unknown> };
     expect(sent.action).toBe('profile.rollback');
     expect(sent.params.targetRevision).toBe(3);
+    expect(sent.params.action).toBe('rollback-extract');
+
+    const invalid = await httpRequest(`${baseUrl}${PROFILE}/upsert`, {
+      method: 'POST',
+      headers: adminHeaders(),
+      body: JSON.stringify({ action: '', policy: {} }),
+    });
+    expect(invalid.status).toBe(422);
+    expect(stub.requests).toHaveLength(2);
   });
 
   it('malformed path segment → 404 without upstream', async () => {

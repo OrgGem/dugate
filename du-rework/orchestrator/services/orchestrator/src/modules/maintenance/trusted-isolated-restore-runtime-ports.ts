@@ -11,6 +11,7 @@ import https from 'node:https';
 import path from 'node:path';
 import { GetObjectCommand, HeadObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { z } from 'zod';
+import { isTenantUuid } from '@du/contracts';
 import { CryptoStorageFacade, CRYPTO_STORAGE_MAX_DECRYPT_BYTES, CRYPTO_STORAGE_SINGLE_SHOT_LIMIT_BYTES,
   type EncryptedStorageManifest, type EncryptedStorageObject } from '../encryption/crypto-storage-facade';
 import { PUBLIC_UPLOAD_PURPOSE } from '../encryption/artifact-read-decrypt';
@@ -395,6 +396,101 @@ const ORCH_COUNT_KEYS = ['operations','artifacts','readyArtifacts','secretRevisi
   'financialAdjustments','financialAdjustmentHeads','financialAdjustmentCommands'] as const;
 const CONN_COUNT_KEYS = ['connectorInvocations','connectorUsageEvents','connectorSecretVersions','connectorRevisions','connectorRuntimeControls',
   'connectorParityChains','connectorParityRevisions','connectorParityClaimIntents','connectorParityDraftIntents'] as const;
+const TYPED_CREDENTIAL_SOURCE_ROWS_SQL = `WITH typed_source_rows AS (
+  SELECT tenant_id,connector_id,revision,credential_ref,credential_version,
+         credential_source->>'credentialRef' AS source_ref,credential_source->>'version' AS source_version
+    FROM connector_parity_revisions WHERE credential_source->>'kind'='encrypted-db'
+  UNION ALL
+  SELECT tenant_id,connector_id,revision,credential_ref,credential_version,
+         credential_source->>'credentialRef' AS source_ref,credential_source->>'version' AS source_version
+    FROM connector_parity_draft_intents WHERE credential_source->>'kind'='encrypted-db'
+), typed_refs AS (
+  SELECT DISTINCT tenant_id,connector_id,revision,credential_ref,credential_version FROM typed_source_rows
+)`;
+
+type TrustedPsqlQuery = (database:RestoreDatabaseIdentity,sql:string,signal:AbortSignal,maxBytes?:number)=>Promise<string|Buffer>;
+
+async function psqlText(query:TrustedPsqlQuery,database:RestoreDatabaseIdentity,sql:string,signal:AbortSignal,maxBytes:number):Promise<string> {
+  const value=await query(database,sql,signal,maxBytes);
+  return Buffer.isBuffer(value)?value.toString('utf8'):value;
+}
+
+async function inspectTypedCredentialBindings(query:TrustedPsqlQuery,database:RestoreDatabaseIdentity,signal:AbortSignal):Promise<{
+  tablePresent:boolean;referenceCount:number;rowCount:number;
+}> {
+  const present = (await psqlText(query,database,"SELECT to_regclass('public.connector_parity_credentials') IS NOT NULL",signal,128)).trim();
+  if (present !== 't' && present !== 'f') throw failure('RESTORE_CONNECTOR_TYPED_CREDENTIAL_TABLE_STATE_INVALID');
+  if (present === 'f') {
+    const raw = (await psqlText(query,database,`${TYPED_CREDENTIAL_SOURCE_ROWS_SQL}
+      SELECT (SELECT count(*)::bigint FROM typed_refs),
+        (SELECT count(*)::bigint FROM typed_source_rows WHERE credential_ref IS NULL OR credential_version IS NULL
+          OR source_ref IS DISTINCT FROM credential_ref::text OR source_version IS DISTINCT FROM credential_version::text)`,signal,1024)).trim();
+    const [referencesText,invalidText] = raw.split('|');
+    const references = Number(referencesText), invalid = Number(invalidText);
+    if (!Number.isSafeInteger(references) || references < 0 || references !== 0
+      || !Number.isSafeInteger(invalid) || invalid !== 0) throw failure('RESTORE_CONNECTOR_TYPED_CREDENTIAL_TABLE_MISSING');
+    return { tablePresent:false,referenceCount:0,rowCount:0 };
+  }
+  const raw = (await psqlText(query,database,`${TYPED_CREDENTIAL_SOURCE_ROWS_SQL}, typed_rows AS (
+      SELECT tenant_id,connector_id,revision,credential_ref,credential_version FROM connector_parity_credentials
+    )
+    SELECT (SELECT count(*)::bigint FROM typed_refs),
+           (SELECT count(*)::bigint FROM typed_rows),
+           (SELECT count(*)::bigint FROM typed_refs refs WHERE NOT EXISTS
+             (SELECT 1 FROM typed_rows rows WHERE rows.tenant_id=refs.tenant_id AND rows.connector_id=refs.connector_id
+               AND rows.revision=refs.revision AND rows.credential_ref::text=refs.credential_ref
+               AND rows.credential_version=refs.credential_version)),
+           (SELECT count(*)::bigint FROM typed_rows rows WHERE NOT EXISTS
+             (SELECT 1 FROM typed_refs refs WHERE refs.tenant_id=rows.tenant_id AND refs.connector_id=rows.connector_id
+               AND refs.revision=rows.revision AND refs.credential_ref=rows.credential_ref::text
+               AND refs.credential_version=rows.credential_version)),
+           (SELECT count(*)::bigint FROM typed_source_rows WHERE credential_ref IS NULL OR credential_version IS NULL
+             OR source_ref IS DISTINCT FROM credential_ref::text OR source_version IS DISTINCT FROM credential_version::text)`,signal,4096)).trim();
+  const [referencesText,rowsText,missingText,orphanText,invalidText] = raw.split('|');
+  const referenceCount=Number(referencesText??'NaN'),rowCount=Number(rowsText??'NaN'),missing=Number(missingText??'NaN');
+  const orphan=Number(orphanText??'NaN'),invalid=Number(invalidText??'NaN');
+  if ([referenceCount,rowCount,missing,orphan,invalid].some((value)=>!Number.isSafeInteger(value)||value<0)
+    || referenceCount !== rowCount || missing !== 0 || orphan !== 0 || invalid !== 0) {
+    throw failure('RESTORE_CONNECTOR_TYPED_CREDENTIAL_BINDING_SET_INVALID');
+  }
+  return { tablePresent:true,referenceCount,rowCount };
+}
+
+export function verifyTypedConnectorCredentialCiphertext(input:{
+  tenantId:string;connectorId:string;revision:number;credentialRef:string;credentialVersion:number;
+  ciphertext:Uint8Array;key:Buffer;keyVersion:string;
+}):{
+  recordKind:'typed-credential';secretVersionIdSha256:string;keyVersion:string;ciphertextSha256:string;plaintextSha256:string;
+} {
+  const tenantId=input.tenantId.toLowerCase();
+  const credentialRef=input.credentialRef.toLowerCase();
+  if (!Buffer.isBuffer(input.key) || input.key.length!==32
+    || !isTenantUuid(tenantId)
+    || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(input.connectorId) || input.connectorId.includes('..')
+    || !Number.isSafeInteger(input.revision) || input.revision<1
+    || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(credentialRef)
+    || !Number.isSafeInteger(input.credentialVersion) || input.credentialVersion<1
+    || typeof input.keyVersion!=='string' || input.keyVersion.length<1 || !(input.ciphertext instanceof Uint8Array)
+    || input.ciphertext.byteLength<28) throw failure('RESTORE_CONNECTOR_TYPED_CREDENTIAL_BINDING_INVALID');
+  const aad=Buffer.from(JSON.stringify({purpose:'du.connector.typed-credential.v1',tenantId,connectorId:input.connectorId,
+    revision:input.revision,credentialRef,credentialVersion:input.credentialVersion}),'utf8');
+  const encrypted=Buffer.from(input.ciphertext);
+  let plaintext:Buffer|undefined;
+  try {
+    const decipher=createDecipheriv('aes-256-gcm',input.key,encrypted.subarray(0,12),{authTagLength:16});
+    decipher.setAAD(aad);
+    decipher.setAuthTag(encrypted.subarray(12,28));
+    plaintext=Buffer.concat([decipher.update(encrypted.subarray(28)),decipher.final()]);
+    if (!plaintext.length) throw failure('RESTORE_CONNECTOR_TYPED_CREDENTIAL_PLAINTEXT_INVALID');
+    return {recordKind:'typed-credential',secretVersionIdSha256:sha256(`typed:${aad.toString('utf8')}`),keyVersion:input.keyVersion,
+      ciphertextSha256:sha256(encrypted),plaintextSha256:sha256(plaintext)};
+  } catch (error) {
+    if (error instanceof Error && /^RESTORE_CONNECTOR_TYPED_/.test(error.message)) throw error;
+    throw failure('RESTORE_CONNECTOR_TYPED_CREDENTIAL_AUTH_FAILED');
+  } finally {
+    plaintext?.fill(0);aad.fill(0);encrypted.fill(0);
+  }
+}
 
 function createTrustedPsqlReader(manifest: Manifest) {
   const host = manifest.isolatedHost;
@@ -1773,6 +1869,7 @@ export function createTrustedIsolatedRestoreRuntimePorts(options: TrustedIsolate
         runQuery(input.orchestrator, ORCH_COUNT_SQL, input.signal, 64 * 1024),
         runQuery(input.connector, CONN_COUNT_SQL, input.signal, 64 * 1024),
       ]);
+      const typedCredentials = await inspectTypedCredentialBindings(runQuery,input.connector,input.signal);
       const o = parsePsqlPipeCounts(orch, ORCH_COUNT_KEYS);
       const c = parsePsqlPipeCounts(conn, CONN_COUNT_KEYS);
       const storedArtifactBytes = await measureTargetArtifactBytes(input.orchestrator, input.targetGenerationId, input.signal);
@@ -1785,6 +1882,7 @@ export function createTrustedIsolatedRestoreRuntimePorts(options: TrustedIsolate
         connectorUsageEvents: c.connectorUsageEvents!, connectorSecretVersions: c.connectorSecretVersions!, connectorRevisions: c.connectorRevisions!,
         connectorRuntimeControls: c.connectorRuntimeControls!, connectorParityChains: c.connectorParityChains!, connectorParityRevisions: c.connectorParityRevisions!,
         connectorParityClaimIntents: c.connectorParityClaimIntents!, connectorParityDraftIntents: c.connectorParityDraftIntents!,
+        connectorParityCredentials:typedCredentials.rowCount,
         financialAdjustments: o.financialAdjustments!, financialAdjustmentHeads: o.financialAdjustmentHeads!,
         financialAdjustmentCommands: o.financialAdjustmentCommands!, artifactObjectBytes: storedArtifactBytes.objectBytes,
         artifactManifestBytes: storedArtifactBytes.manifestBytes,
@@ -2040,6 +2138,8 @@ export function createTrustedIsolatedRestoreRuntimePorts(options: TrustedIsolate
     },
     async recoverConnectorCredentialKey(input) {
       const current = await manifest(); const runtime = await loadRecoveryRuntime(current);
+      const psqlReader = psql(current);
+      const typedBindings = await inspectTypedCredentialBindings(psqlReader.query,input.database,input.signal);
       const resolved = await resolvePinnedRecoveryKey(runtime, { purpose: 'connector_credential', keyVersion: input.pin.keyVersion,
         fingerprintSha256: input.pin.fingerprintSha256 });
       const encodedKey = Buffer.from(resolved.key);
@@ -2048,7 +2148,6 @@ export function createTrustedIsolatedRestoreRuntimePorts(options: TrustedIsolate
         || kek.length !== 32 || kek.toString('base64') !== encodedKey.toString('utf8')) {
         encodedKey.fill(0); kek.fill(0); resolved.key.fill(0); throw failure('RESTORE_CONNECTOR_CREDENTIAL_KEY_INVALID');
       }
-      const queryLines = psql(current).queryLines;
       const sql = `WITH credential_refs AS (
           SELECT credential_ref FROM connector_revisions
           UNION SELECT credential_ref FROM connector_parity_revisions WHERE credential_source->>'kind'='legacy-db'
@@ -2056,6 +2155,11 @@ export function createTrustedIsolatedRestoreRuntimePorts(options: TrustedIsolate
         ) SELECT encode(convert_to(versioned.id,'UTF8'),'hex')||'|'||encode(versioned.encrypted_value,'hex')
           FROM secret_versions versioned WHERE EXISTS
           (SELECT 1 FROM credential_refs refs WHERE refs.credential_ref=versioned.credential_ref) ORDER BY versioned.id`;
+      const typedSql = typedBindings.tablePresent ? `SELECT encode(convert_to(tenant_id::text,'UTF8'),'hex')||'|'
+          ||encode(convert_to(connector_id,'UTF8'),'hex')||'|'||revision::text||'|'
+          ||encode(convert_to(credential_ref::text,'UTF8'),'hex')||'|'||credential_version::text||'|'
+          ||encode(ciphertext,'hex') FROM connector_parity_credentials ORDER BY tenant_id,connector_id,revision,credential_ref,credential_version` : null;
+      const queryLines = psqlReader.queryLines;
       const observedAt = nowIso();
       return {
         key: { keyVersion: input.pin.keyVersion, fingerprintSha256: input.pin.fingerprintSha256,
@@ -2074,9 +2178,34 @@ export function createTrustedIsolatedRestoreRuntimePorts(options: TrustedIsolate
                 decipher.setAuthTag(encrypted.subarray(12, 28));
                 plaintext = Buffer.concat([decipher.update(encrypted.subarray(28)), decipher.final()]);
               } catch { throw failure('RESTORE_CONNECTOR_CREDENTIAL_AUTH_FAILED'); }
-              const item = { secretVersionIdSha256: sha256(id), keyVersion: input.pin.keyVersion,
+              const item = { recordKind:'legacy-secret-version' as const,secretVersionIdSha256: sha256(id), keyVersion: input.pin.keyVersion,
                 ciphertextSha256: sha256(encrypted), plaintextSha256: sha256(plaintext) };
               plaintext.fill(0); encrypted.fill(0); yield item;
+            }
+            if (typedSql) {
+              for await (const line of queryLines(input.database,typedSql,input.signal,{maxBytes:128*1024*1024})) {
+                abortIfNeeded(input.signal);
+                const [tenantHex,connectorHex,revisionText,credentialRefHex,versionText,ciphertextHex] = line.split('|');
+                if (!tenantHex || !connectorHex || !revisionText || !credentialRefHex || !versionText || !ciphertextHex
+                  || !/^(?:[0-9a-f]{2})+$/i.test(tenantHex) || !/^(?:[0-9a-f]{2})+$/i.test(connectorHex)
+                  || !/^(?:[0-9a-f]{2})+$/i.test(credentialRefHex) || !/^(?:[0-9a-f]{2})+$/i.test(ciphertextHex)) {
+                  throw failure('RESTORE_CONNECTOR_TYPED_CREDENTIAL_ROW_INVALID');
+                }
+                const tenantId = parseHexText(tenantHex).toLowerCase();
+                const connectorId = parseHexText(connectorHex);
+                const credentialRef = parseHexText(credentialRefHex).toLowerCase();
+                const revision = Number(revisionText), credentialVersion = Number(versionText);
+                if (!isTenantUuid(tenantId)
+                  || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(connectorId) || connectorId.includes('..')
+                  || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(credentialRef)
+                  || !Number.isSafeInteger(revision) || revision < 1 || String(revision) !== revisionText
+                  || !Number.isSafeInteger(credentialVersion) || credentialVersion < 1 || String(credentialVersion) !== versionText) {
+                  throw failure('RESTORE_CONNECTOR_TYPED_CREDENTIAL_BINDING_INVALID');
+                }
+                const item=verifyTypedConnectorCredentialCiphertext({tenantId,connectorId,revision,credentialRef,credentialVersion,
+                  ciphertext:Buffer.from(ciphertextHex,'hex'),key:kek,keyVersion:input.pin.keyVersion});
+                yield item;
+              }
             }
           } finally { kek.fill(0); encodedKey.fill(0); resolved.key.fill(0); }
         })(),

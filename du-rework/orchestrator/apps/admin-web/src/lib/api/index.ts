@@ -234,5 +234,9 @@ export type {
   TenantActiveConnectorCatalogItem,
   TenantActiveConnectorCatalogPage,
   TenantActiveConnectorCatalogQuery,
+  TenantConnectorRecipeCatalogClientQuery,
+  TenantConnectorRecipeCatalogItem,
+  TenantConnectorRecipeCatalogPage,
+  TenantConnectorRecipeCatalogQuery,
   ProviderReportedCost,
 } from './types';

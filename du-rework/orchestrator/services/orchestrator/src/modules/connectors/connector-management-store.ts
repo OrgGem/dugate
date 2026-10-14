@@ -13,6 +13,9 @@ import {
   ConnectorSignalSnapshotSchema,
   TenantActiveConnectorCatalogPageSchema,
   TenantActiveConnectorCatalogQuerySchema,
+  TenantConnectorRecipeCatalogPageSchema,
+  TenantConnectorRecipeCatalogQuerySchema,
+  isTenantUuid,
   ProviderTestInvocationRequestSchema,
   ProviderTestResultSchema,
   type ConnectorManagementRevision,
@@ -27,6 +30,8 @@ import {
   type ConnectorSignalSnapshotQuery,
   type TenantActiveConnectorCatalogPage,
   type TenantActiveConnectorCatalogQuery,
+  type TenantConnectorRecipeCatalogPage,
+  type TenantConnectorRecipeCatalogQuery,
   type ProviderTestInvocationRequest,
   type ProviderTestResult,
 } from '@du/contracts';
@@ -58,6 +63,10 @@ export interface ConnectorManagementStoreOptions {
    * connector-scoped); the composition supplies its first configured URL.
    */
   baseUrlFor: (connectorId?: string) => string;
+  /** Exact IDs to probe for aggregate capability reporting. Include `undefined`
+   * only when an explicit `*` target is configured; never infer a service
+   * target from the first arbitrary URL. */
+  capabilityProbeTargets?: readonly (string | undefined)[];
   /** Produces a fresh signed service identity for every outbound request. */
   authorizationForRequest: ConnectorManagementAuthorizationProvider;
   fetchImpl?: typeof fetch;
@@ -131,6 +140,12 @@ export interface ConnectorManagementStore {
   getRecipeRevision(input: { tenantId: string; connectorId: string; revision: number }): Promise<ConnectorParityRevision | undefined>;
   /** Whether a typed chain shadows all legacy revisions for this tenant/connector ID. */
   hasRecipeChain(input: { tenantId: string; connectorId: string }): Promise<boolean>;
+  /** Read the safe Connector capability for this exact mapped connector target. */
+  secretCatalogImportAvailable?(connectorId: string): Promise<boolean>;
+  /** True only when every explicitly configured Connector target supports import. */
+  secretCatalogImportAvailableForAllConfiguredTargets?(): Promise<boolean>;
+  /** Typed recipe credentials are available from Connector DB AES-GCM or Vault KV2. */
+  typedCredentialStorageAvailableForAllConfiguredTargets?(): Promise<boolean>;
   upsertRecipeDraft(input: {
     tenantId: string;
     connectorId: string;
@@ -167,6 +182,8 @@ export interface ConnectorManagementStore {
   getConnectorSignalSnapshot(input: ConnectorSignalSnapshotQuery): Promise<ConnectorSignalSnapshot | undefined>;
   /** Bounded safe metadata page of exact tenant-owned ACTIVE typed revisions. */
   listActiveRecipeRevisions(input: TenantActiveConnectorCatalogQuery): Promise<TenantActiveConnectorCatalogPage>;
+  /** Bounded safe metadata inventory of all exact tenant-owned typed revisions. */
+  listConnectorRecipeCatalog(input: TenantConnectorRecipeCatalogQuery): Promise<TenantConnectorRecipeCatalogPage>;
 }
 
 function parseRevision(wire: unknown): ConnectorManagementRevision {
@@ -181,7 +198,7 @@ export function createConnectorManagementStore(
   options: ConnectorManagementStoreOptions,
 ): ConnectorManagementStore {
   const call = async (
-    connectorId: string,
+    connectorId: string | undefined,
     method: string,
     path: string,
     body?: unknown,
@@ -212,11 +229,88 @@ export function createConnectorManagementStore(
     throw new HttpError(502, 'CONNECTOR_API_ERROR', 'unexpected status from connector');
   }
 
+  async function readSecretCatalogImportCapability(connectorId?: string): Promise<boolean> {
+    try {
+      const res = await call(
+        connectorId,
+        'GET',
+        '/internal/admin/connector-capabilities',
+        undefined,
+        'connector:management',
+      );
+      if (res.status !== 200) return false;
+      const body = await res.json();
+      return typeof body === 'object' && body !== null && !Array.isArray(body)
+        && (body as Record<string, unknown>).secretCatalogImport === true;
+    } catch {
+      // Capabilities are a readonly projection: unavailable or unsupported
+      // targets are reported false and imports fail closed at their route.
+      return false;
+    }
+  }
+
+  async function readTypedCredentialStorageCapability(connectorId?: string): Promise<boolean> {
+    try {
+      const res = await call(
+        connectorId,
+        'GET',
+        '/internal/admin/connector-capabilities',
+        undefined,
+        'connector:management',
+      );
+      if (res.status !== 200) return false;
+      const body = await res.json();
+      return typeof body === 'object' && body !== null && !Array.isArray(body)
+        && (body as Record<string, unknown>).typedCredentialStorage === true;
+    } catch {
+      // Capability aggregation fails closed: an unsupported target disables
+      // typed recipe writes without changing legacy credentialWorkflow.
+      return false;
+    }
+  }
+
+  async function performDraftClaim(input: ConnectorRecipeDraftClaimInput): Promise<ConnectorRecipeDraftClaimResult> {
+    const res = await call(input.connectorId, 'POST',
+      `/internal/admin/connector-revisions/${encodeURIComponent(input.connectorId)}/claim`, {
+        tenantId: input.tenantId,
+        expectedHeadRevision: input.expectedHeadRevision,
+        idempotencyKey: input.idempotencyKey,
+      }, 'connector:management');
+    if (res.status === 409) {
+      throw new HttpError(409, 'IDEMPOTENCY_CONFLICT', 'Connector draft claim key was reused with different input');
+    }
+    if (res.status !== 200) unexpected();
+    const body = await res.json();
+    if (typeof body !== 'object' || body === null || Array.isArray(body)) unexpected();
+    const value = body as Record<string, unknown>;
+    if (Object.keys(value).sort().join(',') !== 'claimed,expectedHeadRevision'
+        || typeof value.claimed !== 'boolean'
+        || value.expectedHeadRevision !== input.expectedHeadRevision) {
+      throw new HttpError(502, 'CONNECTOR_API_ERROR', 'Connector returned an invalid draft claim result');
+    }
+    return { claimed: value.claimed, expectedHeadRevision: input.expectedHeadRevision };
+  }
+
   return {
+    async secretCatalogImportAvailable(connectorId) {
+      return readSecretCatalogImportCapability(connectorId);
+    },
+    async secretCatalogImportAvailableForAllConfiguredTargets() {
+      const targets = options.capabilityProbeTargets ?? [];
+      if (targets.length === 0) return false;
+      const availability = await Promise.all(targets.map((target) => readSecretCatalogImportCapability(target)));
+      return availability.every(Boolean);
+    },
+    async typedCredentialStorageAvailableForAllConfiguredTargets() {
+      const targets = options.capabilityProbeTargets ?? [];
+      if (targets.length === 0) return false;
+      const availability = await Promise.all(targets.map((target) => readTypedCredentialStorageCapability(target)));
+      return availability.every(Boolean);
+    },
     async list() {
       // Service-level route: the base URL resolves through the composition's
       // service selector (first configured connector), never caller input.
-      const res = await call(undefined as unknown as string, 'GET', '/connectors');
+      const res = await call(undefined, 'GET', '/connectors');
       if (res.status !== 200) unexpected();
       const body = await res.json();
       if (!Array.isArray(body)) unexpected();
@@ -306,12 +400,15 @@ export function createConnectorManagementStore(
       };
     },
     async getRecipeRevision(input) {
-      const path = `/internal/admin/connector-revisions/${encodeURIComponent(input.connectorId)}/${input.revision}?tenantId=${encodeURIComponent(input.tenantId)}`;
+      if (!isTenantUuid(input.tenantId)) throw new HttpError(422, 'INVALID_SCHEMA', 'Connector recipe tenant scope is invalid');
+      const tenantId = input.tenantId.toLowerCase();
+      const path = `/internal/admin/connector-revisions/${encodeURIComponent(input.connectorId)}/${input.revision}?tenantId=${encodeURIComponent(tenantId)}`;
       const res = await call(input.connectorId, 'GET', path, undefined, 'connector:management');
       if (res.status === 404) return undefined;
       if (res.status !== 200) unexpected();
       const parsed = ConnectorParityRevisionSchema.safeParse(await res.json());
-      if (!parsed.success || parsed.data.tenantId !== input.tenantId || parsed.data.connectorId !== input.connectorId || parsed.data.revision !== input.revision) {
+      if (!parsed.success || !isTenantUuid(parsed.data.tenantId) || parsed.data.tenantId.toLowerCase() !== tenantId
+          || parsed.data.connectorId !== input.connectorId || parsed.data.revision !== input.revision) {
         throw new HttpError(502, 'CONNECTOR_API_ERROR', 'Connector returned a recipe revision outside the requested tenant pin');
       }
       return parsed.data;
@@ -329,25 +426,7 @@ export function createConnectorManagementStore(
       return (body as { hasTypedChain: boolean }).hasTypedChain;
     },
     async claimRecipeDraft(input) {
-      const res = await call(input.connectorId, 'POST',
-        `/internal/admin/connector-revisions/${encodeURIComponent(input.connectorId)}/claim`, {
-          tenantId: input.tenantId,
-          expectedHeadRevision: input.expectedHeadRevision,
-          idempotencyKey: input.idempotencyKey,
-        }, 'connector:management');
-      if (res.status === 409) {
-        throw new HttpError(409, 'IDEMPOTENCY_CONFLICT', 'Connector draft claim key was reused with different input');
-      }
-      if (res.status !== 200) unexpected();
-      const body = await res.json();
-      if (typeof body !== 'object' || body === null || Array.isArray(body)) unexpected();
-      const value = body as Record<string, unknown>;
-      if (Object.keys(value).sort().join(',') !== 'claimed,expectedHeadRevision'
-          || typeof value.claimed !== 'boolean'
-          || value.expectedHeadRevision !== input.expectedHeadRevision) {
-        throw new HttpError(502, 'CONNECTOR_API_ERROR', 'Connector returned an invalid draft claim result');
-      }
-      return { claimed: value.claimed, expectedHeadRevision: input.expectedHeadRevision };
+      return performDraftClaim(input);
     },
     async upsertRecipeDraft(input) {
       const parsedInput = ConnectorDraftUpsertSchema.safeParse({
@@ -358,6 +437,15 @@ export function createConnectorManagementStore(
         idempotencyKey: input.idempotencyKey,
       });
       if (!parsedInput.success) throw new HttpError(422, 'INVALID_SCHEMA', 'Connector recipe draft is invalid');
+      const claim = await performDraftClaim({
+        tenantId: input.tenantId,
+        connectorId: input.connectorId,
+        expectedHeadRevision: input.expectedHeadRevision,
+        idempotencyKey: input.idempotencyKey,
+      });
+      if (!claim.claimed) {
+        throw new HttpError(409, 'CONNECTOR_SCOPE_CONFLICT', 'Connector tenant or draft revision is unavailable');
+      }
       const res = await call(input.connectorId, 'PUT', `/internal/admin/connector-revisions/${encodeURIComponent(input.connectorId)}/draft`, parsedInput.data, 'connector:management');
       if (res.status !== 200 && res.status !== 201) unexpected();
       const result = ConnectorParityDraftResultSchema.safeParse(await res.json());
@@ -497,7 +585,7 @@ export function createConnectorManagementStore(
       const search = new URLSearchParams({ tenantId: query.data.tenantId, limit: String(query.data.limit) });
       if (query.data.q !== undefined) search.set('q', query.data.q);
       if (query.data.cursor !== undefined) search.set('cursor', query.data.cursor);
-      const res = await call(undefined as unknown as string, 'GET',
+      const res = await call(undefined, 'GET',
         `/internal/admin/connector-revisions/active?${search.toString()}`, undefined, 'connector:management');
       if (res.status !== 200) unexpected();
       const page = TenantActiveConnectorCatalogPageSchema.safeParse(await res.json());
@@ -505,6 +593,23 @@ export function createConnectorManagementStore(
           || page.data.limit !== query.data.limit
           || page.data.items.some((item) => item.tenantId !== query.data.tenantId)) {
         throw new HttpError(502, 'CONNECTOR_API_ERROR', 'Connector returned a catalog page outside the requested tenant scope');
+      }
+      return page.data;
+    },
+    async listConnectorRecipeCatalog(input) {
+      const query = TenantConnectorRecipeCatalogQuerySchema.safeParse(input);
+      if (!query.success) throw new HttpError(422, 'INVALID_SCHEMA', 'tenant typed Connector catalog query is invalid');
+      const search = new URLSearchParams({ tenantId: query.data.tenantId, limit: String(query.data.limit) });
+      if (query.data.q !== undefined) search.set('q', query.data.q);
+      if (query.data.cursor !== undefined) search.set('cursor', query.data.cursor);
+      const res = await call(undefined as unknown as string, 'GET',
+        `/internal/admin/connector-revisions/catalog?${search.toString()}`, undefined, 'connector:management');
+      if (res.status !== 200) unexpected();
+      const page = TenantConnectorRecipeCatalogPageSchema.safeParse(await res.json());
+      if (!page.success || page.data.tenantId !== query.data.tenantId
+          || page.data.limit !== query.data.limit
+          || page.data.items.some((item) => item.tenantId !== query.data.tenantId)) {
+        throw new HttpError(502, 'CONNECTOR_API_ERROR', 'Connector returned a typed catalog page outside the requested tenant scope');
       }
       return page.data;
     },

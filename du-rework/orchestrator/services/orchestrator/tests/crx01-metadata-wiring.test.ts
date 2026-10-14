@@ -17,9 +17,8 @@
  * Redis; the S3 backend is only needed so `createApp` reaches the consumer
  * construction branch and never touches the network.
  */
-import { join } from 'node:path';
 import { createApp, type App } from '../src/server';
-import { loadMigrationFiles } from '../src/db/migrations';
+import { currentAppliedMigrationLedger, mockMigrationMetadataColumnsResult } from './helpers/migration-ledger-fixture';
 import { createSubmissionService } from '../src/modules/operations/submission';
 import { createRuntimeService } from '../src/modules/runtime/runtime';
 import { createIngestionConsumer } from '../src/modules/operations/ingestion-consumer';
@@ -62,8 +61,10 @@ interface MinimalState {
 jest.mock('pg', () => {
   const state = { schemaLedger: [] as { sequence: number; filename: string }[] };
   interface PgResult { rows: unknown[]; rowCount: number }
-  function answer(sql: string): PgResult {
+  function answer(sql: string, params: unknown[] = []): PgResult {
     const text = String(sql).replace(/\s+/g, ' ').trim();
+    const metadataColumns = mockMigrationMetadataColumnsResult(text, params);
+      if (metadataColumns) return metadataColumns;
     if (/information_schema\.tables/i.test(text)) return { rows: [{ exists: true }], rowCount: 1 };
     if (/SELECT count\(\*\)::int/i.test(text)) return { rows: [{ count: state.schemaLedger.length }], rowCount: 1 }
     if (/FROM schema_migrations/i.test(text)) {
@@ -72,11 +73,11 @@ jest.mock('pg', () => {
     return { rows: [], rowCount: 0 };
   }
   class ScriptedPool {
-    async query(sql: string): Promise<PgResult> {
-      return answer(sql);
+    async query(sql: string, params: unknown[] = []): Promise<PgResult> {
+      return answer(sql, params);
     }
-    async connect(): Promise<{ query: (sql: string) => Promise<PgResult>; release: () => void }> {
-      return { query: (sql) => Promise.resolve(answer(sql)), release: () => undefined };
+    async connect(): Promise<{ query: (sql: string, params?: unknown[]) => Promise<PgResult>; release: () => void }> {
+      return { query: (sql, params = []) => Promise.resolve(answer(sql, params)), release: () => undefined };
     }
     async end(): Promise<void> {
       return undefined;
@@ -126,9 +127,7 @@ describe('CRX-01: createApp hands ONE metadata seam to submission, runtime and t
 
   beforeAll(() => {
     const state = (jest.requireMock('pg') as { __duState: MinimalState }).__duState;
-    state.schemaLedger = loadMigrationFiles(join(__dirname, '..', 'migrations')).map(
-      (file) => ({ sequence: file.sequence, filename: file.filename }),
-    );
+    state.schemaLedger = currentAppliedMigrationLedger();
   });
 
   beforeEach(() => {

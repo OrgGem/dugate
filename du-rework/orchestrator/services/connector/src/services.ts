@@ -43,6 +43,8 @@ import {
   type ProviderTestResult,
 } from '@du/contracts';
 import { assertArtifactGrantBindings } from './artifact-content';
+import { sourceCredentialAad, type SourceCredentialContext } from './db/source-credential-crypto';
+import type { PostgresTypedCredentialStore } from './db/credential-store';
 
 const SENSITIVE_CONFIG_KEY = /(?:secret|password|passwd|token|credential|authorization|api[_-]?key|cookie|session)/i;
 const PROVIDER_TEST_CONTENT_MAX = 16_384;
@@ -149,6 +151,27 @@ export class AesCredentialCipher implements CredentialCipher {
       throw new ConnectorError('CREDENTIAL_INVALID', 'Stored credential is invalid.');
     }
   }
+
+  public encryptBound(secret: string, context: SourceCredentialContext): Uint8Array {
+    const iv = randomBytes(12);
+    const cipher = createCipheriv('aes-256-gcm', this.key, iv);
+    cipher.setAAD(sourceCredentialAad(context));
+    const ciphertext = Buffer.concat([cipher.update(secret, 'utf8'), cipher.final()]);
+    return Buffer.concat([iv, cipher.getAuthTag(), ciphertext]);
+  }
+
+  public decryptBound(value: Uint8Array, context: SourceCredentialContext): string {
+    const bytes = Buffer.from(value);
+    if (bytes.length < 28) throw new ConnectorError('CREDENTIAL_INVALID', 'Stored credential is invalid.');
+    try {
+      const decipher = createDecipheriv('aes-256-gcm', this.key, bytes.subarray(0, 12));
+      decipher.setAAD(sourceCredentialAad(context));
+      decipher.setAuthTag(bytes.subarray(12, 28));
+      return Buffer.concat([decipher.update(bytes.subarray(28)), decipher.final()]).toString('utf8');
+    } catch {
+      throw new ConnectorError('CREDENTIAL_INVALID', 'Stored credential is invalid.');
+    }
+  }
 }
 
 export class DurableConnectorRuntime implements ConnectorRuntime {
@@ -168,6 +191,8 @@ export class DurableConnectorRuntime implements ConnectorRuntime {
     private readonly parityRepository?: PostgresConnectorParityRepository,
     /** Authenticated Orchestrator preflight and reservation-group transitions. */
     private readonly costControl?: ConnectorCostControlClient,
+    /** Typed AES-GCM credentials use a revision-bound row independent of legacy credentials. */
+    private readonly typedCredentialStore?: PostgresTypedCredentialStore,
   ) {}
 
   public async invoke(body: unknown): Promise<HttpInvocationResult> {
@@ -448,8 +473,25 @@ export class DurableConnectorRuntime implements ConnectorRuntime {
     if (revision.recipe.auth.kind === 'oauth2-client-credentials') {
       throw new ConnectorError('CAPABILITY_UNSUPPORTED', 'OAuth credential acquisition is not supported by the typed recipe runtime.');
     }
-    if (!source || !revision.credentialRef || revision.credentialVersion === null
-      || source.kind !== 'vault-kv2' || source.version !== revision.credentialVersion
+    if (!source || !revision.credentialRef || revision.credentialVersion === null) {
+      throw new ConnectorError('BINDING_DENIED', 'Typed recipe credential does not match the immutable tenant pin.');
+    }
+    if (source.kind === 'encrypted-db') {
+      if (source.credentialRef !== revision.credentialRef || source.version !== revision.credentialVersion) {
+        throw new ConnectorError('BINDING_DENIED', 'Typed recipe credential does not match the immutable tenant pin.');
+      }
+      if (!this.typedCredentialStore) {
+        throw new ConnectorError('CREDENTIAL_INVALID', 'Typed recipe requires configured credential encryption.');
+      }
+      return this.typedCredentialStore.resolve({
+        tenantId: revision.tenantId,
+        connectorId: revision.connectorId,
+        revision: revision.revision,
+        credentialRef: source.credentialRef,
+        credentialVersion: source.version,
+      }, source);
+    }
+    if (source.kind !== 'vault-kv2' || source.version !== revision.credentialVersion
       || !matchesVaultRevisionBinding(source, {
         tenantId: revision.tenantId,
         connectorId: revision.connectorId,

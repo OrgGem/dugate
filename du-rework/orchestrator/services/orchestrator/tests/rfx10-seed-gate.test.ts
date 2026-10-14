@@ -16,10 +16,9 @@
  * a live boot); Redis points at a closed loopback port and is never queried
  * for the seed decision. No PostgreSQL :5433, no Redis :6380.
  */
-import { join } from 'node:path';
 import { createApp, shouldSeedDevFallback, type App } from '../src/server';
-import { loadMigrationFiles } from '../src/db/migrations';
 import { mockCreateStorageGenerationFixture, mockOpenBackupEffectGateResult } from './helpers/backup-effect-gate';
+import { currentAppliedMigrationLedger, mockMigrationMetadataColumnsResult } from './helpers/migration-ledger-fixture';
 
 interface SeedGateMockState {
   /** Every SQL string the scripted pool answered, in order. */
@@ -57,6 +56,8 @@ jest.mock('pg', () => {
         state.devFallbackKeyWrites += 1;
         return { rows: [], rowCount: 1 };
       }
+      const metadataColumns = mockMigrationMetadataColumnsResult(text, params);
+      if (metadataColumns) return metadataColumns;
       if (/information_schema\.tables/i.test(text)) {
         return { rows: [{ exists: true }], rowCount: 1 };
       }
@@ -128,9 +129,7 @@ describe('RFX-10: dev fallback seed rows are gated off production boots', () => 
   const apps: App[] = [];
 
   beforeAll(() => {
-    mockState().schemaLedger = loadMigrationFiles(join(__dirname, '..', 'migrations')).map(
-      (file) => ({ sequence: file.sequence, filename: file.filename }),
-    );
+    mockState().schemaLedger = currentAppliedMigrationLedger();
   });
 
   afterAll(async () => {

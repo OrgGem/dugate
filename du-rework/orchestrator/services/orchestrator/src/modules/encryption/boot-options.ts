@@ -5,10 +5,11 @@
  * to `createApp`, so `metadataCrypto` was `undefined` and every control-plane
  * column kept its plaintext behaviour with no warning.
  *
- * Fail-closed by construction. The only way to get "no encryption" is
- * `ARTIFACT_STORAGE_BACKEND=postgres` with every enable flag off, and that is
- * a positive operator choice rather than a silently ignored config. Anything
- * half-specified throws at boot with the missing field named.
+ * Fail-closed by construction. Real-data PostgreSQL boots use a retained local
+ * keyring when Transit is absent; explicit Transit configuration remains the
+ * write provider. Encrypted S3 still requires Transit. Only the explicit
+ * synthetic-data exemption can leave both blocks off. Anything half-specified
+ * throws at boot with the missing field named.
  *
  * The operator surface is ONE JSON env var mapped 1:1 onto the existing
  * `VaultTransitProviderOptions`. Tokens are deliberately NOT in that JSON:
@@ -17,6 +18,15 @@
  */
 
 import { VaultTransitProvider, type KeyProvider } from './vault-transit-provider';
+import {
+  createHybridKeyProvider,
+  createLocalKeyProvider,
+  LOCAL_ENCRYPTION_ACTIVE_KEY_VERSION_ENV,
+  LOCAL_ENCRYPTION_KEYRING_ENV,
+  LOCAL_METADATA_KEY_REF,
+  LOCAL_PUBLIC_UPLOAD_KEY_REF,
+  parseLocalEncryptionKeyring,
+} from './local-key-provider';
 import {
   SyntheticDataExemptionSchema,
   type SyntheticDataExemption,
@@ -78,7 +88,7 @@ export interface EncryptionBootConfig {
   readonly publicUploadMaxBytes?: number;
 }
 
-/** The three blocks `createApp` accepts, all sharing one Vault-backed provider. */
+/** The blocks `createApp` accepts, sharing the selected key provider. */
 export interface EncryptionBootOptions {
   readonly cryptoConfig: { readonly allowedKeyRefs: readonly string[] };
   readonly metadataEncryption?: { readonly keyProvider: KeyProvider; readonly keyRef: string };
@@ -269,6 +279,7 @@ function resolveEncryptionBoot(env: EnvReader): {
   readonly config: EncryptionBootConfig | null;
   readonly metadataEnabled: boolean;
   readonly publicUploadEnabled: boolean;
+  readonly providerMode: 'none' | 'vault-transit' | 'local-keyring';
 } {
   const backend = readOptional(env, 'ARTIFACT_STORAGE_BACKEND') ?? 'postgres';
   if (backend === 'vault') {
@@ -292,23 +303,31 @@ function resolveEncryptionBoot(env: EnvReader): {
   const s3 = backend === 's3';
   const metadataEnabled = forced || readBoolean(env, METADATA_ENABLED_ENV) || s3;
   const publicUploadEnabled = forced || readBoolean(env, PUBLIC_UPLOAD_ENABLED_ENV) || s3;
-  if (!metadataEnabled && !publicUploadEnabled) return { config: null, metadataEnabled, publicUploadEnabled };
+  if (!metadataEnabled && !publicUploadEnabled) {
+    return { config: null, metadataEnabled, publicUploadEnabled, providerMode: 'none' };
+  }
 
   const raw = readOptional(env, VAULT_TRANSIT_OPTIONS_ENV);
   if (raw === undefined) {
-    throw new EncryptionBootConfigError(
-      VAULT_TRANSIT_OPTIONS_ENV + ' is required when artifact encryption is enabled'
-        + (forced ? ' (real-data mode; export ' + DATA_MODE_ENV + '=synthetic with an explicit '
-          + SYNTHETIC_ACK_ENV + ' only for isolated synthetic data)' : '')
-        + '; refusing to store artifacts in plaintext',
-    );
+    if (readOptional(env, VAULT_ENCRYPT_TOKEN_ENV) !== undefined
+        || readOptional(env, VAULT_DECRYPT_TOKEN_ENV) !== undefined) {
+      throw new EncryptionBootConfigError(
+        VAULT_TRANSIT_OPTIONS_ENV + ' is required when either Vault Transit identity is configured; refusing a partial Vault configuration',
+      );
+    }
+    if (s3) {
+      throw new EncryptionBootConfigError(
+        VAULT_TRANSIT_OPTIONS_ENV + ' is required for encrypted S3 artifact storage; refusing to bypass the configured Transit key boundary',
+      );
+    }
+    return { config: null, metadataEnabled, publicUploadEnabled, providerMode: 'local-keyring' };
   }
   const config = parseConfig(raw);
 
   if (metadataEnabled) assertKeyRefAllowed(config, config.metadataKeyRef, 'metadataKeyRef');
   if (publicUploadEnabled) assertKeyRefAllowed(config, config.publicUploadKeyRef, 'publicUploadKeyRef');
 
-  return { config, metadataEnabled, publicUploadEnabled };
+  return { config, metadataEnabled, publicUploadEnabled, providerMode: 'vault-transit' };
 }
 
 function readToken(env: EnvReader, name: string): string {
@@ -408,8 +427,41 @@ function readInstantMs(env: EnvReader, name: string): number {
  * exist to keep.
  */
 export function buildEncryptionBootOptions(env: EnvReader): EncryptionBootOptions | null {
-  const { config, metadataEnabled, publicUploadEnabled } = resolveEncryptionBoot(env);
-  if (config === null) return null;
+  const { config, metadataEnabled, publicUploadEnabled, providerMode } = resolveEncryptionBoot(env);
+  if (providerMode === 'none') return null;
+
+  const explicitLocalRing = readOptional(env, LOCAL_ENCRYPTION_ACTIVE_KEY_VERSION_ENV) !== undefined
+    || readOptional(env, LOCAL_ENCRYPTION_KEYRING_ENV) !== undefined;
+  const master = readOptional(env, 'ENCRYPTION_KEY');
+  const canDeriveLocalRing = master !== undefined && Buffer.byteLength(master, 'utf8') >= 32;
+  const localKeyring = (() => {
+    // A short legacy profile-cipher key must not prevent a Transit-only
+    // deployment from booting. It could not have produced a local envelope
+    // under this policy, so no local provider is needed for that deployment.
+    if (providerMode === 'vault-transit' && !explicitLocalRing && !canDeriveLocalRing) return undefined;
+    try { return parseLocalEncryptionKeyring(env); } catch (error) {
+      throw new EncryptionBootConfigError(error instanceof Error ? error.message : 'local encryption keyring is invalid');
+    }
+  })();
+  if (providerMode === 'local-keyring') {
+    if (!localKeyring) {
+      throw new EncryptionBootConfigError(
+        'a retained local encryption key is required for PostgreSQL-backed encryption; set ENCRYPTION_KEY '
+          + 'to at least 32 bytes or configure DU_LOCAL_ENCRYPTION_ACTIVE_KEY_VERSION and DU_LOCAL_ENCRYPTION_KEYRING_JSON',
+      );
+    }
+    const localRefs = [LOCAL_METADATA_KEY_REF, LOCAL_PUBLIC_UPLOAD_KEY_REF];
+    const localProvider = createLocalKeyProvider(localKeyring, localRefs);
+    const keyProvider = createHybridKeyProvider({ localProvider, writeProvider: 'local-keyring' });
+    return {
+      cryptoConfig: { allowedKeyRefs: localRefs },
+      ...(metadataEnabled ? { metadataEncryption: { keyProvider, keyRef: LOCAL_METADATA_KEY_REF } } : {}),
+      ...(publicUploadEnabled
+        ? { publicUploadEncryption: { keyProvider, keyRef: LOCAL_PUBLIC_UPLOAD_KEY_REF } }
+        : {}),
+    };
+  }
+  if (!config) throw new EncryptionBootConfigError('Vault Transit configuration is unavailable');
 
   const encryptToken = readToken(env, VAULT_ENCRYPT_TOKEN_ENV);
   const decryptToken = readToken(env, VAULT_DECRYPT_TOKEN_ENV);
@@ -419,7 +471,7 @@ export function buildEncryptionBootOptions(env: EnvReader): EncryptionBootOption
     );
   }
 
-  const keyProvider = new VaultTransitProvider({
+  const vaultProvider = new VaultTransitProvider({
     vaultAddress: config.vaultAddress,
     allowedKeyRefs: config.allowedKeyRefs,
     encryptIdentity: { token: () => readOptional(env, VAULT_ENCRYPT_TOKEN_ENV) ?? encryptToken },
@@ -427,12 +479,29 @@ export function buildEncryptionBootOptions(env: EnvReader): EncryptionBootOption
     ...(config.transitMount === undefined ? {} : { transitMount: config.transitMount }),
     ...(config.requestTimeoutMs === undefined ? {} : { requestTimeoutMs: config.requestTimeoutMs }),
   });
+  const localProvider = localKeyring
+    ? createLocalKeyProvider(localKeyring, [LOCAL_METADATA_KEY_REF, LOCAL_PUBLIC_UPLOAD_KEY_REF])
+    : undefined;
+  // When Transit is explicitly configured, it remains the write provider.
+  // The local provider is present only to open old local-keyring envelopes;
+  // provider-specific unwrap failures never retry through the other backend.
+  const keyProvider = localProvider
+    ? createHybridKeyProvider({ vaultProvider, localProvider, writeProvider: 'vault-transit' })
+    : vaultProvider;
 
   const metadataKeyRef = config.metadataKeyRef;
   const publicUploadKeyRef = config.publicUploadKeyRef;
 
   return {
-    cryptoConfig: { allowedKeyRefs: Object.keys(config.allowedKeyRefs) },
+    // Expose local refs to the read-side configuration surface when the local
+    // provider can open old local envelopes. New writes still use the selected
+    // Transit key refs above and VaultTransitProvider's own stricter allowlist.
+    cryptoConfig: {
+      allowedKeyRefs: [
+        ...Object.keys(config.allowedKeyRefs),
+        ...(localProvider ? [LOCAL_METADATA_KEY_REF, LOCAL_PUBLIC_UPLOAD_KEY_REF] : []),
+      ],
+    },
     ...(metadataEnabled && metadataKeyRef !== undefined
       ? { metadataEncryption: { keyProvider, keyRef: metadataKeyRef } }
       : {}),

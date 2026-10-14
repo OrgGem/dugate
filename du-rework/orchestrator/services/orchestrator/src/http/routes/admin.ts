@@ -963,10 +963,33 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult 
       };
     }
     const page = await listAdminProfilePage(ctx.db, scope, query);
+    const bindingsByProfile = new Map<string, { action: string; endpointSlug: string | null }>();
+    if (page.rows.length > 0) {
+      const bindingRows = await ctx.db.query<{
+        profile_id: string;
+        revision: number;
+        action: string;
+        endpoint_slug: string | null;
+      }>(
+        `SELECT binding.profile_id, binding.revision, binding.action, binding.endpoint_slug
+           FROM profile_bindings binding
+           JOIN unnest($2::uuid[], $3::integer[]) AS selected(profile_id, revision)
+             ON selected.profile_id = binding.profile_id AND selected.revision = binding.revision
+          WHERE binding.tenant_id = $1`,
+        [scope, page.rows.map((profile) => profile.profile_id), page.rows.map((profile) => profile.revision)],
+      );
+      for (const binding of bindingRows.rows) {
+        bindingsByProfile.set(binding.profile_id, {
+          action: binding.action,
+          endpointSlug: binding.endpoint_slug,
+        });
+      }
+    }
     return {
       status: 200,
       body: listPage({
         items: page.rows.map((row) => ({
+          profileId: row.profile_id,
           tenantId: row.tenant_id,
           businessId: row.business_id,
           businessVersion: row.business_version,
@@ -975,6 +998,12 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult 
           status: row.enabled === true ? 'ACTIVE' : row.enabled === false ? 'DISABLED' : 'UNKNOWN',
           keyCount: row.key_count,
           boundActions: row.bound_actions,
+          ...(bindingsByProfile.has(row.profile_id)
+            ? {
+                action: bindingsByProfile.get(row.profile_id)!.action,
+                endpointSlug: bindingsByProfile.get(row.profile_id)!.endpointSlug,
+              }
+            : {}),
           createdAt: dateToIso(row.created_at),
           updatedAt: dateToIso(row.updated_at),
         })),
@@ -993,7 +1022,18 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult 
       if (!principal) {
         throw new HttpError(401, 'UNAUTHENTICATED', 'admin endpoints require an admin token');
       }
-      const tenantScope = authorizeAuditTenantRead(principal, '');
+      const requestedTenantId = readUniqueAdminQueryParam(ctx, 'tenantId');
+      if (requestedTenantId !== null && !UUID_PARAM_PATTERN.test(requestedTenantId)) {
+        throw new HttpError(422, 'INVALID_SCHEMA', 'tenantId must be a uuid');
+      }
+      const tenantScope = authorizeAuditTenantRead(principal, requestedTenantId ?? '');
+      const requestedProfileId = readUniqueAdminQueryParam(ctx, 'profileId');
+      if (requestedProfileId !== null && !UUID_PARAM_PATTERN.test(requestedProfileId)) {
+        throw new HttpError(422, 'INVALID_SCHEMA', 'profileId must be a uuid');
+      }
+      if (requestedProfileId !== null && tenantScope === '') {
+        throw new HttpError(422, 'INVALID_SCHEMA', 'profileId requires a tenant-scoped detail read');
+      }
       const businessId = decodeURIComponent(m[1]!);
       const versionSeg = decodeURIComponent(m[2]!);
       const nameSeg = decodeURIComponent(m[3]!);
@@ -1039,7 +1079,7 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult 
       // revealed so the client can address the profile.* commands.
       const detail = tenantScope === ''
         ? await loadProfileDetail(ctx.db, row.business_id, row.version, nameSeg)
-        : await loadTenantProfileDetail(ctx.db, row.business_id, row.version, nameSeg, tenantScope);
+        : await loadTenantProfileDetail(ctx.db, row.business_id, row.version, nameSeg, tenantScope, requestedProfileId ?? undefined);
       if (detail.kind === 'pointer-missing') {
         // Invariant #3: registry has rows but no pointer — fail closed, never
         // guess a revision.
@@ -1070,6 +1110,20 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult 
           },
         };
       }
+      const bindingIdentity = tenantScope === ''
+        ? await ctx.db.query<{ action: string; endpoint_slug: string | null }>(
+            `SELECT action, endpoint_slug FROM profile_bindings WHERE profile_id=$1 AND revision=$2`,
+            [detail.row.profile_id, detail.row.revision],
+          )
+        : await ctx.db.query<{ action: string; endpoint_slug: string | null }>(
+            `SELECT action, endpoint_slug FROM profile_bindings
+              WHERE profile_id=$1 AND revision=$2 AND tenant_id=$3`,
+            [detail.row.profile_id, detail.row.revision, tenantScope],
+          );
+      if (!bindingIdentity.rowCount) {
+        throw new HttpError(404, 'NOT_FOUND', `profile '${nameSeg}' binding is unavailable`);
+      }
+      const persistedBinding = bindingIdentity.rows[0]!;
       return {
         status: 200,
         body: {
@@ -1077,6 +1131,8 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult 
           businessVersion: row.version,
           profileName: nameSeg,
           revision: detail.row.revision,
+          action: persistedBinding.action,
+          endpointSlug: persistedBinding.endpoint_slug,
           currentValues: profileDetailCurrentValues(detail.row),
           policy: profileDetailPolicyRead(detail.row),
           manifest: { actions: row.manifest?.actions ?? [] },
@@ -1211,11 +1267,21 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult 
   // (503) while ID suggestions remain available.
   if (method === 'GET' && pathname === '/api/v1/admin/connectors/capabilities') {
     assertAdminAuth(ctx);
+    let secretCatalogImport = false;
+    let typedCredentialStorage = false;
+    if (ctx.connectorSecretImports && ctx.connectorManagement?.secretCatalogImportAvailableForAllConfiguredTargets) {
+      secretCatalogImport = await ctx.connectorManagement.secretCatalogImportAvailableForAllConfiguredTargets();
+    }
+    if (ctx.connectorManagement?.typedCredentialStorageAvailableForAllConfiguredTargets) {
+      typedCredentialStorage = await ctx.connectorManagement.typedCredentialStorageAvailableForAllConfiguredTargets();
+    }
     return {
       status: 200,
       body: {
         management: !!ctx.connectorManagement,
         credentialWorkflow: !!ctx.credentialWorkflow,
+        typedCredentialStorage,
+        secretCatalogImport,
         test: !!ctx.connectorManagement,
         knownConnectorIds: Object.keys(ctx.config.connectorBaseUrls ?? {}).filter((id) => id !== '*'),
       },

@@ -115,6 +115,28 @@ test('runtime environment projection preserves configured shared worker tokens',
   assert.doesNotThrow(() => validateRuntimeEnvironment(env, { services: 'orchestrator' }));
 });
 
+test('local development derives a stable orchestrator-only Secret Catalog keyring from ENCRYPTION_KEY', (t) => {
+  const root = createSandbox(t);
+  const { serviceEnvironment } = require(path.join(root, 'scripts/runtime-env.cjs'));
+  const env = { NODE_ENV: 'development', ENCRYPTION_KEY: 'configured-local-master-key' };
+  const projected = serviceEnvironment(env, 'orchestrator');
+  const repeated = serviceEnvironment(env, 'orchestrator');
+  const keyring = JSON.parse(projected.DU_SECRET_CATALOG_KEYRING_JSON);
+
+  assert.equal(projected.DU_SECRET_CATALOG_ACTIVE_KEY_VERSION, 'local-dev-v1');
+  assert.equal(Object.keys(keyring).join(','), 'local-dev-v1');
+  assert.equal(Buffer.from(keyring['local-dev-v1'], 'base64').length, 32);
+  assert.equal(repeated.DU_SECRET_CATALOG_KEYRING_JSON, projected.DU_SECRET_CATALOG_KEYRING_JSON);
+  const connector = serviceEnvironment(env, 'connector');
+  assert.equal(connector.DU_SECRET_CATALOG_ACTIVE_KEY_VERSION, undefined);
+  assert.equal(connector.DU_SECRET_CATALOG_KEYRING_JSON, undefined);
+  for (const nodeEnv of ['production', 'test']) {
+    const nonDevelopment = serviceEnvironment({ ...env, NODE_ENV: nodeEnv }, 'orchestrator');
+    assert.equal(nonDevelopment.DU_SECRET_CATALOG_ACTIVE_KEY_VERSION, undefined);
+    assert.equal(nonDevelopment.DU_SECRET_CATALOG_KEYRING_JSON, undefined);
+  }
+});
+
 test('mock bootstrap wires real KV v2 and Transit HTTP seams and shuts down its listener', async (t) => {
   const root = createSandbox(t);
   const bootstrapPath = path.join(root, 'services/orchestrator/tests/mock-vault/bootstrap.cjs');

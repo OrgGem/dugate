@@ -1,7 +1,13 @@
 import { Pool, type PoolClient, type PoolConfig, type QueryResultRow } from 'pg';
-import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { SqlClient, SqlResult } from './sql';
+import {
+  baselineConnectorMigrationsReviewed,
+  connectorMigrationStatus,
+  migrateConnector,
+  verifyConnectorMigrations,
+  type ConnectorMigrationStatus,
+} from './migration-runner';
 
 export interface PgConnectorOptions extends PoolConfig {
   migrationDirectory?: string;
@@ -41,49 +47,19 @@ export class PgSqlClient implements SqlClient {
   }
 
   public async migrate(): Promise<void> {
-    await this.pool.query(`
-      CREATE TABLE IF NOT EXISTS connector_schema_migrations (
-        version TEXT PRIMARY KEY,
-        applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
-      )
-    `);
-    for (const version of [
-      '001_connector',
-      '002_connector_poll_recovery',
-      '003_connector_quota_carry',
-      '004_connector_poll_backoff',
-      '005_connector_polling_state',
-      '006_connector_revision_lifecycle',
-      '007_connector_credential_source',
-      '008_connector_revision_binding',
-      '009_connector_invocation_session_ref',
-      '010_connector_invocation_state_version',
-      '011_connector_usage_delivery_evidence',
-      '012_replica_runtime_controls',
-      '013_connector_recipe_revisions',
-      '014_connector_recipe_retirement',
-      '015_backup_effect_fences',
-      '016_replica_runtime_boot_ack',
-    ]) {
-      const applied = await this.pool.query(
-        'SELECT version FROM connector_schema_migrations WHERE version = $1',
-        [version],
-      );
-      if (applied.rowCount) continue;
-      const migration = await readFile(join(this.migrationDirectory, `${version}.sql`), 'utf8');
-      const client = await this.pool.connect();
-      try {
-        await client.query('BEGIN');
-        await client.query(migration);
-        await client.query('INSERT INTO connector_schema_migrations (version) VALUES ($1)', [version]);
-        await client.query('COMMIT');
-      } catch (error) {
-        await client.query('ROLLBACK');
-        throw error;
-      } finally {
-        client.release();
-      }
-    }
+    await migrateConnector(this.pool, this.migrationDirectory);
+  }
+
+  public async verifyMigrations(): Promise<void> {
+    await verifyConnectorMigrations(this.pool, this.migrationDirectory);
+  }
+
+  public async migrationStatus(): Promise<ConnectorMigrationStatus> {
+    return connectorMigrationStatus(this.pool, this.migrationDirectory);
+  }
+
+  public async baselineMigrationsReviewed(): Promise<{ baselined: string[] }> {
+    return baselineConnectorMigrationsReviewed(this.pool, this.migrationDirectory);
   }
 
   public async ping(): Promise<boolean> {

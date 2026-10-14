@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import type { Db } from '../src/db/db';
-import { loadMigrationFiles, verifyMigrations } from '../src/db/migrations';
+import { loadMigrationFiles, migrationChecksum, migrationStatus, verifyMigrations } from '../src/db/migrations';
 
 /**
  * MIGRATION-VERIFY-TRAP-FIX — the false-green in `verifyMigrations`.
@@ -31,9 +31,12 @@ interface FakeOptions {
   /** Value returned by the independent `SELECT count(*)`. Defaults to rows.length. */
   readonly count?: number;
   readonly tableExists?: boolean;
+  readonly unknownChecksums?: boolean;
+  readonly checksumDriftFor?: number;
 }
 
 function fakeDb(options: FakeOptions): Db {
+  const files = new Map(loadMigrationFiles(MIGRATIONS_DIR).map((file) => [file.sequence, file]));
   return {
     pool: undefined,
     query: async (text: string) => {
@@ -41,11 +44,32 @@ function fakeDb(options: FakeOptions): Db {
       if (sql.includes('information_schema.tables')) {
         return { rows: [{ exists: options.tableExists !== false }], rowCount: 1 };
       }
+      if (sql.includes('information_schema.columns')) {
+        return {
+          rows: options.unknownChecksums
+            ? []
+            : [{ column_name: 'checksum' }, { column_name: 'checksum_provenance' }, { column_name: 'baseline_reviewed_at' }],
+          rowCount: options.unknownChecksums ? 0 : 3,
+        };
+      }
       if (sql.startsWith('SELECT count(*)::int AS count FROM schema_migrations')) {
         return { rows: [{ count: options.count ?? options.rows.length }], rowCount: 1 };
       }
-      if (sql.startsWith('SELECT sequence, filename FROM schema_migrations')) {
-        return { rows: options.rows, rowCount: options.rows.length };
+      if (sql.startsWith('SELECT sequence, filename,')) {
+        const rows = options.rows.map((row) => ({
+          ...row,
+          checksum: options.unknownChecksums || sql.includes('NULL::text AS checksum')
+            ? null
+            : row.sequence === options.checksumDriftFor
+              ? '0'.repeat(64)
+              : files.get(row.sequence)?.checksum ?? '0'.repeat(64),
+          checksum_provenance: options.unknownChecksums || sql.includes('NULL::text AS checksum_provenance') ? null : 'migration',
+          baseline_reviewed_at: null,
+        }));
+        return { rows, rowCount: rows.length };
+      }
+      if (sql.startsWith('SELECT EXISTS (') && sql.includes('pg_indexes')) {
+        return { rows: [{ exists: true }], rowCount: 1 };
       }
       throw new Error('unexpected SQL in fake ledger db: ' + sql.slice(0, 70));
     },
@@ -67,6 +91,13 @@ describe('verifyMigrations: consistent ledger passes', () => {
   });
 });
 
+describe('migration checksum normalization', () => {
+  test('CRLF checkouts hash the same as LF while SQL changes alter the digest', () => {
+    expect(migrationChecksum('CREATE TABLE x;\r\n')).toBe(migrationChecksum('CREATE TABLE x;\n'));
+    expect(migrationChecksum('CREATE TABLE x;')).not.toBe(migrationChecksum('CREATE TABLE y;'));
+  });
+});
+
 describe('verifyMigrations: mismatch reports with real evidence', () => {
   test('the table has MORE rows than the read registered -> throws with both numbers', async () => {
     const rows = realRows();
@@ -77,33 +108,29 @@ describe('verifyMigrations: mismatch reports with real evidence', () => {
     const claimed = registered + 1;
     // `count` says more rows exist than the read registered.
     await expect(verifyMigrations(fakeDb({ rows, count: claimed }))).rejects.toThrow(
-      /ledger is not readable as recorded/,
+      /ledger row count is/,
     );
     await expect(verifyMigrations(fakeDb({ rows, count: claimed }))).rejects.toThrow(
-      new RegExp('SELECT count\\(\\*\\) reports ' + claimed + ' row\\(s\\)'),
+      new RegExp(`row count is ${claimed}`),
     );
     await expect(verifyMigrations(fakeDb({ rows, count: claimed }))).rejects.toThrow(
-      new RegExp('only ' + registered + ' distinct sequence\\(s\\)'),
+      new RegExp(`returned ${registered}`),
     );
   });
 
   test('rows collapsing onto one sequence key are caught by the count cross-check', async () => {
     const base = realRows();
-    // `appliedMigrations` keys a Map by Number(sequence): two ledger rows on
-    // the same sequence register as ONE entry, so the table still reports
-    // N+1 rows while only N sequences survive the read.
+    // A duplicate sequence must be rejected even if every file-level row is present.
     const rows = [...base, { sequence: base[0]!.sequence, filename: base[0]!.filename }];
     const db = fakeDb({ rows, count: rows.length });
-    await expect(verifyMigrations(db)).rejects.toThrow(/ledger is not readable as recorded/);
-    await expect(verifyMigrations(db)).rejects.toThrow(new RegExp(`${rows.length} row\\(s\\)`));
-    await expect(verifyMigrations(db)).rejects.toThrow(new RegExp(`only ${base.length} distinct sequence`));
+    await expect(verifyMigrations(db)).rejects.toThrow(/duplicate sequence/);
   });
 
   test('a non-numeric sequence is not silently accepted either', async () => {
     const rows = [...realRows(), { sequence: Number.NaN, filename: '0099_ghost.sql' }];
     const db = fakeDb({ rows, count: rows.length });
     await expect(verifyMigrations(db)).rejects.toThrow(
-      /never trust verify past this point/,
+      /unusable sequence value/,
     );
   });
 
@@ -111,10 +138,7 @@ describe('verifyMigrations: mismatch reports with real evidence', () => {
     const rows = [...realRows(), { sequence: 99, filename: '0099_ghost.sql' }];
     const db = fakeDb({ rows });
     await expect(verifyMigrations(db)).rejects.toThrow(
-      /records sequence\(s\) \[99\] that have no migration file on disk/,
-    );
-    await expect(verifyMigrations(db)).rejects.toThrow(
-      /DELETE FROM schema_migrations WHERE sequence IN \(99\)/,
+      /ledger sequence 99 .* has no migration file on disk/,
     );
   });
 
@@ -136,5 +160,19 @@ describe('verifyMigrations: verify is READ-ONLY', () => {
     // SQL. Every test above therefore also asserts the runner issued no write
     // and no unexpected statement.
     await expect(verifyMigrations(fakeDb({ rows: realRows() }))).resolves.toBeUndefined();
+  });
+
+  test('legacy rows remain unknown until an explicit reviewed baseline', async () => {
+    const rows = realRows();
+    const db = fakeDb({ rows, unknownChecksums: true });
+    const status = await migrationStatus(db);
+    expect(status.unknownChecksums).toHaveLength(rows.length);
+    await expect(verifyMigrations(db)).rejects.toThrow(/checksum baseline is unknown/);
+    await expect(verifyMigrations(db)).rejects.toThrow(/migrate:baseline-reviewed/);
+  });
+
+  test('changed SQL is rejected by its ledger checksum', async () => {
+    const rows = realRows();
+    await expect(verifyMigrations(fakeDb({ rows, checksumDriftFor: rows[0]!.sequence }))).rejects.toThrow(/checksum drift/);
   });
 });

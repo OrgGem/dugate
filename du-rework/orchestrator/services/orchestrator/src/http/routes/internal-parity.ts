@@ -9,6 +9,9 @@ import {
   IdentityPasswordResetSchema,
   ProviderTestRequestSchema,
   TenantActiveConnectorCatalogQuerySchema,
+  TenantConnectorRecipeCatalogPageSchema,
+  TenantConnectorRecipeCatalogQuerySchema,
+  isTenantUuid,
 } from '@du/contracts';
 import { HttpError, zodIssuesToProblem } from '../errors';
 import { resolveAdminActionAuthAsync, type AdminActionAuth, type AdminPrincipal } from '../../modules/admin-actions/rbac';
@@ -20,6 +23,7 @@ import type { RouteContext, RouteResult } from '../route-context';
 
 const PREFIX = '/api/internal/parity';
 const UUID = z.string().uuid();
+const TENANT_UUID = z.string().refine(isTenantUuid, 'tenantId must use canonical UUID syntax');
 const PAGE_QUERY = new Set(['tenantId', 'query', 'cursor', 'limit', 'status']);
 
 type ParityAuth = {
@@ -83,16 +87,19 @@ function requireWrite(ctx: RouteContext, auth: ParityAuth, tenantId: string): vo
   void ctx;
 }
 
-function scopedTenant(auth: ParityAuth, requested: string | null): string {
+function scopedTenant(auth: ParityAuth, requested: string | null, canonicalUuid = false): string {
   if (auth.kind === 'viewer') throw new HttpError(403, 'PERMISSION_DENIED', 'this session has no administrative scope');
   if (auth.kind === 'tenant' || auth.kind === 'local-user') {
     if (!auth.tenantId) throw new HttpError(403, 'PERMISSION_DENIED', 'tenant scope is unavailable');
-    if (requested && requested !== auth.tenantId) throw new HttpError(404, 'NOT_FOUND', 'not found');
-    return auth.tenantId;
+    if (!isTenantUuid(auth.tenantId)) throw new HttpError(403, 'PERMISSION_DENIED', 'tenant scope is unavailable');
+    const scopedTenantId = canonicalUuid ? auth.tenantId.toLowerCase() : auth.tenantId;
+    const requestedTenantId = canonicalUuid && isTenantUuid(requested) ? requested.toLowerCase() : requested;
+    if (requestedTenantId && requestedTenantId !== scopedTenantId) throw new HttpError(404, 'NOT_FOUND', 'not found');
+    return scopedTenantId;
   }
   const tenantId = requested;
-  if (!tenantId || !UUID.safeParse(tenantId).success) throw new HttpError(422, 'INVALID_SCHEMA', 'tenantId is required and must be a UUID');
-  return tenantId;
+  if (!isTenantUuid(tenantId)) throw new HttpError(422, 'INVALID_SCHEMA', 'tenantId is required and must be a UUID');
+  return canonicalUuid ? tenantId.toLowerCase() : tenantId;
 }
 
 function actorForIdentity(auth: ParityAuth): IdentityActor {
@@ -164,6 +171,28 @@ export async function handleInternalParityRoutes(ctx: RouteContext): Promise<Rou
       throw new HttpError(502, 'CONNECTOR_API_ERROR', 'Connector catalog returned data outside the current tenant scope');
     }
     return { status: 200, body: page };
+  }
+
+  if (suffix === '/typed-connector-recipes') {
+    if (ctx.method !== 'GET') throw new HttpError(405, 'METHOD_NOT_ALLOWED', 'typed Connector catalog requires GET');
+    requireRead(auth);
+    const values = queryValues(ctx, new Set(['tenantId', 'q', 'cursor', 'limit']));
+    const tenantId = scopedTenant(auth, values.tenantId ?? null, true);
+    const parsed = TenantConnectorRecipeCatalogQuerySchema.safeParse({
+      tenantId,
+      ...(values.q === undefined ? {} : { q: values.q }),
+      ...(values.cursor === undefined ? {} : { cursor: values.cursor }),
+      ...(values.limit === undefined ? {} : { limit: values.limit }),
+    });
+    if (!parsed.success) throw zodIssuesToProblem(parsed.error.issues);
+    if (!ctx.connectorManagement) throw new HttpError(503, 'SERVICE_UNAVAILABLE', 'Connector management is not configured');
+    const result = await ctx.connectorManagement.listConnectorRecipeCatalog(parsed.data);
+    const page = TenantConnectorRecipeCatalogPageSchema.safeParse(result);
+    if (!page.success || page.data.tenantId !== parsed.data.tenantId || page.data.limit !== parsed.data.limit
+      || page.data.items.some((item) => item.tenantId !== parsed.data.tenantId)) {
+      throw new HttpError(502, 'CONNECTOR_API_ERROR', 'Typed Connector catalog returned data outside the current tenant scope');
+    }
+    return { status: 200, body: page.data };
   }
 
   const chain = /^\/connectors\/([^/]+)\/chain$/.exec(suffix);
@@ -306,7 +335,7 @@ async function handleConnectorParity(ctx: RouteContext, suffix: string, auth: Pa
   if (revisionMatch && ctx.method === 'GET') {
     requireRead(auth);
     const query = queryValues(ctx, new Set(['tenantId']));
-    const tenantId = scopedTenant(auth, query.tenantId ?? null);
+    const tenantId = scopedTenant(auth, query.tenantId ?? null, true);
     const connectorId = decodeConnectorId(revisionMatch[1] ?? '');
     const revision = parseRevision(revisionMatch[2] ?? '');
     const result = await store.getRecipeRevision({ tenantId, connectorId, revision });
@@ -319,7 +348,10 @@ async function handleConnectorParity(ctx: RouteContext, suffix: string, auth: Pa
     const connectorId = decodeConnectorId(draftMatch[1] ?? '');
     if (body.credentialChange.action === 'vault-ref') {
       if (!ctx.connectorSecretImports) {
-        throw new HttpError(503, 'TEMPORARY_UNAVAILABLE', 'Secret Catalog credential import is not configured');
+        throw new HttpError(503, 'SECRET_IMPORT_UNAVAILABLE', 'Managed Secret Catalog import is unavailable for this Connector');
+      }
+      if (await store.secretCatalogImportAvailable?.(connectorId) !== true) {
+        throw new HttpError(503, 'SECRET_IMPORT_UNAVAILABLE', 'Managed Secret Catalog import is unavailable for this Connector');
       }
       return {
         status: 200,
@@ -335,14 +367,14 @@ async function handleConnectorParity(ctx: RouteContext, suffix: string, auth: Pa
     return { status: 200, body: await store.upsertRecipeDraft({ ...body, connectorId }) };
   }
   if (activateMatch && ctx.method === 'POST') {
-    const body = parseBody(z.object({ tenantId: UUID, expectedCurrentRevision: z.number().int().min(0) }).strict(), ctx.body);
+    const body = parseBody(z.object({ tenantId: TENANT_UUID, expectedCurrentRevision: z.number().int().min(0) }).strict(), ctx.body);
     requireWrite(ctx, auth, body.tenantId);
     return { status: 200, body: await store.activateRecipeRevision({ tenantId: body.tenantId,
       connectorId: decodeConnectorId(activateMatch[1] ?? ''), revision: parseRevision(activateMatch[2] ?? ''),
       expectedCurrentRevision: body.expectedCurrentRevision }) };
   }
   if (rollbackMatch && ctx.method === 'POST') {
-    const body = parseBody(z.object({ tenantId: UUID, sourceRevision: z.number().int().min(1), expectedHeadRevision: z.number().int().min(0), idempotencyKey: z.string().min(8).max(200) }).strict(), ctx.body);
+    const body = parseBody(z.object({ tenantId: TENANT_UUID, sourceRevision: z.number().int().min(1), expectedHeadRevision: z.number().int().min(0), idempotencyKey: z.string().min(8).max(200) }).strict(), ctx.body);
     requireWrite(ctx, auth, body.tenantId);
     return { status: 201, body: await store.createRollbackRecipeDraft({ ...body, connectorId: decodeConnectorId(rollbackMatch[1] ?? '') }) };
   }

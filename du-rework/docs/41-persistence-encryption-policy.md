@@ -36,7 +36,7 @@ Fail-closed rules:
 | Storage single-shot envelope ref | `StorageEnvelopeRefSchema` (+ `StorageSingleShotAadSchema`) | S3/PG objects ≤ 5 MiB, referenced by grants |
 | Streaming artifact manifest | `EncryptedStorageStreamManifestSchema` | objects > 5 MiB, 4 MiB GCM chunks + per-chunk digest + keyed `manifestMac` |
 | Recipient delivery envelope | `RecipientDeliveryEnvelopeSchema` | external result/download/webhook delivery (tenant public key; HPKE or RSA-OAEP wrap) |
-| Wrapped DEK | `StorageWrappedDekSchema` / `WrappedDekEnvelopeSchema` | Vault Transit wrapping of the per-value DEK |
+| Wrapped DEK | `StorageWrappedDekSchema` / `WrappedDekEnvelopeSchema` | Vault Transit when configured; retained local keyring for PostgreSQL-only metadata/PG uploads |
 
 Purpose taxonomy lives in `PERSISTENCE_PURPOSES`: the eight enforced metadata slots, the storage default
 `artifact-storage`, and the reserved names SEC-ENC-02/03/04 writers must use
@@ -60,15 +60,15 @@ frozen here, writer not yet encrypting (owner packet named); **EXEMPT** = review
 
 | # | Data class / field | Producer (code) | Consumer (code) | Durable store | Format | Key owner | Status / owner |
 |---|---|---|---|---|---|---|---|
-| 1 | `operations.input_ref` | `modules/operations/submission.ts`, `retry.ts` | `runtime.ts`, `public.ts` | PG `operations` | sealed-metadata-v1 | Vault Transit (metadata key) | ENFORCED |
-| 2 | `tasks.payload_ref` (incl. sourceUrl, join summary) | `submission.ts`, `runtime.ts` | `runtime.ts` | PG `tasks` | sealed-metadata-v1 | Vault Transit | ENFORCED |
-| 3 | `human_waits.response_ref` | `runtime.ts` resume | `runtime.ts` | PG `human_waits` | sealed-metadata-v1 | Vault Transit | ENFORCED |
-| 4 | `step_checkpoints.output_ref` | `runtime.ts` | `runtime.ts` | PG `step_checkpoints` | sealed-metadata-v1 | Vault Transit | ENFORCED |
-| 5 | `step_checkpoints.session_ref` | `runtime.ts` | `runtime.ts` resume | PG `step_checkpoints` | sealed-metadata-v1 | Vault Transit | ENFORCED |
-| 6 | `operations.prompt_overrides_ref` (prompt carrier) | `submission.ts` (carrier pin) | `runtime.ts` | PG `operations` | sealed-metadata-v1 | Vault Transit | ENFORCED |
-| 7 | `tasks.result_ref` | `runtime.ts` terminal | `runtime.ts`, child join | PG `tasks` | sealed-metadata-v1 | Vault Transit | ENFORCED |
-| 8 | `operations.result_ref` | `runtime.ts` terminal | `public.ts` result read | PG `operations` | sealed-metadata-v1 | Vault Transit | ENFORCED |
-| 9 | Public-upload artifact bytes | `public-api/upload-encryption-gateway.ts` | `artifact-read-decrypt.ts`, delivery | S3 object + grant ref | storage single/stream + `StorageEnvelopeRef` | Vault Transit (artifact key) | ENFORCED |
+| 1 | `operations.input_ref` | `modules/operations/submission.ts`, `retry.ts` | `runtime.ts`, `public.ts` | PG `operations` | sealed-metadata-v1 | Vault Transit or retained local keyring (PostgreSQL) | ENFORCED |
+| 2 | `tasks.payload_ref` (incl. sourceUrl, join summary) | `submission.ts`, `runtime.ts` | `runtime.ts` | PG `tasks` | sealed-metadata-v1 | Vault Transit or retained local keyring (PostgreSQL) | ENFORCED |
+| 3 | `human_waits.response_ref` | `runtime.ts` resume | `runtime.ts` | PG `human_waits` | sealed-metadata-v1 | Vault Transit or retained local keyring (PostgreSQL) | ENFORCED |
+| 4 | `step_checkpoints.output_ref` | `runtime.ts` | `runtime.ts` | PG `step_checkpoints` | sealed-metadata-v1 | Vault Transit or retained local keyring (PostgreSQL) | ENFORCED |
+| 5 | `step_checkpoints.session_ref` | `runtime.ts` | `runtime.ts` resume | PG `step_checkpoints` | sealed-metadata-v1 | Vault Transit or retained local keyring (PostgreSQL) | ENFORCED |
+| 6 | `operations.prompt_overrides_ref` (prompt carrier) | `submission.ts` (carrier pin) | `runtime.ts` | PG `operations` | sealed-metadata-v1 | Vault Transit or retained local keyring (PostgreSQL) | ENFORCED |
+| 7 | `tasks.result_ref` | `runtime.ts` terminal | `runtime.ts`, child join | PG `tasks` | sealed-metadata-v1 | Vault Transit or retained local keyring (PostgreSQL) | ENFORCED |
+| 8 | `operations.result_ref` | `runtime.ts` terminal | `public.ts` result read | PG `operations` | sealed-metadata-v1 | Vault Transit or retained local keyring (PostgreSQL) | ENFORCED |
+| 9 | Public-upload artifact bytes | `public-api/upload-encryption-gateway.ts` | `artifact-read-decrypt.ts`, delivery | PG/S3 object + grant ref | storage single/stream + `StorageEnvelopeRef` | Vault Transit (S3); retained local keyring (PG) | ENFORCED |
 | 10 | External result/download/webhook delivery | delivery/webhook egress | tenant client | wire only (ciphertext at rest not stored) | RecipientDeliveryEnvelope | recipient public key (server-side policy) | ENFORCED where tenant enabled |
 | 11 | `webhook_deliveries.payload` | `modules/webhooks/webhooks.ts` | webhook dispatcher | PG `webhook_deliveries` | frozen purpose `webhook.delivery.payload` | Vault Transit | **PLANNED** (Δ121; ENC-META follow-up / SEC-ENC-04) |
 | 12 | Connector `invocations.request` | `orchestrator/services/connector/src/db/repository.ts` | connector runtime | Connector PG (JSONB) | purpose `connector.invocation.request` | Connector/Vault-managed | **PLANNED — SEC-ENC-02** |
@@ -84,6 +84,31 @@ frozen here, writer not yet encrypting (owner packet named); **EXEMPT** = review
 
 Historical plaintext rows and backups are handled by SEC-ENC-06; enabling new-write encryption does not rewrite
 history.
+
+### PostgreSQL-only key provider and compatibility
+
+In real-data mode, a PostgreSQL deployment without Transit options or Transit identities uses an AES-256-GCM local
+DEK wrapper. It requires either `ENCRYPTION_KEY` with at least 32 UTF-8 bytes or the explicit numeric-version ring
+`DU_LOCAL_ENCRYPTION_ACTIVE_KEY_VERSION` + `DU_LOCAL_ENCRYPTION_KEYRING_JSON` (canonical base64 32-byte keys).
+The master is domain-separated with HMAC-SHA-256; it is not stored beside ciphertext. Managed Secret Catalog values
+use a separate `encryption-key-v1` HMAC derivation from `ENCRYPTION_KEY` when no explicit Catalog keyring is supplied.
+Explicit rings take priority, and every version still referenced by stored ciphertext must be retained. Local development
+keeps its existing `local-dev-v1` derivation so current local rows remain readable. A weak legacy profile-cipher key does
+not block a Transit-only boot, but it cannot be used for new managed-value writes without an explicit Catalog keyring.
+
+The isolated backup/restore recovery ports currently attest metadata wrappers through configured Vault Transit key pins;
+they do not yet provide an independent recovery registry for local metadata-wrapping keyrings. Live PostgreSQL local-key
+read/write is supported, but backup portability and isolated-restore proof for any such local metadata envelope are not
+established. The pinned backup path must fail closed when it cannot verify the exact wrapper key. Connector typed
+credential recovery uses its own retained credential key and does not prove local metadata-wrapper recovery.
+
+When Transit is explicitly configured, it remains the write provider. A private provider discriminator routes reads to
+the exact wrapping provider; missing markers on historical envelopes mean Vault Transit. A local envelope can be read
+under Transit mode only while its local keyring is retained. Vault failures never retry through local keys. S3
+encrypted artifact storage still requires Transit. Secret Catalog `vault_reference` entries persist the Vault path only
+and require the Vault resolver; they never fall back to a managed database value. The Connector import journal is a
+separate recovery record: it stores an AES-GCM-sealed resolved payload while pending and retains its immutable row and
+masked result after completion for idempotent replay.
 
 ## 4. Strict behavior, key lifecycle
 

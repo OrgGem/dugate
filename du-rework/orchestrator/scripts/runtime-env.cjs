@@ -1,5 +1,5 @@
 // Shared environment helpers for orchestrator standalone development.
-const { createHmac, randomBytes } = require('node:crypto');
+const { createHash, createHmac, randomBytes } = require('node:crypto');
 
 const LOCAL_WORKER_TOKEN_KEYS = {
   'document-core': 'DOCUMENT_CORE_RUNTIME_TOKEN',
@@ -21,10 +21,50 @@ function signedConnectorToken(identitySecret, now = Date.now()) {
 
 function serviceEnvironment(env, service) {
   const result = { ...env };
+  // Keep the original local-dev-v1 derivation stable so existing local secret
+  // rows remain readable. Production now derives the separate retained
+  // encryption-key-v1 key in the Orchestrator boot parser when no explicit
+  // Secret Catalog keyring is supplied.
+  if (service === 'orchestrator' && env.NODE_ENV === 'development'
+      && !env.DU_SECRET_CATALOG_ACTIVE_KEY_VERSION?.trim()
+      && !env.DU_SECRET_CATALOG_KEYRING_JSON?.trim()
+      && typeof env.ENCRYPTION_KEY === 'string' && env.ENCRYPTION_KEY.length > 0) {
+    const version = 'local-dev-v1';
+    const key = createHmac('sha256', Buffer.from(env.ENCRYPTION_KEY, 'utf8'))
+      .update('du-secret-catalog/local-development/v1', 'utf8')
+      .digest('base64');
+    result.DU_SECRET_CATALOG_ACTIVE_KEY_VERSION = version;
+    result.DU_SECRET_CATALOG_KEYRING_JSON = JSON.stringify({ [version]: key });
+  }
   if (service === 'connector') {
     result.INVOCATION_GRANT_SECRET = env.CONNECTOR_INVOCATION_GRANT_SECRET
       || Buffer.from(env.INVOCATION_GRANT_SECRET || '', 'utf8').toString('base64');
     result.REDIS_KEY_PREFIX = env.CONNECTOR_REDIS_PREFIX || env.REDIS_KEY_PREFIX || 'du:connector:';
+
+    // Standalone local development needs a runtime owner for Connector's
+    // backup-effect fence. This deterministic identity is only a local
+    // development marker; its digest is explicitly not image provenance.
+    const runtimeIdentityKeys = [
+      'CONNECTOR_RUNTIME_SLOT',
+      'CONNECTOR_RUNTIME_IDENTITY',
+      'CONNECTOR_REPLICA_ID',
+      'CONNECTOR_RUNTIME_REVISION',
+      'CONNECTOR_RUNTIME_IMAGE_DIGEST',
+    ];
+    if (env.NODE_ENV === 'development'
+        && runtimeIdentityKeys.every((key) => env[key] === undefined || env[key] === '')) {
+      const port = String(env.CONNECTOR_PORT ?? env.PORT ?? '8080');
+      const markerDigest = createHash('sha256')
+        .update('dugate-connector-local-dev-not-an-image-v1', 'utf8')
+        .digest('hex');
+      Object.assign(result, {
+        CONNECTOR_RUNTIME_SLOT: 'blue',
+        CONNECTOR_RUNTIME_IDENTITY: `connector-local-dev-${port}`,
+        CONNECTOR_REPLICA_ID: `connector-local-${port}`,
+        CONNECTOR_RUNTIME_REVISION: 'local-dev',
+        CONNECTOR_RUNTIME_IMAGE_DIGEST: `local-dev-not-an-image@sha256:${markerDigest}`,
+      });
+    }
   }
   return result;
 }

@@ -22,9 +22,8 @@
  * On a postgres-only boot the consumer stays undefined and the factory is
  * never called — the composition is a no-op there.
  */
-import { join } from 'node:path';
 import { createApp, type App } from '../src/server';
-import { loadMigrationFiles } from '../src/db/migrations';
+import { currentAppliedMigrationLedger, mockMigrationMetadataColumnsResult } from './helpers/migration-ledger-fixture';
 import { encryptFileUrlAuthConfig } from '../src/modules/profiles/file-url-auth';
 
 const TENANT = '60000000-0000-4000-8000-000000000001';
@@ -60,6 +59,8 @@ jest.mock('pg', () => {
       return { rows: [], rowCount: 1 };
     };
     // Boot scaffolding (migrations verify + dev-fallback probes).
+    const metadataColumns = mockMigrationMetadataColumnsResult(text, params);
+      if (metadataColumns) return metadataColumns;
     if (/information_schema\.tables/i.test(text)) return { rows: [{ exists: true }], rowCount: 1 };
     if (/SELECT count\(\*\)::int/i.test(text)) return { rows: [{ count: state.schemaLedger.length }], rowCount: 1 }
     if (/FROM schema_migrations/i.test(text)) {
@@ -208,9 +209,7 @@ describe('W1C-COMPOSITION — createApp wires the acquisition resolver', () => {
   beforeAll(() => {
     savedKey = process.env.ENCRYPTION_KEY;
     process.env.ENCRYPTION_KEY = ENV_KEY;
-    scripted().schemaLedger = loadMigrationFiles(join(__dirname, '..', 'migrations')).map(
-      (file) => ({ sequence: file.sequence, filename: file.filename }),
-    );
+    scripted().schemaLedger = currentAppliedMigrationLedger();
   });
 
   afterAll(async () => {

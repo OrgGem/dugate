@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { loadConnectorMigrations } from '../src/db/migration-runner';
 
 /**
  * CR06-04 — offline schema pin for the connector migration 009 that stores the
@@ -12,8 +13,8 @@ const read = (relative: string): string =>
   readFileSync(join(__dirname, '..', relative), 'utf8').replace(/\r\n/g, '\n');
 
 const MIG = read('src/db/migrations/009_connector_invocation_session_ref.sql');
-const PG_CLIENT = read('src/db/pg-client.ts');
 const REPOSITORY = read('src/db/repository.ts');
+const MIGRATION_CATALOG = loadConnectorMigrations(join(__dirname, '..', 'src', 'db', 'migrations'));
 
 describe('CR06-04 migration 009 — connector invocation session_ref', () => {
   it('adds the nullable session_ref column replay-safely', () => {
@@ -21,11 +22,11 @@ describe('CR06-04 migration 009 — connector invocation session_ref', () => {
     expect(MIG).not.toMatch(/NOT NULL/);
   });
 
-  it('is registered in the PgSqlClient migrate() ledger after 008', () => {
-    const q = "'";
-    const after008 = PG_CLIENT.indexOf(`${q}008_connector_revision_binding${q}`);
-    const after009 = PG_CLIENT.indexOf(`${q}009_connector_invocation_session_ref${q}`);
-    expect(after008).toBeGreaterThan(-1);
+  it('is discovered in the migration catalog after 008', () => {
+    const filenames = MIGRATION_CATALOG.map((migration) => migration.filename);
+    const after008 = filenames.indexOf('008_connector_revision_binding.sql');
+    const after009 = filenames.indexOf('009_connector_invocation_session_ref.sql');
+    expect(after008).toBeGreaterThanOrEqual(0);
     expect(after009).toBeGreaterThan(after008);
   });
 

@@ -1,14 +1,19 @@
 import { createHash, randomUUID } from 'node:crypto';
 import {
   canonicalize,
+  isTenantUuid,
   ConnectorRecipeSchema,
   ConnectorParityRevisionSchema,
   TenantActiveConnectorCatalogQuerySchema,
+  TenantConnectorRecipeCatalogQuerySchema,
   type TenantActiveConnectorCatalogPage,
   type TenantActiveConnectorCatalogQuery,
+  type TenantConnectorRecipeCatalogPage,
+  type TenantConnectorRecipeCatalogQuery,
   type ConnectorParityDraftResult,
   type ConnectorParityRevision,
   type ConnectorRecipe,
+  type EncryptedDbCredentialSource,
   type VaultCredentialSource,
 } from '@du/contracts';
 import { ConnectorError } from '../errors';
@@ -16,12 +21,15 @@ import type {
   ConnectorParityClaimInput,
   ConnectorParityClaimResult,
   ConnectorParityCredentialImportSource,
+  ConnectorParityCredentialCopyFrom,
   ConnectorParityIntentInput,
+  ConnectorParityIntentResult,
   ConnectorParityRetirementInput,
   ConnectorParityRetirementResult,
   ConnectorParityStoredRevision,
   PostgresConnectorParityRepository,
 } from '../db/parity-repository';
+import type { PostgresTypedCredentialStore } from '../db/credential-store';
 import type { VaultKv2SecretWriter, VaultKv2SecretWritePlan } from '../vault/writer';
 
 const CONNECTOR_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
@@ -55,6 +63,7 @@ export interface ConnectorInternalRollbackDraft {
 
 export interface ConnectorParityManagementPort {
   listActiveConnectorRevisions(query: TenantActiveConnectorCatalogQuery): Promise<TenantActiveConnectorCatalogPage>;
+  listConnectorRecipeCatalog(query: TenantConnectorRecipeCatalogQuery): Promise<TenantConnectorRecipeCatalogPage>;
   hasTypedChain(tenantId: string, connectorId: string): Promise<boolean>;
   claimRecipeDraft(input: ConnectorParityClaimInput): Promise<ConnectorParityClaimResult>;
   getRevision(tenantId: string, connectorId: string, revision: number): Promise<ConnectorParityRevision | undefined>;
@@ -69,6 +78,10 @@ export interface ConnectorParityManagementPort {
 export interface ConnectorParityManagementOptions {
   repository: PostgresConnectorParityRepository;
   secretWriter?: VaultKv2SecretWriter;
+  /** True only when the bound encrypted-DB writer is composed with the repository. */
+  typedCredentialStorage?: boolean;
+  /** Used only to migrate existing encrypted-db credentials into configured Vault. */
+  typedCredentialStore?: PostgresTypedCredentialStore;
   vaultMount?: string;
 }
 
@@ -81,6 +94,12 @@ export function createConnectorParityManagement(options: ConnectorParityManageme
       const parsed = TenantActiveConnectorCatalogQuerySchema.safeParse(query);
       if (!parsed.success) throw new ConnectorError('INVALID_INPUT', 'Tenant Connector catalog query is invalid.');
       return repository.listActiveRevisions(parsed.data);
+    },
+
+    async listConnectorRecipeCatalog(query) {
+      const parsed = TenantConnectorRecipeCatalogQuerySchema.safeParse(query);
+      if (!parsed.success) throw new ConnectorError('INVALID_INPUT', 'Tenant typed Connector catalog query is invalid.');
+      return repository.listRecipeCatalog(parsed.data);
     },
 
     async hasTypedChain(tenantId, connectorId) {
@@ -98,6 +117,10 @@ export function createConnectorParityManagement(options: ConnectorParityManageme
     },
 
     async getRevision(tenantId, connectorId, revision) {
+      validateScope(tenantId, connectorId);
+      if (!Number.isSafeInteger(revision) || revision < 1) {
+        throw new ConnectorError('INVALID_INPUT', 'Connector recipe revision is invalid.');
+      }
       const stored = await repository.getRevision(tenantId, connectorId, revision);
       return stored ? publicRevision(stored) : undefined;
     },
@@ -168,22 +191,28 @@ export function createConnectorParityManagement(options: ConnectorParityManageme
       // version and cannot allocate a new revision or a second Vault version.
       let intent = await repository.getIntent(input.tenantId, input.connectorId, input.idempotencyKey);
       let replayed = Boolean(intent);
+      let plannedVaultSecret: string | undefined;
       if (intent) assertSamePayload(intent, payloadHash);
 
       if (!intent) {
         const head = await repository.getHead(input.tenantId, input.connectorId);
         if (head !== input.expectedHeadRevision) throw new ConnectorError('BINDING_DENIED', 'Connector recipe head changed.');
-        const active = await repository.getActiveRevision(input.tenantId, input.connectorId);
+        const headRevision = input.expectedHeadRevision > 0
+          ? await repository.getRevision(input.tenantId, input.connectorId, input.expectedHeadRevision)
+          : undefined;
         const credential = await resolveCredentialPlan({
           change: input.credentialChange,
           recipe: parsedRecipe.data,
-          current: active,
+          current: headRevision,
           tenantId: input.tenantId,
           connectorId: input.connectorId,
           mount,
           writer: options.secretWriter,
+          typedCredentialStorage: options.typedCredentialStorage === true,
+          typedCredentialStore: options.typedCredentialStore,
           secretHash,
         });
+        plannedVaultSecret = credential.credentialSecret;
         const draft: ConnectorParityIntentInput = {
           tenantId: input.tenantId,
           connectorId: input.connectorId,
@@ -194,6 +223,9 @@ export function createConnectorParityManagement(options: ConnectorParityManageme
           recipe: parsedRecipe.data,
           ...credential,
           credentialImportSource: source,
+          ...(input.credentialChange.action === 'replace' && credential.credentialSource?.kind === 'encrypted-db'
+            ? { credentialSecret: input.credentialChange.secret }
+            : {}),
         };
         intent = await repository.beginIntent(draft);
         assertSamePayload(intent, payloadHash);
@@ -204,38 +236,10 @@ export function createConnectorParityManagement(options: ConnectorParityManageme
         return draftResult(intent.revisionResult, true);
       }
       if (intent.vaultTargetVersion !== null) {
-        if (input.credentialChange.action !== 'replace' || !options.secretWriter || !intent.credentialSource || !intent.vaultSecretSha256) {
-          throw new ConnectorError('CREDENTIAL_INVALID', 'Pending Connector credential write cannot be reconciled.');
-        }
-        if (sha256(input.credentialChange.secret) !== intent.vaultSecretSha256) {
-          throw new ConnectorError('INPUT_HASH_MISMATCH', 'Staged Connector credential differs from its exact replay.');
-        }
-        const plan: VaultKv2SecretWritePlan = {
-          account: intent.credentialSource.account,
-          mount: intent.credentialSource.mount,
-          path: intent.credentialSource.path,
-          key: intent.credentialSource.key,
-          expectedVersion: intent.vaultExpectedVersion!,
-          targetVersion: intent.vaultTargetVersion,
-          secretSha256: intent.vaultSecretSha256,
-        };
-        if (!await repository.activateConfigWrite(intent.backupEffectId)) {
-          throw new ConnectorError('CONNECTOR_DISABLED', 'Connector configuration effects are held for a maintenance backup.');
-        }
-        let actualVersion: number;
-        try {
-          actualVersion = await options.secretWriter.writePlanned(plan, input.credentialChange.secret);
-        } catch (error) {
-          // An error after the send boundary is ambiguous. The durable permit
-          // remains held until exact-version reconciliation proves the Vault
-          // result; retries cannot silently allocate a second version.
-          await repository.markConfigWriteUnknown(intent.backupEffectId, 'VAULT_WRITE_AMBIGUOUS');
-          throw error;
-        }
-        if (actualVersion !== intent.vaultTargetVersion) {
-          await repository.markConfigWriteUnknown(intent.backupEffectId, 'VAULT_VERSION_MISMATCH');
-          throw new ConnectorError('CREDENTIAL_INVALID', 'Vault returned a different credential version.');
-        }
+        const plannedSecret = input.credentialChange.action === 'replace'
+          ? input.credentialChange.secret
+          : plannedVaultSecret ?? await reopenDraftKeepSource(input, repository, options.typedCredentialStore);
+        await writePlannedVaultCredential(repository, intent, options.secretWriter, plannedSecret);
       } else if (!await repository.activateConfigWrite(intent.backupEffectId)) {
         throw new ConnectorError('CONNECTOR_DISABLED', 'Connector configuration effects are held for a maintenance backup.');
       }
@@ -258,12 +262,22 @@ export function createConnectorParityManagement(options: ConnectorParityManageme
       }));
       let intent = await repository.getIntent(input.tenantId, input.connectorId, input.idempotencyKey);
       let replayed = Boolean(intent);
+      let plannedVaultSecret: string | undefined;
       if (intent) assertSamePayload(intent, payloadHash);
       if (!intent) {
         const head = await repository.getHead(input.tenantId, input.connectorId);
         if (head !== input.expectedHeadRevision) throw new ConnectorError('BINDING_DENIED', 'Connector recipe head changed.');
         const sourceRevision = await repository.getRevision(input.tenantId, input.connectorId, input.sourceRevision);
         if (!sourceRevision) throw new ConnectorError('INVALID_INPUT', 'Rollback source revision was not found in this tenant.');
+        const credential = await resolveRollbackCredentialPlan(sourceRevision, {
+          tenantId: input.tenantId,
+          connectorId: input.connectorId,
+          mount,
+          writer: options.secretWriter,
+          typedCredentialStorage: options.typedCredentialStorage === true,
+          typedCredentialStore: options.typedCredentialStore,
+        });
+        plannedVaultSecret = credential.credentialSecret;
         intent = await repository.beginIntent({
           tenantId: input.tenantId,
           connectorId: input.connectorId,
@@ -273,19 +287,18 @@ export function createConnectorParityManagement(options: ConnectorParityManageme
           expectedHeadRevision: input.expectedHeadRevision,
           sourceRevision: input.sourceRevision,
           recipe: sourceRevision.recipe,
-          credentialRef: sourceRevision.credentialRef,
-          credentialVersion: sourceRevision.credentialVersion,
-          credentialSource: sourceRevision.credentialSource,
+          ...credential,
           credentialImportSource: null,
-          vaultExpectedVersion: null,
-          vaultTargetVersion: null,
-          vaultSecretSha256: null,
         });
         assertSamePayload(intent, payloadHash);
         replayed = !intent.created;
       }
       if (intent.state === 'PENDING') {
-        if (!await repository.activateConfigWrite(intent.backupEffectId)) {
+        if (intent.vaultTargetVersion !== null) {
+          const plannedSecret = plannedVaultSecret
+            ?? await reopenRollbackSource(input, repository, options.typedCredentialStore);
+          await writePlannedVaultCredential(repository, intent, options.secretWriter, plannedSecret);
+        } else if (!await repository.activateConfigWrite(intent.backupEffectId)) {
           throw new ConnectorError('CONNECTOR_DISABLED', 'Connector configuration effects are held for a maintenance backup.');
         }
         intent = await repository.finalizeIntent(input.tenantId, input.connectorId, input.idempotencyKey);
@@ -304,9 +317,12 @@ async function resolveCredentialPlan(input: {
   connectorId: string;
   mount: string;
   writer?: VaultKv2SecretWriter;
+  typedCredentialStorage: boolean;
+  typedCredentialStore?: PostgresTypedCredentialStore;
   secretHash: string | null;
 }): Promise<Pick<ConnectorParityIntentInput,
-  'credentialRef' | 'credentialVersion' | 'credentialSource' | 'vaultExpectedVersion' | 'vaultTargetVersion' | 'vaultSecretSha256'>> {
+  'credentialRef' | 'credentialVersion' | 'credentialSource' | 'vaultExpectedVersion' | 'vaultTargetVersion' | 'vaultSecretSha256' | 'credentialSecret'>
+  & { credentialCopyFrom?: ConnectorParityCredentialCopyFrom }> {
   if (input.change.action === 'clear') {
     if (input.recipe.auth.kind !== 'none') {
       throw new ConnectorError('INVALID_INPUT', 'Clear credential requires a recipe with authentication disabled.');
@@ -324,6 +340,44 @@ async function resolveCredentialPlan(input: {
     if (!current?.credentialRef || !current.credentialVersion || !current.credentialSource) {
       throw new ConnectorError('CREDENTIAL_INVALID', 'The current recipe has no credential to keep.');
     }
+    if (current.credentialSource.kind === 'encrypted-db') {
+      if (!input.typedCredentialStorage) {
+        throw new ConnectorError('PROVIDER_UNAVAILABLE', 'Typed Connector credential encryption is not configured.');
+      }
+      if (input.writer) {
+        const retainedSecret = await readEncryptedDbCredential(input.typedCredentialStore, current);
+        return {
+          ...await planVaultCredential({
+            tenantId: input.tenantId,
+            connectorId: input.connectorId,
+            mount: input.mount,
+            writer: input.writer,
+            secretHash: sha256(retainedSecret),
+          }),
+          credentialSecret: retainedSecret,
+        };
+      }
+      const credentialRef = randomUUID();
+      const credentialSource: EncryptedDbCredentialSource = {
+        kind: 'encrypted-db',
+        credentialRef,
+        version: 1,
+      };
+      return {
+        credentialRef,
+        credentialVersion: credentialSource.version,
+        credentialSource,
+        credentialCopyFrom: {
+          revision: current.revision,
+          credentialRef: current.credentialRef,
+          credentialVersion: current.credentialVersion,
+          credentialSource: current.credentialSource,
+        },
+        vaultExpectedVersion: null,
+        vaultTargetVersion: null,
+        vaultSecretSha256: null,
+      };
+    }
     return {
       credentialRef: current.credentialRef,
       credentialVersion: current.credentialVersion,
@@ -334,7 +388,98 @@ async function resolveCredentialPlan(input: {
     };
   }
   if (input.change.action !== 'replace') throw new ConnectorError('INVALID_INPUT', 'Credential change is invalid.');
-  if (!input.writer || !input.secretHash) throw new ConnectorError('PROVIDER_UNAVAILABLE', 'Vault credential writer is not configured.');
+  if (!input.secretHash) throw new ConnectorError('INVALID_INPUT', 'Connector credential value is invalid.');
+  if (!input.writer) {
+    if (!input.typedCredentialStorage) {
+      throw new ConnectorError('PROVIDER_UNAVAILABLE', 'Typed Connector credential encryption is not configured.');
+    }
+    const credentialRef = randomUUID();
+    const credentialSource: EncryptedDbCredentialSource = { kind: 'encrypted-db', credentialRef, version: 1 };
+    return {
+      credentialRef,
+      credentialVersion: credentialSource.version,
+      credentialSource,
+      vaultExpectedVersion: null,
+      vaultTargetVersion: null,
+      vaultSecretSha256: null,
+    };
+  }
+  return planVaultCredential({
+    tenantId: input.tenantId,
+    connectorId: input.connectorId,
+    mount: input.mount,
+    writer: input.writer,
+    secretHash: input.secretHash,
+  });
+}
+
+async function resolveRollbackCredentialPlan(
+  revision: ConnectorParityStoredRevision,
+  options: {
+    tenantId: string;
+    connectorId: string;
+    mount: string;
+    writer?: VaultKv2SecretWriter;
+    typedCredentialStorage: boolean;
+    typedCredentialStore?: PostgresTypedCredentialStore;
+  },
+): Promise<Pick<ConnectorParityIntentInput,
+  'credentialRef' | 'credentialVersion' | 'credentialSource' | 'vaultExpectedVersion' | 'vaultTargetVersion' | 'vaultSecretSha256' | 'credentialSecret'>
+  & { credentialCopyFrom?: ConnectorParityCredentialCopyFrom }> {
+  const source = revision.credentialSource;
+  if (!source || !revision.credentialRef || revision.credentialVersion === null) return emptyCredentialPlan();
+  if (source.kind === 'encrypted-db') {
+    if (!options.typedCredentialStorage) {
+      throw new ConnectorError('PROVIDER_UNAVAILABLE', 'Typed Connector credential encryption is not configured.');
+    }
+    if (options.writer) {
+      const retainedSecret = await readEncryptedDbCredential(options.typedCredentialStore, revision);
+      return {
+        ...await planVaultCredential({
+          tenantId: options.tenantId,
+          connectorId: options.connectorId,
+          mount: options.mount,
+          writer: options.writer,
+          secretHash: sha256(retainedSecret),
+        }),
+        credentialSecret: retainedSecret,
+      };
+    }
+    const credentialRef = randomUUID();
+    const credentialSource: EncryptedDbCredentialSource = { kind: 'encrypted-db', credentialRef, version: 1 };
+    return {
+      credentialRef,
+      credentialVersion: credentialSource.version,
+      credentialSource,
+      credentialCopyFrom: {
+        revision: revision.revision,
+        credentialRef: revision.credentialRef,
+        credentialVersion: revision.credentialVersion,
+        credentialSource: source,
+      },
+      vaultExpectedVersion: null,
+      vaultTargetVersion: null,
+      vaultSecretSha256: null,
+    };
+  }
+  return {
+    credentialRef: revision.credentialRef,
+    credentialVersion: revision.credentialVersion,
+    credentialSource: source,
+    vaultExpectedVersion: null,
+    vaultTargetVersion: null,
+    vaultSecretSha256: null,
+  };
+}
+
+async function planVaultCredential(input: {
+  tenantId: string;
+  connectorId: string;
+  mount: string;
+  writer: VaultKv2SecretWriter;
+  secretHash: string;
+}): Promise<Pick<ConnectorParityIntentInput,
+  'credentialRef' | 'credentialVersion' | 'credentialSource' | 'vaultExpectedVersion' | 'vaultTargetVersion' | 'vaultSecretSha256'>> {
   const path = `du/tenants/${input.tenantId}/connectors/${input.connectorId}/accounts/${VAULT_ACCOUNT}`;
   const key = `credential-${randomUUID()}`;
   const planBase = { account: VAULT_ACCOUNT, mount: input.mount, path, key };
@@ -356,6 +501,88 @@ async function resolveCredentialPlan(input: {
   };
 }
 
+async function readEncryptedDbCredential(
+  store: PostgresTypedCredentialStore | undefined,
+  revision: ConnectorParityStoredRevision,
+): Promise<string> {
+  const source = revision.credentialSource;
+  if (!store || !source || source.kind !== 'encrypted-db'
+    || !revision.credentialRef || revision.credentialVersion === null
+    || source.credentialRef !== revision.credentialRef || source.version !== revision.credentialVersion) {
+    throw new ConnectorError('CREDENTIAL_INVALID', 'Encrypted Connector credential source is unavailable.');
+  }
+  return store.resolve({
+    tenantId: revision.tenantId,
+    connectorId: revision.connectorId,
+    revision: revision.revision,
+    credentialRef: revision.credentialRef,
+    credentialVersion: revision.credentialVersion,
+  }, source);
+}
+
+async function reopenDraftKeepSource(
+  input: ConnectorInternalDraftUpsert,
+  repository: PostgresConnectorParityRepository,
+  store: PostgresTypedCredentialStore | undefined,
+): Promise<string> {
+  if (input.credentialChange.action !== 'keep' || input.expectedHeadRevision < 1) {
+    throw new ConnectorError('CREDENTIAL_INVALID', 'Pending Vault credential migration cannot be reconciled.');
+  }
+  const sourceRevision = await repository.getRevision(input.tenantId, input.connectorId, input.expectedHeadRevision);
+  if (!sourceRevision) throw new ConnectorError('CREDENTIAL_INVALID', 'Pending Vault credential migration source is unavailable.');
+  return readEncryptedDbCredential(store, sourceRevision);
+}
+
+async function reopenRollbackSource(
+  input: ConnectorInternalRollbackDraft,
+  repository: PostgresConnectorParityRepository,
+  store: PostgresTypedCredentialStore | undefined,
+): Promise<string> {
+  const sourceRevision = await repository.getRevision(input.tenantId, input.connectorId, input.sourceRevision);
+  if (!sourceRevision) throw new ConnectorError('CREDENTIAL_INVALID', 'Pending Vault rollback source is unavailable.');
+  return readEncryptedDbCredential(store, sourceRevision);
+}
+
+async function writePlannedVaultCredential(
+  repository: PostgresConnectorParityRepository,
+  intent: ConnectorParityIntentResult,
+  writer: VaultKv2SecretWriter | undefined,
+  secret: string,
+): Promise<void> {
+  const source = intent.credentialSource;
+  if (!writer || !source || source.kind !== 'vault-kv2' || intent.vaultExpectedVersion === null
+    || intent.vaultTargetVersion === null || !intent.vaultSecretSha256
+    || source.version !== intent.vaultTargetVersion) {
+    throw new ConnectorError('CREDENTIAL_INVALID', 'Pending Connector credential write cannot be reconciled.');
+  }
+  if (sha256(secret) !== intent.vaultSecretSha256) {
+    throw new ConnectorError('INPUT_HASH_MISMATCH', 'Staged Connector credential differs from its exact replay.');
+  }
+  const plan: VaultKv2SecretWritePlan = {
+    account: source.account,
+    mount: source.mount,
+    path: source.path,
+    key: source.key,
+    expectedVersion: intent.vaultExpectedVersion,
+    targetVersion: intent.vaultTargetVersion,
+    secretSha256: intent.vaultSecretSha256,
+  };
+  if (!await repository.activateConfigWrite(intent.backupEffectId)) {
+    throw new ConnectorError('CONNECTOR_DISABLED', 'Connector configuration effects are held for a maintenance backup.');
+  }
+  let actualVersion: number;
+  try {
+    actualVersion = await writer.writePlanned(plan, secret);
+  } catch (error) {
+    await repository.markConfigWriteUnknown(intent.backupEffectId, 'VAULT_WRITE_AMBIGUOUS');
+    throw error;
+  }
+  if (actualVersion !== intent.vaultTargetVersion) {
+    await repository.markConfigWriteUnknown(intent.backupEffectId, 'VAULT_VERSION_MISMATCH');
+    throw new ConnectorError('CREDENTIAL_INVALID', 'Vault returned a different credential version.');
+  }
+}
+
 function emptyCredentialPlan() {
   return {
     credentialRef: null,
@@ -368,7 +595,7 @@ function emptyCredentialPlan() {
 }
 
 function validateScope(tenantId: string, connectorId: string): void {
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(tenantId)
+  if (!isTenantUuid(tenantId)
     || !CONNECTOR_ID.test(connectorId) || connectorId.includes('..')) {
     throw new ConnectorError('INVALID_INPUT', 'Tenant or Connector identifier is invalid.');
   }

@@ -415,6 +415,10 @@ export const ProfileDetailReadSchema = z
     businessId: z.string().min(1),
     businessVersion: z.string().min(1),
     profileName: z.string().min(1),
+    /** Persisted selector from the active profile binding; absent on blank/older reads. */
+    action: z.string().min(1).max(128).optional(),
+    /** Persisted endpoint selector from the active profile binding; absent for generic profiles. */
+    endpointSlug: z.string().min(1).max(512).nullable().optional(),
     /** Active revision from `profile_active_revisions` (T-DB-02), never a placeholder. */
     revision: ProfileRevisionSchema,
     /** Flat `{"paramKey": "<value>"}` view of `policy.parameters` for the form grid. */

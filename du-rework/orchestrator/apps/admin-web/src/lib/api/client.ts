@@ -70,6 +70,7 @@ import type {
   ProfileListPage,
   ProfileWorkflowPage,
   ProfileDetail,
+  ProfileDetailReadScope,
   ProfileGroup,
   ProfileGroupFunctionCatalog,
   ProfileGroupList,
@@ -162,6 +163,8 @@ import type {
   CostAdjustmentQuery,
   TenantActiveConnectorCatalogClientQuery,
   TenantActiveConnectorCatalogPage,
+  TenantConnectorRecipeCatalogClientQuery,
+  TenantConnectorRecipeCatalogPage,
   UsageEventQuery,
   UsageSummary,
   WorkflowCatalogPage,
@@ -241,6 +244,7 @@ export interface AdminApiClient {
   createCostAdjustment(command: CostAdjustmentCommand, idempotencyKey: string): Promise<AdminApiResult<CostAdjustmentCommandResult>>;
   listCostAdjustmentEvidence(query: CostAdjustmentEvidenceQuery): Promise<AdminApiResult<CostAdjustmentEvidencePage>>;
   listTenantActiveConnectorRevisions(query: TenantActiveConnectorCatalogClientQuery): Promise<AdminApiResult<TenantActiveConnectorCatalogPage>>;
+  listTenantConnectorRecipeCatalog(query: TenantConnectorRecipeCatalogClientQuery): Promise<AdminApiResult<TenantConnectorRecipeCatalogPage>>;
   hasTenantConnectorRecipeChain(input: { tenantId?: string; connectorId: string }): Promise<AdminApiResult<{ hasTypedChain: boolean }>>;
   listCostAlertRecipients(query: CostAlertRecipientCatalogQuery): Promise<AdminApiResult<CostAlertRecipientCatalog>>;
   ensureCostAlertSelfRecipient(): Promise<AdminApiResult<CostAlertRecipient>>;
@@ -301,6 +305,7 @@ export interface AdminApiClient {
     businessId: string,
     businessVersion: string,
     profileName: string,
+    scope?: ProfileDetailReadScope,
   ): Promise<AdminApiResult<ProfileDetail>>;
   listProfiles(query?: Record<string, string>): Promise<AdminApiResult<ProfileListPage>>;
   /** 0039: the key set this profile owns. */
@@ -796,6 +801,14 @@ export function createAdminApiClient(options: AdminApiClientOptions = {}): Admin
       if (query.cursor !== undefined) params.cursor = query.cursor;
       return request<TenantActiveConnectorCatalogPage>('GET', '/parity/tenant-connectors', { query: params });
     },
+    listTenantConnectorRecipeCatalog(query) {
+      const params: Record<string, string> = {};
+      if (query.tenantId !== undefined) params.tenantId = query.tenantId;
+      if (query.q !== undefined) params.q = query.q;
+      if (query.limit !== undefined) params.limit = String(query.limit);
+      if (query.cursor !== undefined) params.cursor = query.cursor;
+      return request<TenantConnectorRecipeCatalogPage>('GET', '/parity/typed-connector-recipes', { query: params });
+    },
     hasTenantConnectorRecipeChain(input) {
       return request<{ hasTypedChain: boolean }>('GET', `/parity/connectors/${encodeURIComponent(input.connectorId)}/chain`, {
         query: input.tenantId === undefined ? {} : { tenantId: input.tenantId },
@@ -949,11 +962,15 @@ export function createAdminApiClient(options: AdminApiClientOptions = {}): Admin
     testConnector(connectorId, idempotencyKey) {
       return runAction('connector.test', { connectorId }, { idempotencyKey });
     },
-    getProfile(businessId, businessVersion, profileName) {
+    getProfile(businessId, businessVersion, profileName, scope) {
+      const query = {
+        ...(scope?.tenantId ? { tenantId: scope.tenantId } : {}),
+        ...(scope?.profileId ? { profileId: scope.profileId } : {}),
+      };
       return request<ProfileDetail>(
         'GET',
         `/profiles/${encodeURIComponent(businessId)}/${encodeURIComponent(businessVersion)}/${encodeURIComponent(profileName)}`,
-        {},
+        { ...(Object.keys(query).length > 0 ? { query } : {}) },
       );
     },
     listProfiles(query) {

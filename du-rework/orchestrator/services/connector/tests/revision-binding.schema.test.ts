@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { loadConnectorMigrations } from '../src/db/migration-runner';
 
 /**
  * W-VAULT01-BIND-1R — pins the SHAPE of migration 008 (the DB-layer half of
@@ -10,7 +11,7 @@ import { join } from 'node:path';
  */
 
 const MIG = readFileSync(join(__dirname, '..', 'src', 'db', 'migrations', '008_connector_revision_binding.sql'), 'utf8').replace(/\r\n/g, '\n');
-const PG_CLIENT = readFileSync(join(__dirname, '..', 'src', 'db', 'pg-client.ts'), 'utf8').replace(/\r\n/g, '\n');
+const MIGRATION_CATALOG = loadConnectorMigrations(join(__dirname, '..', 'src', 'db', 'migrations'));
 const Q = String.fromCharCode(39);
 const SP = 'split_part(credential_source ->> ' + Q + 'path' + Q + ', ' + Q + '/' + Q + ', ';
 
@@ -73,13 +74,14 @@ describe('migration 008 — revision binding schema', () => {
     expectSql('already has an ACTIVE row');
   });
 
-  it('is registered in the PgSqlClient migrate() ledger after 007', () => {
+  it('is discovered in the migration catalog after 007', () => {
+    const filenames = MIGRATION_CATALOG.map((migration) => migration.filename);
     const order = [
-      PG_CLIENT.indexOf(Q + '006_connector_revision_lifecycle' + Q),
-      PG_CLIENT.indexOf(Q + '007_connector_credential_source' + Q),
-      PG_CLIENT.indexOf(Q + '008_connector_revision_binding' + Q),
+      filenames.indexOf('006_connector_revision_lifecycle.sql'),
+      filenames.indexOf('007_connector_credential_source.sql'),
+      filenames.indexOf('008_connector_revision_binding.sql'),
     ];
-    expect(order[0]).toBeGreaterThan(-1);
+    expect(order[0]).toBeGreaterThanOrEqual(0);
     expect(order[1]).toBeGreaterThan(order[0]);
     expect(order[2]).toBeGreaterThan(order[1]);
   });

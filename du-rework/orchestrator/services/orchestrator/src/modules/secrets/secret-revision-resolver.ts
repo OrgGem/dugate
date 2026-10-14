@@ -1,10 +1,11 @@
 import type { QueryResultRow } from 'pg';
+import { createHmac } from 'node:crypto';
+import { isTenantUuid } from '@du/contracts';
 import type { Db } from '../../db/db';
 import { HttpError } from '../../http/errors';
 import { decryptSecretValue } from './secret-catalog-store';
 
 const KEY_VERSION = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
-const TENANT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SECRET_VERSION_REF = /^([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})@([1-9][0-9]{0,8})$/i;
 
 export interface SecretCatalogKeyring {
@@ -46,7 +47,19 @@ export function parseSecretCatalogKeyring(
 ): SecretCatalogKeyring | undefined {
   const activeVersion = env['DU_SECRET_CATALOG_ACTIVE_KEY_VERSION']?.trim();
   const rawKeys = env['DU_SECRET_CATALOG_KEYRING_JSON']?.trim();
-  if (!activeVersion && !rawKeys) return undefined;
+  if (!activeVersion && !rawKeys) {
+    const master = env['ENCRYPTION_KEY'];
+    if (master === undefined || master.length === 0) return undefined;
+    // Transit-only deployments can still boot with their historical profile
+    // cipher key. Managed Catalog operations then fail closed until a strong
+    // ENCRYPTION_KEY or explicit Catalog keyring is supplied.
+    if (Buffer.byteLength(master, 'utf8') < 32) return undefined;
+    const version = 'encryption-key-v1';
+    const key = createHmac('sha256', Buffer.from(master, 'utf8'))
+      .update('du-secret-catalog/encryption-key/v1', 'utf8')
+      .digest();
+    return { activeVersion: version, keys: { [version]: key } };
+  }
   if (!activeVersion || !rawKeys || !KEY_VERSION.test(activeVersion)) {
     throw new Error('DU_SECRET_CATALOG_ACTIVE_KEY_VERSION and DU_SECRET_CATALOG_KEYRING_JSON must be configured together');
   }
@@ -91,7 +104,7 @@ async function loadSecretVersion(
   reference: string,
   scope: SecretVersionResolveScope,
 ): Promise<{ row: SecretVersionRow; value: string }> {
-  if (!TENANT_ID.test(scope.tenantId) || !scope.purpose || !['orchestrator', 'connector'].includes(scope.service)) {
+  if (!isTenantUuid(scope.tenantId) || !scope.purpose || !['orchestrator', 'connector'].includes(scope.service)) {
     throw new HttpError(422, 'INVALID_SCHEMA', 'secret resolution scope is invalid');
   }
   const { secretId, revision } = parseSecretVersionRef(reference);
