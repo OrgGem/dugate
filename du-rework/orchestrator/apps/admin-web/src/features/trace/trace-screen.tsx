@@ -294,7 +294,7 @@ export function TraceScreen() {
                 <option value="taskId">Task ID</option>
               </NativeSelect>
             </FormField>
-            <FormField id="trace-lookup-value" label={LOOKUP_LABELS[lookupKind]} error={inputError}>
+            <FormField id="trace-lookup-value" label={LOOKUP_LABELS[lookupKind]} error={inputError} reserveErrorSpace>
               <Input
                 value={lookupValue}
                 onChange={(event) => setLookupValue(event.currentTarget.value)}

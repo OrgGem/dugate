@@ -120,7 +120,7 @@ export function Modal({
             </DialogHeader>
             {showCloseButton && (
               <DialogClose
-                className="rounded-[var(--radius-sm)] p-1 text-[var(--text-sub)] opacity-70 transition-opacity hover:opacity-100 hover:bg-[var(--bg-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--focus-ring)]"
+                className="inline-flex size-11 shrink-0 items-center justify-center rounded-[var(--radius-sm)] text-[var(--text-sub)] opacity-70 transition-opacity hover:opacity-100 hover:bg-[var(--bg-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--focus-ring)] sm:size-10"
                 aria-label="Close dialog"
               >
                 <X className="size-4" aria-hidden="true" />

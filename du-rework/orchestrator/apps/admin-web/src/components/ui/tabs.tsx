@@ -11,7 +11,7 @@ export const TabsList = React.forwardRef<
   <BaseTabs.List
     ref={ref}
     className={cn(
-      'inline-flex items-center gap-1 border-b border-[var(--border-subtle)] w-full overflow-x-auto select-none p-0.5',
+      'admin-tabs-scroll inline-flex min-w-0 flex-nowrap items-center gap-1 border-b border-[var(--border-subtle)] w-full overflow-x-auto select-none p-0.5',
       className
     )}
     {...props}
@@ -26,7 +26,7 @@ export const TabsTab = React.forwardRef<
   <BaseTabs.Tab
     ref={ref}
     className={cn(
-      'inline-flex items-center justify-center whitespace-nowrap px-3.5 py-2 text-sm font-medium transition-all outline-none',
+      'inline-flex shrink-0 items-center justify-center whitespace-nowrap px-3.5 py-2 text-sm font-medium transition-all outline-none',
       'border-b-2 border-transparent text-[var(--text-sub)] hover:text-[var(--text-main)] hover:bg-[var(--bg-hover)] rounded-t-[var(--radius-sm)]',
       'focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:rounded-[var(--radius-sm)]',
       'data-[selected]:border-[var(--cf-blue)] data-[selected]:text-[var(--cf-blue)] data-[selected]:font-semibold',

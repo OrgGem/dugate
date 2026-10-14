@@ -369,7 +369,7 @@ export function BusinessesScreen() {
       {pane?.kind === 'ready' ? (
         <>
           <TableContainer maxHeight={440} aria-label="Loaded business page">
-          <Table aria-label="Businesses" density="compact">
+          <Table aria-label="Businesses" density="compact" className="min-w-[56rem]">
             <TableHeader sticky>
               <TableRow>
                 <TableHead>Business</TableHead>

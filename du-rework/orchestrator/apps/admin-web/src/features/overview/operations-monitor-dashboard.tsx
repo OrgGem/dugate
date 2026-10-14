@@ -341,8 +341,8 @@ export function OperationsMonitorDashboard({
       {/* 3. INTERACTIVE REQUEST THROUGHPUT & FREQUENCY CHART */}
       <Card className="border border-[var(--border-subtle)]">
         <CardHeader className="pb-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
+          <div className="flex min-w-0 flex-col flex-wrap justify-between gap-3 sm:flex-row sm:items-center">
+            <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <BarChart3 className="w-4 h-4 text-[var(--cf-blue)]" />
                 <CardTitle className="text-sm font-semibold">Request Throughput & Processing Time</CardTitle>
@@ -354,13 +354,14 @@ export function OperationsMonitorDashboard({
             </div>
 
             {/* Timeframe selector buttons */}
-            <div className="flex items-center gap-1 bg-[var(--surface-muted)] p-1 rounded-md border border-[var(--border-subtle)] self-start sm:self-auto">
+            <div role="group" aria-label="Chart time range" className="flex w-fit max-w-full shrink-0 flex-nowrap items-center gap-1 self-start overflow-x-auto rounded-md border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-1 sm:self-auto">
               {(['minute', 'hour', 'day', 'week', 'month'] as MonitorTimeframe[]).map((tf) => (
                 <button
                   key={tf}
                   type="button"
                   onClick={() => setTimeframe(tf)}
-                  className={`px-2.5 py-1 text-xs rounded font-medium transition-colors ${
+                  aria-pressed={timeframe === tf}
+                  className={`shrink-0 whitespace-nowrap rounded px-2.5 py-1 text-xs font-medium transition-colors ${
                     timeframe === tf
                       ? 'bg-[var(--surface-base)] text-[var(--text-main)] shadow-sm font-semibold'
                       : 'text-[var(--text-sub)] hover:text-[var(--text-main)]'

@@ -48,10 +48,10 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     };
 
     const sizeStyles: Record<NonNullable<ButtonProps['size']>, string> = {
-      sm: 'h-8 px-2.5 text-xs',
-      md: 'h-9 px-3.5 text-sm',
-      lg: 'h-10 px-4 text-base',
-      icon: 'size-9 p-0',
+      sm: 'px-2.5 text-xs',
+      md: 'px-3.5 text-sm',
+      lg: 'px-4 text-base',
+      icon: 'p-0',
     };
 
     const isDisabled = disabled || isLoading;
@@ -62,6 +62,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         type={type}
         disabled={isDisabled}
         aria-busy={isLoading ? true : undefined}
+        data-ui-button-size={variant === 'link' ? undefined : size}
         className={cn(
           baseStyles,
           variantStyles[variant],

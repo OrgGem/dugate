@@ -21,6 +21,7 @@ Headless Base UI `Button` with styled variants and accessible loading states.
   - `isLoading`: `boolean` — renders spinning `Loader2`, sets `aria-busy="true"`, disables click.
   - `leftIcon`, `rightIcon`: `React.ReactNode`
   - Standard button HTML attributes (`disabled`, `type="button" | "submit"`, `onClick`, `aria-label`).
+- **Touch targets**: Below 640px, `sm`/`md` buttons are 40px high and `lg`/`icon` buttons are 44px high. At 640px and wider, heights are 32px, 36px, 40px, and 36px respectively. Tailwind height/size utilities passed through `className` override these defaults.
 - **Token Compliance**: Primary button text uses `--on-action` (`#ffffff`) rather than hardcoded `text-white` (F1).
 - **Keyboard/A11y**: Standard Enter / Space activation, visible focus outline with `--focus-ring`.
 
@@ -41,8 +42,9 @@ Accessible form field composition using Base UI `Field`.
   - `FieldDescription`: Helper explanation text linked via `aria-describedby`.
   - `FieldError`: Error message block with `role="alert"` and `aria-live="polite"`.
 - **Composite `FormField` (F3)**:
-  - Pre-assembled container accepting `id`, `label`, `description`, `error`, `required`, and `children`.
-  - Automatically clones a single non-fragment child and wires `id`, `aria-describedby`, `aria-errormessage`, and `aria-invalid` directly to the control. Existing child ids are preserved and used by the label; fragment/multiple children remain untouched so input+datalist compositions keep their explicit ids. If a multi-child field also has helper or error text, set the control's `aria-describedby` and invalid state on that control explicitly.
+  - Pre-assembled container accepting `id`, `primaryControlId`, `label`, `description`, `error`, `required`, `reserveErrorSpace`, and `children`.
+  - Wires help and error text to supported controls in direct children, arrays, and fragments while preserving each control's id and existing ARIA labels. A single control receives the visible label; a multi-control field uses a fieldset and legend unless `id` or `primaryControlId` names the intended label target. Give each control in a group its own accessible name.
+  - `reserveErrorSpace` keeps one validation-message line open for fields where showing an error should not move nearby controls.
   - Descriptions and errors stay visibly below the control. In a side-by-side form toolbar, align actions with the control row and keep dynamic messages below that row. Aligning the whole `FormField` at the bottom can move actions when a message appears; aligning the field at the top aligns actions with its label, not the control.
 
 ### 4. `Select` & `NativeSelect` (`./select.tsx`)
@@ -59,6 +61,7 @@ Accessible modal dialogs built on Base UI `Dialog`.
   - **Focus Restoration**: Returns keyboard focus to the triggering element upon dismissal.
   - **Escape Dismissal**: Closes on Escape key press.
   - **Backdrop Dimming**: Dimmed backdrop with blur using `--bg-backdrop`.
+  - **Close control**: The close target is 44px on narrow screens and 40px on larger screens.
 - **Composites**:
   - `Modal`: High-level wrapper with title, description, body, footer, and close button.
   - `ConfirmDialog`: Replaces `window.confirm` for destructive/critical admin operations (with loading state).
@@ -66,6 +69,7 @@ Accessible modal dialogs built on Base UI `Dialog`.
 ### 6. `Table` (`./table.tsx`)
 Responsive data tables with semantic HTML markup.
 - **Primitives**: `TableContainer` (horizontal scrolling by default; optional `maxHeight` enables bounded vertical scrolling and keyboard focus), `Table`, `TableHeader` (optional `sticky`), `TableBody`, `TableFooter`, `TableRow` (hover highlight), `TableHead`, `TableCell`, `TableEmpty` (empty state row spanning columns), and `TablePagination`.
+- **Narrow screens**: Header labels stay on one line so wide tables scroll horizontally instead of stacking words vertically.
 - **Scroll accessibility**: A bounded `TableContainer` receives `tabIndex=0`; provide `aria-label` to expose it as a named region for assistive technology.
 - **Density**: `Table density="compact"` reduces header and cell spacing for data-dense views.
 - **Pagination**: `TablePagination` accepts previous/next availability and callbacks plus an optional status message. It only invokes the supplied callbacks; consumers retain server cursor/offset behavior and should not infer full totals from a loaded subset.
@@ -88,6 +92,7 @@ Standard surface container.
 Keyboard-accessible tabs built on Base UI `Tabs`.
 - **Primitives**: `TabsRoot`, `TabsList`, `TabsTab`, `TabsPanel`.
 - **Features**: Roving tabindex and Left/Right Arrow keyboard navigation built-in.
+- Tabs keep their label width in horizontally scrollable lists; a thin token-colored scrollbar shows when more tabs are off-screen.
 
 ### 10. `StatePanel` & Feedback States (`./state-panel.tsx`)
 Standardized screen state representations required by contract §3:
