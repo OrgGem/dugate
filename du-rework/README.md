@@ -78,7 +78,7 @@ pnpm --filter @du/orchestrator run migrate
 pnpm --filter @du/orchestrator start
 ```
 
-Lệnh `migrate` **ghi vào DB**: chỉ chạy khi đã xác nhận đúng URL, có backup/window phù hợp; `AUTO_MIGRATE=false` mặc định khiến startup kiểm tra migration thay vì tự áp dụng. Để xử lý operation end-to-end, còn cần Connector, worker `document-core`, business version/profile và API key đang active được provision; chỉ start Orchestrator không tự tạo các thành phần đó. Xem [deployment guide](docs/12b-deployment-guide.md), [registry](docs/05-business-registry.md) và [runbooks](docs/17-operational-runbooks.md). Cấu hình `ARTIFACT_STORAGE_BACKEND=postgres` chỉ dành cho pilot/test; production yêu cầu private S3, mã hóa tầng ứng dụng/Vault và các gate DATA/ENC/SEC chưa được nghiệm thu.
+Lệnh `migrate` **ghi vào DB**: chỉ chạy khi đã xác nhận đúng URL, có backup/window phù hợp; `AUTO_MIGRATE=false` mặc định khiến startup kiểm tra migration thay vì tự áp dụng. Để xử lý operation end-to-end, còn cần Connector, worker `document-core`, business version/profile và API key đang active được provision; chỉ start Orchestrator không tự tạo các thành phần đó. Xem [deployment guide](docs/12b-deployment-guide.md), [Docker deployment runbook](docs/56-docker-deployment.md), [registry](docs/05-business-registry.md) và [runbooks](docs/17-operational-runbooks.md). PostgreSQL-backed encryption uses the retained `ENCRYPTION_KEY` or an explicit local keyring; Vault Transit is optional for PostgreSQL and required for encrypted S3 storage.
 
 Để start worker `document-core` từ source trong terminal khác, dùng lại `RUNTIME_TOKEN` và `REDIS_URL` ở trên, đặt `RUNTIME_URL=http://127.0.0.1:3002/api/runtime/v1`, rồi chạy `pnpm --filter @du/document-core start`. Action cần provider còn đòi Connector, profile và service token tương ứng; worker đơn lẻ không chứng minh luồng đó đã sẵn sàng. Connector có entrypoint `orchestrator/services/connector/dist/entrypoint.js` sau build và yêu cầu ba secret base64 mã hóa 32 byte (`SERVICE_IDENTITY_SECRET`, `INVOCATION_GRANT_SECRET`, `CONNECTOR_ENCRYPTION_KEY`); xem [Connector API](docs/08-connector-api.md) trước khi bật.
 
@@ -106,7 +106,20 @@ docker compose -f infra/docker-compose.yml ps
 
 Muốn thử riêng Connector với DB/Redis test: `docker compose -f infra/docker-compose.yml --profile connector up -d --build connector`. Profile này là fixture single-replica, **không** phải deployment production; container có thể áp dụng migration vào test DB. Xem [infra README](infra/README.md).
 
-The root [Dockerfile](Dockerfile) builds Orchestrator and Connector from the platform workspace and keeps `--target` compatibility for workers by building each nested workspace with its own lockfile. Normal Compose worker builds use the worker-local Dockerfile and context, which package only that worker and its vendored dependencies. Full-stack and standalone Compose files reuse shared service fragments. Generate local-only credentials with `node scripts/docker/init-env.cjs .env.docker`, then run `docker compose --env-file .env.docker up -d --build --wait`. See [deployment guide](docs/12b-deployment-guide.md). Business registration, provider bindings and existing release gates remain separate deployment requirements.
+Generate local-only credentials and explicitly provision both local schemas before starting the full local Compose stack:
+
+```powershell
+node scripts/docker/init-env.cjs .env.docker
+docker compose --env-file .env.docker config --quiet
+docker compose --env-file .env.docker build
+docker compose --env-file .env.docker --profile local-bootstrap up -d postgres valkey connector-db-init
+docker compose --env-file .env.docker --profile migration run --rm orchestrator-migrate migrate
+docker compose --env-file .env.docker --profile migration run --rm connector-migrate migrate
+docker compose --env-file .env.docker up -d --wait --wait-timeout 180
+docker compose --env-file .env.docker ps -a
+```
+
+Regular `up` does not apply migrations. The local aggregate owns its isolated PostgreSQL/Valkey services; `docker-compose.deploy.yml` is separate and uses external database/Redis services without creating or migrating them. Canonical Orchestrator/Connector builds use `orchestrator/`; each worker builds from its own `businesses/<business>/` context, which includes its copied SDK/workspace dependencies. The root [Dockerfile](Dockerfile) remains a compatibility dispatcher; do not use it to build worker release images. See [Docker deployment runbook](docs/56-docker-deployment.md) for immutable image digests, external networks, explicit migrations, and optional Vault preparation. Business registration, provider bindings, Vault AppRole/policy provisioning, and release acceptance remain separate deployment requirements.
 
 ## Tích hợp qua Public API
 

@@ -1,15 +1,4 @@
 name: du-lc-checker
-
-services:
-  lc-checker:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: du-lc-checker:1.1.0
-    env_file:
-      - .env.docker.local
-    environment:
-      NODE_ENV: production
-      PORT: '0'
-    init: true
-    restart: unless-stopped
+include:
+  - ../../compose/deploy-infra.yml
+  - ../../compose/lc-checker.yml

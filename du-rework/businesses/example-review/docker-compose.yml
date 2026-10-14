@@ -1,15 +1,4 @@
 name: du-example-review
-
-services:
-  example-review:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: du-example-review:1.0.0
-    env_file:
-      - .env.docker.local
-    environment:
-      NODE_ENV: production
-      PORT: '0'
-    init: true
-    restart: unless-stopped
+include:
+  - ../../compose/deploy-infra.yml
+  - ../../compose/example-review.yml

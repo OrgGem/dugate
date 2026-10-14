@@ -1,0 +1,47 @@
+# Optional local preparation instance only. This is isolated from the existing
+# du-live-vault container and its storage. Do not use this HTTP listener in prod.
+name: du-vault-persistent
+services:
+  vault:
+    image: hashicorp/vault@sha256:47f14a6acb98f48d798a07df7c83f23a6e636e1cf724c5f8ff165cb32667a1e2
+    pull_policy: never
+    container_name: du-vault-persistent
+    labels:
+      com.dugate.purpose: persistent-vault-local-preparation
+      com.dugate.bootstrap-guard: exact-new-vault
+    # The pinned official entrypoint adds -config=/vault/config when its first
+    # argument is `server`; keep one config load to avoid duplicate listeners.
+    command: [server]
+    cap_add: [IPC_LOCK]
+    environment:
+      VAULT_ADDR: http://127.0.0.1:8200
+      VAULT_API_ADDR: http://vault:8200
+      VAULT_CLUSTER_ADDR: http://du-vault-persistent:8201
+    ports:
+      - 127.0.0.1:${DU_VAULT_HOST_PORT:-18200}:8200
+    volumes:
+      - ./vault/server.hcl:/vault/config/server.hcl:ro
+      - vault-data:/vault/file
+    networks:
+      du-platform-net:
+        aliases: [vault, du-vault-persistent]
+    healthcheck:
+      test: [CMD-SHELL, 'vault status -format=json >/dev/null 2>&1; code=$$?; test "$$code" -eq 0 -o "$$code" -eq 2']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+    stop_grace_period: 30s
+    profiles: [persistent-vault]
+
+networks:
+  du-platform-net:
+    name: ${DU_PLATFORM_NETWORK:-du-platform-net}
+    external: true
+
+volumes:
+  vault-data:
+    name: du-vault-persistent-data
+    labels:
+      com.dugate.purpose: persistent-vault-raft-data

@@ -1,4 +1,6 @@
 # syntax=docker/dockerfile:1
+# Legacy root-context compatibility targets only. Compose uses the service-local
+# Dockerfiles and independent contexts; worker deployment never builds from root.
 # Override NODE_IMAGE with another reviewed digest when updating the toolchain.
 ARG NODE_IMAGE=node:24.21.0-alpine3.24@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1
 FROM ${NODE_IMAGE} AS build-base

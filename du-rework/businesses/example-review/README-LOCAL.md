@@ -20,4 +20,18 @@ The worker has no HTTP listener. The local runner defaults `RUNTIME_URL` to `htt
 
 `pnpm run dev -- --skip-build` starts from existing `dist/` artifacts. `pnpm run build`, `pnpm run test:unit`, and `pnpm run test:typecheck` work from this directory without the parent workspace. The live continuation and admin integration tests are explicit monorepo-only checks and are excluded from the default offline suite.
 
-For a production image, copy `.env.docker.example` to `.env.docker.local`, replace the placeholder with the existing example-review runtime token, then run `docker compose up -d --build`. The Docker context is this directory and the image contains only production package files and dependencies. The standalone Compose example reaches host services through `host.docker.internal`.
+For Docker deployment, copy `.env.docker.example` to `.env.docker.local` and
+set `EXAMPLE_REVIEW_RUNTIME_TOKEN` to the existing business identity. The
+Compose entrypoint starts only Example Review and connects it to the externally
+managed `du-worker-net`; the platform services must already be attached under
+the DNS names `orchestrator` and `valkey`.
+
+```sh
+docker compose --env-file .env.docker.local config
+docker compose --env-file .env.docker.local up -d --build
+```
+
+The worker publishes no port and Compose does not start or recreate platform
+services. Runtime uses the internal `orchestrator:3002` listener. The Node
+process receives `SIGTERM` directly and drains for 15 seconds before Compose's
+30-second stop deadline.

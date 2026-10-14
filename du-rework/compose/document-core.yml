@@ -1,26 +1,19 @@
 services:
   document-core:
-    image: ${DU_IMAGE_PREFIX:-du}-document-core:${DU_IMAGE_TAG:-local}
+    image: ${DOCUMENT_CORE_IMAGE_DIGEST:-${DU_IMAGE_PREFIX:-du}-document-core:${DU_IMAGE_TAG:-local}}
     build:
       context: ../businesses/document-core
       dockerfile: Dockerfile
     environment:
-      RUNTIME_URL: ${RUNTIME_URL:-http://orchestrator:3002/api/runtime/v1}
+      RUNTIME_URL: ${DOCUMENT_CORE_DOCKER_RUNTIME_URL:-http://orchestrator:3002/api/runtime/v1}
       RUNTIME_TOKEN: ${DOCUMENT_CORE_RUNTIME_TOKEN:?Set the document-core business identity token}
-      REDIS_URL: ${REDIS_URL:-redis://valkey:6379}
+      REDIS_URL: ${DOCUMENT_CORE_DOCKER_REDIS_URL:-redis://valkey:6379}
       CONCURRENCY: ${DOCUMENT_CORE_CONCURRENCY:-2}
       HEARTBEAT_INTERVAL_MS: ${HEARTBEAT_INTERVAL_MS:-10000}
       SHUTDOWN_GRACE_MS: '15000'
       IMAGE_DIGEST: ${DOCUMENT_CORE_IMAGE_DIGEST:-}
-      CONNECTOR_URL: ${CONNECTOR_URL:-http://connector:8080}
+      CONNECTOR_URL: ${DOCUMENT_CORE_DOCKER_CONNECTOR_URL:-http://connector:8080}
       CONNECTOR_SERVICE_TOKEN: ${CONNECTOR_SERVICE_TOKEN:?Set a signed connector:invoke service identity token}
-    depends_on:
-      orchestrator:
-        condition: service_healthy
-      valkey:
-        condition: service_healthy
-      connector:
-        condition: service_healthy
     networks: [du-worker-net]
     init: true
     restart: unless-stopped

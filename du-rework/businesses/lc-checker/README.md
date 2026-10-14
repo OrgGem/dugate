@@ -124,6 +124,19 @@ pnpm run test:typecheck
 
 See [`README-LOCAL.md`](README-LOCAL.md) for worker-local development and Docker setup.
 
+### Docker Deployment
+
+The package's Compose entrypoint starts only LC Checker and connects it to the externally managed `du-worker-net`. The platform services must already be attached to that network under the DNS names `orchestrator`, `valkey`, and `connector`; Runtime traffic uses the internal port `3002`.
+
+From `businesses/lc-checker/`, copy `.env.docker.example` to `.env.docker.local`, set the existing `LC_RUNTIME_TOKEN` and issued `CONNECTOR_SERVICE_TOKEN`, then run:
+
+```sh
+docker compose --env-file .env.docker.local config
+docker compose --env-file .env.docker.local up -d --build
+```
+
+Compose publishes no worker port and does not start or recreate the platform services. The image is built from this directory and includes the vendored source needed by its standalone pnpm workspace. The worker registers and heartbeats through Runtime; its exec-form Node command receives `SIGTERM` directly and drains with the SDK's 15-second default while Compose allows 30 seconds before force-stopping it.
+
 ## Verification status
 
 Offline only. Nothing in this package has been run against a live queue, a database or a

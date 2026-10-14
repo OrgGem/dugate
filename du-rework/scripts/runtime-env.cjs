@@ -73,6 +73,69 @@ function localConnectorManagementEnvironment(env, { services = 'all', connectorU
   return result;
 }
 
+function localEncryptionKeyringConfigured(env) {
+  const active = env.DU_LOCAL_ENCRYPTION_ACTIVE_KEY_VERSION?.trim();
+  const raw = env.DU_LOCAL_ENCRYPTION_KEYRING_JSON?.trim();
+  if (active || raw) {
+    if (!active || !raw || !/^[1-9][0-9]{0,9}$/.test(active)) {
+      throw new Error('DU_LOCAL_ENCRYPTION_ACTIVE_KEY_VERSION and DU_LOCAL_ENCRYPTION_KEYRING_JSON must be configured together');
+    }
+    const activeVersion = Number(active);
+    if (!Number.isSafeInteger(activeVersion) || activeVersion > 2147483647) {
+      throw new Error('DU_LOCAL_ENCRYPTION_ACTIVE_KEY_VERSION must be a positive integer');
+    }
+    let keys;
+    try { keys = JSON.parse(raw); } catch { throw new Error('DU_LOCAL_ENCRYPTION_KEYRING_JSON must be valid JSON'); }
+    if (!keys || typeof keys !== 'object' || Array.isArray(keys)) {
+      throw new Error('DU_LOCAL_ENCRYPTION_KEYRING_JSON must be a version-to-base64-key object');
+    }
+    for (const [version, encoded] of Object.entries(keys)) {
+      if (!/^[1-9][0-9]{0,9}$/.test(version) || Number(version) > 2147483647 || typeof encoded !== 'string') {
+        throw new Error('DU_LOCAL_ENCRYPTION_KEYRING_JSON contains an invalid key version');
+      }
+      const key = Buffer.from(encoded, 'base64');
+      if (key.length !== 32 || key.toString('base64') !== encoded) {
+        throw new Error('Local encryption keys must be canonical Base64-encoded 32-byte values');
+      }
+    }
+    if (!Object.hasOwn(keys, active)) throw new Error('The active local encryption key version is not present in the keyring');
+    return true;
+  }
+  return Buffer.byteLength(env.ENCRYPTION_KEY || '', 'utf8') >= 32;
+}
+
+function validateVaultTransit(env, { metadataEnabled, publicUploadEnabled, backend }) {
+  const optionsRaw = env.DU_VAULT_TRANSIT_OPTIONS?.trim();
+  const encryptToken = env.DU_VAULT_TRANSIT_ENC_TOKEN?.trim();
+  const decryptToken = env.DU_VAULT_TRANSIT_DEC_TOKEN?.trim();
+  const anyConfigured = Boolean(optionsRaw || encryptToken || decryptToken);
+  if (!anyConfigured) {
+    if (backend === 's3') throw new Error('DU_VAULT_TRANSIT_OPTIONS is required for encrypted S3 artifact storage');
+    return false;
+  }
+  if (!optionsRaw) throw new Error('DU_VAULT_TRANSIT_OPTIONS is required when either Vault Transit identity is configured');
+  if (!encryptToken || !decryptToken) throw new Error('DU_VAULT_TRANSIT_ENC_TOKEN and DU_VAULT_TRANSIT_DEC_TOKEN are required with Vault Transit options');
+  if (encryptToken === decryptToken) throw new Error('Vault encrypt/decrypt tokens must be distinct');
+
+  let options;
+  try { options = JSON.parse(optionsRaw); } catch { throw new Error('DU_VAULT_TRANSIT_OPTIONS must be valid JSON'); }
+  if (!options || typeof options !== 'object' || Array.isArray(options)) {
+    throw new Error('DU_VAULT_TRANSIT_OPTIONS must be a JSON object');
+  }
+  try { new URL(options.vaultAddress); } catch { throw new Error('DU_VAULT_TRANSIT_OPTIONS requires a valid vaultAddress'); }
+  const allowed = options.allowedKeyRefs;
+  if (!allowed || typeof allowed !== 'object' || Array.isArray(allowed) || Object.keys(allowed).length === 0
+      || Object.values(allowed).some(value => typeof value !== 'string' || !value.trim())) {
+    throw new Error('DU_VAULT_TRANSIT_OPTIONS.allowedKeyRefs must map allowed references to non-empty Transit key names');
+  }
+  for (const [enabled, field] of [[metadataEnabled, 'metadataKeyRef'], [publicUploadEnabled, 'publicUploadKeyRef']]) {
+    if (enabled && (typeof options[field] !== 'string' || !Object.hasOwn(allowed, options[field]))) {
+      throw new Error(`DU_VAULT_TRANSIT_OPTIONS requires an allowed ${field}`);
+    }
+  }
+  return true;
+}
+
 function validateRuntimeEnvironment(env, { workers = [], services = 'all', workflow = false } = {}) {
   const required = ['DATABASE_URL', 'REDIS_URL', 'SERVICE_IDENTITY_SECRET', 'INVOCATION_GRANT_SECRET'];
   if (services === 'all' || services === 'orchestrator') required.push('RUNTIME_TOKEN', 'ADMIN_TOKEN', 'ENCRYPTION_KEY', 'ADMIN_SHELL_COOKIE_SECRET');
@@ -126,25 +189,32 @@ function validateRuntimeEnvironment(env, { workers = [], services = 'all', workf
         throw new Error('DU_SYNTHETIC_DATA_ACK requires a complete synthetic-data exemption');
       }
     }
-    const encrypted = !synthetic || workflow || env.ARTIFACT_STORAGE_BACKEND === 's3'
-      || env.DU_ENCRYPTION_METADATA_ENABLED === 'true' || env.DU_ENCRYPTION_PUBLIC_UPLOAD_ENABLED === 'true';
+    const backend = env.ARTIFACT_STORAGE_BACKEND || 'postgres';
+    if (!['postgres', 's3'].includes(backend)) throw new Error('ARTIFACT_STORAGE_BACKEND must be postgres or s3');
+    for (const key of ['DU_ENCRYPTION_METADATA_ENABLED', 'DU_ENCRYPTION_PUBLIC_UPLOAD_ENABLED']) {
+      if (env[key] !== undefined && !['true', 'false'].includes(env[key])) throw new Error(`${key} must be true or false`);
+    }
+    const metadataEnabled = !synthetic || backend === 's3' || env.DU_ENCRYPTION_METADATA_ENABLED === 'true';
+    const publicUploadEnabled = !synthetic || backend === 's3' || env.DU_ENCRYPTION_PUBLIC_UPLOAD_ENABLED === 'true';
+    const encrypted = metadataEnabled || publicUploadEnabled || workflow;
     if (workflow && (env.DU_ENCRYPTION_METADATA_ENABLED !== 'true' || env.DU_ENCRYPTION_PUBLIC_UPLOAD_ENABLED !== 'true')) {
       throw new Error('Workflow runtime requires both DU_ENCRYPTION_METADATA_ENABLED=true and DU_ENCRYPTION_PUBLIC_UPLOAD_ENABLED=true');
     }
     if (encrypted) {
-      for (const key of ['DU_VAULT_TRANSIT_OPTIONS', 'DU_VAULT_TRANSIT_ENC_TOKEN', 'DU_VAULT_TRANSIT_DEC_TOKEN', 'DU_METADATA_PLAINTEXT_READ_MODE']) {
-        if (!env[key]) throw new Error(`${key} is required for encrypted runtime`);
-      }
-      if (env.DU_VAULT_TRANSIT_ENC_TOKEN === env.DU_VAULT_TRANSIT_DEC_TOKEN) throw new Error('Vault encrypt/decrypt tokens must be distinct');
-      let options;
-      try { options = JSON.parse(env.DU_VAULT_TRANSIT_OPTIONS); } catch { throw new Error('DU_VAULT_TRANSIT_OPTIONS must be valid JSON'); }
-      for (const key of ['metadataKeyRef', 'publicUploadKeyRef']) if (!options[key] || !options.allowedKeyRefs?.[options[key]]) throw new Error(`DU_VAULT_TRANSIT_OPTIONS requires an allowed ${key}`);
-      try { new URL(options.vaultAddress); } catch { throw new Error('DU_VAULT_TRANSIT_OPTIONS requires a valid vaultAddress'); }
+      if (!env.DU_METADATA_PLAINTEXT_READ_MODE) throw new Error('DU_METADATA_PLAINTEXT_READ_MODE is required for encrypted runtime');
       if (!['forbid', 'window'].includes(env.DU_METADATA_PLAINTEXT_READ_MODE)) throw new Error('DU_METADATA_PLAINTEXT_READ_MODE must be forbid or window');
+      if (env.DU_METADATA_PLAINTEXT_READ_MODE === 'forbid'
+          && (env.DU_METADATA_PLAINTEXT_WINDOW_START || env.DU_METADATA_PLAINTEXT_WINDOW_END)) {
+        throw new Error('DU_METADATA_PLAINTEXT_READ_MODE=forbid must not be combined with plaintext window timestamps');
+      }
       if (env.DU_METADATA_PLAINTEXT_READ_MODE === 'window') {
         const start = Date.parse(env.DU_METADATA_PLAINTEXT_WINDOW_START);
         const end = Date.parse(env.DU_METADATA_PLAINTEXT_WINDOW_END);
         if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start || end - start > 14 * 86400000) throw new Error('Metadata plaintext window requires ordered timestamps within 14 days');
+      }
+      const transitConfigured = validateVaultTransit(env, { metadataEnabled, publicUploadEnabled, backend });
+      if (!transitConfigured && !localEncryptionKeyringConfigured(env)) {
+        throw new Error('PostgreSQL-backed encryption requires a retained ENCRYPTION_KEY of at least 32 bytes or a complete local encryption keyring');
       }
     }
   }
@@ -171,6 +241,8 @@ module.exports = {
   serviceEnvironment,
   localConnectorManagementEnvironment,
   validateRuntimeEnvironment,
+  localEncryptionKeyringConfigured,
+  validateVaultTransit,
   workerTokens,
   signedConnectorToken,
   localSecrets,

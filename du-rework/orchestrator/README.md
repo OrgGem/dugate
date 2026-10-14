@@ -24,9 +24,57 @@ corepack enable
 pnpm install --frozen-lockfile --ignore-scripts
 node scripts/build-all.cjs
 node orchestrator/scripts/verify-isolation.cjs
-docker build --target orchestrator -t du-orchestrator .
-docker build --target connector -t du-connector .
 ```
+
+For deployment, the standalone Orchestrator and Connector images use the
+`orchestrator/` workspace as their Docker build context. The separate
+`docker-compose.deploy.yml` manifest connects to existing PostgreSQL and
+Redis/Valkey services; it never creates those services or a Connector
+database. `pnpm run docker:up` remains the local dependency convenience for
+the workspace's PostgreSQL and Valkey services. Copy
+`.env.docker.deploy.example` to `.env.docker.deploy`, set the external URLs
+and stable runtime credentials, and provision separate
+Orchestrator and Connector databases before starting the stack. PostgreSQL
+metadata and public-upload encryption work without Vault when the retained
+`ENCRYPTION_KEY` is set. Connector credential encryption likewise requires a
+retained `CONNECTOR_ENCRYPTION_KEY`. Optional Vault configuration is explicit;
+Vault failures do not fall back to database encryption. Keep both keys through
+restarts and upgrades; replacing either key requires a planned re-encryption.
+Encrypted S3 artifact storage still requires its configured Vault Transit
+options and identities.
+
+The normal `up` path only verifies the recorded migration checksums before
+starting each service. Review and back up each external database, then apply
+numbered migrations explicitly before `up`. Build the release images from the
+standalone Dockerfiles, publish them through the release process, and record
+the immutable repository digests in the deployment file before the preflight
+and migration steps:
+
+```sh
+docker compose --env-file .env.docker.deploy -f docker-compose.deploy.yml build orchestrator connector
+```
+
+Set `DU_IMAGE_TAG` to the immutable release tag and set each runtime-control
+image digest to the matching `repository@sha256:<64-hex-digest>` from the
+release manifest. Then run the deployment preflight, review and back up both
+databases, and apply their numbered migrations explicitly before `up`:
+
+```sh
+node scripts/docker/check-env.cjs .env.docker.deploy --deploy
+docker compose --env-file .env.docker.deploy -f docker-compose.deploy.yml --profile migration run --rm orchestrator-migrate migrate
+docker compose --env-file .env.docker.deploy -f docker-compose.deploy.yml --profile migration run --rm connector-migrate migrate
+docker compose --env-file .env.docker.deploy -f docker-compose.deploy.yml up -d orchestrator connector
+```
+
+Both migration jobs target their separately provisioned databases and are
+opt-in; plain `up` does not apply migrations. Runtime-control identity fields
+must refer to the exact release. A local image ID alone is not a valid
+runtime-control digest; use the published repository digest, and never use
+the `local-dev-not-an-image` marker in production. Internal Runtime
+API port `3002` and Connector port `8080` remain on the worker/platform
+networks; only Orchestrator API `3000` and Admin Portal BFF `3001` are
+published. The Orchestrator image contains the built Admin Portal at
+`/app/admin-web`.
 
 Layout:
 

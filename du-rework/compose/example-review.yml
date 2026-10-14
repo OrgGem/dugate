@@ -1,6 +1,6 @@
 services:
   example-review:
-    image: ${DU_IMAGE_PREFIX:-du}-example-review:${DU_IMAGE_TAG:-local}
+    image: ${EXAMPLE_REVIEW_IMAGE_DIGEST:-${DU_IMAGE_PREFIX:-du}-example-review:${DU_IMAGE_TAG:-local}}
     build:
       context: ../businesses/example-review
       dockerfile: Dockerfile
@@ -12,11 +12,6 @@ services:
       HEARTBEAT_INTERVAL_MS: ${HEARTBEAT_INTERVAL_MS:-10000}
       SHUTDOWN_GRACE_MS: '15000'
       IMAGE_DIGEST: ${EXAMPLE_REVIEW_IMAGE_DIGEST:-}
-    depends_on:
-      orchestrator:
-        condition: service_healthy
-      valkey:
-        condition: service_healthy
     networks: [du-worker-net]
     init: true
     restart: unless-stopped

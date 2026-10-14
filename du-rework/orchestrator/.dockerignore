@@ -1,0 +1,16 @@
+.git
+.gitignore
+.dockerignore
+# Keep vendor assets in this context; the workspace lockfile references them.
+**/.env*
+node_modules
+**/node_modules
+**/dist
+**/.deploy-stage-*
+**/coverage
+**/test-results
+**/playwright-report
+**/tests
+**/*.log
+**/.cache
+**/tmp

@@ -1,0 +1,10 @@
+# Deployment-oriented aggregate. PostgreSQL and Redis/Valkey are external and
+# are never created, migrated, or modified by a plain `up` command.
+name: du-rework-deploy
+include:
+  - compose/deploy-infra.yml
+  - compose/orchestrator.yml
+  - compose/connector.yml
+  - compose/document-core.yml
+  - compose/lc-checker.yml
+  - compose/example-review.yml

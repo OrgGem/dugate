@@ -1,26 +1,24 @@
 services:
-  migrate:
-    image: ${DU_IMAGE_PREFIX:-du}-orchestrator:${DU_IMAGE_TAG:-local}
+  orchestrator-migrate:
+    image: ${DU_ORCHESTRATOR_RUNTIME_IMAGE_DIGEST:-${DU_IMAGE_PREFIX:-du}-orchestrator:${DU_IMAGE_TAG:-local}}
     build:
-      context: ..
-      dockerfile: Dockerfile
-      target: orchestrator
-    command: [node, dist/migrate-cli.js, migrate]
+      context: ../orchestrator
+      dockerfile: services/orchestrator/Dockerfile
+    entrypoint: [node, /app/dist/migrate-cli.js]
+    command: [migrate]
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-du}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-du_orchestrator}}
-    depends_on:
-      postgres:
-        condition: service_healthy
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL to the provisioned Orchestrator PostgreSQL database}
     networks: [du-platform-net]
+    profiles: [migration]
     init: true
     restart: 'no'
   orchestrator:
-    image: ${DU_IMAGE_PREFIX:-du}-orchestrator:${DU_IMAGE_TAG:-local}
+    image: ${DU_ORCHESTRATOR_RUNTIME_IMAGE_DIGEST:-${DU_IMAGE_PREFIX:-du}-orchestrator:${DU_IMAGE_TAG:-local}}
     build:
-      context: ..
-      dockerfile: Dockerfile
-      target: orchestrator
+      context: ../orchestrator
+      dockerfile: services/orchestrator/Dockerfile
     environment:
+      NODE_ENV: ${NODE_ENV:-production}
       PORT: '3000'
       ORCHESTRATOR_HOST: 0.0.0.0
       ORCHESTRATOR_PORT: '3000'
@@ -28,15 +26,15 @@ services:
       ORCHESTRATOR_INTERNAL_PORT: '3002'
       ORCHESTRATOR_INTERNAL_BASE_URL: ${ORCHESTRATOR_INTERNAL_BASE_URL:-http://orchestrator:3002}
       DU_S3_SOURCE_RULES: ${DU_S3_SOURCE_RULES:-}
-      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-du}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-du_orchestrator}}
-      REDIS_URL: ${REDIS_URL:-redis://valkey:6379}
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL to the provisioned Orchestrator PostgreSQL database}
+      REDIS_URL: ${REDIS_URL:?Set REDIS_URL to the existing Redis or Valkey service}
       RUNTIME_TOKEN: ${RUNTIME_TOKEN:?Set RUNTIME_TOKEN}
       ADMIN_TOKEN: ${ADMIN_TOKEN:?Set a distinct ADMIN_TOKEN}
-      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?Set ENCRYPTION_KEY}
-      INVOCATION_GRANT_SECRET: ${INVOCATION_GRANT_SECRET:?Set the raw 32-byte grant key}
-      DU_CONNECTOR_BASE_URLS: ${DU_CONNECTOR_BASE_URLS:-}
-      SERVICE_IDENTITY_SECRET: ${SERVICE_IDENTITY_SECRET:-}
-      COST_CONTROL_CONNECTOR_TOKEN: ${COST_CONTROL_CONNECTOR_TOKEN:?Set a dedicated cost-control service token}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?Set the retained ENCRYPTION_KEY (at least 32 UTF-8 bytes)}
+      INVOCATION_GRANT_SECRET: ${INVOCATION_GRANT_SECRET:?Set the raw printable ASCII 32-byte invocation grant secret}
+      DU_CONNECTOR_BASE_URLS: ${DU_CONNECTOR_BASE_URLS:?Set the JSON connector ID-to-base-URL map}
+      SERVICE_IDENTITY_SECRET: ${SERVICE_IDENTITY_SECRET:?Set the shared Base64-encoded 32-byte service identity key}
+      COST_CONTROL_CONNECTOR_TOKEN: ${COST_CONTROL_CONNECTOR_TOKEN:?Set the dedicated cost-control service token}
       DU_ORCHESTRATOR_RUNTIME_IDENTITY: ${DU_ORCHESTRATOR_RUNTIME_IDENTITY:-}
       DU_ORCHESTRATOR_RUNTIME_SLOT: ${DU_ORCHESTRATOR_RUNTIME_SLOT:-}
       DU_ORCHESTRATOR_RUNTIME_REVISION: ${DU_ORCHESTRATOR_RUNTIME_REVISION:-}
@@ -49,7 +47,8 @@ services:
       ADMIN_SHELL_HOST: 0.0.0.0
       ADMIN_SHELL_PORT: '3001'
       ADMIN_SHELL_COOKIE_SECRET: ${ADMIN_SHELL_COOKIE_SECRET:?Set ADMIN_SHELL_COOKIE_SECRET}
-      DU_ADMIN_WEB: ${DU_ADMIN_WEB:-0}
+      DU_ADMIN_WEB: '1'
+      DU_ADMIN_WEB_DIST: /app/admin-web
       DU_ADMIN_AUTH_MODE: ${DU_ADMIN_AUTH_MODE:-}
       DU_ADMIN_TRUST_PROXY_PROTOCOL: ${DU_ADMIN_TRUST_PROXY_PROTOCOL:-false}
       SHUTDOWN_BUDGET_MS: ${SHUTDOWN_BUDGET_MS:-30000}
@@ -64,12 +63,14 @@ services:
       DU_STORAGE_ENDPOINT_ALLOWLIST: ${DU_STORAGE_ENDPOINT_ALLOWLIST:-}
       DU_SECRET_CATALOG_ACTIVE_KEY_VERSION: ${DU_SECRET_CATALOG_ACTIVE_KEY_VERSION:-}
       DU_SECRET_CATALOG_KEYRING_JSON: ${DU_SECRET_CATALOG_KEYRING_JSON:-}
+      DU_LOCAL_ENCRYPTION_ACTIVE_KEY_VERSION: ${DU_LOCAL_ENCRYPTION_ACTIVE_KEY_VERSION:-}
+      DU_LOCAL_ENCRYPTION_KEYRING_JSON: ${DU_LOCAL_ENCRYPTION_KEYRING_JSON:-}
       DU_ADMIN_LOCAL_SERVICE_SECRET: ${DU_ADMIN_LOCAL_SERVICE_SECRET:-}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
       AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
-      DU_ENCRYPTION_METADATA_ENABLED: ${DU_ENCRYPTION_METADATA_ENABLED:-false}
-      DU_ENCRYPTION_PUBLIC_UPLOAD_ENABLED: ${DU_ENCRYPTION_PUBLIC_UPLOAD_ENABLED:-false}
+      DU_ENCRYPTION_METADATA_ENABLED: ${DU_ENCRYPTION_METADATA_ENABLED:-true}
+      DU_ENCRYPTION_PUBLIC_UPLOAD_ENABLED: ${DU_ENCRYPTION_PUBLIC_UPLOAD_ENABLED:-true}
       DU_DATA_MODE: ${DU_DATA_MODE:-real}
       DU_SYNTHETIC_DATA_ACK: ${DU_SYNTHETIC_DATA_ACK:-}
       DU_METADATA_PLAINTEXT_READ_MODE: ${DU_METADATA_PLAINTEXT_READ_MODE:-forbid}
@@ -96,11 +97,6 @@ services:
     ports:
       - '${BIND_ADDRESS:-127.0.0.1}:${ORCHESTRATOR_PORT:-3000}:3000'
       - '${BIND_ADDRESS:-127.0.0.1}:${ADMIN_SHELL_PORT:-3001}:3001'
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-      valkey:
-        condition: service_healthy
     networks: [du-platform-net, du-worker-net]
     healthcheck:
       test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]

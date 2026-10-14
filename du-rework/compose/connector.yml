@@ -1,57 +1,54 @@
 services:
-  connector-db-init:
-    image: ${POSTGRES_IMAGE:-postgres:16-alpine}
-    entrypoint: [/bin/sh, -ec]
-    command:
-      - |
-        if psql --no-psqlrc --tuples-only --no-align --host=postgres --username="$$POSTGRES_USER" --dbname=postgres --command "SELECT 1 FROM pg_database WHERE datname='du_connector'" | grep -q '^1$'; then
-          exit 0
-        fi
-        createdb --host=postgres --username="$$POSTGRES_USER" --maintenance-db=postgres du_connector
+  connector-migrate:
+    image: ${CONNECTOR_RUNTIME_IMAGE_DIGEST:-${DU_IMAGE_PREFIX:-du}-connector:${DU_IMAGE_TAG:-local}}
+    build:
+      context: ../orchestrator
+      dockerfile: services/connector/Dockerfile
+    entrypoint: [node, /app/dist/migrate-cli.js]
+    command: [migrate]
     environment:
-      PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
-      POSTGRES_USER: ${POSTGRES_USER:-du}
-    depends_on:
-      postgres:
-        condition: service_healthy
+      DATABASE_URL: ${CONNECTOR_DATABASE_URL:?Set CONNECTOR_DATABASE_URL to the separately provisioned Connector database}
     networks: [du-platform-net]
+    profiles: [migration]
     init: true
     restart: 'no'
   connector:
-    image: ${DU_IMAGE_PREFIX:-du}-connector:${DU_IMAGE_TAG:-local}
+    image: ${CONNECTOR_RUNTIME_IMAGE_DIGEST:-${DU_IMAGE_PREFIX:-du}-connector:${DU_IMAGE_TAG:-local}}
     build:
-      context: ..
-      dockerfile: Dockerfile
-      target: connector
+      context: ../orchestrator
+      dockerfile: services/connector/Dockerfile
     environment:
+      NODE_ENV: ${NODE_ENV:-production}
       PORT: '8080'
       HOST: 0.0.0.0
-      DATABASE_URL: ${CONNECTOR_DATABASE_URL:-postgresql://${POSTGRES_USER:-du}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/du_connector}
-      REDIS_URL: ${REDIS_URL:-redis://valkey:6379}
+      DATABASE_URL: ${CONNECTOR_DATABASE_URL:?Set CONNECTOR_DATABASE_URL to the separately provisioned Connector database}
+      REDIS_URL: ${REDIS_URL:?Set REDIS_URL to the existing Redis or Valkey service}
       REDIS_KEY_PREFIX: ${CONNECTOR_REDIS_PREFIX:-du:connector:}
       DRAIN_TIMEOUT_MS: '30000'
-      SERVICE_IDENTITY_SECRET: ${SERVICE_IDENTITY_SECRET:?Set a base64 32-byte identity key}
-      INVOCATION_GRANT_SECRET: ${CONNECTOR_INVOCATION_GRANT_SECRET:?Set base64 of INVOCATION_GRANT_SECRET}
-      CONNECTOR_ENCRYPTION_KEY: ${CONNECTOR_ENCRYPTION_KEY:?Set a base64 32-byte encryption key}
-      CONNECTOR_INVOCATION_ENCRYPTION_KEYS: ${CONNECTOR_INVOCATION_ENCRYPTION_KEYS:?Set invocation storage encryption keys}
+      SERVICE_IDENTITY_SECRET: ${SERVICE_IDENTITY_SECRET:?Set the shared Base64-encoded 32-byte service identity key}
+      INVOCATION_GRANT_SECRET: ${CONNECTOR_INVOCATION_GRANT_SECRET:?Set Base64 of the exact raw Orchestrator invocation grant secret}
+      CONNECTOR_ENCRYPTION_KEY: ${CONNECTOR_ENCRYPTION_KEY:?Set the retained Base64-encoded 32-byte Connector encryption key}
+      CONNECTOR_INVOCATION_ENCRYPTION_KEYS: ${CONNECTOR_INVOCATION_ENCRYPTION_KEYS:?Set the invocation storage keyring JSON}
+      CONNECTOR_AUTO_MIGRATE: 'false'
       PROVIDER_ALLOW_HOSTS: ${PROVIDER_ALLOW_HOSTS:-}
       ALLOW_PRIVATE_PROVIDER_NETWORKS: ${ALLOW_PRIVATE_PROVIDER_NETWORKS:-false}
       USAGE_SINK_URL: ${USAGE_SINK_URL:-}
       USAGE_SINK_TOKEN: ${USAGE_SINK_TOKEN:-}
-      COST_CONTROL_CONNECTOR_URL: http://orchestrator:3002
-      COST_CONTROL_CONNECTOR_TOKEN: ${COST_CONTROL_CONNECTOR_TOKEN:?Set a dedicated cost-control service token}
+      COST_CONTROL_CONNECTOR_URL: ${COST_CONTROL_CONNECTOR_URL:-http://orchestrator:3002}
+      COST_CONTROL_CONNECTOR_TOKEN: ${COST_CONTROL_CONNECTOR_TOKEN:?Set the dedicated cost-control service token}
       CONNECTOR_RUNTIME_SLOT: ${CONNECTOR_RUNTIME_SLOT:-}
       CONNECTOR_RUNTIME_IDENTITY: ${CONNECTOR_RUNTIME_IDENTITY:-}
       CONNECTOR_REPLICA_ID: ${CONNECTOR_REPLICA_ID:-}
       CONNECTOR_RUNTIME_REVISION: ${CONNECTOR_RUNTIME_REVISION:-}
       CONNECTOR_RUNTIME_IMAGE_DIGEST: ${CONNECTOR_RUNTIME_IMAGE_DIGEST:-}
-    depends_on:
-      connector-db-init:
-        condition: service_completed_successfully
-      postgres:
-        condition: service_healthy
-      valkey:
-        condition: service_healthy
+      VAULT_ADDR: ${VAULT_ADDR:-}
+      VAULT_APPROLE_ROLE_ID: ${VAULT_APPROLE_ROLE_ID:-}
+      VAULT_APPROLE_SECRET_ID: ${VAULT_APPROLE_SECRET_ID:-}
+      VAULT_APPROLE_MOUNT: ${VAULT_APPROLE_MOUNT:-approle}
+      VAULT_KV_MOUNT: ${VAULT_KV_MOUNT:-secret}
+      VAULT_KV_ALLOWED_PREFIX: ${VAULT_KV_ALLOWED_PREFIX:-du/tenants}
+      VAULT_NAMESPACE: ${VAULT_NAMESPACE:-}
+      VAULT_REQUEST_TIMEOUT_MS: ${VAULT_REQUEST_TIMEOUT_MS:-5000}
     networks: [du-platform-net, du-worker-net]
     healthcheck:
       test: [CMD, node, -e, "fetch('http://127.0.0.1:8080/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]

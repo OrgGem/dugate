@@ -1,0 +1,9 @@
+# External network contract shared by standalone service entrypoints and the
+# production-oriented root aggregate. Provision these networks out of band.
+networks:
+  du-platform-net:
+    name: ${DU_PLATFORM_NETWORK:-du-platform-net}
+    external: true
+  du-worker-net:
+    name: ${DU_WORKER_NETWORK:-du-worker-net}
+    external: true

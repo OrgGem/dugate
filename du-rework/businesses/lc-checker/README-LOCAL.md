@@ -22,4 +22,18 @@ The local config uses `CONNECTOR_SERVICE_TOKEN`. For development, you may replac
 
 `pnpm run dev -- --skip-build` starts from existing `dist/` artifacts. `pnpm run build`, `pnpm run test:unit`, and `pnpm run test:typecheck` work from this directory without the parent workspace. Integration tests requiring Orchestrator services live outside this package's default offline suite.
 
-For a production image, copy `.env.docker.example` to `.env.docker.local`, replace the placeholders with the existing LC Checker runtime token and an issued Connector invoke token, then run `docker compose up -d --build`. The Docker context is this directory and the image contains only production package files and dependencies. The standalone Compose example reaches host services through `host.docker.internal`; container loopback points back to the worker itself.
+For Docker deployment, copy `.env.docker.example` to `.env.docker.local`, set
+`LC_RUNTIME_TOKEN` to the existing business identity and set
+`CONNECTOR_SERVICE_TOKEN` to an issued `connector:invoke` token. The Compose
+entrypoint starts only LC Checker and connects it to the externally managed
+`du-worker-net`; the platform services must already be attached under the DNS
+names `orchestrator`, `valkey`, and `connector`.
+
+```sh
+docker compose --env-file .env.docker.local config
+docker compose --env-file .env.docker.local up -d --build
+```
+
+The worker publishes no port and Compose does not start or recreate platform
+services. Runtime uses the internal `orchestrator:3002` listener. The Node
+process receives `SIGTERM` directly and drains for the SDK's 15-second default.

@@ -28,6 +28,25 @@ services:
       retries: 20
     restart: unless-stopped
     stop_grace_period: 30s
+  connector-db-init:
+    image: ${POSTGRES_IMAGE:-postgres:16-alpine}
+    entrypoint: [/bin/sh, -ec]
+    command:
+      - |
+        if psql --no-psqlrc --tuples-only --no-align --host=postgres --username="$$POSTGRES_USER" --dbname=postgres --command "SELECT 1 FROM pg_database WHERE datname='du_connector'" | grep -q '^1$'; then
+          exit 0
+        fi
+        createdb --host=postgres --username="$$POSTGRES_USER" --maintenance-db=postgres du_connector
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      POSTGRES_USER: ${POSTGRES_USER:-du}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [du-platform-net]
+    profiles: [local-bootstrap]
+    init: true
+    restart: 'no'
 networks:
   du-platform-net: {}
   du-worker-net: {}

@@ -1,23 +1,21 @@
 # Deployment Guide
 
-Local/rework Docker Compose topology for the **DU Platform**: **Orchestrator Backend** (Platform API + Orchestration Runtime, one process), **Orchestrator Portal** (session-facing BFF), **Connector Service** and three **Business Worker** services (Document Core, LC Checker, Example Review). Run commands from `du-rework/` with Docker Engine/BuildKit and **Compose 2.20+**. The **Node 24 LTS** baseline for Orchestrator Backend/Portal build, Connector Service and all Business Workers is **SPECIFIED** (plan [DU-PLATFORM-MIGRATION](../tasks/DU-PLATFORM-MIGRATION-2026-10-05.md), 2026-10-06): an isolated MIG-04 candidate built on Node 24.21.0 PASSES, while full worker/template parity and the security gate remain OPEN. This guide describes buildable services in the current workspace; it does not establish independent Git repositories, an active production deployment, or production acceptance. The user-approved target is two repo types: Orchestrator (Portal + Backend + Connector Service source, Connector in its own service/image) and Worker template instances deployed per business. Test fixtures under `infra/` are separate from this stack.
+Local/rework Docker Compose topology for the **DU Platform**: **Orchestrator Backend** (Platform API + Orchestration Runtime, one process), **Orchestrator Portal** (session-facing BFF), **Connector Service** and three **Business Worker** services (Document Core, LC Checker, Example Review). Run commands from `du-rework/` with Docker Engine/BuildKit and **Compose 2.20+**. The **Node 24 LTS** baseline for Orchestrator Backend/Portal build, Connector Service and all Business Workers is **SPECIFIED** (plan [DU-PLATFORM-MIGRATION](../tasks/DU-PLATFORM-MIGRATION-2026-10-05.md), 2026-10-06): an isolated MIG-04 candidate built on Node 24.21.0 PASSES, while full worker/template parity and the security gate remain OPEN. This guide describes buildable services in the current workspace; it does not establish independent Git repositories, an active production deployment, or production acceptance. The current external-service deployment commands are in the [Docker deployment runbook](56-docker-deployment.md). Historical live-local receipts below are scoped evidence, not current production readiness. Test fixtures under `infra/` are separate from this stack.
 
 ## 1. Deployment topology
 
-The canonical `Dockerfile` has five service targets. It pins Node by digest and pnpm 10.18.3, builds the runtime workspace dependency closure, and deploys production dependencies with compiled code. Runtime images run as `node`; the Orchestrator image also packages the Orchestrator Portal (React) bundle served at `admin`. Compatibility Dockerfiles in each service directory are generated with `node scripts/docker/sync-dockerfiles.cjs`.
+The canonical build contexts are service-local: Orchestrator and Connector use the `orchestrator/` context with separate service Dockerfiles; each worker uses its own `businesses/<business>/` context containing its copied SDK/workspace dependencies. The root [`Dockerfile`](../Dockerfile) remains a legacy compatibility dispatcher and is not used for worker deployment builds. Local development uses project-owned PostgreSQL/Valkey in `docker-compose.yml`; external deployment uses [`docker-compose.deploy.yml`](../docker-compose.deploy.yml), which attaches to operator-managed networks and never defines PostgreSQL or Redis services. See the current [Docker deployment runbook](56-docker-deployment.md) for the deploy environment, digest pinning, and command sequence.
 
 | Service | Container ports | Dependencies | Networks |
 |---|---|---|---|
-| postgres | 5432, unpublished | persistent `pgdata` | platform |
-| valkey | 6379, unpublished | AOF `valkeydata`, `noeviction` | platform, worker |
-| migrate | none; exits after verification | healthy postgres | platform |
-| orchestrator | Orchestrator Backend: 3000 Public JSON, 3002 Internal JSON (unpublished), Orchestrator Portal shell 3001 — PM-M02 mappings materialized in working tree | successful migrate, healthy valkey | platform, worker |
-| connector | Connector Service: 8080, unpublished in the default stack — PM-M02 materialized in working tree | healthy postgres and valkey; owns its migrations | platform, worker |
-| document-core | none (Business Worker) | healthy orchestrator, connector, valkey | worker |
-| lc-checker | none (Business Worker) | healthy orchestrator, connector, valkey | worker |
-| example-review | none (Business Worker) | healthy orchestrator and valkey | worker |
+| postgres | Local aggregate only; 5432 unpublished | local-only `pgdata` volume | local platform network |
+| valkey | Local aggregate only; 6379 unpublished | local-only AOF volume | local platform and worker networks |
+| `orchestrator-migrate` / `connector-migrate` | Explicit `migration` profile only | Run by operator after provisioning/backup review | platform |
+| orchestrator | 3000 Public JSON and 3001 Admin BFF published on loopback by default; Runtime API 3002 internal-only | external PostgreSQL/Redis in deploy mode; schema verification at startup | platform, worker |
+| connector | 8080 internal-only | separate external Connector DB and shared Redis in deploy mode; auto-migration disabled | platform, worker |
+| document-core, lc-checker, example-review | No HTTP listener or host port | external Runtime/Redis and Connector as applicable | worker |
 
-`compose/infra.yml` owns infrastructure, networks and volumes exactly once. Other fragments own their services. Compose `include` does not merge conflicting resource definitions. Networks and volumes are project-scoped; no fixed container names are used.
+`compose/infra.yml` owns local-development infrastructure, networks and volumes exactly once. `compose/deploy-infra.yml` declares external networks for the deployment aggregate. Other fragments own only their application services. Regular `up` does not migrate schemas or start a database helper. Networks and volumes are project-scoped in the local aggregate; deploy network names are explicitly external.
 
 ### 1.1 PM-M02 ingress matrix
 
@@ -58,32 +56,45 @@ For local Docker development, generate fresh credentials without overwriting exi
 node scripts/docker/init-env.cjs .env.docker
 docker compose --env-file .env.docker config --quiet
 docker compose --env-file .env.docker build
+docker compose --env-file .env.docker --profile local-bootstrap up -d postgres valkey
+docker compose --env-file .env.docker --profile local-bootstrap run --rm connector-db-init
+docker compose --env-file .env.docker --profile migration run --rm orchestrator-migrate migrate
+docker compose --env-file .env.docker --profile migration run --rm connector-migrate migrate
 docker compose --env-file .env.docker up -d --wait --wait-timeout 180
 docker compose --env-file .env.docker ps -a
 docker compose --env-file .env.docker logs --tail 100
 ```
 
-The generated Connector identity expires after **24 hours**. For production, copy `.env.docker.example`, provision keys/tokens through your identity issuer, and refresh expiring service identities through your deployment process. To replace a local expired identity, generate into a new filename and use that env file; existing credentials are never overwritten by the helper.
+Regular `up` does not migrate schemas. Review the target local database before
+the explicit migration commands. For an external deployment, follow [the
+deployment runbook](56-docker-deployment.md); it requires protected deployment
+credentials, immutable image digests, and externally provisioned
+databases/networks. Neither path automatically provisions business versions,
+profiles, provider bindings, or production identities.
 
-Each standalone wrapper starts its full dependency closure using the same fragments:
+The platform standalone wrappers include local PostgreSQL/Valkey for local
+development. Each business standalone entry point includes only the worker and
+the external worker network; start Orchestrator, Connector and infrastructure
+separately before using it:
 
-| Compose file | Services beyond shared infrastructure |
+| Compose file | Services |
 |---|---|
-| `orchestrator/services/orchestrator/docker-compose.yml` | migrate, orchestrator |
-| `orchestrator/services/connector/docker-compose.yml` | connector |
-| `businesses/document-core/docker-compose.yml` | migrate, orchestrator, connector, document-core |
-| `businesses/lc-checker/docker-compose.yml` | migrate, orchestrator, connector, lc-checker |
-| `businesses/example-review/docker-compose.yml` | migrate, orchestrator, example-review |
+| `orchestrator/services/orchestrator/docker-compose.yml` | local infra, orchestrator |
+| `orchestrator/services/connector/docker-compose.yml` | local infra, connector |
+| `businesses/document-core/docker-compose.yml` | document-core only |
+| `businesses/lc-checker/docker-compose.yml` | lc-checker only |
+| `businesses/example-review/docker-compose.yml` | example-review only |
 
 ```bash
-docker compose --env-file .env.docker -f businesses/lc-checker/docker-compose.yml up -d --build --wait
-# Build a single image without starting dependencies:
-docker build --target lc-checker -t du-lc-checker:local .
-# Start selected services within the shared full-stack project:
-docker compose --env-file .env.docker up -d --build document-core
+docker compose --env-file .env.docker -f businesses/lc-checker/docker-compose.yml config --quiet
+docker compose --env-file .env.docker -f businesses/lc-checker/docker-compose.yml up -d --build lc-checker
 ```
 
-Standalone files use different project names. Use different host ports if starting multiple projects concurrently. For scaling workers, prefer the full stack's selected services so they share one runtime and queue. Register business manifests and configure profile/provider bindings before submitting real jobs; worker process startup does not provision these records.
+Each worker image uses its own `businesses/<business>/` context. The legacy
+root Dockerfile is not the worker release builder. Business services share the
+operator-managed `du-worker-net`; registering business manifests and
+configuring profile/provider bindings remain separate requirements before
+submitting real jobs.
 
 ### 2.1 Deployment verification status (2026-10-06)
 

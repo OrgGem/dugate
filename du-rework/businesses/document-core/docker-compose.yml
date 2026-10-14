@@ -1,6 +1,4 @@
 name: du-document-core
 include:
-  - ../../compose/infra.yml
-  - ../../compose/orchestrator.yml
-  - ../../compose/connector.yml
+  - ../../compose/deploy-infra.yml
   - ../../compose/document-core.yml

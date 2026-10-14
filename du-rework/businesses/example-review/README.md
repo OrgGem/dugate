@@ -12,7 +12,7 @@
 - **Deterministic Aggregate Output**: Aggregates child reviews sorted by `itemIndex` ascending, collects deduplicated failed checks sorted alphabetically, and emits byte-identical JSON output artifacts.
 - **Lease-Loss & Cancellation Fencing**: Evaluates `ctx.signal` and `ctx.cancelRequested` at execution and side-effect boundaries; throws `LeaseLostError` on lease loss and cancellation error on abort.
 - **Safe Office Evidence Parsing (R1-E Layer 7)**: DOCX/XLSX evidence is parsed through the public `@du/document-kit` factory, which validates archive structure and executes built-in parsers in a terminable worker before review or reasoning. Parse failures fail closed with a redacted business error.
-- **Standalone Container Packaging**: Production `Dockerfile` and `entrypoint.sh` for independent worker deployment.
+- **Standalone Container Packaging**: Production `Dockerfile` with an exec-form Node command for independent worker deployment.
 - **Public Package Boundary**: Uses public shared contracts, worker SDK, and document-kit packages. It still has zero imports from `@du/orchestrator`, `@du/connector`, `businesses/document-core`, or any internal database.
 
 ## Deferred Runtime Proof (P7-03..P7-07)
@@ -92,8 +92,13 @@ This package vendors the current contracts, document-kit, egress, observability,
 
 ### Docker Build & Run
 
+The package's Compose entrypoint starts only Example Review and connects it to the externally managed `du-worker-net`. The platform services must already be attached to that network under the DNS names `orchestrator` and `valkey`; Runtime traffic uses the internal port `3002`.
+
+From `businesses/example-review/`, copy `.env.docker.example` to `.env.docker.local`, set the existing `EXAMPLE_REVIEW_RUNTIME_TOKEN`, then run:
+
 ```bash
-docker build -t du-example-review:1.0.0 .
+docker compose --env-file .env.docker.local config
+docker compose --env-file .env.docker.local up -d --build
 ```
 
-Build from this directory so the worker-local Dockerfile can install and package its vendored dependencies. See [`README-LOCAL.md`](README-LOCAL.md) for the local Runtime settings.
+Compose publishes no worker port and does not start or recreate the platform services. The image is built from this directory and includes the vendored source needed by its standalone pnpm workspace. The worker registers and heartbeats through Runtime, receives `SIGTERM` directly, and drains for 15 seconds before Compose's 30-second stop deadline.

@@ -68,17 +68,15 @@ The worker alone does not provision an active business version, profile, or
 external API key. See the [root usage guide](../../README.md).
 
 ### Docker Execution
-Build the standalone image with this directory as its context:
+The package's Compose entrypoint starts only Document Core and connects it to the externally managed `du-worker-net`. The platform services must already be attached to that network under the DNS names `orchestrator`, `valkey`, and `connector`; Runtime traffic uses the internal port `3002`.
 
 ```sh
-docker build -t du-document-core:latest .
+cp .env.example .env.docker.local
+docker compose --env-file .env.docker.local config
+docker compose --env-file .env.docker.local up -d --build
 ```
 
-Run the image only on a network where the configured Orchestrator, Redis and
-optional Connector endpoints are reachable. The image contains the production
-dependency closure and the worker build; it does not contain this workspace's
-development tools.
-On direct execution, `dist/main.js` validates environment variables, initiates worker registration, and handles `SIGTERM` / `SIGINT` signals to gracefully drain in-flight jobs within `SHUTDOWN_GRACE_MS`.
+Set `DOCUMENT_CORE_RUNTIME_TOKEN` to the existing Document Core business identity and `CONNECTOR_SERVICE_TOKEN` to an issued `connector:invoke` token in `.env.docker.local`. The Docker-specific `DOCUMENT_CORE_DOCKER_*` URLs in that file use the shared service DNS names; the ordinary `RUNTIME_URL`, `REDIS_URL`, and `CONNECTOR_URL` entries remain for direct local execution. Compose publishes no worker port and does not start or recreate the platform services. The image packages the production dependency closure and vendored worker sources from this directory's build context. The Node process handles `SIGTERM` and `SIGINT` by draining in-flight jobs for `SHUTDOWN_GRACE_MS` (15 seconds by default); Compose allows 30 seconds before force-stopping it.
 
 ## Testing
 

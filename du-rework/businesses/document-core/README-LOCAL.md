@@ -31,12 +31,19 @@ available through `pnpm run test:monorepo` and
 parent monorepo. The worker does not provision an active business version,
 profile, or provider key.
 
-For a standalone image, use this directory as the Docker build context:
+For Docker deployment, copy `.env.example` to `.env.docker.local`, set
+`DOCUMENT_CORE_RUNTIME_TOKEN` to the existing business identity and set
+`CONNECTOR_SERVICE_TOKEN` to an issued `connector:invoke` token. The Compose
+entrypoint starts only this worker and connects it to the externally managed
+`du-worker-net`; the platform services must already be attached under the DNS
+names `orchestrator`, `valkey`, and `connector`.
 
 ```sh
-docker build -t du-document-core:latest .
+cp .env.example .env.docker.local
+docker compose --env-file .env.docker.local config
+docker compose --env-file .env.docker.local up -d --build
 ```
 
-Pass `CONNECTOR_SERVICE_TOKEN` to a deployed worker when Connector access is
-needed. The production image receives only worker runtime settings and does
-not need the local signing key.
+The worker publishes no port and Compose does not start or recreate platform
+services. Runtime uses the internal `orchestrator:3002` listener. Its direct
+Node process receives `SIGTERM` and drains for the configured shutdown grace.

@@ -6,7 +6,7 @@ const root = path.resolve(__dirname, '../..');
 const workers = ['document-core', 'lc-checker', 'example-review'];
 const budget = {
   orchestrator: [0.35, 768], connector: [0.20, 384], postgres: [0.30, 640],
-  valkey: [0.10, 188], migrate: [0.05, 64],
+  valkey: [0.10, 188],
 };
 const [action = 'check', worker = 'document-core', envFile = '.env.docker', project = 'du-benchmark', overlay] = process.argv.slice(2);
 function run(args, capture = true) {
@@ -30,7 +30,7 @@ function verify(rows) {
     cpu += row.cpu; memory += row.memory;
   }
   if (names.size !== Object.keys(expected).length || cpu > 2e9 || memory > 4092 * 1024 ** 2) throw new Error('Missing services or aggregate budget exceeded');
-  return { rows, aggregate: { cpus: cpu / 1e9, memoryMiB: memory / 1024 ** 2 }, scope: 'All containers in dedicated project, including stopped migrate; no swap allowance.' };
+  return { rows, aggregate: { cpus: cpu / 1e9, memoryMiB: memory / 1024 ** 2 }, scope: 'Running benchmark containers in the dedicated project; migration jobs run separately.' };
 }
 try {
   if (!['config', 'create', 'start', 'check'].includes(action) || !workers.includes(worker)) throw new Error('Usage: node benchmark.cjs config|create|start|check document-core|lc-checker|example-review [env-file] [du-benchmark-project]');

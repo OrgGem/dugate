@@ -1,0 +1,3 @@
+local/
+*.dpapi.txt
+*.tmp

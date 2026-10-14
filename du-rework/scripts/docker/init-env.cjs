@@ -6,10 +6,18 @@ const { parseEnv } = require('node:util');
 const { localSecrets, signedConnectorToken } = require('../runtime-env.cjs');
 
 function localEnvironment(now = Date.now()) {
+  const postgresPassword = randomBytes(24).toString('hex');
+  const secrets = localSecrets(now);
   return {
-    POSTGRES_USER: 'du', POSTGRES_DB: 'du_orchestrator', POSTGRES_PASSWORD: randomBytes(24).toString('hex'),
+    POSTGRES_USER: 'du', POSTGRES_DB: 'du_orchestrator', POSTGRES_PASSWORD: postgresPassword,
+    DATABASE_URL: `postgresql://du:${postgresPassword}@postgres:5432/du_orchestrator`,
+    CONNECTOR_DATABASE_URL: `postgresql://du:${postgresPassword}@postgres:5432/du_connector`,
+    REDIS_URL: 'redis://valkey:6379',
+    DU_IMAGE_PREFIX: 'du', DU_IMAGE_TAG: 'local',
+    NODE_ENV: 'development',
     BIND_ADDRESS: '127.0.0.1', ORCHESTRATOR_PORT: '3000', ADMIN_SHELL_PORT: '3001',
-    ...localSecrets(now),
+    ...secrets,
+    COST_CONTROL_CONNECTOR_TOKEN: randomBytes(32).toString('hex'),
     DU_ADMIN_WEB: '1', DU_ADMIN_TRUST_PROXY_PROTOCOL: 'false', ARTIFACT_STORAGE_BACKEND: 'postgres',
     DU_DATA_MODE: 'synthetic',
     DU_SYNTHETIC_DATA_ACK: JSON.stringify({ mode: 'synthetic-data-exempt', reason: 'Isolated local Docker synthetic fixtures only', approvedBy: 'local-developer', acknowledgedAt: new Date(now).toISOString(), isolatedFromRealData: true }),
@@ -17,6 +25,7 @@ function localEnvironment(now = Date.now()) {
     DU_METADATA_PLAINTEXT_READ_MODE: 'forbid',
     ORCHESTRATOR_INTERNAL_BASE_URL: 'http://orchestrator:3002',
     RUNTIME_URL: 'http://orchestrator:3002/api/runtime/v1',
+    DU_CONNECTOR_BASE_URLS: JSON.stringify({ '*': 'http://connector:8080' }),
   };
 }
 
@@ -45,5 +54,5 @@ if (require.main === module) {
     Object.entries(env).map(([key, value]) => `${key}=${value}`).join('\n') + '\n',
     { flag: 'wx', mode: 0o600 });
   console.log(`Created ${filename}; secret values are not printed.`);
-  if (args.includes('--workflow')) console.log('Configure Vault Transit options/tokens before deploying workflows.');
+  if (args.includes('--workflow')) console.log('PostgreSQL-backed encrypted workflows use the retained ENCRYPTION_KEY; configure Vault Transit only for S3 or when intentionally selecting Vault as the encryption provider.');
 }

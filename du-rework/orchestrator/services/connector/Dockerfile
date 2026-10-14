@@ -1,93 +1,40 @@
 # syntax=docker/dockerfile:1
-# Override NODE_IMAGE with another reviewed digest when updating the toolchain.
 ARG NODE_IMAGE=node:24.21.0-alpine3.24@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1
-FROM ${NODE_IMAGE} AS build-base
+
+FROM ${NODE_IMAGE} AS build
 WORKDIR /workspace
 ENV PNPM_HOME=/pnpm
 ENV PATH=/pnpm:$PATH
 RUN corepack enable && corepack prepare pnpm@10.18.3 --activate
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc tsconfig.base.json ./
-COPY orchestrator/patches ./orchestrator/patches
-COPY orchestrator/vendor ./orchestrator/vendor
-# orchestrator/** packages resolve their extends as orchestrator/tsconfig.base.json,
-# not the root config. Without this every tsc falls back to ES3/ES5 defaults.
-COPY orchestrator/tsconfig.base.json ./orchestrator/tsconfig.base.json
-RUN --mount=type=cache,id=du-pnpm-store,target=/pnpm/store \
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY tsconfig.base.json ./tsconfig.base.json
+COPY patches ./patches
+COPY vendor ./vendor
+COPY packages ./packages
+COPY services ./services
+COPY apps ./apps
+COPY scripts ./scripts
+
+RUN --mount=type=cache,id=du-connector-pnpm-store,target=/pnpm/store \
     pnpm config set store-dir /pnpm/store \
     && pnpm fetch --frozen-lockfile --ignore-scripts --fetch-retries=5
-COPY orchestrator/packages ./orchestrator/packages
-COPY orchestrator/services ./orchestrator/services
-COPY docs/21-openapi.json ./docs/21-openapi.json
-COPY orchestrator/apps ./orchestrator/apps
-COPY tests ./tests
-COPY scripts/docker ./scripts/docker
-RUN --mount=type=cache,id=du-pnpm-store,target=/pnpm/store \
+RUN --mount=type=cache,id=du-connector-pnpm-store,target=/pnpm/store \
     pnpm install --offline --frozen-lockfile --ignore-scripts --prod=false
+RUN --network=none --mount=type=cache,id=du-connector-pnpm-store,target=/pnpm/store pnpm run build
+RUN --network=none --mount=type=cache,id=du-connector-pnpm-store,target=/pnpm/store \
+    node scripts/docker-build-runtime.cjs connector /deploy
 
-FROM build-base AS orchestrator-build
-RUN --network=none --mount=type=cache,id=du-pnpm-store,target=/pnpm/store node scripts/docker/build-runtime.cjs orchestrator
-FROM build-base AS connector-build
-RUN --network=none --mount=type=cache,id=du-pnpm-store,target=/pnpm/store node scripts/docker/build-runtime.cjs connector
-
-# The worker builds have their own workspace roots and lockfiles. Keeping their
-# source out of the platform workspace prevents vendored @du packages from
-# colliding with the canonical platform packages while preserving root target
-# compatibility for callers that still select a worker target.
-FROM ${NODE_IMAGE} AS worker-build-base
-WORKDIR /workspace
-ENV PNPM_HOME=/pnpm
-ENV PATH=/pnpm:$PATH
-RUN corepack enable && corepack prepare pnpm@10.18.3 --activate
-RUN --mount=type=cache,id=du-pnpm-store,target=/pnpm/store pnpm config set store-dir /pnpm/store
-COPY scripts/docker/build-runtime.cjs ./scripts/docker/build-runtime.cjs
-COPY businesses/document-core ./businesses/document-core
-COPY businesses/lc-checker ./businesses/lc-checker
-COPY businesses/example-review ./businesses/example-review
-RUN --mount=type=cache,id=du-pnpm-store,target=/pnpm/store \
-    cd businesses/document-core && pnpm fetch --frozen-lockfile --ignore-scripts --fetch-retries=5 \
-    && cd ../lc-checker && pnpm fetch --frozen-lockfile --ignore-scripts --fetch-retries=5 \
-    && cd ../example-review && pnpm fetch --frozen-lockfile --ignore-scripts --fetch-retries=5
-
-FROM worker-build-base AS document-core-build
-RUN --network=none --mount=type=cache,id=du-pnpm-store,target=/pnpm/store node scripts/docker/build-runtime.cjs document-core
-FROM worker-build-base AS lc-checker-build
-RUN --network=none --mount=type=cache,id=du-pnpm-store,target=/pnpm/store node scripts/docker/build-runtime.cjs lc-checker
-FROM worker-build-base AS example-review-build
-RUN --network=none --mount=type=cache,id=du-pnpm-store,target=/pnpm/store node scripts/docker/build-runtime.cjs example-review
-
-FROM ${NODE_IMAGE} AS runtime-base
-# Package managers are build tools; their bundled dependencies are not needed
-# by the deployed Node process and must not remain in the runtime image.
+FROM ${NODE_IMAGE} AS runtime
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack /opt/yarn-v1.22.22 \
     && rm -f /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack /usr/local/bin/yarn /usr/local/bin/yarnpkg
 ENV NODE_ENV=production
 WORKDIR /app
+COPY --from=build --chown=node:node /deploy/connector/ ./
+COPY --chown=node:node scripts/docker-connector-entrypoint.sh /usr/local/bin/connector-entrypoint.sh
+RUN chmod 0555 /usr/local/bin/connector-entrypoint.sh
 USER node
 STOPSIGNAL SIGTERM
-
-FROM runtime-base AS connector
-COPY --from=connector-build --chown=node:node /deploy/connector ./
 EXPOSE 8080
-CMD ["node", "dist/entrypoint.js"]
-
-FROM runtime-base AS document-core
-COPY --from=document-core-build --chown=node:node /deploy/document-core ./
-CMD ["node", "dist/main.js"]
-
-FROM runtime-base AS lc-checker
-COPY --from=lc-checker-build --chown=node:node /deploy/lc-checker ./
-CMD ["node", "dist/main.js"]
-
-FROM runtime-base AS example-review
-COPY --from=example-review-build --chown=node:node /deploy/example-review ./
-CMD ["node", "dist/main.js"]
-
-# Default image is Orchestrator; --target selects any of the other four services.
-FROM runtime-base AS orchestrator
-COPY --from=orchestrator-build --chown=node:node /deploy/orchestrator ./
-ENV DU_ADMIN_WEB_DIST=/app/admin-web
-EXPOSE 3000 3001 3002
-CMD ["node", "dist/main.js"]
-
-# Generated by scripts/docker/sync-dockerfiles.cjs.
-FROM connector AS service
+ENTRYPOINT ["/bin/sh", "/usr/local/bin/connector-entrypoint.sh"]
+CMD ["server"]
