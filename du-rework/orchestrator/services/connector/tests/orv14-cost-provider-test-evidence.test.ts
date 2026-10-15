@@ -1,4 +1,5 @@
 import { PostgresInvocationLedger } from '../src/db/repository';
+import { appendUsageEvent } from '../src/usage';
 import type { SqlClient, SqlResult } from '../src/db/sql';
 import type { LocalInvocationRequest } from '../src/types';
 import type { ConnectorProviderTestEvidenceQuery } from '@du/contracts';
@@ -8,6 +9,7 @@ const OPERATION = '22222222-2222-4222-8222-222222222222';
 const TASK = '33333333-3333-4333-8333-333333333333';
 const INVOCATION = '44444444-4444-4444-8444-444444444444';
 const CONNECTOR = 'openai-primary';
+type EvidenceOutboxEvent = NonNullable<ReturnType<typeof appendUsageEvent>>;
 
 function query(): ConnectorProviderTestEvidenceQuery {
   return {
@@ -20,7 +22,23 @@ function query(): ConnectorProviderTestEvidenceQuery {
   };
 }
 
-function localRequest(): LocalInvocationRequest {
+function costContext(attempt: number): NonNullable<LocalInvocationRequest['costContext']> {
+  return {
+    selectionState: 'DEFERRED',
+    apiKeyId: null,
+    profileId: null,
+    profileRevision: null,
+    businessId: 'document-core',
+    businessVersion: '1.1.0',
+    action: 'analyze',
+    attempt,
+    priceRevision: null,
+    budgetReservationGroupId: '55555555-5555-4555-8555-555555555555',
+    budgetPins: [],
+  };
+}
+
+function localRequest(costContextValue?: LocalInvocationRequest['costContext']): LocalInvocationRequest {
   return {
     contractVersion: '1' as const,
     invocationId: INVOCATION,
@@ -34,6 +52,7 @@ function localRequest(): LocalInvocationRequest {
     connectorId: CONNECTOR,
     connectorRevision: 3,
     adminPurpose: 'admin-provider-test' as const,
+    ...(costContextValue === undefined ? {} : { costContext: costContextValue }),
   };
 }
 
@@ -63,7 +82,7 @@ function persistedRow(state: string, result: unknown, request: LocalInvocationRe
   };
 }
 
-function outboxEvent() {
+function outboxEvent(): EvidenceOutboxEvent {
   return {
     eventId: `${INVOCATION}:1`,
     invocationId: INVOCATION,
@@ -81,10 +100,23 @@ function outboxEvent() {
   };
 }
 
+function costControlledOutboxEvent(attempt: number) {
+  const event = appendUsageEvent(INVOCATION, attempt, {
+    inputTokens: 12,
+    outputTokens: 8,
+    costMicrousd: 42,
+    measurement: 'measured',
+    provider: 'openai',
+    model: 'gpt-4o-2024-08-06',
+  }, { operationId: OPERATION, taskId: TASK });
+  if (!event) throw new Error('Expected provider-test usage event.');
+  return event;
+}
+
 class EvidenceDb implements SqlClient {
   public constructor(
     private readonly row: ReturnType<typeof persistedRow> | undefined,
-    private readonly outbox = outboxEvent(),
+    private readonly outbox: EvidenceOutboxEvent = outboxEvent(),
   ) {}
 
   public async query<Row extends object = Record<string, unknown>>(
@@ -118,13 +150,15 @@ class EvidenceDb implements SqlClient {
 
 describe('ORV14 source-bound provider-test recovery evidence', () => {
   it('proves recovery only from the exact successful ledger result and linked usage outbox event', async () => {
+    const attempt = 2;
+    const writerEvent = costControlledOutboxEvent(attempt);
     const db = new EvidenceDb(persistedRow('SUCCEEDED', {
       content: 'stored mapped answer',
       providerTestContentSanitized: true,
       providerStatusCode: 200,
       providerLatencyMs: 83,
       usage: { inputTokens: 12, outputTokens: 8, costMicrousd: 42, measurement: 'measured' },
-    }));
+    }, localRequest(costContext(attempt))), writerEvent);
     const ledger = new PostgresInvocationLedger(db, { legacyPlaintextReads: true });
 
     const evidence = await ledger.getProviderTestEvidence(query());
@@ -134,8 +168,9 @@ describe('ORV14 source-bound provider-test recovery evidence', () => {
       stateVersion: 7,
       recoveryReady: true,
       result: { content: 'stored mapped answer', contentSanitized: true, statusCode: 200, latencyMs: 83 },
-      usageEvent: { eventId: `${INVOCATION}:1`, inputTokens: 12, outputTokens: 8, costMicrousd: 42 },
+      usageEvent: { eventId: writerEvent.eventId, inputTokens: 12, outputTokens: 8, costMicrousd: 42 },
     });
+    expect(writerEvent.eventId).not.toBe(`${INVOCATION}:1`);
     expect(evidence?.evidenceDigest).toMatch(/^sha256:[a-f0-9]{64}$/);
     expect(evidence?.result?.resultDigest).toMatch(/^sha256:[a-f0-9]{64}$/);
     expect(evidence?.usageEvent?.payloadDigest).toMatch(/^sha256:[a-f0-9]{64}$/);
@@ -160,7 +195,11 @@ describe('ORV14 source-bound provider-test recovery evidence', () => {
 
     const evidence = await ledger.getProviderTestEvidence(query());
 
-    expect(evidence).toMatchObject({ recoveryReady: true, result: { content: null, contentTruncated: false } });
+    expect(evidence).toMatchObject({
+      recoveryReady: true,
+      result: { content: null, contentTruncated: false },
+      usageEvent: { eventId: `${INVOCATION}:1` },
+    });
     expect(JSON.stringify(evidence)).not.toContain('unverified result may echo a credential');
   });
 

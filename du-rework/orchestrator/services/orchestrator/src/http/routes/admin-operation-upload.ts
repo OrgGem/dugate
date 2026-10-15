@@ -20,6 +20,20 @@ async function* boundedSource(source: AsyncIterable<Uint8Array>, expected: numbe
   if (!bytes || (expected !== null && bytes !== expected)) throw new HttpError(400, 'MALFORMED_BODY', 'file length does not match request');
 }
 
+async function activeStorageGenerationBackend(ctx: RouteContext): Promise<'postgres' | 's3' | null> {
+  const result = await ctx.db.query<{ backend: string }>(
+    `SELECT g.backend FROM storage_generation_state s
+       JOIN storage_generations g ON g.generation_id=s.active_generation_id
+      WHERE s.singleton=true`,
+  );
+  if (!result.rowCount) return null;
+  const backend = result.rows[0]!.backend;
+  if (backend !== 'postgres' && backend !== 's3') {
+    throw new HttpError(503, 'STORAGE_UNAVAILABLE', 'active artifact storage generation is unavailable');
+  }
+  return backend;
+}
+
 export async function uploadAdminOperationArtifact(ctx: RouteContext, auth: AdminActionAuth, principal: AdminPrincipal): Promise<RouteResult> {
   if (ctx.method !== 'POST') throw new HttpError(405, 'METHOD_NOT_ALLOWED', 'file upload requires POST');
   if (auth.kind === 'cookie' && !auth.csrfOk) throw new HttpError(403, 'CSRF_REJECTED', 'missing or invalid CSRF proof');
@@ -43,7 +57,13 @@ export async function uploadAdminOperationArtifact(ctx: RouteContext, auth: Admi
   let artifactId: string | undefined;
   let sizeBytes = 0;
   try {
-    if (ctx.publicUploadGateway && expected !== null) {
+    // The generation-aware gateway issues S3 upload sessions. A PostgreSQL
+    // generation uses the existing encrypted bounded writer below instead.
+    // With no generation row, retain the legacy S3 gateway behavior.
+    const generationBackend = ctx.publicUploadGateway && expected !== null
+      ? await activeStorageGenerationBackend(ctx)
+      : null;
+    if (ctx.publicUploadGateway && expected !== null && generationBackend !== 'postgres') {
       const init = await ctx.publicUploadGateway.initSingle(p.tenantId, { uploadToken: randomUUID(), fileName: p.fileName, mimeType, sizeBytes: expected });
       artifactId = init.artifactId;
       const bound = await ctx.db.query('UPDATE artifacts SET upload_api_key_id=$3 WHERE id=$1 AND tenant_id=$2 AND upload_api_key_id IS NULL', [artifactId, p.tenantId, p.apiKeyId]);

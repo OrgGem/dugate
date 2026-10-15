@@ -1,6 +1,8 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const http = require('node:http');
+const { createRequire } = require('node:module');
 const { spawnSync } = require('node:child_process');
 const { once } = require('node:events');
 const fs = require('node:fs');
@@ -79,6 +81,63 @@ test('dev and profile commands run from a copied orchestrator with no parent wor
   }
 });
 
+test('Admin Web Vite proxies only the /admin/api path boundary', async (t) => {
+  const internalRequests = [];
+  const bff = http.createServer((req, res) => {
+    internalRequests.push(req.url);
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ source: 'bff', path: req.url }));
+  });
+  const bffPort = await listen(bff);
+  t.after(() => new Promise((resolve, reject) => {
+    bff.close((error) => error ? reject(error) : resolve());
+  }));
+
+  const adminRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'orchestrator-admin-web-proxy-'));
+  fs.writeFileSync(path.join(adminRoot, 'index.html'), '<!doctype html><title>SPA_MARKER</title><div id="root"></div>');
+  t.after(() => fs.rmSync(adminRoot, { recursive: true, force: true }));
+
+  const requireFromAdminWeb = createRequire(path.join(SOURCE_ROOT, 'apps/admin-web/package.json'));
+  const { createServer } = requireFromAdminWeb('vite');
+  const { createAdminWebDevServerOptions } = require(path.join(SOURCE_ROOT, 'scripts/dev-admin-web.cjs'));
+  const options = createAdminWebDevServerOptions({ host: '127.0.0.1', port: 0, internalAdminShellPort: bffPort });
+  const vite = await createServer({
+    root: adminRoot,
+    configFile: false,
+    base: '/admin/',
+    plugins: options.plugins,
+    server: { ...options.server, port: 0 },
+  });
+  t.after(() => vite.close());
+  await vite.listen();
+  const vitePort = vite.httpServer.address().port;
+
+  for (const requestPath of ['/admin/api', '/admin/api?x=1', '/admin/api/session']) {
+    const response = await fetch(`http://127.0.0.1:${vitePort}${requestPath}`, {
+      headers: { accept: 'application/json' },
+    });
+    assert.deepEqual(await response.json(), { source: 'bff', path: requestPath });
+  }
+  // HTML routes cross the session gate once and then stay in Vite; a raw
+  // /admin/api prefix proxy would forward each of these paths a second time.
+  for (const requestPath of ['/admin/api-keys', '/admin/api-docs', '/admin/apiculture']) {
+    const response = await fetch(`http://127.0.0.1:${vitePort}${requestPath}`, {
+      headers: { accept: 'text/html' },
+    });
+    assert.equal(response.status, 200);
+    assert.match(await response.text(), /SPA_MARKER/);
+  }
+
+  assert.deepEqual(internalRequests, [
+    '/admin/api',
+    '/admin/api?x=1',
+    '/admin/api/session',
+    '/admin/api-keys',
+    '/admin/api-docs',
+    '/admin/apiculture',
+  ]);
+});
+
 test('runtime environment projection preserves configured shared worker tokens', (t) => {
   const root = createSandbox(t);
   const { serviceEnvironment, validateRuntimeEnvironment } = require(path.join(root, 'scripts/runtime-env.cjs'));
@@ -135,6 +194,57 @@ test('local development derives a stable orchestrator-only Secret Catalog keyrin
     assert.equal(nonDevelopment.DU_SECRET_CATALOG_ACTIVE_KEY_VERSION, undefined);
     assert.equal(nonDevelopment.DU_SECRET_CATALOG_KEYRING_JSON, undefined);
   }
+});
+
+test('native development derives loopback cost-control credentials only when the pair is absent', (t) => {
+  const root = createSandbox(t);
+  const { localCostControlEnvironment } = require(path.join(root, 'scripts/dev.cjs'));
+  const env = {
+    NODE_ENV: 'development',
+    ENCRYPTION_KEY: 'existing-local-master-key-material-0123456789abcdef',
+    ADMIN_TOKEN: 'existing-admin-token',
+    ORCHESTRATOR_INTERNAL_PORT: '3012',
+  };
+  const projected = localCostControlEnvironment(env, { internalPort: 3012 });
+  const repeated = localCostControlEnvironment(env, { internalPort: 3012 });
+
+  assert.equal(projected.COST_CONTROL_CONNECTOR_URL, 'http://127.0.0.1:3012');
+  assert.equal(/^[A-Za-z0-9_-]{43}$/.test(projected.COST_CONTROL_CONNECTOR_TOKEN), true);
+  assert.equal(projected.COST_CONTROL_CONNECTOR_TOKEN === repeated.COST_CONTROL_CONNECTOR_TOKEN, true);
+  assert.equal(projected.COST_CONTROL_CONNECTOR_TOKEN === env.ENCRYPTION_KEY, false);
+  assert.equal(projected.COST_CONTROL_CONNECTOR_TOKEN === env.ADMIN_TOKEN, false);
+  assert.equal(env.COST_CONTROL_CONNECTOR_URL, undefined);
+  assert.equal(env.COST_CONTROL_CONNECTOR_TOKEN, undefined);
+
+  const spacedKey = 'existing local master key material with spaces 0123456789';
+  const spacedKeyEnvironment = localCostControlEnvironment({
+    NODE_ENV: 'development',
+    ENCRYPTION_KEY: spacedKey,
+  }, { internalPort: 3012 });
+  assert.equal(/^[A-Za-z0-9_-]{43}$/.test(spacedKeyEnvironment.COST_CONTROL_CONNECTOR_TOKEN), true);
+
+  const explicit = localCostControlEnvironment({
+    ...env,
+    COST_CONTROL_CONNECTOR_URL: 'http://cost-control.example.test',
+    COST_CONTROL_CONNECTOR_TOKEN: 'explicit-cost-control-token-material-123456',
+  }, { internalPort: 3012 });
+  assert.equal(explicit.COST_CONTROL_CONNECTOR_URL, 'http://cost-control.example.test');
+  assert.equal(explicit.COST_CONTROL_CONNECTOR_TOKEN, 'explicit-cost-control-token-material-123456');
+
+  const partial = localCostControlEnvironment({
+    ...env,
+    COST_CONTROL_CONNECTOR_URL: 'http://cost-control.example.test',
+  }, { internalPort: 3012 });
+  assert.equal(partial.COST_CONTROL_CONNECTOR_URL, 'http://cost-control.example.test');
+  assert.equal(partial.COST_CONTROL_CONNECTOR_TOKEN, undefined);
+
+  const production = localCostControlEnvironment({ ...env, NODE_ENV: 'production' }, { internalPort: 3012 });
+  assert.equal(production.COST_CONTROL_CONNECTOR_URL, undefined);
+  assert.equal(production.COST_CONTROL_CONNECTOR_TOKEN, undefined);
+  assert.throws(
+    () => localCostControlEnvironment({ ...env, ENCRYPTION_KEY: 'short-key' }, { internalPort: 3012 }),
+    /ENCRYPTION_KEY with at least 32 bytes/,
+  );
 });
 
 test('mock bootstrap wires real KV v2 and Transit HTTP seams and shuts down its listener', async (t) => {

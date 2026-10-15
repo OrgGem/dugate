@@ -85,7 +85,11 @@ export interface SubmitContext {
   /** Trusted compatibility adapter content identity, computed before uploading. */
   legacyRequestIdentity?: Parameters<typeof canonicalRequestHash>[0];
   legacyEndpointSlug?: string;
-  legacyExpectedProfile?: { profileId: string; revision: number } | null;
+  /** Endpoint selector from a saved Profile, verified by the Admin Workbench before submission. */
+  profileEndpointSlug?: string;
+  /** Admin Workbench request identity; kept out of public and legacy request hashes. */
+  adminWorkbenchProfileIdentity?: { profileId: string; profileName: string; revision: number; endpointSlug: string | null };
+  legacyExpectedProfile?: { profileId: string; revision: number; profileName?: string } | null;
   tenantId: string;
   apiKeyId: string;
   businessId: string;
@@ -704,10 +708,13 @@ export function createSubmissionService(
       // Idempotency-Key must replay the original operation, not a second one
       // built from the new defaults — hashing the merged map would turn every
       // admin edit into an IDEMPOTENCY_CONFLICT for in-flight clients.
+      const requestInput = ctx.adminWorkbenchProfileIdentity === undefined
+        ? submission.input
+        : { adminWorkbenchProfile: ctx.adminWorkbenchProfileIdentity, requestInput: submission.input };
       const requestHash = canonicalRequestHash(ctx.legacyRequestIdentity ?? {
         input: ctx.workflowSchemaPin === undefined
-          ? submission.input
-          : { input: submission.input, legacyWorkflowSchema: ctx.workflowSchemaPin },
+          ? requestInput
+          : { input: requestInput, legacyWorkflowSchema: ctx.workflowSchemaPin },
         artifacts: submission.artifacts,
         output: submission.output,
         callback: submission.callback,
@@ -788,7 +795,7 @@ export function createSubmissionService(
         declaredParameterKeys(actionDef.inputSchema as object).filter((key) =>
           ctx.legacyProjection === undefined || key !== 'legacyWorkflow'
         ),
-        ctx.legacyEndpointSlug ?? ctx.legacyProjection?.endpointSlug
+        ctx.legacyEndpointSlug ?? ctx.legacyProjection?.endpointSlug ?? ctx.profileEndpointSlug
       );
       const tenantDefaults = options.globalSettings
         ? await options.globalSettings.getTenantDefaultsSnapshot(ctx.tenantId)
@@ -805,7 +812,10 @@ export function createSubmissionService(
       }
       if (ctx.legacyExpectedProfile !== undefined) {
         const expected = ctx.legacyExpectedProfile;
-        const matches = expected === null ? profile.mode === 'legacy' : profile.mode === 'pinned' && profile.profileId === expected.profileId && profile.revision === expected.revision;
+        const matches = expected === null ? profile.mode === 'legacy' : profile.mode === 'pinned'
+          && profile.profileId === expected.profileId
+          && profile.revision === expected.revision
+          && (expected.profileName === undefined || profile.profileName === expected.profileName);
         if (!matches) throw conflict('PROFILE_CHANGED', 'Profile changed during source admission; retry the request');
       }
       // The profile already split its managed keys from the rest; the merged
@@ -880,7 +890,7 @@ export function createSubmissionService(
       // shape (non-secret digests); the carrier (below) is the content.
       const promptOverrideRows =
         profile.mode === 'pinned' && promptOverrides
-          ? await promptOverrides.listFor(ctx.apiKeyId, ctx.legacyEndpointSlug ?? ctx.legacyProjection?.endpointSlug ?? canonicalAction, ctx.tenantId)
+          ? await promptOverrides.listFor(ctx.apiKeyId, ctx.legacyEndpointSlug ?? ctx.legacyProjection?.endpointSlug ?? ctx.profileEndpointSlug ?? canonicalAction, ctx.tenantId)
           : [];
       const promptRevisionsPin =
         profile.mode === 'pinned' && promptOverrides

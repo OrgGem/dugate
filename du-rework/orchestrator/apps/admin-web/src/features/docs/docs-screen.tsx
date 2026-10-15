@@ -23,6 +23,7 @@ type WorkbenchProfile = {
   businessVersion: string;
   profileName: string;
   revision: number;
+  endpointSlug?: string | null;
   actions: string[];
   status: string;
   assigned?: ProfileSelfServiceAssignedPage['items'][number];
@@ -393,6 +394,7 @@ export function DocsScreen() {
           businessVersion: item.businessVersion,
           profileName: item.profileName,
           revision: item.revision,
+          endpointSlug: item.endpointSlug,
           actions: [item.action],
           status: 'ACTIVE',
           assigned: item,
@@ -413,6 +415,7 @@ export function DocsScreen() {
           businessVersion: item.businessVersion,
           profileName: item.profileName,
           revision: item.revision,
+          endpointSlug: item.endpointSlug,
           actions: item.boundActions.filter((entry) => ACTIONS.includes(entry as WorkbenchAction)),
           status: item.status,
           listed: item,
@@ -499,6 +502,7 @@ export function DocsScreen() {
         businessVersion: detail.businessVersion,
         profileName: detail.profileName,
         revision: detail.revision,
+        endpointSlug: detail.endpointSlug,
         actions,
         status: 'ACTIVE',
       };
@@ -594,11 +598,14 @@ export function DocsScreen() {
         if (!detail || detail.businessId !== row.businessId || detail.businessVersion !== row.businessVersion || detail.profileName !== row.profileName || detail.revision !== row.revision) {
           setSelectionError({ status: 409, code: 'PROFILE_CHANGED', title: 'Profile changed since catalog load. Reload the catalog before running it.' }); return;
         }
+        if (row.endpointSlug !== undefined && detail.endpointSlug !== undefined && row.endpointSlug !== detail.endpointSlug) {
+          setSelectionError({ status: 409, code: 'PROFILE_CHANGED', title: 'Profile endpoint selector changed since catalog load. Reload the catalog before running it.' }); return;
+        }
         if (!keysResult.ok) { setSelectionError(keysResult.problem); return; }
         const keys = keysResult.data.items.filter((key) => key.status === 'ACTIVE' && key.membershipState === 'ACTIVE').map((key) => ({ id: key.id, label: keyLabel(key), status: key.status }));
         const params = detail.policy.parameters;
         installSelection({
-          profile: row,
+          profile: { ...row, endpointSlug: detail.endpointSlug !== undefined ? detail.endpointSlug : row.endpointSlug },
           connectorBindings: detail.connectorBindings,
           keys,
           promptCandidate: promptFromParameters(params),
@@ -912,6 +919,7 @@ export function DocsScreen() {
         action: action as WorkbenchAction,
         profileName: selection.profile.profileName,
         expectedProfileRevision: selection.profile.revision,
+        endpointSlug: selection.profile.endpointSlug ?? null,
         parameters,
         artifacts,
         ...(sourceUrl.trim() ? { sourceUrl: sourceUrl.trim() } : {}),

@@ -1,8 +1,10 @@
 import { decodeLegacyWorkflowJson, decodeLegacyWorkflowXml, LegacyWorkflowDecodeError } from '../src/compat/legacy-workflow-decoders';
 import { createProfileSelfServiceService, type ProfileSelfServiceActor } from '../src/modules/profiles/self-service';
-import { assertAdminWorkbenchAdmissionScope, trustedLocalAdminWorkbenchActor } from '../src/modules/admin-workbench/service';
+import { createSubmissionService } from '../src/modules/operations/submission';
+import { assertAdminWorkbenchAdmissionScope, submitProfileEndpointTest, trustedLocalAdminWorkbenchActor } from '../src/modules/admin-workbench/service';
 import { matchProfilesRoute } from '../src/app/admin/bff/profiles';
 import { canonicalLegacyWorkflowPinBytes } from '../../../packages/contracts/src/legacy-workflow';
+import { canonicalRequestHash } from '@du/contracts';
 import { connectorNodeAtPath, updateConnectorNodeOverride } from '../../../apps/admin-web/src/features/workflows/revision-editor';
 
 const tenantId = '11111111-1111-4111-8111-111111111111';
@@ -172,5 +174,265 @@ describe('ORV14 workflow import and assigned Profile workbench', () => {
     expect(trustedLocalAdminWorkbenchActor({
       kind: 'bearer', principal: { role: 'tenant_operator', tenantId },
     })).toBeNull();
+  });
+
+  test('Admin Workbench resolves and submits the exact endpoint-specific saved Profile', async () => {
+    const apiKeyId = '44444444-4444-4444-8444-444444444444';
+    const operationId = '66666666-6666-4666-8666-666666666666';
+    const parameters = { task: 'classify', categories: ['TEST', 'OTHER'], text: 'synthetic' };
+    const savedProfile = {
+      mode: 'pinned', profileId, profileName: 'codex-ui-check-20261014', revision: 2,
+      policy: { enabled: true },
+    } as never;
+    const db = {
+      query: jest.fn(async (sql: string) => {
+        if (sql.includes('SELECT id FROM api_keys')) return { rowCount: 1, rows: [{ id: apiKeyId }] };
+        if (sql.includes('SELECT version,manifest FROM business_versions')) {
+          return { rowCount: 1, rows: [{ version: '1.1.0', manifest: { actions: [{ name: 'analyze' }] } }] };
+        }
+        if (sql.includes('SELECT endpoint_slug FROM profile_bindings')) {
+          return { rowCount: 1, rows: [{ endpoint_slug: 'analyze:classify' }] };
+        }
+        throw new Error(`unexpected query: ${sql}`);
+      }),
+    };
+    const preflightLegacyWorkflow = jest.fn().mockResolvedValue(savedProfile);
+    const submit = jest.fn().mockResolvedValue({ operation: { id: operationId }, replayed: false });
+    const ctx = {
+      db,
+      submission: { preflightLegacyWorkflow, submit },
+      correlationId: '77777777-7777-4777-8777-777777777777',
+      audit: { record: jest.fn().mockResolvedValue(undefined) },
+    } as never;
+    const request = {
+      tenantId,
+      apiKeyId,
+      businessId: 'document-core',
+      businessVersion: '1.1.0',
+      action: 'analyze',
+      profileName: 'codex-ui-check-20261014',
+      expectedProfileRevision: 2,
+      endpointSlug: 'analyze:classify',
+      parameters,
+      artifacts: [],
+    };
+
+    await submitProfileEndpointTest(ctx, { kind: 'bearer', principal: { role: 'platform' } } as never, request, 'workbench-endpoint-test');
+
+    expect(preflightLegacyWorkflow).toHaveBeenCalledWith(expect.objectContaining({ endpointSlug: 'analyze:classify', input: parameters }));
+    expect(submit).toHaveBeenCalledWith(expect.objectContaining({
+      profileEndpointSlug: 'analyze:classify',
+      legacyExpectedProfile: { profileId, revision: 2, profileName: 'codex-ui-check-20261014' },
+      adminWorkbenchProfileIdentity: {
+        profileId, profileName: 'codex-ui-check-20261014', revision: 2, endpointSlug: 'analyze:classify',
+      },
+      submission: expect.objectContaining({ input: parameters }),
+    }));
+  });
+
+  test('Admin Workbench rejects an endpoint selector that differs from the saved Profile revision', async () => {
+    const apiKeyId = '44444444-4444-4444-8444-444444444444';
+    const savedProfile = {
+      mode: 'pinned', profileId, profileName: 'codex-ui-check-20261014', revision: 2,
+      policy: { enabled: true },
+    } as never;
+    const db = {
+      query: jest.fn(async (sql: string) => {
+        if (sql.includes('SELECT id FROM api_keys')) return { rowCount: 1, rows: [{ id: apiKeyId }] };
+        if (sql.includes('SELECT version,manifest FROM business_versions')) {
+          return { rowCount: 1, rows: [{ version: '1.1.0', manifest: { actions: [{ name: 'analyze' }] } }] };
+        }
+        if (sql.includes('SELECT endpoint_slug FROM profile_bindings')) {
+          return { rowCount: 1, rows: [{ endpoint_slug: null }] };
+        }
+        throw new Error(`unexpected query: ${sql}`);
+      }),
+    };
+    const preflightLegacyWorkflow = jest.fn().mockResolvedValue(savedProfile);
+    const submit = jest.fn();
+    const ctx = {
+      db,
+      submission: { preflightLegacyWorkflow, submit },
+      correlationId: '77777777-7777-4777-8777-777777777777',
+      audit: { record: jest.fn() },
+    } as never;
+
+    await expect(submitProfileEndpointTest(ctx, { kind: 'bearer', principal: { role: 'platform' } } as never, {
+      tenantId,
+      apiKeyId,
+      businessId: 'document-core',
+      businessVersion: '1.1.0',
+      action: 'analyze',
+      profileName: 'codex-ui-check-20261014',
+      expectedProfileRevision: 2,
+      endpointSlug: 'analyze:classify',
+      parameters: { task: 'classify', categories: ['TEST', 'OTHER'], text: 'synthetic' },
+      artifacts: [],
+    }, 'workbench-endpoint-test')).rejects.toMatchObject({ status: 403, code: 'PERMISSION_DENIED' });
+    expect(preflightLegacyWorkflow).toHaveBeenCalledWith(expect.objectContaining({ endpointSlug: 'analyze:classify' }));
+    expect(submit).not.toHaveBeenCalled();
+  });
+
+  test('an omitted selector is the canonical action-level Profile selector', async () => {
+    const apiKeyId = '44444444-4444-4444-8444-444444444444';
+    const savedProfile = {
+      mode: 'pinned', profileId, profileName: 'codex-ui-check-20261014', revision: 2,
+      policy: { enabled: true },
+    } as never;
+    const db = {
+      query: jest.fn(async (sql: string) => {
+        if (sql.includes('SELECT id FROM api_keys')) return { rowCount: 1, rows: [{ id: apiKeyId }] };
+        if (sql.includes('SELECT version,manifest FROM business_versions')) {
+          return { rowCount: 1, rows: [{ version: '1.1.0', manifest: { actions: [{ name: 'analyze' }] } }] };
+        }
+        if (sql.includes('SELECT endpoint_slug FROM profile_bindings')) {
+          return { rowCount: 1, rows: [{ endpoint_slug: null }] };
+        }
+        throw new Error(`unexpected query: ${sql}`);
+      }),
+    };
+    const preflightLegacyWorkflow = jest.fn().mockResolvedValue(savedProfile);
+    const submit = jest.fn().mockResolvedValue({ operation: { id: '66666666-6666-4666-8666-666666666666' }, replayed: false });
+    const ctx = {
+      db,
+      submission: { preflightLegacyWorkflow, submit },
+      correlationId: '77777777-7777-4777-8777-777777777777',
+      audit: { record: jest.fn().mockResolvedValue(undefined) },
+    } as never;
+
+    await submitProfileEndpointTest(ctx, { kind: 'bearer', principal: { role: 'platform' } } as never, {
+      tenantId,
+      apiKeyId,
+      businessId: 'document-core',
+      businessVersion: '1.1.0',
+      action: 'analyze',
+      profileName: 'codex-ui-check-20261014',
+      expectedProfileRevision: 2,
+      parameters: { task: 'classify', categories: ['TEST', 'OTHER'], text: 'synthetic' },
+      artifacts: [],
+    }, 'workbench-endpoint-test');
+
+    expect(preflightLegacyWorkflow.mock.calls[0]?.[0]).not.toHaveProperty('endpointSlug');
+    expect(submit.mock.calls[0]?.[0]).not.toHaveProperty('profileEndpointSlug');
+  });
+
+  test('malformed endpoint selectors fail contract validation before any lookup or submission', async () => {
+    const query = jest.fn();
+    const submit = jest.fn();
+    const ctx = {
+      db: { query },
+      submission: { submit },
+    } as never;
+
+    await expect(submitProfileEndpointTest(ctx, { kind: 'bearer', principal: { role: 'platform' } } as never, {
+      tenantId,
+      apiKeyId: '44444444-4444-4444-8444-444444444444',
+      businessId: 'document-core',
+      businessVersion: '1.1.0',
+      action: 'analyze',
+      profileName: 'codex-ui-check-20261014',
+      expectedProfileRevision: 2,
+      endpointSlug: 'analyze/../classify',
+      parameters: { text: 'synthetic' },
+      artifacts: [],
+    }, 'workbench-endpoint-test')).rejects.toMatchObject({ status: 422, code: 'INVALID_SCHEMA' });
+    expect(query).not.toHaveBeenCalled();
+    expect(submit).not.toHaveBeenCalled();
+  });
+
+  test('submission re-resolves the saved endpoint selector and rejects a changed Profile name before writes', async () => {
+    const apiKeyId = '44444444-4444-4444-8444-444444444444';
+    const queries: string[] = [];
+    const db = {
+      query: jest.fn(async (sql: string) => {
+        queries.push(sql);
+        if (sql.includes('FROM submission_keys')) return { rowCount: 0, rows: [] };
+        if (sql.includes('FROM business_catalog')) {
+          return { rowCount: 1, rows: [{ enabled: true, activation_revision: 1, submissions_paused: false, pre_drain_version: null }] };
+        }
+        if (sql.includes('FROM business_versions')) {
+          return { rowCount: 1, rows: [{
+            version: '1.1.0', status: 'ENABLED', is_active: true, digest: 'sha256:workbench-test', queue: 'document-core',
+            manifest: { actions: [{ name: 'analyze', inputSchema: { type: 'object', additionalProperties: true }, connectorSlots: [] }] },
+          }] };
+        }
+        throw new Error(`unexpected query: ${sql}`);
+      }),
+    } as never;
+    const resolveEffectiveProfile = jest.fn().mockResolvedValue({
+        mode: 'pinned', profileId, profileName: 'renamed-profile', revision: 2, bindings: {},
+        policy: { enabled: true }, effectiveInput: { text: 'synthetic' },
+      });
+    const profiles = { resolveEffectiveProfile } as never;
+    const submission = createSubmissionService(db, {} as never, profiles);
+
+    await expect(submission.submit({
+      tenantId,
+      apiKeyId,
+      businessId: 'document-core',
+      action: 'analyze',
+      idempotencyKey: 'workbench-endpoint-test',
+      profileEndpointSlug: 'analyze:classify',
+      legacyExpectedProfile: { profileId, revision: 2, profileName: 'codex-ui-check-20261014' },
+      submission: { input: { text: 'synthetic' }, output: {} },
+    })).rejects.toMatchObject({ status: 409, code: 'PROFILE_CHANGED' });
+
+    expect(resolveEffectiveProfile).toHaveBeenCalledWith(
+      apiKeyId, 'document-core', '1.1.0', 'analyze', { text: 'synthetic' }, expect.any(Array), 'analyze:classify',
+    );
+    expect(queries.some((sql) => /INSERT INTO (operations|tasks|submission_keys|outbox)/i.test(sql))).toBe(false);
+  });
+
+  test('Workbench profile identity distinguishes endpoint idempotency while the same identity replays', async () => {
+    const apiKeyId = '44444444-4444-4444-8444-444444444444';
+    const operationId = '66666666-6666-4666-8666-666666666666';
+    const input = { task: 'classify', categories: ['TEST', 'OTHER'], text: 'same request body' };
+    const classifyIdentity = {
+      profileId,
+      profileName: 'classify-profile',
+      revision: 2,
+      endpointSlug: 'analyze:classify',
+    };
+    const sentimentIdentity = {
+      profileId: '88888888-8888-4888-8888-888888888888',
+      profileName: 'sentiment-profile',
+      revision: 1,
+      endpointSlug: 'analyze:sentiment',
+    };
+    const priorHash = canonicalRequestHash({
+      input: { adminWorkbenchProfile: classifyIdentity, requestInput: input },
+      output: {},
+    });
+    const db = {
+      query: jest.fn(async (sql: string) => {
+        if (sql.includes('FROM submission_keys')) {
+          return { rowCount: 1, rows: [{ operation_id: operationId, request_hash: priorHash }] };
+        }
+        if (sql.includes('FROM operations')) {
+          return { rowCount: 1, rows: [{
+            id: operationId, tenant_id: tenantId, business_id: 'document-core', business_version: '1.1.0',
+            action: 'analyze', state: 'ACCEPTED', state_version: 1,
+            created_at: '2026-10-15T00:00:00.000Z', updated_at: '2026-10-15T00:00:00.000Z', deadline_at: null,
+          }] };
+        }
+        throw new Error(`unexpected query: ${sql}`);
+      }),
+    } as never;
+    const resolveEffectiveProfile = jest.fn();
+    const service = createSubmissionService(db, {} as never, { resolveEffectiveProfile } as never);
+    const makeContext = (identity: typeof classifyIdentity | typeof sentimentIdentity) => ({
+      tenantId,
+      apiKeyId,
+      businessId: 'document-core',
+      action: 'analyze',
+      idempotencyKey: 'workbench-endpoint-test',
+      adminWorkbenchProfileIdentity: identity,
+      submission: { input, output: {} },
+    });
+
+    const replay = await service.submit(makeContext(classifyIdentity));
+    expect(replay.replayed).toBe(true);
+    await expect(service.submit(makeContext(sentimentIdentity))).rejects.toMatchObject({ status: 409, code: 'IDEMPOTENCY_CONFLICT' });
+    expect(resolveEffectiveProfile).not.toHaveBeenCalled();
   });
 });

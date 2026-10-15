@@ -8,7 +8,7 @@ import {
   type ConnectorSignalSnapshot,
   type ConnectorSignalSnapshotQuery,
 } from '@du/contracts';
-import { toContractUsageEvent, type UsageEvent } from '../usage';
+import { toContractUsageEvent, usageEventId, type UsageEvent } from '../usage';
 import { PostgresUsageOutbox } from './usage-outbox';
 import { ConnectorError } from '../errors';
 import {
@@ -279,47 +279,57 @@ export class PostgresInvocationLedger implements InvocationLedger {
 
     let usageEvent: ConnectorProviderTestEvidence['usageEvent'] = null;
     if (storedResult) {
-      const expectedEventId = `${query.invocationId}:1`;
-      const outbox = await this.db.query<{
-        event_id: string;
-        invocation_id: string;
-        payload: unknown;
-        delivered_at: string | Date | null;
-      }>(
-        `SELECT event_id, invocation_id, payload, delivered_at FROM connector_usage_outbox
-         WHERE event_id = $1 AND invocation_id = $2`,
-        [expectedEventId, query.invocationId],
-      );
-      const eventRow = outbox.rows[0];
-      let parsedEvent: ReturnType<typeof UsageEventSchema.safeParse> | undefined;
-      if (eventRow && typeof eventRow.payload === 'object' && eventRow.payload !== null && !Array.isArray(eventRow.payload)) {
-        try {
-          parsedEvent = UsageEventSchema.safeParse(toContractUsageEvent(eventRow.payload as UsageEvent));
-        } catch {
-          parsedEvent = undefined;
+      const costContext = record.request.costContext;
+      const costAttempt = costContext?.attempt;
+      const expectedEventId = costContext === undefined
+        ? `${query.invocationId}:1`
+        : typeof costAttempt === 'number' && Number.isSafeInteger(costAttempt) && costAttempt > 0
+          ? usageEventId(query.invocationId, costAttempt)
+          : undefined;
+      // A malformed persisted cost context cannot fall back to the legacy ID.
+      // Doing so could associate this result with usage from another attempt.
+      if (expectedEventId !== undefined) {
+        const outbox = await this.db.query<{
+          event_id: string;
+          invocation_id: string;
+          payload: unknown;
+          delivered_at: string | Date | null;
+        }>(
+          `SELECT event_id, invocation_id, payload, delivered_at FROM connector_usage_outbox
+           WHERE event_id = $1 AND invocation_id = $2`,
+          [expectedEventId, query.invocationId],
+        );
+        const eventRow = outbox.rows[0];
+        let parsedEvent: ReturnType<typeof UsageEventSchema.safeParse> | undefined;
+        if (eventRow && typeof eventRow.payload === 'object' && eventRow.payload !== null && !Array.isArray(eventRow.payload)) {
+          try {
+            parsedEvent = UsageEventSchema.safeParse(toContractUsageEvent(eventRow.payload as UsageEvent));
+          } catch {
+            parsedEvent = undefined;
+          }
         }
-      }
-      if (
-        eventRow
-        && parsedEvent?.success
-        && parsedEvent.data.eventId === expectedEventId
-        && parsedEvent.data.invocationId === query.invocationId
-        && parsedEvent.data.operationId === query.operationId
-        && parsedEvent.data.taskId === query.taskId
-        && Number.isFinite(Date.parse(parsedEvent.data.occurredAt))
-      ) {
-        const event = parsedEvent.data;
-        usageEvent = {
-          eventId: event.eventId,
-          payloadDigest: sha256(canonicalize(event)),
-          inputTokens: Number.isSafeInteger(event.units.inputTokens) ? event.units.inputTokens : null,
-          outputTokens: Number.isSafeInteger(event.units.outputTokens) ? event.units.outputTokens : null,
-          costMicrousd: Number.isSafeInteger(event.costMicrousd) ? event.costMicrousd : null,
-          measurement: event.measurement ?? null,
-          costStatus: event.costStatus ?? null,
-          occurredAt: new Date(event.occurredAt).toISOString(),
-          deliveredAt: eventRow.delivered_at === null ? null : normalizeTimestamp(eventRow.delivered_at),
-        };
+        if (
+          eventRow
+          && parsedEvent?.success
+          && parsedEvent.data.eventId === expectedEventId
+          && parsedEvent.data.invocationId === query.invocationId
+          && parsedEvent.data.operationId === query.operationId
+          && parsedEvent.data.taskId === query.taskId
+          && Number.isFinite(Date.parse(parsedEvent.data.occurredAt))
+        ) {
+          const event = parsedEvent.data;
+          usageEvent = {
+            eventId: event.eventId,
+            payloadDigest: sha256(canonicalize(event)),
+            inputTokens: Number.isSafeInteger(event.units.inputTokens) ? event.units.inputTokens : null,
+            outputTokens: Number.isSafeInteger(event.units.outputTokens) ? event.units.outputTokens : null,
+            costMicrousd: Number.isSafeInteger(event.costMicrousd) ? event.costMicrousd : null,
+            measurement: event.measurement ?? null,
+            costStatus: event.costStatus ?? null,
+            occurredAt: new Date(event.occurredAt).toISOString(),
+            deliveredAt: eventRow.delivered_at === null ? null : normalizeTimestamp(eventRow.delivered_at),
+          };
+        }
       }
     }
 

@@ -64,7 +64,9 @@ function createAdminShellSessionGate(proxyTarget) {
 
 function createAdminWebDevServerOptions({ host, port, internalAdminShellPort }) {
   const proxyTarget = `http://127.0.0.1:${internalAdminShellPort}`;
-  const paths = ['/admin/api', '/admin/login', '/admin/logout', '/admin/oidc/callback'];
+  // Vite string proxy keys are raw prefix matches; keep the BFF prefix on a
+  // path boundary so SPA routes such as /admin/api-keys stay in Vite.
+  const paths = ['^/admin/api(?:[/?]|$)', '/admin/login', '/admin/logout', '/admin/oidc/callback'];
   const proxy = Object.fromEntries(paths.map((route) => [route, { target: proxyTarget, changeOrigin: false }]));
   return {
     plugins: [createAdminShellSessionGate(proxyTarget)],

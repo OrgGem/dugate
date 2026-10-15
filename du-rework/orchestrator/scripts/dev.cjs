@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 const { spawn, spawnSync } = require('node:child_process');
 const { createRequire } = require('node:module');
+const { createHmac } = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const net = require('node:net');
@@ -343,6 +344,41 @@ function printReadyBanner(publicPort, internalPort, portalPort, connectorPort) {
   console.log('===============================================================\n');
 }
 
+function localCostControlEnvironment(env, { internalPort } = {}) {
+  const result = { ...env };
+  const hasUrl = typeof env.COST_CONTROL_CONNECTOR_URL === 'string' && env.COST_CONTROL_CONNECTOR_URL.length > 0;
+  const hasToken = typeof env.COST_CONTROL_CONNECTOR_TOKEN === 'string' && env.COST_CONTROL_CONNECTOR_TOKEN.length > 0;
+  if (hasUrl || hasToken || env.NODE_ENV !== 'development') return result;
+
+  const encryptionKey = env.ENCRYPTION_KEY;
+  if (typeof encryptionKey !== 'string' || Buffer.byteLength(encryptionKey, 'utf8') < 32) {
+    throw new Error('Local cost-control defaults require ENCRYPTION_KEY with at least 32 bytes.');
+  }
+  if (!Number.isInteger(internalPort) || internalPort < 1 || internalPort > 65_535) {
+    throw new Error('Local cost-control defaults require a valid ORCHESTRATOR_INTERNAL_PORT.');
+  }
+
+  const token = createHmac('sha256', Buffer.from(encryptionKey, 'utf8'))
+    .update('dugate/native-dev/cost-control-connector/v1', 'utf8')
+    .digest('base64url');
+  const otherCredentials = [
+    env.ADMIN_TOKEN,
+    env.RUNTIME_TOKEN,
+    env.USAGE_TOKEN,
+    env.SERVICE_IDENTITY_SECRET,
+    env.INVOCATION_GRANT_SECRET,
+    env.CONNECTOR_INVOCATION_GRANT_SECRET,
+    env.USAGE_SINK_TOKEN,
+  ].filter((value) => typeof value === 'string' && value.length > 0);
+  if (token === encryptionKey || otherCredentials.includes(token)) {
+    throw new Error('Derived local cost-control token must be distinct from configured service credentials.');
+  }
+
+  result.COST_CONTROL_CONNECTOR_URL = `http://127.0.0.1:${internalPort}`;
+  result.COST_CONTROL_CONNECTOR_TOKEN = token;
+  return result;
+}
+
 async function main() {
   const rawArgs = process.argv.slice(2);
   const args = rawArgs[0] === '--' ? rawArgs.slice(1) : rawArgs;
@@ -436,6 +472,7 @@ async function main() {
   process.env.ORCHESTRATOR_INTERNAL_BASE_URL ??= `http://127.0.0.1:${internalPort}`;
   process.env.RUNTIME_URL ??= `${process.env.ORCHESTRATOR_INTERNAL_BASE_URL}/api/runtime/v1`;
   process.env.CONNECTOR_URL ??= `http://127.0.0.1:${connectorPort}`;
+  Object.assign(process.env, localCostControlEnvironment(process.env, { internalPort }));
   Object.assign(process.env, localConnectorManagementEnvironment(process.env, {
     services: 'all',
     connectorUrl: process.env.CONNECTOR_URL,
@@ -507,11 +544,15 @@ async function main() {
   printReadyBanner(publicPort, internalPort, portalPort, connectorPort);
 }
 
-process.on('SIGINT', () => { void shutdown(0); });
-process.on('SIGTERM', () => { void shutdown(0); });
-process.on('message', (message) => { if (message === 'dugate:shutdown') void shutdown(0); });
+if (require.main === module) {
+  process.on('SIGINT', () => { void shutdown(0); });
+  process.on('SIGTERM', () => { void shutdown(0); });
+  process.on('message', (message) => { if (message === 'dugate:shutdown') void shutdown(0); });
 
-main().catch((error) => {
-  console.error('\x1b[31m[dev] Failed to start:\x1b[0m', error.message);
-  void shutdown(1);
-});
+  main().catch((error) => {
+    console.error('\x1b[31m[dev] Failed to start:\x1b[0m', error.message);
+    void shutdown(1);
+  });
+}
+
+module.exports = { localCostControlEnvironment };

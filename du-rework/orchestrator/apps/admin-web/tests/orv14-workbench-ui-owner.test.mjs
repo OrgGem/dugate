@@ -23,6 +23,12 @@ describe('ORV14 Admin Workbench owner source checks', () => {
     assert.match(docsScreen, /Locked fields were omitted from the request/);
   });
 
+  it('keeps the saved Profile endpoint selector through Workbench selection and submission', () => {
+    assert.match(docsScreen, /endpointSlug: item\.endpointSlug,/);
+    assert.match(docsScreen, /row\.endpointSlug !== undefined && detail\.endpointSlug !== undefined && row\.endpointSlug !== detail\.endpointSlug/);
+    assert.match(docsScreen, /endpointSlug: selection\.profile\.endpointSlug \?\? null/);
+  });
+
   it('requires placeholder review and offers explicit local-draft acceptance and Profile handoff', () => {
     assert.match(docsScreen, /Prompt diff/);
     assert.match(docsScreen, /Accept proposal to local draft/);

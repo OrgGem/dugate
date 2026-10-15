@@ -30,6 +30,8 @@ export const AdminWorkbenchEndpointTestRequestSchema = z.object({
   action: AdminWorkbenchCoreActionSchema,
   profileName: z.string().min(1).max(120),
   expectedProfileRevision: z.number().int().positive(),
+  /** Persisted selector from the exact saved Profile; null denotes an action-level Profile. */
+  endpointSlug: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/).nullable().optional(),
   parameters: JsonObjectSchema,
   artifacts: z.array(AdminWorkbenchArtifactSchema).max(20).default([]),
   sourceUrl: SourceUrlSchema.optional(),

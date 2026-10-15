@@ -129,7 +129,7 @@ async function verifyBusinessVersion(ctx: RouteContext, businessVersion: string,
   if (!row.manifest.actions.some((item) => item.name === action)) throw new HttpError(422, 'INVALID_SCHEMA', 'the selected document-core action is unavailable');
 }
 
-async function preflightProfile(ctx: RouteContext, p: Pick<AdminWorkbenchEndpointTestRequest, 'tenantId' | 'apiKeyId' | 'businessVersion' | 'profileName' | 'expectedProfileRevision'>, action: string, input: Record<string, unknown>, fileNames: readonly string[]) {
+async function preflightProfile(ctx: RouteContext, p: Pick<AdminWorkbenchEndpointTestRequest, 'tenantId' | 'apiKeyId' | 'businessVersion' | 'profileName' | 'expectedProfileRevision'>, action: string, input: Record<string, unknown>, fileNames: readonly string[], endpointSlug?: string | null) {
   await verifyActiveKey(ctx.db, p.tenantId, p.apiKeyId);
   await verifyBusinessVersion(ctx, p.businessVersion, action);
   const profile = await ctx.submission.preflightLegacyWorkflow({
@@ -139,12 +139,23 @@ async function preflightProfile(ctx: RouteContext, p: Pick<AdminWorkbenchEndpoin
     action,
     input,
     fileNames,
+    ...(endpointSlug ? { endpointSlug } : {}),
   });
   if (profile.mode !== 'pinned' || profile.profileName !== p.profileName) {
     throw forbidden('the selected API key is not assigned to this active Profile for the action');
   }
   if (profile.revision !== p.expectedProfileRevision) throw conflict('PROFILE_CHANGED', 'Profile revision changed; reload before testing');
   if (!profile.policy.enabled) throw forbidden('the selected Profile is disabled');
+  const selector = await ctx.db.query<{ endpoint_slug: string | null }>(
+    `SELECT endpoint_slug FROM profile_bindings
+      WHERE profile_id=$1 AND revision=$2 AND tenant_id=$3
+        AND business_id=$4 AND business_version=$5 AND action=$6`,
+    [profile.profileId, profile.revision, p.tenantId, 'document-core', p.businessVersion, action],
+  );
+  if (!selector.rowCount) throw conflict('PROFILE_CHANGED', 'Profile selector changed; reload before testing');
+  if (selector.rows[0]!.endpoint_slug !== (endpointSlug ?? null)) {
+    throw forbidden('the selected endpoint does not match the saved Profile selector');
+  }
   return profile;
 }
 
@@ -162,7 +173,7 @@ export async function submitProfileEndpointTest(ctx: RouteContext, auth: AdminAc
     ...p.parameters,
     ...(artifactIds.length ? { artifactIds } : {}),
   };
-  const profile = await preflightProfile(ctx, p, p.action, actionInput, artifactIds.map((id) => names.get(id)!));
+  const profile = await preflightProfile(ctx, p, p.action, actionInput, artifactIds.map((id) => names.get(id)!), p.endpointSlug ?? null);
   await assertAdminWorkbenchAdmissionScope(ctx.identity, auth, { tenantId: p.tenantId, apiKeyId: p.apiKeyId, profileId: profile.profileId });
   const result = await ctx.submission.submit({
     tenantId: p.tenantId,
@@ -171,13 +182,20 @@ export async function submitProfileEndpointTest(ctx: RouteContext, auth: AdminAc
     action: p.action,
     correlationId: ctx.correlationId,
     idempotencyKey,
-    legacyExpectedProfile: { profileId: profile.profileId, revision: profile.revision },
+    legacyExpectedProfile: { profileId: profile.profileId, revision: profile.revision, profileName: p.profileName },
+    adminWorkbenchProfileIdentity: {
+      profileId: profile.profileId,
+      profileName: p.profileName,
+      revision: profile.revision,
+      endpointSlug: p.endpointSlug ?? null,
+    },
     submission: {
       input: actionInput,
       output: {},
       ...(p.artifacts.length ? { artifacts: p.artifacts } : {}),
       ...(p.sourceUrl ? { sourceUrl: p.sourceUrl } : {}),
     },
+    ...(p.endpointSlug ? { profileEndpointSlug: p.endpointSlug } : {}),
   });
   const actor = adminWorkbenchActor(auth);
   await ctx.audit.record({ tenantId: p.tenantId, ...actor, action: 'admin-workbench.test-endpoint', resource: `operation:${result.operation.id}`, severity: 'info', correlationId: ctx.correlationId });
@@ -241,7 +259,8 @@ export async function submitPromptWizard(ctx: RouteContext, auth: AdminActionAut
     action: 'generate',
     correlationId: ctx.correlationId,
     idempotencyKey,
-    legacyExpectedProfile: { profileId: profile.profileId, revision: profile.revision },
+    legacyExpectedProfile: { profileId: profile.profileId, revision: profile.revision, profileName: p.profileName },
+    adminWorkbenchProfileIdentity: { profileId: profile.profileId, profileName: p.profileName, revision: profile.revision, endpointSlug: null },
     submission: { input: actionInput, output: {} },
   });
   const actor = adminWorkbenchActor(auth);

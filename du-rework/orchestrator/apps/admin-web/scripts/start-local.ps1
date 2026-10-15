@@ -27,7 +27,7 @@ $Bootstrap = @'
 import { createServer } from 'vite';
 
 const target = process.env.ADMIN_SHELL_BASE_URL;
-const paths = ['/admin/api', '/admin/login', '/admin/logout', '/admin/oidc/callback'];
+const paths = ['^/admin/api(?:[/?]|$)', '/admin/login', '/admin/logout', '/admin/oidc/callback'];
 const proxy = Object.fromEntries(paths.map((route) => [route, { target, changeOrigin: false }]));
 const server = await createServer({
   configFile: 'vite.config.ts',

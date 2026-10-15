@@ -130,6 +130,44 @@ function recordValue(value: unknown): Record<string, unknown> {
     : {};
 }
 
+function initialBindingsFromProfile(profile: ProfileDetail | null): InitialBinding[] {
+  return profile === null
+    ? []
+    : Object.entries(profile.connectorBindings).map(([slot, pin]) => ({
+        slot,
+        connectorId: pin.connectorId,
+        revision: pin.revision,
+      }));
+}
+
+function normalizedConnectorBindingEntries(bindings: readonly InitialBinding[]): Array<[string, string, number]> {
+  const entries: Array<[string, string, number]> = [];
+  for (const binding of bindings) {
+    const slot = binding.slot.trim();
+    if (slot.length === 0 || slot.length > 128
+        || binding.connectorId.trim().length === 0 || binding.connectorId.length > 128
+        || !Number.isSafeInteger(binding.revision) || binding.revision < 1) continue;
+    entries.push([slot, binding.connectorId, binding.revision]);
+  }
+  const counts = new Map<string, number>();
+  for (const [slot] of entries) counts.set(slot, (counts.get(slot) ?? 0) + 1);
+  return entries
+    .filter(([slot]) => counts.get(slot) === 1)
+    .sort(([leftSlot, leftConnector, leftRevision], [rightSlot, rightConnector, rightRevision]) =>
+      leftSlot.localeCompare(rightSlot)
+        || leftConnector.localeCompare(rightConnector)
+        || leftRevision - rightRevision);
+}
+
+function connectorBindingsChanged(
+  bindings: readonly InitialBinding[],
+  savedBindings: ProfileDetail['connectorBindings'],
+): boolean {
+  const savedRows = Object.entries(savedBindings).map(([slot, pin]) => ({ slot, ...pin }));
+  return JSON.stringify(normalizedConnectorBindingEntries(bindings))
+    !== JSON.stringify(normalizedConnectorBindingEntries(savedRows));
+}
+
 function parseWorkbenchPromptProposal(value: unknown): WorkbenchPromptProposal | null {
   const wrapper = recordValue(value);
   const item = recordValue(wrapper['workbenchPromptProposal']);
@@ -1071,6 +1109,7 @@ export function ProfilesScreen() {
     setDetail(null);
     setDraft(null);
     setLoadedAs(null);
+    setInitialBindings([]);
     const targetName = (identityOverride?.profileName ?? nameToLoad ?? profileName).trim() || 'default';
     const target: { businessId: string; businessVersion: string; profileName: string; profileId?: string; action?: string; endpointSlug?: string | null } = identityOverride ?? {
       businessId: identifiers.businessId,
@@ -1197,6 +1236,7 @@ export function ProfilesScreen() {
         action = newProfileAction(parsed, targetEndpointSlug) ?? '';
       }
       setDetail(parsed);
+      setInitialBindings(initialBindingsFromProfile(parsed));
       setBusinessId(resolvedTarget.businessId);
       setBusinessVersion(resolvedTarget.businessVersion);
       setProfileName(resolvedName);
@@ -1308,6 +1348,7 @@ export function ProfilesScreen() {
     setDetail(null);
     setDraft(null);
     setLoadedAs(null);
+    setInitialBindings([]);
     const bId = businessId.trim();
     const bVer = businessVersion.trim() || 'latest';
     const pName = profileName.trim() || 'default';
@@ -1441,6 +1482,7 @@ export function ProfilesScreen() {
         action = action || newProfileAction(parsed, selectedProfileEndpoint) || '';
       }
       setDetail(parsed);
+      setInitialBindings(initialBindingsFromProfile(parsed));
       setBusinessId(resolvedTarget.businessId);
       setBusinessVersion(resolvedTarget.businessVersion);
       setProfileName(resolvedTarget.profileName);
@@ -1588,7 +1630,8 @@ export function ProfilesScreen() {
   const canPublish = detail !== null && detail.revision >= 1;
   const canRollback = detail !== null && detail.revision >= 2;
   const profileDraftHasChanges = detail !== null && draft !== null
-    && !sameJson(draft, draftFromDetail(detail, loadedAs?.action, loadedAs?.endpointSlug ?? ''));
+    && (!sameJson(draft, draftFromDetail(detail, loadedAs?.action, loadedAs?.endpointSlug ?? ''))
+      || connectorBindingsChanged(initialBindings, detail.connectorBindings));
   const manifestActionOptions = detail?.manifest.actions
     .map((item) => item.name?.trim() || item.action?.trim() || '')
     .filter((action, index, actions) => action.length > 0 && actions.indexOf(action) === index) ?? [];
@@ -1653,7 +1696,17 @@ export function ProfilesScreen() {
         problem: profileWriteProblem,
       };
     }
-    if (detail.revision === 0 && (initialBindings.some(b => !b.slot.trim() || !b.connectorId) || new Set(initialBindings.map(b => b.slot.trim())).size !== initialBindings.length)) return { result: { profileName: profileKey, ok: false, detail: 'Every connector slot must be unique and have a selected revision.' } };
+    const connectorSlots = initialBindings.map((binding) => binding.slot.trim());
+    if (initialBindings.length > 32
+        || initialBindings.some((binding, index) => connectorSlots[index] === ''
+          || connectorSlots[index]!.length > 128
+          || binding.connectorId.trim().length === 0
+          || binding.connectorId.length > 128
+          || !Number.isSafeInteger(binding.revision)
+          || binding.revision < 1)
+        || new Set(connectorSlots).size !== initialBindings.length) {
+      return { result: { profileName: profileKey, ok: false, detail: 'Connector slots must be unique, within the 32-slot limit, and pin a selected positive revision.' } };
+    }
     if (detail.revision === 0 && row.endpointSlug && actionFromEndpointSlug(row.endpointSlug) !== action) return { result: { profileName: profileKey, ok: false, detail: 'The selected Document Core endpoint must belong to this row’s manifest action.' } };
 
     if (row.callback !== null && row.callback.touched) {
@@ -1679,7 +1732,7 @@ export function ProfilesScreen() {
       {
         ...buildUpsertBody(effectiveDetail, buildPolicy(row), action),
         ...(row.endpointSlug ? { endpointSlug: row.endpointSlug } : {}),
-        ...(detail.revision === 0 && initialBindings.length ? { connectorBindings: Object.fromEntries(initialBindings.map(b => [b.slot.trim(), { connectorId: b.connectorId, revision: b.revision }])) } : {}),
+        connectorBindings: Object.fromEntries(initialBindings.map((binding) => [binding.slot.trim(), { connectorId: binding.connectorId, revision: binding.revision }])),
       },
       crypto.randomUUID(),
     );
@@ -2133,7 +2186,10 @@ export function ProfilesScreen() {
                 setLoadedAs((current) => current === null ? current : { ...current, action, endpointSlug: selected || null });
               }
             }} disabled={businessFunctionCatalogLoading || !businessFunctionCatalog}><option value="">Generic action profile</option>{businessFunctionCatalog?.functions.filter((fn) => fn.kind === 'endpoint').map((fn) => <option key={fn.functionId} value={fn.endpointSlug ?? ''} disabled={fn.available === false}>{fn.endpointSlug ?? fn.functionId}{fn.available === false ? ` — unavailable: ${fn.unavailableReason ?? 'not supported'}` : ''}</option>)}</select>{businessFunctionCatalogLoading ? <span className="mt-1 block text-xs text-[var(--text-sub)]">Loading endpoints from {businessVersion} manifest…</span> : null}{businessFunctionCatalogProblem ? <span role="alert" className="mt-1 block break-words text-xs text-[var(--badge-danger-text)]">{businessFunctionCatalogProblem}</span> : null}<span className="mt-1 block text-xs text-[var(--text-sub)]">Exact endpoint profiles override generic action profiles; endpoint choices come from the selected version manifest.</span></label>}
-            <div className="min-w-0 sm:col-span-2 xl:col-span-3"><InitialBindings value={initialBindings} onChange={setInitialBindings} /></div>
+            <div className="min-w-0 sm:col-span-2 xl:col-span-3">
+              <p className="mb-2 text-sm text-[var(--text-sub)]">Connector pins are saved with each Profile revision. Select an active tenant Connector revision for every slot you want pinned.</p>
+              <InitialBindings value={initialBindings} onChange={setInitialBindings} />
+            </div>
             <div className="w-full min-w-0 max-w-xs xl:col-span-2">
               <FormField id="profile-business" label="Business Service">
                 <select

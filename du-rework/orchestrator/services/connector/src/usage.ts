@@ -14,6 +14,10 @@ export interface UsageEvent {
 
 export type ConnectorUsageEvent = ContractUsageEvent;
 
+export function usageEventId(invocationId: string, attempt: number): string {
+  return createHash('sha256').update(`${invocationId}:${attempt}`).digest('hex');
+}
+
 export function toContractUsageEvent(
   event: UsageEvent,
   context?: { operationId: string; taskId: string },
@@ -56,6 +60,6 @@ export function appendUsageEvent(
   context?: { operationId: string; taskId: string },
 ): UsageEvent | undefined {
   if (!usage) return undefined;
-  const eventId = createHash('sha256').update(`${invocationId}:${attempt}`).digest('hex');
+  const eventId = usageEventId(invocationId, attempt);
   return { eventId, invocationId, operationId: context?.operationId, taskId: context?.taskId, usage, createdAt: new Date().toISOString() };
 }

@@ -15,6 +15,16 @@ test('encrypted bounded fallback receives trusted selected key and publishes act
   const ctx=context(); await expect(handleInternalOperationsRoutes(ctx)).resolves.toMatchObject({status:201,body:{artifactId:artifact,state:'READY',fileName:'test.pdf',sizeBytes:4}});
   expect(ctx.artifacts.putPublicArtifact).toHaveBeenCalledWith({tenantId:tenant,apiKeyId:key,fileName:'test.pdf',mimeType:'application/pdf',bytes:Buffer.from('file'),requireEncryption:true});
 });
+test('active PostgreSQL generation uses the encrypted bounded writer instead of the S3 session gateway',async()=>{
+  const ctx=context();
+  ctx.publicUploadGateway={initSingle:jest.fn(),upload:jest.fn(),completeReplay:jest.fn()};
+  jest.mocked(ctx.db.query).mockImplementation(async(sql)=>String(sql).includes('storage_generation_state')
+    ? {rows:[{backend:'postgres'}],rowCount:1} as never
+    : {rows:[{id:key}],rowCount:1} as never);
+  await expect(handleInternalOperationsRoutes(ctx)).resolves.toMatchObject({status:201,body:{artifactId:artifact,state:'READY',sizeBytes:4}});
+  expect(ctx.publicUploadGateway.initSingle).not.toHaveBeenCalled();
+  expect(ctx.artifacts.putPublicArtifact).toHaveBeenCalledWith({tenantId:tenant,apiKeyId:key,fileName:'test.pdf',mimeType:'application/pdf',bytes:Buffer.from('file'),requireEncryption:true});
+});
 test.each(['viewer','no-csrf'])('session upload denies %s before body/key read',async(reason)=>{
   const ctx=context();ctx.headers={cookie:`du_session=${'a'.repeat(43)}`,...(reason==='viewer'?{'x-csrf-token':'csrf'}:{})};
   ctx.config.adminSessionStore={get:async()=>({role:reason==='viewer'?'viewer':'operator',tenantId:tenant,csrfToken:'csrf'})};
@@ -40,10 +50,11 @@ test.each(['../secret.pdf','bad\nname.pdf'])('invalid filename rejected: %s',asy
   const ctx=context();ctx.searchParams.set('fileName',name);await expect(handleInternalOperationsRoutes(ctx)).rejects.toMatchObject({status:422});expect(ctx.db.query).not.toHaveBeenCalled();
 });
 test('S3 gateway binds owner before stream, preserves streaming and cleans an aborted upload',async()=>{
-  const ctx=context();const order:string[]=[];jest.mocked(ctx.db.query).mockImplementation(async(sql)=>{if(String(sql).includes('upload_api_key_id'))order.push('bind');return {rows:[{id:key}],rowCount:1} as never;});
+  const ctx=context();const order:string[]=[];jest.mocked(ctx.db.query).mockImplementation(async(sql)=>{if(String(sql).includes('storage_generation_state'))return {rows:[{backend:'s3'}],rowCount:1} as never;if(String(sql).includes('upload_api_key_id'))order.push('bind');return {rows:[{id:key}],rowCount:1} as never;});
   ctx.publicUploadGateway={initSingle:jest.fn(async()=>({artifactId:artifact} as never)),upload:jest.fn(async(input)=>{order.push('upload');let count=0;for await(const chunk of input.source)count+=chunk.length;expect(count).toBe(4);throw new Error('storage aborted');}),completeReplay:jest.fn()};
   await expect(handleInternalOperationsRoutes(ctx)).rejects.toThrow('storage aborted');expect(order).toEqual(['bind','upload']);
   expect(ctx.db.query).toHaveBeenCalledWith(expect.stringContaining('upload_api_key_id=$3'),[artifact,tenant,key]);
+  expect(ctx.artifacts.putPublicArtifact).not.toHaveBeenCalled();
   expect(ctx.artifacts.cleanupUnlinkedPublicArtifacts).toHaveBeenCalledWith(tenant,[artifact]);
 });
 

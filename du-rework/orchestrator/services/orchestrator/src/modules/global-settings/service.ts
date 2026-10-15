@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import {
+  isTenantUuid,
   GlobalSettingsMutationResultSchema,
   GlobalSettingsPublishRequestSchema,
   GlobalSettingsRollbackRequestSchema,
@@ -52,7 +53,6 @@ const DEFAULT_RETENTION: PlatformRetentionSettings = {
   outputRetentionDays: 0,
   cleanupIntervalSeconds: 3600,
 };
-const TENANT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_HISTORY = 50;
 
 export interface GlobalSettingsActor {
@@ -110,7 +110,7 @@ function iso(value: Date | string | null): string | null {
 }
 function digest(value: unknown): string { return `sha256:${metadataPlaintextHash(value)}`; }
 function requireTenant(tenantId: string): void {
-  if (!TENANT_ID.test(tenantId)) invalid('tenantId must be a UUID');
+  if (!isTenantUuid(tenantId)) invalid('tenantId must be a UUID');
 }
 function requireCrypto(crypto: MetadataCrypto | undefined): MetadataCrypto {
   if (!crypto) throw new HttpError(503, 'METADATA_ENCRYPTION_REQUIRED', 'tenant-global settings require metadata encryption');

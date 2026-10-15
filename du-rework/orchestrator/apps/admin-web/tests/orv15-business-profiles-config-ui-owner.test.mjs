@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
+import ts from 'typescript';
 import { createProfileRequestScope, findCurrentActiveProfileApiKey } from '../src/features/profiles/profile-request-scope.ts';
 
 const source = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
@@ -11,6 +12,22 @@ const callbackEditor = source('../src/features/profiles/callback-policy-editor.t
 const redactionEditor = source('../src/features/profiles/request-redaction-editor.tsx');
 const groupEditor = source('../src/features/profiles/profile-group-editor.tsx');
 const profileCommandContract = source('../../../packages/contracts/src/profile-commands.ts');
+
+function extractFunction(sourceText, name) {
+  const file = ts.createSourceFile('profiles-screen.tsx', sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const declaration = file.statements.find((node) => ts.isFunctionDeclaration(node) && node.name?.text === name);
+  assert.ok(declaration, `${name} must exist`);
+  return declaration.getText(file);
+}
+
+const normalizedPinChangeSource = [
+  extractFunction(profilesScreen, 'normalizedConnectorBindingEntries'),
+  extractFunction(profilesScreen, 'connectorBindingsChanged'),
+].join('\n');
+const normalizedPinChangeCompiled = ts.transpileModule(normalizedPinChangeSource, {
+  compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None },
+});
+const connectorBindingsChanged = new Function(`${normalizedPinChangeCompiled.outputText}; return connectorBindingsChanged;`)();
 
 describe('ORV15 Business and Profile configuration UI owner checks', () => {
   it('keeps business detail in three tabs and nests worker inventory under version groups', () => {
@@ -88,6 +105,42 @@ describe('ORV15 Business and Profile configuration UI owner checks', () => {
     assert.match(profilesScreen, /disabled=\{busy \|\| loading \|\| !canMutateLoadedProfile\}[\s\S]*Save Profile/);
     assert.match(profilesScreen, /disabled=\{!policyShipped \|\| busy \|\| loading \|\| !canMutateLoadedProfile\}/);
     assert.match(profilesScreen, /<Link[^>]*to="\/api-keys">Manage API keys<\/Link>/);
+  });
+
+  it('loads saved connector pins and saves the complete validated map with every Profile revision', () => {
+    assert.match(profilesScreen, /function initialBindingsFromProfile\(profile: ProfileDetail \| null\): InitialBinding\[\][\s\S]*Object\.entries\(profile\.connectorBindings\)/);
+    const loadStart = profilesScreen.indexOf('async function load(');
+    const createStart = profilesScreen.indexOf('async function createProfile()', loadStart);
+    const load = profilesScreen.slice(loadStart, createStart);
+    assert.match(load, /setInitialBindings\(initialBindingsFromProfile\(parsed\)\)/, 'saved connector pins hydrate the editor after a successful read');
+    const createEnd = profilesScreen.indexOf('async function setWorkflowEnabled', createStart);
+    const createProfile = profilesScreen.slice(createStart, createEnd);
+    assert.match(createProfile, /setInitialBindings\(initialBindingsFromProfile\(parsed\)\)/, 'new-profile initialization clears stale connector pins from the prior editor');
+
+    const saveRowStart = profilesScreen.indexOf('async function saveRow');
+    const saveOneStart = profilesScreen.indexOf('async function saveOne', saveRowStart);
+    const saveRow = profilesScreen.slice(saveRowStart, saveOneStart);
+    assert.match(saveRow, /initialBindings\.length > 32[\s\S]*Number\.isSafeInteger\(binding\.revision\)[\s\S]*new Set\(connectorSlots\)\.size !== initialBindings\.length/);
+    assert.match(saveRow, /connectorBindings: Object\.fromEntries\(initialBindings\.map\(/, 'every save sends the complete slot-to-typed-revision map');
+    assert.doesNotMatch(saveRow, /detail\.revision === 0 && initialBindings/, 'existing profiles use the same binding write path as new profiles');
+    assert.match(saveRow, /expectedRevision: detail\.revision|buildUpsertBody\(effectiveDetail, buildPolicy\(row\), action\)/, 'the upsert retains its current revision CAS');
+    assert.match(saveRow, /const writeApiKey = findCurrentActiveProfileApiKey\(apiKeys, selectedApiKeyId, currentScope\.tenantId\)[\s\S]*if \(!writeApiKey\)[\s\S]*client\.upsertProfile\(/, 'the saved pins still require the selected active key');
+  });
+
+  it('treats pin-only edits as unsaved while ignoring order changes and invalid placeholders', () => {
+    const saved = {
+      reasoning: { connectorId: 'local-openai-mock', revision: 4 },
+      embeddings: { connectorId: 'local-embedding-mock', revision: 2 },
+    };
+    const savedRows = Object.entries(saved).map(([slot, pin]) => ({ slot, ...pin }));
+    assert.equal(connectorBindingsChanged([...savedRows].reverse(), saved), false, 'row order does not change the normalized pin map');
+    assert.equal(connectorBindingsChanged([...savedRows, { slot: '', connectorId: '', revision: 0 }], saved), false, 'an empty invalid placeholder does not trigger a false-positive discard prompt');
+    assert.equal(connectorBindingsChanged([
+      ...savedRows.filter((row) => row.slot !== 'reasoning'),
+      { slot: 'reasoning', connectorId: 'local-openai-mock', revision: 5 },
+    ], saved), true, 'changing only a saved Connector revision is a dirty Profile draft');
+    assert.match(profilesScreen, /connectorBindingsChanged\(initialBindings, detail\.connectorBindings\)/);
+    assert.match(profilesScreen, /if \(profileDraftHasChanges\)\s*\{\s*setWorkbenchConfirmOpen\(true\)/, 'pin-only edits trigger the existing Workbench discard confirmation');
   });
 
   it('ignores controlled Profile reads from a prior tenant, including an A-to-B-to-A switch', async () => {
