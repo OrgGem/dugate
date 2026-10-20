@@ -14,6 +14,7 @@ COPY vendor ./vendor
 COPY packages ./packages
 COPY services ./services
 COPY apps ./apps
+COPY docs/21-openapi.json ./docs/21-openapi.json
 COPY scripts ./scripts
 
 RUN --mount=type=cache,id=du-connector-pnpm-store,target=/pnpm/store \
@@ -29,10 +30,12 @@ FROM ${NODE_IMAGE} AS runtime
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack /opt/yarn-v1.22.22 \
     && rm -f /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack /usr/local/bin/yarn /usr/local/bin/yarnpkg
 ENV NODE_ENV=production
+ENV DU_MIGRATION_ENABLED=true
 WORKDIR /app
 COPY --from=build --chown=node:node /deploy/connector/ ./
 COPY --chown=node:node scripts/docker-connector-entrypoint.sh /usr/local/bin/connector-entrypoint.sh
 RUN chmod 0555 /usr/local/bin/connector-entrypoint.sh
+COPY --chown=node:node scripts/docker-wait-for-db.cjs /usr/local/bin/du-wait-for-db.cjs
 USER node
 STOPSIGNAL SIGTERM
 EXPOSE 8080

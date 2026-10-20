@@ -486,13 +486,12 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
 
   try {
     // Schema readiness (R08-06 / P2-01). applyMigrations boots with an
-    // explicit one-shot migration; otherwise we verify the schema is already
-    // migrated and fail closed (read-only) when it is not. Production
-    // deployment runs `npm run migrate` before `npm start`; dev/test fixtures
-    // may pass autoMigrate:true to keep boot zero-config.
-    if (config.autoMigrate === true) {
+    // The image startup gate applies packaged migrations before HTTP starts.
+    // Native callers can migrate explicitly or use autoMigrate for local boot.
+    // DU_MIGRATION_ENABLED=false is an explicit schema-check bypass.
+    if (process.env.DU_MIGRATION_ENABLED !== 'false' && config.autoMigrate === true) {
       await migrate(db);
-    } else {
+    } else if (process.env.DU_MIGRATION_ENABLED !== 'false') {
       await verifyMigrations(db);
     }
 
@@ -510,7 +509,7 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
     // legacy insert fail with an FK error instead of silently succeeding.
     // Auth stays fail-closed either way: the placeholder hash matches no raw
     // key (resolveApiKey only finds real ACTIVE keys, R08-01).
-    if (shouldSeedDevFallback(process.env, { zeroConfigBoot: config.autoMigrate === true })) {
+    if (shouldSeedDevFallback(process.env, { zeroConfigBoot: config.autoMigrate === true && process.env.NODE_ENV !== 'production' })) {
       // Ensure default tenant for the slice (idempotent).
       await db.query(
         `INSERT INTO tenants (id, name) VALUES ('00000000-0000-0000-0000-000000000001', 'default')

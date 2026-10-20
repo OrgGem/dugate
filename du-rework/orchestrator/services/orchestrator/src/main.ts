@@ -8,7 +8,7 @@
  * be installed there; side effects belong to the entry, period).
  *
  * Production boot order (docs + migrate-cli header):
- *   1. npm run migrate        (explicit operator step)
+ *   1. image entrypoint runs packaged migrate CLI (unless explicitly disabled)
  *   2. npm start              (this file; autoMigrate=false → verify-only boot)
  *
  * Shutdown chain (cycle 98 + this cycle): signal → installGracefulShutdown →
@@ -492,6 +492,9 @@ function storageEndpointAllowlistFromEnv(env: NodeJS.ProcessEnv = process.env): 
 }
 
 export async function main(): Promise<void> {
+  if (process.env.DU_MIGRATION_ENABLED !== undefined && !['true', 'false'].includes(process.env.DU_MIGRATION_ENABLED)) {
+    throw new Error('DU_MIGRATION_ENABLED must be true or false.');
+  }
   if (maintenanceExecutionConfigFromEnv().maintenanceExecutionRole === 'host') {
     throw new Error('DU_MAINTENANCE_EXECUTION_ROLE=host must use the dedicated maintenance host runner; HTTP serving is disabled');
   }

@@ -11,7 +11,15 @@ case "$mode" in
     exec node /app/dist/migrate-cli.js "$mode" "$@"
     ;;
   server)
-    node /app/dist/migrate-cli.js verify
+    export DU_MIGRATION_ENABLED="${DU_MIGRATION_ENABLED:-true}"
+    case "$DU_MIGRATION_ENABLED" in
+      true)
+        node /usr/local/bin/du-wait-for-db.cjs
+        node /app/dist/migrate-cli.js migrate
+        ;;
+      false) ;;
+      *) printf '%s\n' 'DU_MIGRATION_ENABLED must be true or false' >&2; exit 64 ;;
+    esac
     exec node /app/dist/main.js "$@"
     ;;
   *)

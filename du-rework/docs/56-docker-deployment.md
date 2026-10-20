@@ -3,7 +3,7 @@
 This is the current Compose deployment guide for `du-rework`. The deploy
 aggregate starts Orchestrator, Connector and the selected business workers;
 PostgreSQL and Redis/Valkey remain external services that operators already
-run. It does not create, attach, migrate, stop, or reconfigure those services.
+run. It does not create, stop, or reconfigure those infrastructure services. By default the application images migrate only their configured application databases at startup.
 `docker compose config` and `scripts/docker/check-env.cjs` are preflight only;
 neither proves image availability, schema readiness, application health, or a
 successful request flow.
@@ -118,27 +118,21 @@ Compose configuration contains resolved environment values.
 
 ## Database migration and application start
 
-The external deployment does not create databases or apply schema changes on
-ordinary `up`. Review the two database URLs and backup/maintenance window first;
-the migration commands below write schema state to those existing databases.
-Then run the separately packaged migrations explicitly:
+The external deployment does not create databases. Review the two configured
+database URLs and take backups first. With `DU_MIGRATION_ENABLED=true`, ordinary
+image startup applies packaged schema migrations and required production data
+before serving. No separate migration job is required for Compose or Swarm.
 
-```powershell
-docker compose --env-file .env.docker.deploy -f docker-compose.deploy.yml --profile migration run --pull always --rm orchestrator-migrate migrate
-docker compose --env-file .env.docker.deploy -f docker-compose.deploy.yml --profile migration run --pull always --rm connector-migrate migrate
-```
-
-After both migrations succeed, start only the workers required for the release.
-For example, this starts the platform and Document Core only:
+Start only the workers required for the release, using prebuilt images:
 
 ```powershell
 docker compose --env-file .env.docker.deploy -f docker-compose.deploy.yml up --pull always --no-build -d orchestrator connector document-core
 ```
 
 Add `lc-checker` or `example-review` only when their business identities and
-image digests are included in the deployment. The normal startup has no
-migration dependency. Orchestrator verifies its migration state and refuses to
-serve a stale or drifted schema; Connector auto-migration is disabled.
+image digests are included. The optional `migration` profile remains available
+for explicit operator diagnosis/recovery; it is not a normal deployment step.
+See the automatic startup contract below for the flag, lock and failure behavior.
 
 The `up` command does not provision business versions, profiles, API keys,
 provider bindings, Vault policies, or production approvals. Verify service
@@ -209,3 +203,60 @@ source and synthetic environment only. They do not build/push images, mutate
 external database schemas, initialize the user's Vault, verify container image
 provenance, or prove end-to-end API/worker processing. Record those as separate
 operator evidence when performed.
+
+## Automatic image startup migration (Compose and Swarm)
+
+Set `DU_MIGRATION_ENABLED=true` (the image and Compose default). Each server
+entrypoint waits up to 60 seconds for its configured PostgreSQL database,
+then runs its packaged versioned migration CLI before starting HTTP serving.
+Authentication/database-name errors fail immediately. Migration failure prevents
+server startup. This works per replica and requires no `depends_on` or separate
+migration job; the existing PostgreSQL session advisory lock serializes replicas,
+and checksummed journals reject altered/unknown history. Migration scripts and
+runtime CLI are packaged in each image. Explicit `migrate`, `status`, `verify`,
+and `baseline-reviewed` commands remain available for diagnosis/recovery.
+
+Set `DU_MIGRATION_ENABLED=false` to skip automatic schema verification,
+migration and required-data bootstrap, including the application's verify gate.
+This is an operator override, not a way to run an incompatible schema: ordinary
+application queries can still fail. Only literal `true` and `false` are accepted.
+Keep legacy `AUTO_MIGRATE=false` / `CONNECTOR_AUTO_MIGRATE=false` in production;
+the Docker entrypoint owns the upgrade and does not enable development fixtures.
+Do not override the image entrypoint in a Swarm service definition.
+
+Orchestrator migration 0069 adds `required_data_bootstrap`. Under the same
+advisory lock, each successful automatic migrate transaction ensures the tenant
+`00000000-0000-0000-0000-000000000001` / `default` exists and records bootstrap
+version 1. An existing tenant named `default` under any ID is preserved, including its state.
+If the reserved ID belongs to a renamed/customized tenant, that row is preserved
+and the missing `default` tenant receives a fresh UUID. Reruns never
+overwrite tenant settings or create duplicate defaults. No API keys, users,
+provider credentials, example tenants or business activation are seeded.
+Connector maintains its independent schema journal and has no tenant bootstrap.
+
+Release procedure: build/test immutable images in CI, back up both application
+databases, record the previous image IDs/configuration, then update the stack's
+image references with migration enabled. Verify journals, required-data version,
+tenant uniqueness and service health before accepting traffic. Test fresh,
+existing, rerun and concurrent starts against disposable databases. For Swarm,
+use a deliberate update policy and rollback image/config on failure; the lock
+prevents concurrent DDL but does not make arbitrary old/new schemas compatible.
+Use expand/contract SQL for rolling compatibility. Never automatically downgrade
+schema, drop data, or restore a backup over live writes during an image rollback.
+An older image can correctly refuse a database with newer migration history;
+in that case fix forward or perform a separately reviewed database recovery.
+
+Opt-in isolated image tests (requires Docker and cached `postgres:16-alpine`):
+
+```powershell
+$env:DU_MIGRATION_IMAGE_PREFIX='your-image-prefix'
+$env:DU_MIGRATION_IMAGE_TAG='your-reviewed-release-tag'
+node orchestrator/scripts/test-migration-isolated.cjs
+```
+
+The runner extracts migration code/SQL from the selected prebuilt images, uses
+a new PostgreSQL container with `--network none`, no published ports and tmpfs
+storage, tests migrations plus real image startup gates, and removes only its
+own fixtures. It never reads a deployment environment file or live DB URL.
+The lightweight readiness/packaging suite is
+`node --test orchestrator/tests/migration-startup.test.cjs`.

@@ -8,6 +8,7 @@
  */
 
 import { createHash } from 'node:crypto';
+import { bootstrapRequiredData } from './required-data';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { PoolClient } from 'pg';
@@ -364,6 +365,9 @@ export async function migrate(db: Db, dir = MIGRATIONS_DIR): Promise<{ applied: 
         );
       });
       applied.push(file.filename);
+    }
+    if (files.some((file) => file.filename === '0069_required_data.sql')) {
+      await lockedDb.tx(bootstrapRequiredData);
     }
     return { applied };
   });

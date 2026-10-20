@@ -1,5 +1,6 @@
 # Deployment-oriented aggregate. PostgreSQL and Redis/Valkey are external and
-# are never created, migrated, or modified by a plain `up` command.
+# are never created or reconfigured by this aggregate. Application images
+# migrate their configured application databases unless DU_MIGRATION_ENABLED=false.
 name: du-rework-deploy
 include:
   - compose/deploy-infra.yml

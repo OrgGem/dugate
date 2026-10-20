@@ -14,6 +14,7 @@ COPY vendor ./vendor
 COPY packages ./packages
 COPY services ./services
 COPY apps ./apps
+COPY docs/21-openapi.json ./docs/21-openapi.json
 COPY scripts ./scripts
 
 RUN --mount=type=cache,id=du-orchestrator-pnpm-store,target=/pnpm/store \
@@ -29,11 +30,13 @@ FROM ${NODE_IMAGE} AS runtime
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack /opt/yarn-v1.22.22 \
     && rm -f /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack /usr/local/bin/yarn /usr/local/bin/yarnpkg
 ENV NODE_ENV=production
+ENV DU_MIGRATION_ENABLED=true
 ENV DU_ADMIN_WEB_DIST=/app/admin-web
 WORKDIR /app
 COPY --from=build --chown=node:node /deploy/orchestrator/ ./
 COPY --chown=node:node scripts/docker-orchestrator-entrypoint.sh /usr/local/bin/orchestrator-entrypoint.sh
 RUN chmod 0555 /usr/local/bin/orchestrator-entrypoint.sh
+COPY --chown=node:node scripts/docker-wait-for-db.cjs /usr/local/bin/du-wait-for-db.cjs
 USER node
 STOPSIGNAL SIGTERM
 EXPOSE 3000 3001 3002

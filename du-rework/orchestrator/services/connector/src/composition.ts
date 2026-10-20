@@ -96,7 +96,11 @@ export function createConnectorComposition(
   overrides?: ConnectorCompositionOverrides,
 ): ConnectorComposition {
   const isolatedRestoreRehearsal = config.isolatedRestoreRehearsal === true;
-  const autoMigrate = config.autoMigrate ?? connectorAutoMigrateFromEnvironment(process.env.CONNECTOR_AUTO_MIGRATE);
+  const migrationEnabled = process.env.DU_MIGRATION_ENABLED !== 'false';
+  if (process.env.DU_MIGRATION_ENABLED !== undefined && !['true', 'false'].includes(process.env.DU_MIGRATION_ENABLED)) {
+    throw new Error('DU_MIGRATION_ENABLED must be true or false.');
+  }
+  const autoMigrate = migrationEnabled && (config.autoMigrate ?? connectorAutoMigrateFromEnvironment(process.env.CONNECTOR_AUTO_MIGRATE));
   if (isolatedRestoreRehearsal && !config.runtimeControl) {
     throw new Error('Connector restore rehearsal requires an exact runtime-control identity.');
   }
@@ -137,7 +141,7 @@ export function createConnectorComposition(
       start: async () => {
         if (!isolatedRestoreRehearsal) {
           if (autoMigrate) await overrides.migrate?.();
-          await overrides.verifyMigrations?.();
+          if (migrationEnabled) await overrides.verifyMigrations?.();
         }
         await lifecycle.start(config.port, config.host);
       },
@@ -301,7 +305,7 @@ export function createConnectorComposition(
       } else {
         await vaultRuntime?.start();
         if (autoMigrate) await database.migrate();
-        await database.verifyMigrations();
+        if (migrationEnabled) await database.verifyMigrations();
         await replicaRuntimeControl?.register();
       }
       await lifecycle.start(config.port, config.host);

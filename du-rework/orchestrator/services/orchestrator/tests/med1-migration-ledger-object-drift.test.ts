@@ -240,6 +240,9 @@ class ScriptedCatalogDb {
       this.ledger.set(Number(params[0]), String(params[1]));
       return out([]);
     }
+    // Required production DML is separate from schema DDL in this fixture.
+    if (/^SELECT version FROM required_data_bootstrap/.test(t) ||
+        /^INSERT INTO (?:tenants|required_data_bootstrap)/.test(t)) return out([]);
     // Pending-migration DDL: record it and materialise the objects it declares
     // (CREATE ... IF NOT EXISTS semantics on a scratch schema). Parse the
     // ORIGINAL text — the normalised form has no line structure.
