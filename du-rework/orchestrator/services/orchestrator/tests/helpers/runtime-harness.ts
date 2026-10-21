@@ -267,8 +267,7 @@ export function createRuntimeFixture(options: { suite: string }): RuntimeFixture
     });
     // Seed an API key for RAW_API_KEY.
     await app.db.query(
-      `INSERT INTO api_keys (id, tenant_id, hash, prefix, status)
-       VALUES ($1,$2,$3,'test', 'ACTIVE')
+      `INSERT INTO api_keys (id, tenant_id, hash, prefix, status, key_mode) VALUES ($1,$2,$3,'test', 'ACTIVE', 'LEGACY_STANDALONE')
        ON CONFLICT (hash) DO UPDATE SET status='ACTIVE'`,
       [randomUUID(), TENANT_ID, hashKey(RAW_API_KEY)],
     );

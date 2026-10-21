@@ -1,0 +1,31 @@
+[PACKET PREP-PC-02: Database Migrations Pre-Analysis & SQL Design]
+
+ROLE: DeepSeek Worker 3 (Database & Storage Specialist)
+TASK ID: PREP-PC-02
+MASTER PLAN: du-rework/tasks/PLAN-PROFILE-CONTROL-PLANE-IMPLEMENTATION.md (Doc muc PC-02 Storage migration va Settled data and authorization model)
+
+MUC TIEU:
+Khao sat va lap ban thiet ke chi tiet cho goi PC-02 (SQL Migrations) ma khong sua code tai thoi diem nay (READ-ONLY).
+
+FILE LEASE (READ-ONLY):
+- orchestrator/services/orchestrator/migrations/
+- orchestrator/services/orchestrator/src/modules/profiles/
+- orchestrator/services/orchestrator/src/modules/identity/
+
+NOI DUNG CAN PHAN TICH:
+1. Kiem tra thu muc migrations hien tai de xac dinh so prefix numeric tiep theo (sau file migration cao nhat hien co).
+2. Thiet ke chi tiet cau lenh DDL SQL cho cac thay doi:
+   - Them cot `auth_mode`, `auth_authority`, `access_version` vao `profile_groups`.
+   - Tao bang `profile_group_api_keys` voi composite FKs `(group_id, tenant_id)` va `(api_key_id, tenant_id)`.
+   - Relax `api_key_id` thanh nullable historical author metadata trong `profile_bindings`, `profile_names`, `profile_group_revisions`.
+   - Them cot `request_defaults jsonb DEFAULT '{}'` vao `profile_bindings`.
+   - Partial unique indexes va lookup indexes.
+3. Thiet ke dry-run inventory queries de kiem tra du lieu cu truoc khi chuyen doi.
+
+REPORT CAN GHI:
+Ghi vao file: du-rework/coordination/reports/prep-pc02-migrations-spec.md
+
+DONE CRITERIA:
+- Xuat file report day du draft DDL SQL va dry-run queries.
+- Khong sua file source code.
+- In ra: PREP-PC-02_COMPLETE kem duong dan file report.

@@ -2,6 +2,8 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
     "types": ["node"],
     "module": "CommonJS",
     "moduleResolution": "Node",
@@ -12,7 +14,11 @@
     "resolveJsonModule": true,
     "strict": true,
     "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": false
+    "exactOptionalPropertyTypes": false,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["../../orchestrator/apps/admin-web/src/*"]
+    }
   },
   "include": ["**/*.ts"]
 }

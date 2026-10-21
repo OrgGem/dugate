@@ -183,7 +183,7 @@ function fakeGroupState(): FakeGroupState {
       [JSON.stringify(['document-core', documentCoreManifest.version]), { manifest: structuredClone(documentCoreManifest), digest: MANIFEST_DIGEST, enabled: true }],
     ]),
     groups: new Map(),
-    apiKeys: new Map([[API_KEY_ID, { id: API_KEY_ID, tenant_id: TENANT_ID, hash: 'test-key-hash', prefix: 'du_test', status: 'ACTIVE' }]]),
+    apiKeys: new Map([[API_KEY_ID, { id: API_KEY_ID, tenant_id: TENANT_ID, hash: 'test-key-hash', prefix: 'du_test', status: 'ACTIVE', key_mode: 'LEGACY_STANDALONE' }]]),
     groupRevisions: new Map(),
     groupMembers: new Map(),
     profileNames: new Map(),
@@ -225,6 +225,11 @@ function fakeGroupClient(state: FakeGroupState): PoolClient {
       } else if (normalized.includes('from api_keys') && normalized.includes('where id=$1 and tenant_id=$2')) {
         const apiKey = state.apiKeys.get(String(params[0]));
         rows = apiKey?.tenant_id === params[1] ? [apiKey] : [];
+      } else if (normalized.includes('from api_keys') && normalized.includes('where tenant_id=$1 and id=$2')) {
+        // PC-04 rotation: the mode is pre-read without a lock, then the ACTIVE
+        // row is locked with the tenant first (group roots lock before keys).
+        const apiKey = state.apiKeys.get(String(params[1]));
+        rows = apiKey && apiKey.tenant_id === params[0] ? [apiKey] : [];
       } else if (normalized.includes('from api_keys') && normalized.includes('where id=$1')) {
         const apiKey = state.apiKeys.get(String(params[0]));
         rows = apiKey ? [{ ...apiKey, name: null }] : [];
@@ -345,8 +350,11 @@ function fakeGroupClient(state: FakeGroupState): PoolClient {
           if (key.endsWith(`:${String(params[0])}`)) state.memberships.set(key, 'REVOKED');
         }
       } else if (normalized.startsWith('insert into api_keys')) {
+        // `$6` is the explicit key_mode on the rotation path; every other
+        // insert in this suite authors a child-projection key.
+        const keyMode = typeof params[5] === 'string' ? (params[5] as string) : 'LEGACY_STANDALONE';
         const [tenantId, hash, prefix] = params as [string, string, string, string | null];
-        const apiKey = { id: REPLACEMENT_API_KEY_ID, tenant_id: tenantId, hash, prefix, status: 'ACTIVE' };
+        const apiKey = { id: REPLACEMENT_API_KEY_ID, tenant_id: tenantId, hash, prefix, status: 'ACTIVE', key_mode: keyMode };
         state.apiKeys.set(apiKey.id, apiKey);
         rows = [{ id: apiKey.id, status: apiKey.status, created_at: new Date('2026-10-12T00:00:00.000Z') }];
       } else if (normalized.startsWith('update api_keys set status=\'revoked\'')) {
@@ -392,6 +400,13 @@ function fakeGroupClient(state: FakeGroupState): PoolClient {
         rows = state.bindings.get(String(params[0]))?.has(Number(params[1])) ? [{ '?column?': 1 }] : [];
       } else if (normalized.startsWith('insert into profile_active_revisions')) {
         state.activeRevisions.set(String(params[0]), Number(params[1]));
+      } else if (normalized.includes('from admin_local_user_api_key_grants') && normalized.includes('for update')) {
+        // PC-04 rotation: no local-user assignment in this fixture.
+        rows = [];
+      } else if (normalized.startsWith('select manifest from business_versions')) {
+        // PC-R07: these fixtures register no manifest capability, so the
+        // parameter-source mapping is empty and the legacy merge rules apply.
+        rows = [];
       } else {
         throw new Error(`unhandled fake profile group SQL: ${normalized}`);
       }
@@ -491,7 +506,7 @@ function groupOwnedClient(): PoolClient & { calls: string[] } {
       calls.push(text);
       let rows: unknown[] = [];
       if (text.includes('FROM api_keys')) {
-        rows = [{ id: API_KEY_ID, tenant_id: TENANT_ID, hash: 'hash-only-in-test', prefix: 'du_test', status: 'ACTIVE' }];
+        rows = [{ id: API_KEY_ID, tenant_id: TENANT_ID, hash: 'hash-only-in-test', prefix: 'du_test', status: 'ACTIVE', key_mode: 'LEGACY_STANDALONE' }];
       } else if (text.includes('SELECT n.profile_id FROM profile_names n')) {
         rows = [{ profile_id: CHILD_PROFILE_ID }];
       } else if (text.includes('SELECT group_id FROM profile_names')) {
@@ -601,7 +616,10 @@ function legacyPointerHarness() {
       calls.push(normalized);
       let rows: unknown[] = [];
       if (normalized.includes('from api_keys') && normalized.includes('where id=$1')) {
-        rows = [{ id: API_KEY_ID, tenant_id: TENANT_ID, hash: 'hash-only-in-test' }];
+        // PC-R01: admission reads the explicit mode before any membership, so
+        // this fixture must project one. Every key in this suite authorizes
+        // through child memberships (the v1 child-projection cohort).
+        rows = [{ id: API_KEY_ID, tenant_id: TENANT_ID, hash: 'hash-only-in-test', key_mode: 'LEGACY_STANDALONE' }];
       } else if (normalized.startsWith('select n.profile_id from profile_names n')) {
         rows = [{ profile_id: LEGACY_PROFILE_ID }];
       } else if (normalized.startsWith('select group_id from profile_names')) {
@@ -822,7 +840,8 @@ describe('WOC-10 direct legacy binding ownership guard', () => {
           return fakeRows<T>([{ id: API_KEY_ID, tenant_id: TENANT_ID, hash: apiKeyHash }]);
         }
         if (normalized.includes('from api_keys') && normalized.includes('where id=$1')) {
-          return fakeRows<T>([{ id: API_KEY_ID, tenant_id: TENANT_ID, hash: apiKeyHash, prefix: 'du_test', status: 'ACTIVE' }]);
+          // PC-R01: the explicit mode is read before any membership resolution.
+          return fakeRows<T>([{ id: API_KEY_ID, tenant_id: TENANT_ID, hash: apiKeyHash, prefix: 'du_test', status: 'ACTIVE', key_mode: 'LEGACY_STANDALONE' }]);
         }
         if (normalized.includes('select group_id from profile_names')) {
           return fakeRows<T>([{ group_id: '66666666-6666-4666-8666-666666666666' }]);
@@ -859,7 +878,10 @@ describe('WOC-10 direct legacy binding ownership guard', () => {
       profiles: createProfileService(db as never),
     };
 
-    await expect(handleAdminRoutes(ctx as never)).rejects.toMatchObject({ status: 409, code: 'STATE_CONFLICT' });
+    // PC-03 (coordinator ruling D-1 / plan acceptance matrix): a direct legacy
+    // write against a group-owned child is refused with the migration code, not
+    // the historical generic STATE_CONFLICT.
+    await expect(handleAdminRoutes(ctx as never)).rejects.toMatchObject({ status: 409, code: 'PROFILE_GROUP_V2_REQUIRED' });
     expect(queries.some((sql) => sql.startsWith('insert into profile_bindings'))).toBe(false);
     expect(queries.some((sql) => sql.startsWith('insert into profile_active_revisions'))).toBe(false);
     expect(queries.some((sql) => sql.startsWith('insert into profile_api_keys'))).toBe(false);
@@ -891,7 +913,11 @@ describe('WOC-10 atomic group revisions', () => {
     const first = (event: string) => order.indexOf(event);
     expect(first('selector-lock')).toBeGreaterThanOrEqual(0);
     expect(first('selector-lock')).toBeLessThan(first('key-lock'));
-    expect(first('key-lock')).toBeLessThan(first('catalog-lock'));
+    // PC-03: plan §"Transaction and lock order" item 7 orders business/version/
+    // selector rows BEFORE API-key rows. The business availability share lock
+    // (catalog) therefore precedes the API-key lock — the reverse of the
+    // pre-PC-03 order this assertion used to pin.
+    expect(first('catalog-lock')).toBeLessThan(first('key-lock'));
     expect(first('catalog-lock')).toBeLessThan(first('child-write'));
   });
 
@@ -1280,7 +1306,8 @@ describe('WOC-10 group-owned children and local assignment visibility', () => {
       hashApiKey: () => 'unused', correlationId: 'group-child-test',
     } as never, { kind: 'bearer', principal: { role: 'platform' } }, {
       action: 'apikey.attach', params: { apiKeyId: API_KEY_ID, profileId: CHILD_PROFILE_ID },
-    }), 409, 'STATE_CONFLICT');
+    // PC-04: the attach fence answers with the control-plane contract code.
+    }), 409, 'PROFILE_GROUP_V2_REQUIRED');
     expect(profiles.addMembership).not.toHaveBeenCalled();
     expect(audit.record).not.toHaveBeenCalled();
   });

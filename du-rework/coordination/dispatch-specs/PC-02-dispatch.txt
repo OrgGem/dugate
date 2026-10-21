@@ -1,0 +1,30 @@
+[PACKET PC-02-EXECUTE: Storage Migration & Conversion Gate in orchestrator/migrations]
+
+ROLE: DeepSeek Worker 3 (Database & Storage Implementation)
+TASK ID: PC-02
+STATUS: QUEUED (AWAITING PC-01 COMPLETION)
+MASTER PLAN: du-rework/tasks/PLAN-PROFILE-CONTROL-PLANE-IMPLEMENTATION.md (PC-02 row, Settled data and authorization model)
+SPECIFICATION REFERENCE: du-rework/coordination/reports/prep-pc02-migrations-spec.md
+
+MUC TIEU:
+Tao file migration duy nhat prefix 0070 va migration tests de thuc hien cac thay doi schema cho Profile Control Plane:
+1. File migration moi:
+   `orchestrator/services/orchestrator/migrations/0070_profile_control_plane_storage.sql`
+   - Khong dung prefix 0069 (0069 da ton tai tren disk). Dung dung prefix 0070.
+   - Thuc hien 8 khoi DDL nhu da thiet ke trong report prep-pc02-migrations-spec.md:
+     * Khoi 1: `api_keys.key_mode` enum/varchar + backfill tat dinh (LEGACY_STANDALONE / UNMANAGED_LEGACY, khong key nao thanh GROUP_MANAGED luc khoi tao).
+     * Khoi 2: UNIQUE INDEX `(id, tenant_id)` tren `api_keys`.
+     * Khoi 3: Cot `auth_mode`, `auth_authority`, `access_version` tren `profile_groups`.
+     * Khoi 4: Bang `profile_group_api_keys` voi composite tenant FKs `(group_id, tenant_id)` va `(api_key_id, tenant_id)`.
+     * Khoi 5: Relax `api_key_id` thanh nullable trong `profile_group_revisions`, `profile_bindings`, `profile_names` + them `created_by`.
+     * Khoi 6: Cot `request_defaults jsonb NOT NULL DEFAULT '{}'` tren `profile_bindings`.
+     * Khoi 7: Thay the unique index cua `profile_names`: TAO LAI DUNG TEN `profile_names_identity` voi `WHERE group_id IS NULL` de khong vi pham declared-object drift guard cua migration runner; tao index moi `profile_names_group_identity` cho `WHERE group_id IS NOT NULL`.
+     * Khoi 8: Indexes tra cuu active grants va mode.
+2. Migration tests & dry-run verification queries:
+   - Kiem tra chay migration voi migration runner `src/db/migrations.ts` dam bao drift check bao 0 missing declared objects.
+   - Kiem tra toan bo 16 pre-migration queries va 9 post-migration queries.
+
+TIEU CHI HOAN THANH:
+- File migration 0070_profile_control_plane_storage.sql duoc tao voi checksum LF hop le.
+- Migration runner status / verify pass, 0 missing declared objects.
+- In ra: PC-02_IMPLEMENTATION_COMPLETE kem migration verification log.

@@ -75,7 +75,7 @@ describePg('GATE-AUTHENTICATE-808 on a real PG16', () => {
       await migrate(db);
 
       await db.query("INSERT INTO tenants (id, name, state) VALUES ($1,'pg16','ACTIVE')", [TENANT_A]);
-      await db.query("INSERT INTO api_keys (id, tenant_id, hash, prefix, status, created_at, updated_at, spending_limit, total_used) VALUES ($1,$2,'h','du_','ACTIVE',now(),now(),100,0)",
+      await db.query("INSERT INTO api_keys (id, tenant_id, hash, prefix, status, created_at, updated_at, spending_limit, total_used, key_mode) VALUES ($1,$2,'h','du_','ACTIVE',now(),now(),100,0,'LEGACY_STANDALONE')",
         ['33333333-3333-4333-8333-333333333333', TENANT_A]);
       await db.query("INSERT INTO operations (id, tenant_id, api_key_id, business_id, business_version, action, state, state_version, correlation_id, input_ref, submit_artifacts, created_at, updated_at) VALUES ($1,$2,$3,'demo','1.0.0','extract','SUCCEEDED',1,'c','{}'::jsonb,'[]'::jsonb,now(),now())",
         [OP_ID, TENANT_A, '33333333-3333-4333-8333-333333333333']);
@@ -143,7 +143,7 @@ describePg('GATE-AUTHENTICATE-808 on a real PG16', () => {
       await migrate(adminDb);
       await adminDb.query("INSERT INTO tenants (id, name, state) VALUES ($1,'rls-hidden','ACTIVE') ON CONFLICT (id) DO NOTHING", [TENANT_B]);
       await adminDb.query(
-        "INSERT INTO api_keys (id, tenant_id, hash, prefix, status, created_at, updated_at, spending_limit, total_used) VALUES ($1,$2,'gate-cov-b-hash','gate-b','ACTIVE',now(),now(),100,0) ON CONFLICT (id) DO NOTHING",
+        "INSERT INTO api_keys (id, tenant_id, hash, prefix, status, created_at, updated_at, spending_limit, total_used, key_mode) VALUES ($1,$2,'gate-cov-b-hash','gate-b','ACTIVE',now(),now(),100,0,'LEGACY_STANDALONE') ON CONFLICT (id) DO NOTHING",
         ['44444444-4444-4444-8444-444444444444', TENANT_B],
       );
       await adminDb.query(

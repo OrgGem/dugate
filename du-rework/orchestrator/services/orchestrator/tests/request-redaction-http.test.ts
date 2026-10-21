@@ -24,8 +24,8 @@ beforeAll(async () => {
         if (sql.includes('SELECT p.request_redaction')) {
           return { rows: [{ is_current: true, is_pinned: true, request_redaction: corrupt ? [{ pattern: '(' }] : [{ pattern: '[^ ]+@[^ ]+' }, { pattern: '(090)1234567', replacement: '$1*******' }] }] };
         }
-        if (sql.startsWith('SELECT id, tenant_id FROM api_keys')) {
-          return { rowCount: 1, rows: [{ id: 'caller-key', tenant_id: 'tenant-a' }] };
+        if (sql.includes('FROM api_keys') && sql.includes('hash=')) {
+          return { rowCount: 1, rows: [{ id: 'caller-key', tenant_id: 'tenant-a', key_mode: 'LEGACY_STANDALONE' }] };
         }
         if (sql.startsWith('SELECT * FROM operations')) {
           return { rowCount: 1, rows: [{ id: 'privacy-op', tenant_id: 'tenant-a', api_key_id: 'caller-key', state: 'RUNNING', profile_id: 'profile', profile_revision: 1, input_ref: original, submit_artifacts: [] }] };

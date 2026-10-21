@@ -132,7 +132,7 @@ export function listRoute(options: {
     calls.push({ sql, params });
     if (/FROM api_keys WHERE hash=\$1/i.test(sql)) {
       const key = fixture.apiKey;
-      return pgResult(key ? [{ id: key.id, tenant_id: key.tenantId }] : []);
+      return pgResult(key ? [{ id: key.id, tenant_id: key.tenantId, key_mode: 'LEGACY_STANDALONE' }] : []);
     }
     if (/SELECT count\(\*\)::int AS total FROM operations/i.test(sql)) {
       return pgResult([{ total: fixture.total ?? 0 }]);

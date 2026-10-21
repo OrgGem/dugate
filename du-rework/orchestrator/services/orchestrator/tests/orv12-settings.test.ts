@@ -17,7 +17,7 @@ afterAll(async()=>{await db?.close();if(schemaCreated)await root.query(`DROP SCH
 beforeEach(async()=>{
  scope={tenantId:randomUUID(),apiKeyId:randomUUID(),endpointSlug:'extract:invoice'};connectionId=randomUUID();profileId=randomUUID();
  await db.query('INSERT INTO tenants(id,name) VALUES($1,$2)',[scope.tenantId,'Synthetic']);
- await db.query("INSERT INTO api_keys(id,tenant_id,hash,prefix) VALUES($1,$2,$3,'test')",[scope.apiKeyId,scope.tenantId,randomUUID()]);
+ await db.query("INSERT INTO api_keys (id,tenant_id,hash,prefix, key_mode) VALUES ($1,$2,$3,'test', 'LEGACY_STANDALONE')",[scope.apiKeyId,scope.tenantId,randomUUID()]);
  await db.query("INSERT INTO business_versions(business_id,version,status,is_active,digest,queue,manifest) VALUES('document-core','test','ENABLED',true,'test','test','{}') ON CONFLICT DO NOTHING");
  await db.query("INSERT INTO profile_bindings(profile_id,revision,tenant_id,api_key_id,business_id,business_version,action,endpoint_slug,connector_bindings) VALUES($1,1,$2,$3,'document-core','test','extract',$4,$5)",[profileId,scope.tenantId,scope.apiKeyId,scope.endpointSlug,JSON.stringify({reasoning:{connectorId:connectionId,revision:1}})]);
  await db.query('INSERT INTO profile_active_revisions(profile_id,revision) VALUES($1,1)',[profileId]);
@@ -49,7 +49,7 @@ test('readiness HTTP route rejects anonymous and foreign tenant before DB',async
 test('settings writes reject viewer and tenant operator before resolving target',async()=>{const {dispatchAdminAction}=await import('../src/modules/admin-actions/dispatcher');for(const action of ['settings.revision.create','settings.revision.validate','settings.revision.apply','settings.revision.rollback']){await expect(dispatchAdminAction({} as never,{kind:'bearer',principal:{role:'tenant_operator',tenantId:scope.tenantId}},{action,params:scope})).rejects.toMatchObject({status:403});}});
 test('native profile upsert creates exact endpoint pins; policy save preserves pins and selector retarget fails',async()=>{
  const {runProfileUpsert}=await import('../src/modules/admin-actions/profile-actions');const {createProfileService}=await import('../src/modules/profiles/profiles');
- const profileWriterApiKeyId=randomUUID();await db.query("INSERT INTO api_keys(id,tenant_id,hash,prefix) VALUES($1,$2,$3,'test')",[profileWriterApiKeyId,scope.tenantId,randomUUID()]);
+ const profileWriterApiKeyId=randomUUID();await db.query("INSERT INTO api_keys (id,tenant_id,hash,prefix, key_mode) VALUES ($1,$2,$3,'test', 'LEGACY_STANDALONE')",[profileWriterApiKeyId,scope.tenantId,randomUUID()]);
  const service=createProfileService(db,{connectorManagement:deps.connectorManagement as never});const command={apiKey:{kind:'id' as const,id:profileWriterApiKeyId},businessId:'document-core',businessVersion:'test',profileName:'dedicated',action:'extract',endpointSlug:scope.endpointSlug,connectorBindings:{reasoning:{connectorId:connectionId,revision:1}},policy:{}};
  const created=await db.tx(c=>runProfileUpsert(c,{profiles:service,connectorManagement:deps.connectorManagement} as never,command,()=>undefined));
  const edited=await db.tx(c=>runProfileUpsert(c,{profiles:service,connectorManagement:deps.connectorManagement} as never,{...command,connectorBindings:undefined,endpointSlug:undefined,expectedRevision:created.revision,policy:{enabled:true}},()=>undefined));

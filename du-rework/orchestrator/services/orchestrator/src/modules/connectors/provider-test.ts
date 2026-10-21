@@ -1,5 +1,6 @@
 import { createHash, createHmac, randomUUID } from 'node:crypto';
 import {
+  ApiKeyModeSchema,
   ProviderTestGrantClaimsSchema,
   ProviderTestRequestSchema,
   ProviderTestResultSchema,
@@ -8,6 +9,7 @@ import {
   InvocationArtifactPinWithGenerationSchema,
   hashInvocationInput,
   canonicalize,
+  type ApiKeyMode,
   type ConnectorProviderTestEvidence,
   type InvocationArtifactContent,
   type InvocationArtifactPin,
@@ -31,6 +33,9 @@ const MAX_ACTIVE_PER_KEY = 2;
 const MAX_ACCEPTED_PER_KEY_WINDOW = 5;
 const RATE_WINDOW_SECONDS = 600;
 const GRANT_SECONDS = 120;
+
+/** One wording for "this managed key has no current group authority", everywhere. */
+const MANAGED_AUTHORITY_DENIED = 'managed API key is not authorized for the selected active group function';
 
 interface ExistingRun extends QueryResultRow {
   api_key_id: string;
@@ -166,7 +171,75 @@ export function recoverProviderTestResult(evidence: ConnectorProviderTestEvidenc
   });
 }
 
-async function validateLocalActorInTransaction(
+/** 0070 has no DEFAULT: a NULL/unknown mode is a writer defect, never a permission. */
+function parseKeyMode(raw: string | null | undefined): ApiKeyMode {
+  const parsed = ApiKeyModeSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw new HttpError(403, 'PERMISSION_DENIED', 'API-key authority mode is not declared');
+  }
+  return parsed.data;
+}
+
+/**
+ * @internal PC-R05 - the managed-key authority seam for provider tests.
+ *
+ * A GROUP_MANAGED key holds no profile_api_keys rows (conversion tombstones
+ * them), so provider-test admission/reservation must authorize it through the
+ * CURRENT root grant plus the ACTIVE group revision's immutable member pin.
+ * Legacy modes keep their existing child-membership checks; an unknown mode is
+ * refused by parseKeyMode before this helper is reached.
+ *
+ * Exported so the PC-R05 regression suite can exercise the seam directly.
+ */
+export async function assertManagedFunctionAuthority(
+  client: Pick<PoolClient, 'query'>,
+  input: {
+    tenantId: string;
+    apiKeyId: string;
+    profileId: string;
+    profileRevision: number;
+    businessId: string;
+    businessVersion: string;
+    action: string;
+  },
+): Promise<void> {
+  const managed = await client.query(
+    `SELECT 1
+       FROM profile_group_api_keys g
+       JOIN profile_groups grp
+         ON grp.group_id = g.group_id AND grp.tenant_id = g.tenant_id
+       JOIN profile_group_members gm
+         ON gm.group_id = grp.group_id AND gm.group_revision = grp.active_revision
+      WHERE g.api_key_id = $1 AND g.tenant_id = $2 AND g.state = 'ACTIVE'
+        AND grp.auth_authority = 'GROUP_GRANT'
+        AND gm.profile_id = $3 AND gm.binding_revision = $4
+        AND gm.business_id = $5 AND gm.business_version = $6 AND gm.action = $7
+      FOR SHARE OF g, grp, gm`,
+    [
+      input.apiKeyId,
+      input.tenantId,
+      input.profileId,
+      input.profileRevision,
+      input.businessId,
+      input.businessVersion,
+      input.action,
+    ],
+  );
+  if (!managed.rowCount) {
+    throw new HttpError(403, 'PERMISSION_DENIED', MANAGED_AUTHORITY_DENIED);
+  }
+}
+
+/**
+ * @internal PC-R05 - exported for the regression suite; the only production
+ * caller is reserveProviderTestRun. It proves the local USER's current key +
+ * Profile assignments AND the selected function's authority for the key's mode.
+ *
+ * It runs AFTER `lockProviderTestAuthority`, so the key→grant reads below are
+ * always preceded by the group-root lock for a managed key; this function never
+ * decides the lock order on its own.
+ */
+export async function validateLocalActorInTransaction(
   client: PoolClient,
   auth: AdminActionAuth,
   input: { tenantId: string; apiKeyId: string; profileId: string; profileRevision: number; businessId: string; businessVersion: string; action: string },
@@ -183,12 +256,13 @@ async function validateLocalActorInTransaction(
   );
   if (!user.rowCount) throw new HttpError(403, 'PERMISSION_DENIED', 'local USER session is stale or no longer enabled');
 
-  const key = await client.query<{ id: string }>(
-    `SELECT id FROM api_keys WHERE id=$1 AND tenant_id=$2 AND status='ACTIVE'
+  const key = await client.query<{ id: string; key_mode: string | null }>(
+    `SELECT id, key_mode FROM api_keys WHERE id=$1 AND tenant_id=$2 AND status='ACTIVE'
        AND lower(trim(coalesce(name,''))) <> 'global' FOR SHARE`,
     [input.apiKeyId, input.tenantId],
   );
   if (!key.rowCount) throw new HttpError(403, 'PERMISSION_DENIED', 'provider tests require an assigned active API key');
+  const keyMode = parseKeyMode(key.rows[0]!.key_mode);
 
   const keyGrant = await client.query(
     `SELECT 1 FROM admin_local_user_api_key_grants
@@ -200,6 +274,15 @@ async function validateLocalActorInTransaction(
       WHERE tenant_id=$1 AND user_id=$2 AND profile_id=$3 FOR SHARE`,
     [input.tenantId, actor.userId, input.profileId],
   );
+  if (!keyGrant.rowCount || !profileGrant.rowCount) {
+    throw new HttpError(403, 'PERMISSION_DENIED', 'local USER must have current assignments to the selected active API key and Profile');
+  }
+  if (keyMode === 'GROUP_MANAGED') {
+    // PC-R05: a managed key's function authority is the root grant + active
+    // group member pin, never a (tombstoned) child membership row.
+    await assertManagedFunctionAuthority(client, input);
+    return;
+  }
   const binding = await client.query(
     `SELECT 1 FROM profile_bindings b
       JOIN profile_api_keys m ON m.profile_id=b.profile_id AND m.tenant_id=b.tenant_id
@@ -208,7 +291,7 @@ async function validateLocalActorInTransaction(
      FOR SHARE OF b,m`,
     [input.tenantId, input.profileId, input.profileRevision, input.apiKeyId, input.businessId, input.businessVersion, input.action],
   );
-  if (!keyGrant.rowCount || !profileGrant.rowCount || !binding.rowCount) {
+  if (!binding.rowCount) {
     throw new HttpError(403, 'PERMISSION_DENIED', 'local USER must have current assignments to the selected active API key and Profile');
   }
 }
@@ -250,7 +333,108 @@ async function validateLocalHistoryAccess(
   }
 }
 
-async function reserveProviderTestRun(
+export interface ProviderTestAuthorityInput {
+  tenantId: string;
+  apiKeyId: string;
+  profileId: string;
+  profileRevision: number;
+  businessId: string;
+  businessVersion: string;
+  action: string;
+}
+
+/**
+ * @internal PC-R05 (Codex Finding 2) — the provider-test authority prefix,
+ * locked in the universal order: **group root → key row → grant row**.
+ *
+ * Every authority writer takes the group root before the key and the grant
+ * (`revokeGroupGrant`: group → grant; `revokeAllGroupGrantsForApiKey`: group →
+ * key; group save/conversion: group first), so a reservation that locked the
+ * key first could deadlock with them. The root id can only be learned from the
+ * key's current grant, so it is read UNLOCKED first — the same preflight shape
+ * the retry protocol uses — and the locks are then taken in canonical order.
+ *
+ * The preflight is a hint, never a decision: the key mode is re-read under the
+ * key lock, and a mode that moved in between means a conversion committed
+ * while we were reading. Proceeding would authorize against a shape that may
+ * no longer hold (in particular, without the root lock), so the reservation
+ * fails closed with 409 and the caller retries against the new state.
+ *
+ * The grant + member pin are locked LAST, by `assertManagedFunctionAuthority`,
+ * which also owns the deny. That ordering is what guarantees a revoked grant
+ * denies before the rate limit is evaluated or the provider is invoked.
+ *
+ * Exported so the PC-R05 regression suite can assert the lock order directly.
+ */
+export async function lockProviderTestAuthority(
+  client: PoolClient,
+  input: ProviderTestAuthorityInput,
+): Promise<ApiKeyMode> {
+  // Preflight — deliberately NOT a locking read: it decides whether a group
+  // root is involved at all, so the root can be locked before the key.
+  const preflight = await client.query<{ key_mode: string | null }>(
+    `SELECT k.key_mode
+       FROM api_keys k
+      WHERE k.id=$1 AND k.tenant_id=$2 AND k.status='ACTIVE'
+        AND lower(trim(coalesce(k.name,''))) <> 'global'`,
+    [input.apiKeyId, input.tenantId],
+  );
+  const preflightRow = preflight.rows[0];
+  if (!preflightRow) throw new HttpError(409, 'ADMISSION_REJECTED', 'selected API key is not active or is protected');
+  const preflightMode = parseKeyMode(preflightRow.key_mode);
+
+  // Lock 1 — the group root, before ANY other row lock. Locking every root the
+  // key is currently granted by keeps the order safe even if a second grant
+  // ever appeared; a key with no active grant holds no root and is denied here,
+  // which is the "grant already revoked" case.
+  if (preflightMode === 'GROUP_MANAGED') {
+    const root = await client.query(
+      `SELECT grp.group_id
+         FROM profile_groups grp
+         JOIN profile_group_api_keys g
+           ON g.group_id = grp.group_id AND g.tenant_id = grp.tenant_id
+        WHERE g.api_key_id=$1 AND g.tenant_id=$2 AND g.state='ACTIVE'
+        ORDER BY grp.group_id
+        FOR SHARE OF grp`,
+      [input.apiKeyId, input.tenantId],
+    );
+    if (!root.rowCount) throw new HttpError(403, 'PERMISSION_DENIED', MANAGED_AUTHORITY_DENIED);
+  }
+
+  // Lock 2 — the key row, and the authority shape re-read under THAT lock.
+  const key = await client.query<{ id: string; key_mode: string | null }>(
+    `SELECT id, key_mode FROM api_keys WHERE id=$1 AND tenant_id=$2 AND status='ACTIVE'
+       AND lower(trim(coalesce(name,''))) <> 'global' FOR SHARE`,
+    [input.apiKeyId, input.tenantId],
+  );
+  if (!key.rowCount) throw new HttpError(409, 'ADMISSION_REJECTED', 'selected API key is not active or is protected');
+  const keyMode = parseKeyMode(key.rows[0]!.key_mode);
+  if (keyMode !== preflightMode) {
+    throw new HttpError(409, 'ADMISSION_CHANGED', 'API key authority mode changed before test acceptance');
+  }
+
+  // Lock 3 — the grant and the active group revision's immutable member pin.
+  if (keyMode === 'GROUP_MANAGED') {
+    await assertManagedFunctionAuthority(client, input);
+    return keyMode;
+  }
+  const membership = await client.query(
+    `SELECT 1 FROM profile_api_keys WHERE tenant_id=$1 AND profile_id=$2 AND api_key_id=$3 AND state='ACTIVE' FOR SHARE`,
+    [input.tenantId, input.profileId, input.apiKeyId],
+  );
+  if (!membership.rowCount) {
+    throw new HttpError(409, 'ADMISSION_CHANGED', 'Profile, key or business version changed before test acceptance');
+  }
+  return keyMode;
+}
+
+/**
+ * @internal PC-R05 (Finding 2) — exported so the regression suite can assert
+ * that the authority prefix, and the rate limit behind it, are reached in that
+ * order inside the real reservation transaction. The only production caller is
+ * runConnectorProviderTest.
+ */
+export async function reserveProviderTestRun(
   ctx: RouteContext,
   auth: AdminActionAuth,
   request: ProviderTestRequest,
@@ -286,17 +470,17 @@ async function reserveProviderTestRun(
 
     // Lock the key and profile membership before checking assignments so a
     // concurrent revoke/rotation cannot race the durable admission point.
-    const activeKey = await client.query<{ id: string }>(
-      `SELECT id FROM api_keys WHERE id=$1 AND tenant_id=$2 AND status='ACTIVE'
-         AND lower(trim(coalesce(name,''))) <> 'global' FOR SHARE`,
-      [request.apiKeyId, request.tenantId],
-    );
-    if (!activeKey.rowCount) throw new HttpError(409, 'ADMISSION_REJECTED', 'selected API key is not active or is protected');
-
-    const membership = await client.query(
-      `SELECT 1 FROM profile_api_keys WHERE tenant_id=$1 AND profile_id=$2 AND api_key_id=$3 AND state='ACTIVE' FOR SHARE`,
-      [request.tenantId, admitted.profileId, request.apiKeyId],
-    );
+    // PC-R05 (Finding 2): the authority prefix is locked in the universal order
+    // (group root → key → grant) — see lockProviderTestAuthority.
+    await lockProviderTestAuthority(client, {
+      tenantId: request.tenantId,
+      apiKeyId: request.apiKeyId,
+      profileId: admitted.profileId,
+      profileRevision: admitted.profileRevision,
+      businessId: request.businessId,
+      businessVersion: request.businessVersion,
+      action: request.action,
+    });
     const profileRevision = await client.query(
       `SELECT p.profile_id FROM profile_active_revisions a
          JOIN profile_bindings p ON p.profile_id=a.profile_id AND p.revision=a.revision
@@ -309,7 +493,7 @@ async function reserveProviderTestRun(
       `SELECT version FROM business_versions WHERE business_id=$1 AND version=$2 AND is_active=true FOR SHARE`,
       [request.businessId, request.businessVersion],
     );
-    if (!membership.rowCount || !profileRevision.rowCount || !business.rowCount) {
+    if (!profileRevision.rowCount || !business.rowCount) {
       throw new HttpError(409, 'ADMISSION_CHANGED', 'Profile, key or business version changed before test acceptance');
     }
     await validateLocalActorInTransaction(client, auth, {

@@ -143,9 +143,31 @@ export type EffectiveProfile =
       bullMqPriority: number;
     };
 
+/**
+ * PC-03: the Admin actor that authors a revision without an API key.
+ *
+ * Stored as `created_by` (+ issuer/sub) on `profile_bindings` and
+ * `profile_group_revisions`, mirroring the actor shape 0060 uses for
+ * `connector_secret_imports`. It is never a credential and never a raw key.
+ * Declared here (the lower-level module) so `profile-groups.ts` can re-export
+ * it as `ProfileGroupActor` without a circular import.
+ */
+export interface ProfileRevisionActor {
+  actor: string;
+  role: string;
+  issuer?: string;
+  sub?: string;
+}
+
 export interface CreateBindingInput {
   profileId?: string;
-  apiKeyHash: string;
+  /**
+   * Standalone authoring only. Group-owned appends carry `actor` instead and
+   * are rejected when both are supplied (PC-03).
+   */
+  apiKeyHash?: string;
+  /** Group-owned append: the Admin actor recorded as the revision author. */
+  actor?: ProfileRevisionActor;
   businessId: string;
   businessVersion: string;
   action: string;
@@ -158,6 +180,12 @@ export interface CreateBindingInput {
    * field to its default would be a data-loss bug dressed as a save.
    */
   policy?: Record<string, unknown>;
+  /**
+   * PC-03 / plan item 4: per-field request defaults, immutable with the
+   * revision. Absent carries the previous revision forward, matching
+   * `policy`; a profile with no previous revision stores `{}`.
+   */
+  requestDefaults?: unknown;
 }
 
 export interface ProfileSelectorLock {
@@ -194,6 +222,8 @@ interface PolicyRow {
   request_redaction?: unknown;
   callback_policy?: unknown;
   allowed_origins?: unknown;
+  /** PC-03: per-field request defaults, immutable with the revision. */
+  request_defaults?: unknown;
   profile_name?: string | null;
 }
 
@@ -271,6 +301,7 @@ function carryForwardPolicy(
   requestRedaction: unknown;
   callbackPolicy: ProfileCallbackPolicy | null;
   allowedOrigins: string[];
+  requestDefaults: Record<string, { value: unknown; isLocked?: boolean }>;
 } {
   // Absent field → previous value. No previous revision → legacy defaults.
   const policy = input ?? {};
@@ -340,7 +371,39 @@ function carryForwardPolicy(
     allowedOrigins: has('allowedOrigins')
       ? parseWriteCredentialAllowedOrigins(policy.allowedOrigins)
       : parseStoredCredentialAllowedOrigins(previous?.allowed_origins),
+    // PC-03: `requestDefaults` is deliberately NOT part of `policy`. It is a
+    // distinct source (manifest `parameterResolution.fields`), never request
+    // input, and never injected into `parameters`. Absent carries the previous
+    // revision; a first revision stores `{}`.
+    requestDefaults: has('requestDefaults')
+      ? (parseWriteParameters(policy.requestDefaults) as Record<string, { value: unknown; isLocked?: boolean }>)
+      : normalizeStoredRequestDefaults(previous?.request_defaults),
   };
+}
+
+/**
+ * PC-03: read-side coercion of a stored `profile_bindings.request_defaults`.
+ *
+ * A v1 row (or the migration default) reads as `{}` — a real "no defaults
+ * declared" value, never NULL — so adding the column changed no resolution.
+ * A malformed stored value is dropped to `{}` rather than failing a read the
+ * writer already accepted, matching `coerceRowParameters`' tolerance.
+ */
+export function normalizeStoredRequestDefaults(
+  raw: unknown
+): Record<string, { value: unknown; isLocked?: boolean }> {
+  if (raw === null || raw === undefined) return {};
+  let value: unknown = raw;
+  if (typeof value === 'string') {
+    try {
+      value = JSON.parse(value) as unknown;
+    } catch {
+      return {};
+    }
+  }
+  // `coerceRowParameters` drops entries without a defined `value`, which is the
+  // same tolerance the read path applies to `parameters`.
+  return coerceRowParameters(value) as Record<string, { value: unknown; isLocked?: boolean }>;
 }
 
 export interface CreateProfileServiceOptions {
@@ -419,6 +482,41 @@ export function createProfileService(db: Db, options: CreateProfileServiceOption
     action: string,
     endpointSlug?: string
   ) => {
+    // PC-R01: the key's EXPLICIT `key_mode` decides, BEFORE any membership is
+    // consulted. `profile_api_keys` is evidence, not authority.
+    //
+    // Before this check the fallback was a heuristic on membership rows, so a
+    // `LEGACY_STANDALONE` key with no rows at all (issued with `profileIds: []`,
+    // or rotated from a key whose memberships were all tombstoned) resolved as
+    // `'legacy'` and authorized every action with unmanaged behaviour. It also
+    // let a `GROUP_MANAGED` key with stale child memberships resolve through the
+    // child projection instead of its root grant.
+    const keyModeRes = await c.query<{ key_mode: string | null }>(
+      'SELECT key_mode FROM api_keys WHERE id=$1',
+      [apiKeyId]
+    );
+    const keyModeRow = keyModeRes.rows[0];
+    // Unknown key: nothing may resolve for it.
+    if (!keyModeRow) return 'not-authorized' as const;
+
+    if (keyModeRow.key_mode === 'UNMANAGED_LEGACY') {
+      // The ONE path to unmanaged behaviour, and only while the key holds no
+      // membership row at all. A key that claims to be unmanaged while
+      // memberships exist is a contradictory row, not an entitlement.
+      const anyMembership = await c.query(
+        'SELECT 1 FROM profile_api_keys WHERE api_key_id=$1 LIMIT 1',
+        [apiKeyId]
+      );
+      return anyMembership.rowCount ? ('not-authorized' as const) : ('legacy' as const);
+    }
+
+    // GROUP_MANAGED is authorized by its root grant (PC-05's resolver), never
+    // by child membership. NULL/unknown mode fails closed — plan §2: after
+    // migration a missing mode is an authorization error, not a default.
+    if (keyModeRow.key_mode !== 'LEGACY_STANDALONE') return 'not-authorized' as const;
+
+    // LEGACY_STANDALONE: membership-driven, exactly as before. "No eligible
+    // membership" is a denial; it can never become an unmanaged fallback.
     const hit = await c.query<
       PolicyRow & {
         profile_id: string;
@@ -461,15 +559,10 @@ export function createProfileService(db: Db, options: CreateProfileServiceOption
     );
     if (orphan.rowCount) return 'pointer-missing' as const;
 
-    // A key that has ever been attached to a Profile must not become a legacy
-    // key when its last active membership is revoked. Membership state controls
-    // Profile access; api_keys.status remains an independent key lifecycle.
-    const anyRes = await c.query(
-      'SELECT 1 FROM profile_api_keys WHERE api_key_id=$1 LIMIT 1',
-      [apiKeyId]
-    );
-    if (anyRes.rowCount) return 'not-authorized' as const;
-    return 'legacy' as const;
+    // PC-R01: a `LEGACY_STANDALONE` key with no eligible membership is denied.
+    // The mode check above already guarantees the key is explicit and
+    // standalone, so there is no heuristics left to consult here.
+    return 'not-authorized' as const;
   };
 
   const selectorLockKey = (selector: ProfileSelectorLock): string =>
@@ -711,36 +804,82 @@ export function createProfileService(db: Db, options: CreateProfileServiceOption
     profileId: string;
     revision: number;
     tenantId: string;
-    apiKeyId: string;
+    /** PC-03: null for a group-owned append — there is no authoring key. */
+    apiKeyId: string | null;
   };
 
   const appendRevision = async (
     input: CreateBindingInput,
     activeClient?: PoolClient,
     groupOwnerId?: string,
+    actor?: ProfileRevisionActor,
   ): Promise<CreatedProfileRevision> => {
     const run = async (c: PoolClient): Promise<CreatedProfileRevision> => {
       const bindings = parseConnectorBindings(input.connectorBindings);
       if (!input.businessId || !input.businessVersion || !input.action) {
         throw new HttpError(422, 'INVALID_SCHEMA', 'businessId, businessVersion and action are required');
       }
-      const keyRes = await c.query<{ id: string; tenant_id: string }>(
-        'SELECT id, tenant_id FROM api_keys WHERE hash=$1 AND status=$2',
-        [input.apiKeyHash, 'ACTIVE']
-      );
-      if (!keyRes.rowCount) throw new HttpError(404, 'NOT_FOUND', 'api key not found or not ACTIVE');
-      const keyCandidate = keyRes.rows[0]!;
+      // PC-03: two mutually exclusive AUTHOR modes, independent of who owns the
+      // profile. Legacy group children (CHILD_PROJECTION) are group-owned AND
+      // key-authored; v2 children (GROUP_GRANT) are group-owned and
+      // actor-authored. Accepting both authors at once would let a caller claim
+      // group ownership while a key silently authors the revision.
+      const groupOwned = groupOwnerId !== undefined;
+      const keyAuthored = input.apiKeyHash !== undefined && input.apiKeyHash.length > 0;
+      if (keyAuthored && actor !== undefined) {
+        throw new HttpError(422, 'INVALID_SCHEMA', 'a profile revision is authored by an API key or an Admin actor, never both');
+      }
+      if (keyAuthored && input.actor !== undefined) {
+        throw new HttpError(422, 'INVALID_SCHEMA', 'profile-group appends must not carry an api key author');
+      }
+      if (!keyAuthored) {
+        if (!groupOwned) {
+          throw new HttpError(422, 'INVALID_SCHEMA', 'apiKeyHash is required when no profile group owns the profile');
+        }
+        const authorActor = actor ?? input.actor;
+        if (authorActor === undefined || authorActor.actor.trim().length === 0) {
+          throw new HttpError(422, 'INVALID_SCHEMA', 'profile-group appends require the Admin actor that authored them');
+        }
+      }
+
+      let tenantId: string;
+      let key: LockedApiKeyRow | null = null;
+      let authorKeyId: string | null = null;
+      if (keyAuthored) {
+        const keyRes = await c.query<{ id: string; tenant_id: string }>(
+          'SELECT id, tenant_id FROM api_keys WHERE hash=$1 AND status=$2',
+          [input.apiKeyHash, 'ACTIVE']
+        );
+        if (!keyRes.rowCount) throw new HttpError(404, 'NOT_FOUND', 'api key not found or not ACTIVE');
+        tenantId = keyRes.rows[0]!.tenant_id;
+        authorKeyId = keyRes.rows[0]!.id;
+      } else {
+        // The tenant is read from the LOCKED group root, never from the input:
+        // the aggregate transaction supplies the group id server-side, and a
+        // child must never be materialized into a tenant the group does not own.
+        const group = await c.query<{ tenant_id: string }>(
+          'SELECT tenant_id FROM profile_groups WHERE group_id=$1 FOR UPDATE',
+          [groupOwnerId],
+        );
+        const groupRow = group.rows[0];
+        if (!groupRow) throw new HttpError(404, 'NOT_FOUND', 'profile group was not found');
+        tenantId = groupRow.tenant_id;
+      }
+
       const profileId = input.profileId ?? randomUUID();
-      // The aggregate save already holds its complete selector set and the
-      // selected key row before materializing children. Avoid acquiring other
-      // child-member keys after that key lock; selector locks freeze their
-      // memberships while overlap is still checked for every member below.
+      // The aggregate save already holds its complete selector set and (for a
+      // key-authored child) the authoring key row before materializing
+      // children. An actor-authored append holds no key at all, so its
+      // membership set is empty by construction.
       const mutationLocks = await lockProfileMutationOn(c, profileId, [
         { businessId: input.businessId, businessVersion: input.businessVersion, action: input.action, endpointSlug: input.endpointSlug },
-      ], [keyCandidate.id], groupOwnerId === undefined);
-      const key = mutationLocks.keys.get(keyCandidate.id);
-      if (!key || key.status !== 'ACTIVE' || key.hash !== input.apiKeyHash) {
-        throw new HttpError(404, 'NOT_FOUND', 'api key not found or not ACTIVE');
+      ], authorKeyId === null ? [] : [authorKeyId], groupOwnerId === undefined);
+      if (authorKeyId !== null) {
+        const locked = mutationLocks.keys.get(authorKeyId);
+        if (!locked || locked.status !== 'ACTIVE' || locked.hash !== input.apiKeyHash) {
+          throw new HttpError(404, 'NOT_FOUND', 'api key not found or not ACTIVE');
+        }
+        key = locked;
       }
 
       // The public createRevision method is also the direct admin binding
@@ -748,13 +887,13 @@ export function createProfileService(db: Db, options: CreateProfileServiceOption
       // the locked API-key row before any profile metadata or binding is
       // written. Profile-group saves have already validated their aggregate
       // pins against the same tenant-scoped source of truth.
-      if (groupOwnerId === undefined && Object.keys(bindings).length > 0) {
+      if (!groupOwned && Object.keys(bindings).length > 0) {
         const connectorManagement = options.connectorManagement;
         if (!connectorManagement) {
           throw new HttpError(503, 'TEMPORARY_UNAVAILABLE', 'connector management is required to validate profile connector bindings');
         }
         for (const [slot, pin] of Object.entries(bindings)) {
-          if (!await isActiveConnectorPin(connectorManagement, key.tenant_id, pin)) {
+          if (!await isActiveConnectorPin(connectorManagement, tenantId, pin)) {
             throw new HttpError(422, 'INVALID_SCHEMA', `connector binding '${slot}' is not an active connector revision for this tenant`);
           }
         }
@@ -770,9 +909,13 @@ export function createProfileService(db: Db, options: CreateProfileServiceOption
       );
       const actualGroupId = owner.rows[0]?.group_id ?? null;
       if (actualGroupId !== null && actualGroupId !== groupOwnerId) {
-        throw new HttpError(409, 'STATE_CONFLICT', 'this profile is owned by a profile group; edit it through the profile group');
+        throw new HttpError(
+          409,
+          groupOwned ? 'STATE_CONFLICT' : 'PROFILE_GROUP_V2_REQUIRED',
+          'this profile is owned by a profile group; edit it through the profile group',
+        );
       }
-      if (groupOwnerId !== undefined && actualGroupId !== groupOwnerId) {
+      if (groupOwned && actualGroupId !== groupOwnerId) {
         throw new HttpError(409, 'STATE_CONFLICT', 'profile group child ownership could not be verified');
       }
 
@@ -784,7 +927,7 @@ export function createProfileService(db: Db, options: CreateProfileServiceOption
       const prevRes = await c.query<PolicyRow & { endpoint_slug: string | null }>(
         `SELECT enabled, parameters, job_priority, allowed_file_extensions,
                 connections_override, file_url_auth_cipher, request_redaction, callback_policy,
-                allowed_origins, endpoint_slug
+                allowed_origins, request_defaults, endpoint_slug
            FROM profile_bindings WHERE profile_id=$1 AND revision=$2`,
         [profileId, revision - 1]
       );
@@ -796,28 +939,35 @@ export function createProfileService(db: Db, options: CreateProfileServiceOption
       }
       const policy = carryForwardPolicy(prevRes.rows[0], input.policy, cryptoEnv, warnLegacyPlaintext);
       const endpointSlug = input.endpointSlug ?? prevRes.rows[0]?.endpoint_slug ?? null;
-      await assertSelectorAvailableForMembershipsOn(c, {
-        apiKeyIds: [...mutationLocks.memberships.map((membership) => membership.apiKeyId), key.id],
-        businessId: input.businessId,
-        businessVersion: input.businessVersion,
-        action: input.action,
-        endpointSlug,
-        profileId,
-        ...(groupOwnerId ? { groupId: groupOwnerId } : {}),
-      });
+      if (input.requestDefaults !== undefined) {
+        policy.requestDefaults = normalizeStoredRequestDefaults(input.requestDefaults);
+      }
+      if (keyAuthored) {
+        await assertSelectorAvailableForMembershipsOn(c, {
+          apiKeyIds: [...mutationLocks.memberships.map((membership) => membership.apiKeyId), key!.id],
+          businessId: input.businessId,
+          businessVersion: input.businessVersion,
+          action: input.action,
+          endpointSlug,
+          profileId,
+          ...(groupOwnerId ? { groupId: groupOwnerId } : {}),
+        });
+      }
 
+      const authorActor = input.actor ?? actor;
       await c.query(
         `INSERT INTO profile_bindings
            (profile_id, revision, tenant_id, api_key_id, business_id, business_version, action,
             connector_bindings, enabled, parameters, job_priority, allowed_file_extensions,
             file_url_auth_cipher, connections_override, request_redaction, callback_policy,
-            allowed_origins, endpoint_slug)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
+            allowed_origins, endpoint_slug, request_defaults,
+            created_by, created_by_issuer, created_by_sub)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)`,
         [
           profileId,
           revision,
-          key.tenant_id,
-          key.id,
+          tenantId,
+          key === null ? null : key.id,
           input.businessId,
           input.businessVersion,
           input.action,
@@ -832,15 +982,29 @@ export function createProfileService(db: Db, options: CreateProfileServiceOption
           policy.callbackPolicy === null ? null : JSON.stringify(policy.callbackPolicy),
           JSON.stringify(policy.allowedOrigins),
           endpointSlug,
+          JSON.stringify(policy.requestDefaults ?? {}),
+          authorActor?.actor ?? null,
+          authorActor?.issuer ?? null,
+          authorActor?.sub ?? null,
         ]
       );
       await pinActiveRevision(c, profileId, revision);
-      await c.query(
-        `INSERT INTO profile_api_keys (profile_id, api_key_id, tenant_id, state)
-         VALUES ($1,$2,$3,'ACTIVE') ON CONFLICT (profile_id, api_key_id) DO NOTHING`,
-        [profileId, key.id, key.tenant_id],
-      );
-      return { profileId, revision, tenantId: key.tenant_id, apiKeyId: key.id };
+      // PC-03: only an ACTOR-authored append is grant-ledger territory. A
+      // legacy key-authored child (CHILD_PROJECTION) keeps its ACTIVE
+      // membership — that row IS its authority until the group is converted.
+      if (keyAuthored) {
+        await c.query(
+          `INSERT INTO profile_api_keys (profile_id, api_key_id, tenant_id, state)
+           VALUES ($1,$2,$3,'ACTIVE') ON CONFLICT (profile_id, api_key_id) DO NOTHING`,
+          [profileId, key!.id, key!.tenant_id],
+        );
+      }
+      return {
+        profileId,
+        revision,
+        tenantId,
+        apiKeyId: key === null ? null : key.id,
+      };
     };
     return activeClient ? run(activeClient) : db.tx(run);
   };
@@ -964,19 +1128,50 @@ export function createProfileService(db: Db, options: CreateProfileServiceOption
       profileId: string;
       revision: number;
       tenantId: string;
-      apiKeyId: string;
+      apiKeyId: string | null;
     }> {
       return appendRevision(input, activeClient);
     },
 
     /** Server-side aggregate-only path; the group id is supplied by the
-     * owning profile-group transaction, never from an HTTP request body. */
+     * owning profile-group transaction, never from an HTTP request body.
+     *
+     * PC-03: group-owned appends carry the Admin actor instead of an API key,
+     * so the caller MUST supply it — the revision's `created_by` is the only
+     * attribution a group child has. */
     async createGroupChildRevision(
       input: CreateBindingInput,
       groupId: string,
       activeClient: PoolClient,
+      actor?: ProfileRevisionActor,
     ): Promise<CreatedProfileRevision> {
-      return appendRevision(input, activeClient, groupId);
+      return appendRevision(input, activeClient, groupId, actor);
+    },
+
+    /** PC-03: the authority source of the group that owns `profileId`, or null
+     * for a standalone profile. Read-only; used by the compatibility firewall
+     * before any write. */
+    async getProfileGroupAuthority(
+      profileId: string,
+      client?: Pick<PoolClient, 'query'> | Pick<Db, 'query'>,
+    ): Promise<{ groupId: string | null; authority: 'CHILD_PROJECTION' | 'GROUP_GRANT' | null }> {
+      const run = async (
+        q: { query: PoolClient['query'] },
+      ): Promise<{ groupId: string | null; authority: 'CHILD_PROJECTION' | 'GROUP_GRANT' | null }> => {
+        const result = await q.query<{ group_id: string | null; auth_authority: string | null }>(
+          `SELECT n.group_id, g.auth_authority
+             FROM profile_names n
+             LEFT JOIN profile_groups g ON g.group_id = n.group_id
+            WHERE n.profile_id=$1
+            LIMIT 1`,
+          [profileId],
+        );
+        const row = result.rows[0];
+        if (!row || row.group_id === null) return { groupId: null, authority: null };
+        const authority = row.auth_authority === 'GROUP_GRANT' ? 'GROUP_GRANT' : 'CHILD_PROJECTION';
+        return { groupId: row.group_id, authority };
+      };
+      return client ? run(client as { query: PoolClient['query'] }) : db.tx(run);
     },
 
     /** Submission-time: resolve the key's active binding for (business, version, action).

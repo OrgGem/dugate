@@ -48,6 +48,11 @@ function makeSubmissionDb(artifactFileName?: string) {
 
   const query = async <T extends QueryResultRow = QueryResultRow>(sql: string, params: unknown[] = []) => {
     calls.push({ sql, params });
+    // PC-05: the admission front resolver reads the key's mode first, on the
+    // POOL, before the write transaction opens.
+    if (/SELECT id, tenant_id, status, key_mode FROM api_keys/i.test(sql)) {
+      return queryResult<T>([{ id: String(params[0]), tenant_id: TENANT_ID, status: 'ACTIVE', key_mode: 'LEGACY_STANDALONE' }]);
+    }
     if (/FROM business_catalog/i.test(sql)) {
       return queryResult<T>([{ enabled: true, activation_revision: 1, submissions_paused: false, pre_drain_version: null }]);
     }
@@ -84,6 +89,10 @@ function makeSubmissionDb(artifactFileName?: string) {
             version: '1.0.0', status: 'ENABLED', is_active: true, digest: 'sha256:p730-offline',
             manifest: { actions: [{ name: 'extract', inputSchema: { type: 'object', additionalProperties: true } }], runtime: { handlerKinds: ['root'] } },
           }]);
+        }
+        // PC-05: the admission front resolver reads the key's mode first.
+        if (/SELECT id, tenant_id, status, key_mode FROM api_keys/i.test(sql)) {
+          return queryResult<R>([{ id: String(params[0]), tenant_id: TENANT_ID, status: 'ACTIVE', key_mode: 'LEGACY_STANDALONE' }]);
         }
         if (sql.includes('FROM api_keys k')) return queryResult<R>([{ name: 'profile-fixture', spending_limit: '0', total_used: '0', new_cost: '0' }]);
         if (/FROM artifacts/i.test(sql)) return queryResult<R>(artifactRows);

@@ -168,8 +168,7 @@ beforeAll(async () => {
   });
   await app.db.query(`INSERT INTO tenants (id, name) VALUES ($1,'w39c-suite') ON CONFLICT (id) DO NOTHING`, [TENANT_ID]);
   await app.db.query(
-    `INSERT INTO api_keys (id, tenant_id, hash, prefix, status)
-     VALUES ($1,$2,$3,'w39c','ACTIVE') ON CONFLICT (hash) DO UPDATE SET status='ACTIVE'`,
+    `INSERT INTO api_keys (id, tenant_id, hash, prefix, status, key_mode) VALUES ($1,$2,$3,'w39c','ACTIVE', 'LEGACY_STANDALONE') ON CONFLICT (hash) DO UPDATE SET status='ACTIVE'`,
     [randomUUID(), TENANT_ID, hashKey(RAW_API_KEY)]
   );
   const server = await app.listen();

@@ -48,7 +48,7 @@ function publicContext(pathname: string, overrides: Partial<RouteContext> = {}) 
       queries.push({ sql: sql.replace(/\s+/g, ' ').trim(), params });
       if (sql.includes('FROM api_keys')) {
         if (params[0] === keyHash && params[1] === 'ACTIVE') {
-          return { rows: [{ id: KEY_ID, tenant_id: TENANT_ID }], rowCount: 1 };
+          return { rows: [{ id: KEY_ID, tenant_id: TENANT_ID, key_mode: 'LEGACY_STANDALONE' }], rowCount: 1 };
         }
         return { rows: [], rowCount: 0 };
       }
@@ -112,7 +112,7 @@ describe('ORV15 public legacy operation read compatibility', () => {
       },
     });
     expect(h.queries[0]).toEqual({
-      sql: 'SELECT id, tenant_id FROM api_keys WHERE hash=$1 AND status=$2',
+      sql: 'SELECT id, tenant_id, key_mode FROM api_keys WHERE hash=$1 AND status=$2',
       params: [createHash('sha256').update(API_KEY).digest('hex'), 'ACTIVE'],
     });
     expect(h.queries[1]?.sql).toContain('WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL AND api_key_id = $3');

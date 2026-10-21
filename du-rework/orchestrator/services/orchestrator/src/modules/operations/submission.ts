@@ -25,6 +25,12 @@ import {
   type ConnectorWorkflowOverrides,
   type PromptOverrideRead,
   type PinnedPromptOverride,
+  computeResolutionFingerprint,
+  CredentialAllowedOriginsSchema,
+  ProfileCallbackPolicySchema,
+  type ProfileGroupResolutionRefsV2,
+  type ProfileParameterValue,
+  type Submission,
 } from '@du/contracts';
 import { normalizeCorrelationId } from '@du/observability';
 import type { MetadataCrypto, MetadataSlot } from '../runtime/metadata-crypto';
@@ -34,16 +40,32 @@ import { Db } from '../../db/db';
 import { RegistryService } from '../registry/registry';
 import {
   ProfileService,
+  normalizeStoredRequestDefaults,
+  parseConnectorBindings,
   renderPinnedBindings,
   type ConnectorPinMap,
   type EffectiveProfile,
+  type EffectiveProfilePolicy,
 } from '../profiles/profiles';
-import { bullMqPriorityFor, extensionDeniedReason, fileUrlEntryName } from '../profiles/policy';
-import { fileUrlAuthConfigCarriesSecret } from '../profiles/file-url-auth';
+import {
+  bullMqPriorityFor,
+  coerceAllowedFileExtensions,
+  coerceConnectionsOverride,
+  coerceEnabled,
+  coerceJobPriority,
+  coerceRowParameters,
+  extensionDeniedReason,
+  fileUrlEntryName,
+  mergeParameters,
+  resolveRequestParameters,
+} from '../profiles/policy';
+import { readGroupAuthority, resolveRootGrant } from '../profiles/profile-groups';
+import { decryptFileUrlAuthConfig, fileUrlAuthConfigCarriesSecret, type ProfileEnv } from '../profiles/file-url-auth';
 import type { PromptOverrideService } from '../profiles/prompt-overrides';
 import type { ConnectorManagementStore } from '../connectors/connector-management-store';
 import { compileConnectorRecipePins, type ConnectorRecipeNodeInput } from '../connectors/recipe-compiler';
 import { sealTenantDefaultsSnapshot } from '../global-settings/snapshot';
+import { LegacyWorkflowSchemaCatalogError, resolveLegacyWorkflowSchema } from '../workflow-schemas/workflow-schemas';
 import { compileWorkflowSchemaPinDigest, sealConnectorRecipePins } from '../global-settings/workflow-recipe-pins';
 import type { GlobalSettingsService } from '../global-settings/service';
 import type { BackupSnapshotWriteGate } from '../maintenance/backup-effect-fence';
@@ -113,6 +135,18 @@ export interface SubmitContext {
   };
   /** Seconds an idempotency record is retained (>= retry/replay window). */
   idempotencyTtlSeconds?: number;
+  /**
+   * PC-05: a v2 admission already resolved and authorized this request.
+   * Passing it prevents a second, racing resolution between fingerprint
+   * verification and the write.
+   */
+  resolvedAdmission?: ResolvedAdmission;
+  /**
+   * PC-05: v2 idempotency. The fingerprint is compared with the value the
+   * FIRST accepted request stored (`submission_keys.resolution_fingerprint`),
+   * and `routeAction` keeps the v2 scope separate from the v1 route.
+   */
+  v2?: { resolutionFingerprint: string; routeAction: string };
 }
 
 /**
@@ -136,6 +170,629 @@ export interface SubmitResult {
   operation: OperationView;
   replayed: boolean;
   correlationId: string;
+}
+
+/* ------------------------------------------------------------------ */
+/* PC-05: root-grant admission (the front resolver)                   */
+/* ------------------------------------------------------------------ */
+
+/** The immutable group pin an admission resolved and must persist/verify. */
+export interface GroupAdmissionPin {
+  groupId: string;
+  tenantId: string;
+  groupRevision: number;
+  accessVersion: number;
+  businessId: string;
+  businessVersion: string;
+  manifestDigest: string;
+  kind: 'endpoint' | 'workflow';
+  functionId: string;
+  action: string;
+  endpointSlug: string | null;
+  workflowRevision: number | null;
+  childProfileId: string;
+  childRevision: number;
+}
+
+export interface ResolvedAdmission {
+  profile: EffectiveProfile;
+  /**
+   * Finding 3: the tenant-defaults snapshot the fingerprint was computed over.
+   * Forwarded from the preview so admission seals the SAME defaults instead of
+   * reading them a second time — a concurrent settings publish would otherwise
+   * make the stored defaults disagree with the fingerprinted ones. `undefined`
+   * means "not forwarded" (v1 path); `null` means "forwarded, no snapshot".
+   */
+  tenantDefaults?: TenantDefaultsSnapshot | null;
+  /** Non-null only for a `GROUP_MANAGED` key resolved through a root grant. */
+  groupPin: GroupAdmissionPin | null;
+  /**
+   * PC-05: the projection the v2 preview returns. Present only when the action
+   * declares `parameterResolution`; absent means v1 merge semantics applied.
+   */
+  requestResolution?: {
+    appliedRequestDefaults: string[];
+    appliedSchemaDefaults: string[];
+    lockedParameters: string[];
+  };
+}
+
+/** PC-05: the shared v2 request, used by the public route and the workbench. */
+export interface ProfileResolutionV2Request {
+  tenantId: string;
+  apiKeyId: string;
+  /** Group addressed by the route, or the key's root-grant group for workbench. */
+  groupId: string;
+  selector: {
+    businessId: string;
+    businessVersion: string;
+    action: string;
+    functionId: string;
+    endpointSlug?: string;
+  };
+  submission: unknown;
+  /** Required for submit; preview ignores it. */
+  idempotencyKey?: string;
+  correlationId?: string;
+  /** Required for submit: the fingerprint the preview returned. */
+  resolutionFingerprint?: string;
+}
+
+export interface ProfileResolutionV2Preview {
+  groupId: string;
+  refs: ProfileGroupResolutionRefsV2;
+  resolutionFingerprint: string;
+  effective: {
+    parameters: Record<string, unknown>;
+    appliedRequestDefaults: string[];
+    appliedSchemaDefaults: string[];
+    lockedParameters: string[];
+  };
+}
+
+export interface AdmissionSelector {
+  businessId: string;
+  businessVersion: string;
+  action: string;
+  endpointSlug?: string;
+  /** v2: exact function id. v1 omits it and uses the unique-match rule. */
+  functionId?: string;
+  /** v2: the group addressed by the route; must equal the key's root grant. */
+  groupId?: string;
+}
+
+/** The action slice the resolver needs; keeps it independent of registry internals. */
+export interface AdmissionActionShape {
+  inputSchema: object;
+  profileSchema: object;
+  parameterResolution?: {
+    fields: Readonly<Record<string, 'requestDefaults' | 'profileSettings'>>;
+    applyTopLevelDefaults: boolean;
+  };
+}
+
+export interface ResolveAdmissionInput {
+  apiKeyId: string;
+  tenantId: string;
+  selector: AdmissionSelector;
+  action: AdmissionActionShape;
+  clientInput: Record<string, unknown>;
+  declaredKeys: readonly string[];
+}
+
+interface Queryable {
+  query<T extends Record<string, unknown> = Record<string, unknown>>(
+    text: string,
+    params?: unknown[],
+  ): Promise<{ rows: T[]; rowCount: number | null }>;
+}
+
+interface GroupMemberAdmissionRow extends Record<string, unknown> {
+  group_id: string;
+  tenant_id: string;
+  group_revision: number;
+  auth_authority: string;
+  access_version: string | number;
+  business_id: string;
+  business_version: string;
+  manifest_digest: string;
+  function_kind: 'endpoint' | 'workflow';
+  function_id: string;
+  action: string;
+  endpoint_slug: string | null;
+  workflow_revision: number | null;
+  profile_id: string;
+  binding_revision: number;
+  enabled: boolean | null;
+  parameters: unknown;
+  request_defaults: unknown;
+  connector_bindings: unknown;
+  job_priority: string | null;
+  allowed_file_extensions: string | null;
+  connections_override: unknown;
+  file_url_auth_cipher: string | null;
+  callback_policy: unknown;
+  allowed_origins: unknown;
+  profile_name: string | null;
+  group_owned: boolean | null;
+}
+
+function groupDenied(detail: string): HttpError {
+  return new HttpError(403, 'PROFILE_GROUP_UNAUTHORIZED', detail);
+}
+
+async function readApiKeyAuthorization(
+  client: Queryable,
+  apiKeyId: string,
+): Promise<{ id: string; tenantId: string; status: string; keyMode: string | null } | null> {
+  const result = await client.query<{ id: string; tenant_id: string; status: string; key_mode: string | null }>(
+    'SELECT id, tenant_id, status, key_mode FROM api_keys WHERE id=$1',
+    [apiKeyId],
+  );
+  const row = result.rows[0];
+  if (!row) return null;
+  return { id: row.id, tenantId: row.tenant_id, status: row.status, keyMode: row.key_mode };
+}
+
+/** Same tolerance as the profile read path: a stored value never fails a read. */
+function parseStoredAllowedOrigins(raw: unknown): string[] {
+  let value = raw;
+  if (value === null || value === undefined) return [];
+  if (typeof value === 'string') {
+    try {
+      value = JSON.parse(value) as unknown;
+    } catch {
+      throw new HttpError(500, 'INVALID_SCHEMA', 'stored profile allowed origins are invalid');
+    }
+  }
+  const parsed = CredentialAllowedOriginsSchema.safeParse(value);
+  if (!parsed.success) {
+    throw new HttpError(500, 'INVALID_SCHEMA', 'stored profile allowed origins do not satisfy their contract');
+  }
+  return parsed.data;
+}
+
+function parseStoredCallbackPolicy(raw: unknown) {
+  if (raw === null || raw === undefined) return null;
+  const parsed = ProfileCallbackPolicySchema.safeParse(raw);
+  if (!parsed.success) {
+    throw new HttpError(500, 'INVALID_SCHEMA', 'stored profile callback policy does not satisfy its contract');
+  }
+  return parsed.data;
+}
+
+/**
+ * Decode one immutable `profile_bindings` row into the policy the admission
+ * hands downstream.
+ *
+ * This mirrors `profiles.ts`' `decodePolicy` (module-private, PC-03's file).
+ * Every helper it needs is exported except the two stored-value parsers, which
+ * are reproduced above with identical semantics so a malformed stored row fails
+ * closed exactly once and in the same way.
+ */
+function decodeGroupPolicy(row: GroupMemberAdmissionRow, cryptoEnv: ProfileEnv): EffectiveProfilePolicy {
+  const decrypted = decryptFileUrlAuthConfig(row.file_url_auth_cipher, cryptoEnv);
+  return {
+    enabled: coerceEnabled(row.enabled),
+    parameters: coerceRowParameters(row.parameters),
+    jobPriority: coerceJobPriority(row.job_priority),
+    allowedFileExtensions: coerceAllowedFileExtensions(row.allowed_file_extensions),
+    connectionsOverride: coerceConnectionsOverride(row.connections_override),
+    fileUrlAuthConfig: decrypted?.config ?? null,
+    allowedOrigins: parseStoredAllowedOrigins(row.allowed_origins),
+    callbackPolicy: parseStoredCallbackPolicy(row.callback_policy),
+  };
+}
+
+function buildPinnedProfile(
+  row: GroupMemberAdmissionRow,
+  policy: EffectiveProfilePolicy,
+  action: AdmissionActionShape,
+  clientInput: Record<string, unknown>,
+  declaredKeys: readonly string[],
+): {
+  profile: EffectiveProfile;
+  requestResolution?: ResolvedAdmission['requestResolution'];
+} {
+  const requestDefaults = normalizeStoredRequestDefaults(row.request_defaults) as Record<string, ProfileParameterValue>;
+  let effectiveParameters: Record<string, unknown>;
+  let passthrough: Record<string, unknown> = {};
+  let requestResolution: ResolvedAdmission['requestResolution'];
+
+  if (action.parameterResolution) {
+    // v2 semantics: `profileSettings` never reaches request input; only
+    // `requestDefaults` and top-level schema defaults fill absent properties.
+    const resolved = resolveRequestParameters({
+      clientInput,
+      requestDefaults,
+      profileSettings: policy.parameters,
+      fields: action.parameterResolution.fields,
+      applyTopLevelDefaults: action.parameterResolution.applyTopLevelDefaults,
+      inputProperties: (action.inputSchema as Record<string, unknown>)['properties'] as Record<string, unknown> ?? {},
+      profileProperties: (action.profileSchema as Record<string, unknown>)['properties'] as Record<string, unknown> ?? {},
+    });
+    effectiveParameters = resolved.parameters;
+    requestResolution = {
+      appliedRequestDefaults: resolved.appliedRequestDefaults,
+      appliedSchemaDefaults: resolved.appliedSchemaDefaults,
+      lockedParameters: resolved.lockedParameters,
+    };
+  } else {
+    // No capability ⇒ v1 semantics exactly: the profile settings merge in, and
+    // stored request defaults are inert because nothing maps to that source.
+    const managed = new Set<string>([...declaredKeys, ...Object.keys(policy.parameters)]);
+    const clientManaged: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(clientInput)) {
+      (managed.has(key) ? clientManaged : passthrough)[key] = value;
+    }
+    effectiveParameters = mergeParameters(policy.parameters, clientManaged, declaredKeys);
+  }
+
+  return {
+    profile: {
+      mode: 'pinned',
+      profileId: row.profile_id,
+      revision: Number(row.binding_revision),
+      bindings: parseConnectorBindings(row.connector_bindings),
+      profileName: typeof row.profile_name === 'string' && row.profile_name.length > 0 ? row.profile_name : null,
+      policy,
+      effectiveParameters,
+      passthrough,
+      effectiveInput: { ...effectiveParameters, ...passthrough },
+      bullMqPriority: bullMqPriorityFor(policy.jobPriority),
+    },
+    ...(requestResolution ? { requestResolution } : {}),
+  };
+}
+
+/**
+ * Root-grant resolution. Returns `null` when the key is not `GROUP_MANAGED`,
+ * so the caller can fall through to the legacy standalone resolver.
+ *
+ * A `GROUP_MANAGED` key NEVER falls through: every failure below throws. That
+ * is the plan's "no fallback to child membership" rule and the one behaviour
+ * the acceptance matrix pins.
+ */
+export async function resolveGroupAdmission(
+  client: Queryable,
+  cryptoEnv: ProfileEnv,
+  input: ResolveAdmissionInput,
+): Promise<ResolvedAdmission | null> {
+  const key = await readApiKeyAuthorization(client, input.apiKeyId);
+  if (!key) throw new HttpError(401, 'UNAUTHENTICATED', 'invalid api key');
+  if (key.keyMode !== 'GROUP_MANAGED') return null;
+  if (key.status !== 'ACTIVE') throw new HttpError(401, 'UNAUTHENTICATED', 'invalid api key');
+  if (key.tenantId !== input.tenantId) throw forbidden('api key tenant does not match the admission tenant');
+
+  const grant = await resolveRootGrant(client as never, input.apiKeyId, input.tenantId);
+  if (!grant) throw groupDenied('no active profile-group grant authorizes this API key');
+  if (input.selector.groupId !== undefined && input.selector.groupId !== grant.groupId) {
+    throw groupDenied('the presented API key is not granted to this profile group');
+  }
+
+  const authority = await readGroupAuthority(client as never, grant.groupId, input.tenantId);
+  if (authority.authority !== 'GROUP_GRANT') {
+    throw conflict('PROFILE_CHANGED', 'profile group authority is not GROUP_GRANT');
+  }
+  if (authority.accessVersion !== grant.accessVersion) {
+    throw conflict('PROFILE_CHANGED', 'profile group access version changed; reload before submitting');
+  }
+
+  const endpointSlug = input.selector.endpointSlug;
+  const members = await client.query<GroupMemberAdmissionRow>(
+    `SELECT g.group_id, g.tenant_id, g.active_revision AS group_revision,
+            g.auth_authority, g.access_version,
+            m.business_id, m.business_version, m.manifest_digest, m.function_kind, m.function_id,
+            m.action, m.endpoint_slug, m.workflow_revision, m.profile_id, m.binding_revision,
+            b.enabled, b.parameters, b.request_defaults, b.connector_bindings, b.job_priority,
+            b.allowed_file_extensions, b.connections_override, b.file_url_auth_cipher,
+            b.callback_policy, b.allowed_origins,
+            n.profile_name, (n.group_id = g.group_id) AS group_owned
+       FROM profile_groups g
+       JOIN profile_group_members m
+         ON m.group_id = g.group_id AND m.group_revision = g.active_revision
+       JOIN profile_bindings b
+         ON b.profile_id = m.profile_id AND b.revision = m.binding_revision
+       LEFT JOIN profile_names n ON n.profile_id = m.profile_id
+      WHERE g.group_id = $1 AND g.tenant_id = $2
+        AND m.business_id = $3 AND m.business_version = $4 AND m.action = $5
+        AND (($6::text IS NULL AND m.endpoint_slug IS NULL)
+          OR ($6::text IS NOT NULL AND (m.endpoint_slug IS NULL OR m.endpoint_slug = $6)))
+        AND ($7::text IS NULL OR m.function_id = $7)
+      LIMIT 2`,
+    [
+      grant.groupId,
+      input.tenantId,
+      input.selector.businessId,
+      input.selector.businessVersion,
+      input.selector.action,
+      endpointSlug ?? null,
+      input.selector.functionId ?? null,
+    ],
+  );
+
+  if (members.rows.length === 0) {
+    throw notFound('no profile-group function matches this selector');
+  }
+  if (members.rows.length > 1) {
+    // v1 has no functionId, so a generic and an endpoint-specific function can
+    // both match. The plan forbids choosing one.
+    throw groupDenied('the selector matches more than one group function; address one function explicitly');
+  }
+
+  const row = members.rows[0]!;
+  if (input.selector.functionId !== undefined) {
+    if (row.function_id !== input.selector.functionId) throw notFound('profile-group function was not found');
+    if ((row.endpoint_slug ?? null) !== (endpointSlug ?? null)) {
+      throw notFound('profile-group function endpoint selector does not match the request');
+    }
+  }
+  if (row.group_owned !== true) {
+    throw conflict('PROFILE_CHANGED', 'profile group child is not owned by the resolved group');
+  }
+
+  const policy = decodeGroupPolicy(row, cryptoEnv);
+  if (!policy.enabled) throw forbidden('profile-group function is disabled');
+
+  const profile = buildPinnedProfile(row, policy, input.action, input.clientInput, input.declaredKeys);
+  return {
+    profile: profile.profile,
+    ...(profile.requestResolution ? { requestResolution: profile.requestResolution } : {}),
+    groupPin: {
+      groupId: row.group_id,
+      tenantId: row.tenant_id,
+      groupRevision: Number(row.group_revision),
+      accessVersion: Number(row.access_version),
+      businessId: row.business_id,
+      businessVersion: row.business_version,
+      manifestDigest: row.manifest_digest,
+      kind: row.function_kind,
+      functionId: row.function_id,
+      action: row.action,
+      endpointSlug: row.endpoint_slug,
+      workflowRevision: row.workflow_revision === null ? null : Number(row.workflow_revision),
+      childProfileId: row.profile_id,
+      childRevision: Number(row.binding_revision),
+    },
+  };
+}
+
+/**
+ * The single front resolver every admission path uses.
+ *
+ * `GROUP_MANAGED` keys branch to the root-grant resolver and never touch the
+ * child-membership edge; every other mode keeps the v1 resolver verbatim.
+ */
+export async function resolveAdmission(
+  client: Queryable,
+  profiles: ProfileService,
+  cryptoEnv: ProfileEnv,
+  input: ResolveAdmissionInput,
+): Promise<ResolvedAdmission> {
+  const group = await resolveGroupAdmission(client, cryptoEnv, input);
+  if (group) return group;
+  const profile = await profiles.resolveEffectiveProfile(
+    input.apiKeyId,
+    input.selector.businessId,
+    input.selector.businessVersion,
+    input.selector.action,
+    input.clientInput,
+    input.declaredKeys,
+    input.selector.endpointSlug,
+  );
+  if (profile.mode === 'legacy') {
+    // PC-R01 defence in depth: `selectActiveRow` now denies an unassigned
+    // standalone key, so a `'legacy'` result here means the key was classified
+    // unmanaged. Verify that against the explicit mode rather than trusting the
+    // resolver's return alone — the unmanaged path is the only one without a
+    // profile fence, and it must never be reachable by an unassigned
+    // `LEGACY_STANDALONE` (or NULL-mode) key. One extra read, only on this
+    // branch, so the pinned hot path is unchanged.
+    const key = await readApiKeyAuthorization(client, input.apiKeyId);
+    if (!key || key.status !== 'ACTIVE' || key.keyMode !== 'UNMANAGED_LEGACY') {
+      throw forbidden('this API key has no assigned profile and is not an unmanaged legacy key');
+    }
+  }
+  return { profile, groupPin: null };
+}
+
+/** `profile-v2:<groupId>:<business>/<action>/<functionId>` — the v2 idempotency scope. */
+export function profileV2RouteAction(
+  groupId: string,
+  businessId: string,
+  action: string,
+  functionId: string,
+): string {
+  return `profile-v2:${groupId}:${businessId}/${action}/${functionId}`;
+}
+
+/**
+ * The exact request hash `submit` computes for a v2 admission.
+ *
+ * v2 carries no legacy identity, no workflow schema pin and no workbench
+ * identity, so the hash is the canonical submission alone. Kept as one function
+ * so the pre-lookup and the in-transaction comparison cannot disagree.
+ */
+export function canonicalSubmissionHash(submission: Submission): string {
+  return canonicalRequestHash({
+    input: submission.input,
+    artifacts: submission.artifacts,
+    output: submission.output,
+    callback: submission.callback,
+    sourceUrl: submission.sourceUrl,
+  });
+}
+
+/**
+ * The authorization half of v2 admission, without any resolution that can
+ * drift. Used BEFORE the idempotency lookup so that an exact replay survives a
+ * configuration change but a revoked key/grant never replays.
+ */
+async function assertGroupKeyAuthorized(
+  client: Queryable,
+  apiKeyId: string,
+  tenantId: string,
+  groupId: string,
+): Promise<void> {
+  const key = await readApiKeyAuthorization(client, apiKeyId);
+  if (!key || key.status !== 'ACTIVE') throw new HttpError(401, 'UNAUTHENTICATED', 'invalid api key');
+  if (key.tenantId !== tenantId) throw forbidden('api key tenant does not match the admission tenant');
+  if (key.keyMode !== 'GROUP_MANAGED') {
+    throw groupDenied('the presented API key is not managed by a profile group');
+  }
+  const grant = await resolveRootGrant(client as never, apiKeyId, tenantId);
+  if (!grant || grant.groupId !== groupId) {
+    throw groupDenied('the presented API key is not granted to this profile group');
+  }
+  const authority = await readGroupAuthority(client as never, groupId, tenantId);
+  if (authority.authority !== 'GROUP_GRANT') {
+    throw conflict('PROFILE_CHANGED', 'profile group authority is not GROUP_GRANT');
+  }
+}
+
+/**
+ * PC-R08 — reauthorize an idempotent REPLAY before acknowledging it.
+ *
+ * A replay returns an operation that already exists, so it runs before — and
+ * deliberately survives — every admission input that can drift (policy edits,
+ * version switches, artifact expiry). Current AUTHORITY is not drift: a key
+ * that lost its root grant, a revoked key, or a function disabled since the
+ * original acceptance must not receive a `replayed: true` acknowledgement for
+ * work it may no longer observe.
+ *
+ * Legacy keys keep their existing replay behaviour: they never had a group
+ * authority to lose. Historical READ routes are untouched by design — an
+ * active owner can still read a result after a grant revocation.
+ */
+async function assertManagedReplayAuthorized(
+  client: Queryable,
+  input: { tenantId: string; apiKeyId: string; operationId: string },
+): Promise<void> {
+  const key = await readApiKeyAuthorization(client, input.apiKeyId);
+  if (!key || key.status !== 'ACTIVE') {
+    throw conflict('API_KEY_REVOKED', 'the replay key is revoked; a replay cannot be acknowledged');
+  }
+  if (key.tenantId !== input.tenantId) throw notFound('operation not found');
+  if (key.keyMode !== 'GROUP_MANAGED') return;
+
+  const grant = await resolveRootGrant(client as never, input.apiKeyId, input.tenantId);
+  if (!grant) {
+    throw conflict('GRANT_REVOKED', 'the replay key no longer holds an ACTIVE profile-group grant');
+  }
+  const authority = await readGroupAuthority(client as never, grant.groupId, input.tenantId);
+  if (authority.authority !== 'GROUP_GRANT') {
+    throw conflict('PROFILE_CHANGED', 'profile group authority is not GROUP_GRANT');
+  }
+
+  const operation = await client.query<{
+    business_id: string;
+    business_version: string;
+    action: string;
+    endpoint_slug: string | null;
+    profile_id: string | null;
+  }>(
+    `SELECT business_id, business_version, action, endpoint_slug, profile_id
+       FROM operations WHERE id=$1 AND tenant_id=$2`,
+    [input.operationId, input.tenantId],
+  );
+  const op = operation.rows[0];
+  if (!op) throw notFound('operation not found');
+
+  // The function must still be exposed, unique and enabled in the group's
+  // CURRENT active revision. A pinned child identifies it; the legacy endpoint
+  // selector is the fallback (the operation column is a legacy projection and
+  // is NULL for v2 admissions).
+  const members = await client.query<{ enabled: boolean | null }>(
+    `SELECT b.enabled
+       FROM profile_groups g
+       JOIN profile_group_members m
+         ON m.group_id = g.group_id AND m.group_revision = g.active_revision
+       JOIN profile_bindings b
+         ON b.profile_id = m.profile_id AND b.revision = m.binding_revision
+      WHERE g.group_id=$1 AND g.tenant_id=$2 AND g.auth_authority='GROUP_GRANT'
+        AND m.business_id=$3 AND m.business_version=$4 AND m.action=$5
+        AND (
+          ($7::uuid IS NOT NULL AND m.profile_id=$7::uuid)
+          OR ($7::uuid IS NULL AND (
+               ($6::text IS NULL AND m.endpoint_slug IS NULL)
+               OR ($6::text IS NOT NULL AND (m.endpoint_slug IS NULL OR m.endpoint_slug=$6))))
+        )
+      LIMIT 2`,
+    [grant.groupId, input.tenantId, op.business_id, op.business_version, op.action, op.endpoint_slug, op.profile_id],
+  );
+  if (members.rows.length !== 1) {
+    throw conflict('ENDPOINT_DISABLED', 'the profile group no longer exposes exactly one function for this replay');
+  }
+  if (members.rows[0]!.enabled === false) {
+    throw conflict('ENDPOINT_DISABLED', 'the profile-group function is disabled');
+  }
+}
+
+/**
+ * Lock step 2 of the plan's order: the group root, before business/version.
+ * Re-reads authority, active revision and access version under the lock, so a
+ * concurrent conversion/grant bump cannot slip between resolution and write.
+ */
+async function lockGroupRootForAdmission(client: Queryable, pin: GroupAdmissionPin): Promise<void> {
+  const result = await client.query<{ auth_authority: string; active_revision: number; access_version: string | number }>(
+    `SELECT auth_authority, active_revision, access_version
+       FROM profile_groups WHERE group_id=$1 AND tenant_id=$2
+      FOR SHARE`,
+    [pin.groupId, pin.tenantId],
+  );
+  const row = result.rows[0];
+  if (!row) throw conflict('PROFILE_CHANGED', 'profile group disappeared during admission');
+  if (row.auth_authority !== 'GROUP_GRANT') {
+    throw conflict('PROFILE_CHANGED', 'profile group authority changed during admission');
+  }
+  if (Number(row.active_revision) !== pin.groupRevision) {
+    throw conflict('PROFILE_CHANGED', 'profile group revision changed during admission');
+  }
+  if (Number(row.access_version) !== pin.accessVersion) {
+    throw conflict('PROFILE_CHANGED', 'profile group access version changed during admission');
+  }
+}
+
+/**
+ * Lock steps 4-6: the api key row, then its grant, then the child pin.
+ *
+ * The key row is locked BEFORE the grant, matching the plan's order. A grant
+ * revoked between resolution and this point has to deny the write, and a key
+ * whose status or mode changed must not be admitted on the strength of the
+ * preflight read.
+ */
+async function lockGroupKeyAndGrant(
+  client: Queryable,
+  apiKeyId: string,
+  pin: GroupAdmissionPin,
+): Promise<void> {
+  const key = await client.query<{ status: string; key_mode: string | null }>(
+    'SELECT status, key_mode FROM api_keys WHERE id=$1 FOR SHARE',
+    [apiKeyId],
+  );
+  const keyRow = key.rows[0];
+  if (!keyRow || keyRow.status !== 'ACTIVE') {
+    throw new HttpError(401, 'UNAUTHENTICATED', 'invalid api key');
+  }
+  if (keyRow.key_mode !== 'GROUP_MANAGED') {
+    throw groupDenied('api key is no longer group-managed');
+  }
+  const grant = await client.query<{ state: string }>(
+    `SELECT state FROM profile_group_api_keys
+      WHERE api_key_id=$1 AND group_id=$2 AND tenant_id=$3
+      FOR SHARE`,
+    [apiKeyId, pin.groupId, pin.tenantId],
+  );
+  if (!grant.rows[0] || grant.rows[0].state !== 'ACTIVE') {
+    throw groupDenied('the root grant was revoked during admission');
+  }
+  const child = await client.query(
+    'SELECT 1 FROM profile_bindings WHERE profile_id=$1 AND revision=$2 FOR SHARE',
+    [pin.childProfileId, pin.childRevision],
+  );
+  if (!child.rows[0]) {
+    throw conflict('PROFILE_CHANGED', 'group child revision disappeared during admission');
+  }
 }
 
 /**
@@ -236,6 +893,17 @@ export interface SubmissionServiceOptions {
    * decides whether a key is required.
    */
   metadataCrypto?: MetadataCrypto;
+
+  /**
+   * PC-05: env used to decrypt a group child's `file_url_auth_cipher`.
+   *
+   * Defaults to `process.env`, matching `createProfileService`'s own default.
+   * A deployment that passes a custom `profileCipherKey` to the profile service
+   * must pass the same value here (create-app wiring, tracked in the receipt),
+   * otherwise a group child with URL credentials decrypts to `null` and the
+   * request is admitted without that credential configuration.
+   */
+  cryptoEnv?: ProfileEnv;
 }
 
 // W-DATA01-S3-FACADE-1 (Δ14): the receipt shape is no longer a private copy of
@@ -398,6 +1066,9 @@ export function createSubmissionService(
   const metadataCrypto = options.metadataCrypto;
   // P745-PRODUCER (step 1): optional; absent = NULL pin, historical claims.
   const promptOverrides = options.promptOverrides;
+  // PC-05: same default as `createProfileService` (process.env) so a group
+  // child's encrypted URL credentials decode with the deployment's key.
+  const cryptoEnv: ProfileEnv = options.cryptoEnv ?? process.env;
 
   async function compileAdmittedWorkflowPin(
     tenantId: string,
@@ -475,12 +1146,201 @@ export function createSubmissionService(
     return { pin, connectorRecipePins };
   }
 
+  interface BuiltProfileResolutionV2 {
+    submission: Submission;
+    profile: EffectiveProfile;
+    pin: GroupAdmissionPin;
+    refs: ProfileGroupResolutionRefsV2;
+    fingerprint: string;
+    effective: ProfileResolutionV2Preview['effective'];
+    /**
+     * PC-R02: the registry snapshot the fingerprint was computed over. Forwarded
+     * to submit as workflowSchemaPin so the compiler persists the identity
+     * and the sealed recipe carrier; never part of the preview DTO.
+     */
+    workflowPin: LegacyWorkflowSchemaPin | null;
+    /** Finding 3: the exact defaults snapshot the fingerprint covered. */
+    tenantDefaults: TenantDefaultsSnapshot | null;
+  }
+
+  /**
+   * PC-05: one builder behind preview and submit.
+   *
+   * Resolution, tenant-defaults pinning and fingerprint derivation happen here
+   * exactly once so a preview and the submit that follows it cannot disagree
+   * about what "the current configuration" was.
+   */
+  async function buildProfileResolutionV2(input: ProfileResolutionV2Request): Promise<BuiltProfileResolutionV2> {
+    const parsed = SubmissionSchema.safeParse(input.submission);
+    if (!parsed.success) {
+      throw unprocessable('INVALID_SCHEMA', 'submission validation failed', {
+        errors: parsed.error.issues.slice(0, 50).map((i) => ({
+          pointer: '/' + i.path.join('/'),
+          message: i.message,
+        })),
+      });
+    }
+    const submission = parsed.data;
+
+    // The group pins a business version + manifest digest; both must still be
+    // the active one, which is the plan's "current business/version readiness".
+    const enabled = await resolveEnabledVersion(db, input.selector.businessId, input.selector.action);
+    if (enabled.version !== input.selector.businessVersion) {
+      throw conflict('PROFILE_CHANGED', 'the selected business version is no longer active; re-run the preview');
+    }
+    const actionDef = enabled.manifest.actions.find((candidate) => candidate.name === input.selector.action);
+    if (!actionDef) {
+      throw badRequest(`action ${input.selector.action} not declared by ${input.selector.businessId}@${enabled.version}`);
+    }
+
+    const admission = await resolveGroupAdmission(db as unknown as Queryable, cryptoEnv, {
+      apiKeyId: input.apiKeyId,
+      tenantId: input.tenantId,
+      selector: {
+        businessId: input.selector.businessId,
+        businessVersion: input.selector.businessVersion,
+        action: input.selector.action,
+        functionId: input.selector.functionId,
+        ...(input.selector.endpointSlug ? { endpointSlug: input.selector.endpointSlug } : {}),
+        groupId: input.groupId,
+      },
+      action: actionDef,
+      clientInput: submission.input,
+      declaredKeys: declaredParameterKeys(actionDef.inputSchema as object),
+    });
+    if (!admission || !admission.groupPin) {
+      throw groupDenied('the presented API key is not managed by a profile group');
+    }
+    const pin = admission.groupPin;
+    if (pin.businessVersion !== enabled.version || pin.manifestDigest !== enabled.digest) {
+      throw conflict('PROFILE_CHANGED', 'the group function pin does not match the active business version');
+    }
+
+    const tenantDefaults = options.globalSettings
+      ? await options.globalSettings.getTenantDefaultsSnapshot(input.tenantId)
+      : null;
+    const tenantDefaultsRevision = tenantDefaults?.aiRevision ?? null;
+
+    // PC-R02: a workflow function is pinned to an exact registry revision. The
+    // identity IS `functionId` (how the catalog declares workflow functions) and
+    // the revision must still be ACTIVE: a retired revision can no longer be
+    // executed, so preview must fail rather than advertise a fingerprint no
+    // worker can honour. A member with no revision (legacy v1 semantics) keeps
+    // `workflow: null` — it pins no registry snapshot.
+    let workflowPin: LegacyWorkflowSchemaPin | null = null;
+    let workflowRef: { slug: string; revision: number; digest: string } | null = null;
+    if (pin.kind === 'workflow' && pin.workflowRevision !== null) {
+      if (!metadataCrypto) {
+        throw unavailable('workflow submissions require configured metadata encryption');
+      }
+      try {
+        const resolved = await resolveLegacyWorkflowSchema(
+          db,
+          { tenantId: input.tenantId, slug: pin.functionId, revision: pin.workflowRevision },
+          metadataCrypto,
+        );
+        if (!resolved || resolved.slug !== pin.functionId || resolved.revision !== pin.workflowRevision) {
+          throw conflict('PROFILE_CHANGED', 'the pinned workflow revision is no longer available; re-run the preview');
+        }
+        workflowPin = resolved;
+        workflowRef = { slug: resolved.slug, revision: resolved.revision, digest: resolved.digest };
+      } catch (error) {
+        if (error instanceof LegacyWorkflowSchemaCatalogError) {
+          // Retired and tampered/invalid rows are the same operator answer: the
+          // pin cannot be executed, so re-preview against a live revision. The
+          // registry code is carried so on-call can tell them apart.
+
+          throw conflict(
+            'PROFILE_CHANGED',
+            `workflow revision ${pin.functionId}@${pin.workflowRevision} cannot be used (${error.code}); re-run the preview`,
+          );
+        }
+        throw error;
+      }
+    }
+
+    const bindings = admission.profile.mode === 'pinned' ? admission.profile.bindings : {};
+    const connectorBindings = Object.entries(bindings)
+      .map(([slot, entry]) => ({ slot, connectorId: entry.connectorId, revision: entry.revision }))
+      .sort((left, right) => (left.slot < right.slot ? -1 : left.slot > right.slot ? 1 : 0));
+
+    const refs: ProfileGroupResolutionRefsV2 = {
+      groupId: pin.groupId,
+      groupRevision: pin.groupRevision,
+      accessVersion: pin.accessVersion,
+      businessId: pin.businessId,
+      businessVersion: pin.businessVersion,
+      manifestDigest: pin.manifestDigest,
+      kind: pin.kind,
+      functionId: pin.functionId,
+      action: pin.action,
+      ...(pin.endpointSlug ? { endpointSlug: pin.endpointSlug } : {}),
+      ...(pin.workflowRevision ? { workflowRevision: pin.workflowRevision } : {}),
+      childProfileId: pin.childProfileId,
+      childRevision: pin.childRevision,
+      tenantDefaultsRevision,
+      connectorBindings,
+    };
+
+    const fingerprint = computeResolutionFingerprint({
+      tenantId: input.tenantId,
+      apiKeyId: input.apiKeyId,
+      groupId: pin.groupId,
+      groupRevision: pin.groupRevision,
+      accessVersion: pin.accessVersion,
+      function: {
+        businessId: pin.businessId,
+        businessVersion: pin.businessVersion,
+        manifestDigest: pin.manifestDigest,
+        kind: pin.kind,
+        functionId: pin.functionId,
+        action: pin.action,
+        ...(pin.endpointSlug ? { endpointSlug: pin.endpointSlug } : {}),
+        ...(pin.workflowRevision ? { workflowRevision: pin.workflowRevision } : {}),
+      },
+      children: [{
+        functionId: pin.functionId,
+        childProfileId: pin.childProfileId,
+        childRevision: pin.childRevision,
+      }],
+      // PC-R04: AI revision, prompt revision and the exact defaults snapshot
+      // digest are three distinct fingerprint inputs. A prompt-only publish
+      // changes the prompt revision (and the digest) without touching the AI
+      // revision, so a fingerprint that carried only the AI revision could not
+      // tell that the admitted defaults had changed.
+      tenantDefaultsAiRevision: tenantDefaults?.aiRevision ?? null,
+      tenantDefaultsPromptRevision: tenantDefaults?.promptRevision ?? null,
+      tenantDefaultsDigest: tenantDefaults?.settingsDigest ?? null,
+      connectorBindings,
+      // PC-R02: the registry snapshot is an execution input. Its digest moves
+      // when the workflow body changes, so a preview taken against the old
+      // revision cannot be submitted against the new one.
+      workflow: workflowRef,
+      submission,
+    });
+
+    const effective: ProfileResolutionV2Preview['effective'] = {
+      parameters: admission.profile.mode === 'pinned' ? admission.profile.effectiveInput : {},
+      appliedRequestDefaults: admission.requestResolution?.appliedRequestDefaults ?? [],
+      appliedSchemaDefaults: admission.requestResolution?.appliedSchemaDefaults ?? [],
+      lockedParameters: admission.requestResolution?.lockedParameters ?? [],
+    };
+
+    return { submission, profile: admission.profile, pin, refs, fingerprint, effective, workflowPin, tenantDefaults };
+  }
+
   return {
     async replayLegacy(ctx: Pick<SubmitContext, 'tenantId' | 'apiKeyId' | 'businessId' | 'action' | 'idempotencyKey' | 'correlationId'>, identity: Parameters<typeof canonicalRequestHash>[0]): Promise<SubmitResult | null> {
       if (!ctx.idempotencyKey) return null;
       const existing = await findSubmissionKey(db, ctx.tenantId, ctx.apiKeyId, normalizeRouteAction(ctx.businessId, ctx.action), ctx.idempotencyKey);
       if (!existing) return null;
       if (existing.request_hash !== canonicalRequestHash(identity)) throw conflict('IDEMPOTENCY_CONFLICT', 'Idempotency-Key reused with a different request body');
+      // PC-R08: a managed key must still hold authority before its replay is acknowledged.
+      await assertManagedReplayAuthorized(db, {
+        tenantId: ctx.tenantId,
+        apiKeyId: ctx.apiKeyId,
+        operationId: existing.operation_id,
+      });
       return { operation: await loadOperationView(db, existing.operation_id), replayed: true, correlationId: normalizeCorrelationId(ctx.correlationId) };
     },
     /**
@@ -496,11 +1356,12 @@ export function createSubmissionService(
       if (Object.hasOwn(input.parameters, 'artifactIds') || Object.hasOwn(input.parameters, 'sourceUrl')) {
         throw unprocessable('INVALID_SCHEMA', 'provider-test artifact and source references must use their dedicated fields');
       }
-      const key = await db.query<{ id: string }>(
-        "SELECT id FROM api_keys WHERE id=$1 AND tenant_id=$2 AND status='ACTIVE'",
+      const key = await db.query<{ id: string; key_mode: string | null }>(
+        "SELECT id, key_mode FROM api_keys WHERE id=$1 AND tenant_id=$2 AND status='ACTIVE'",
         [input.apiKeyId, input.tenantId],
       );
       if (!key.rowCount) throw notFound('active API key not found in tenant');
+      const keyMode = key.rows[0]!.key_mode;
 
       const enabled = await resolveEnabledVersion(db, input.businessId, input.action);
       if (enabled.version !== input.businessVersion) {
@@ -515,15 +1376,47 @@ export function createSubmissionService(
       };
       if (input.businessId === 'document-core') assertNoLegacyArtifactCount(actionInput);
       assertEmbeddedInputByteBudget(actionInput, maxBlobBytes);
-      const profile = await profiles.resolveEffectiveProfile(
-        input.apiKeyId,
-        input.businessId,
-        enabled.version,
-        input.action,
-        actionInput,
-        declaredParameterKeys(actionDef.inputSchema as object),
-        input.endpointSlug,
-      );
+      // Finding 2: a GROUP_MANAGED key holds no `profile_api_keys` rows (a
+      // conversion tombstones them), so the legacy resolver denies it before the
+      // caller can reserve a run. Managed keys are authorized by the same
+      // current root grant the submission path uses, and the child pin the
+      // caller selected must match it exactly.
+      let profile: EffectiveProfile;
+      if (keyMode === 'GROUP_MANAGED') {
+        const admission = await resolveGroupAdmission(db as unknown as Queryable, cryptoEnv, {
+          apiKeyId: input.apiKeyId,
+          tenantId: input.tenantId,
+          selector: {
+            businessId: input.businessId,
+            businessVersion: enabled.version,
+            action: input.action,
+            ...(input.endpointSlug ? { endpointSlug: input.endpointSlug } : {}),
+          },
+          action: actionDef,
+          clientInput: actionInput,
+          declaredKeys: declaredParameterKeys(actionDef.inputSchema as object),
+        });
+        if (!admission?.groupPin) {
+          throw forbidden('the selected API key is not managed by a profile group');
+        }
+        if (admission.groupPin.childProfileId !== input.profileId) {
+          throw forbidden('the selected API key is not assigned to the selected active Profile and action');
+        }
+        if (admission.groupPin.childRevision !== input.expectedProfileRevision) {
+          throw conflict('PROFILE_CHANGED', 'Profile revision changed; reload before testing');
+        }
+        profile = admission.profile;
+      } else {
+        profile = await profiles.resolveEffectiveProfile(
+          input.apiKeyId,
+          input.businessId,
+          enabled.version,
+          input.action,
+          actionInput,
+          declaredParameterKeys(actionDef.inputSchema as object),
+          input.endpointSlug,
+        );
+      }
       if (profile.mode !== 'pinned' || profile.profileId !== input.profileId) {
         throw forbidden('the selected API key is not assigned to the selected active Profile and action');
       }
@@ -702,7 +1595,9 @@ export function createSubmissionService(
       // lookup is scoped by (tenant, apiKeyId, routeAction).
       const correlationId = normalizeCorrelationId(ctx.correlationId);
       const canonicalAction = ctx.alias ?? ctx.action;
-      const routeAction = normalizeRouteAction(ctx.businessId, ctx.action, ctx.alias);
+      // PC-05: a v2 admission supplies its own scope string so a v1 and a v2
+      // request can never collide under one Idempotency-Key.
+      const routeAction = ctx.v2?.routeAction ?? normalizeRouteAction(ctx.businessId, ctx.action, ctx.alias);
       // T-SUB-04: the idempotency hash stays on the RAW client input, never on
       // the effective input. A profile edit between two retries of the same
       // Idempotency-Key must replay the original operation, not a second one
@@ -737,6 +1632,23 @@ export function createSubmissionService(
               'Idempotency-Key reused with a different request body'
             );
           }
+          // PC-05: a v2 replay must also match the fingerprint the first
+          // accepted request carried. A NULL stored fingerprint is never a
+          // match.
+          if (ctx.v2 && existing.resolution_fingerprint !== ctx.v2.resolutionFingerprint) {
+            throw conflict(
+              'IDEMPOTENCY_CONFLICT',
+              'Idempotency-Key reused with a different resolution fingerprint'
+            );
+          }
+          // PC-R08: authorization is checked on the replay itself, not only on
+          // the original acceptance. A revoked grant, a revoked key or a
+          // disabled function denies here; allowed configuration drift does not.
+          await assertManagedReplayAuthorized(db, {
+            tenantId: ctx.tenantId,
+            apiKeyId: ctx.apiKeyId,
+            operationId: existing.operation_id,
+          });
           const op = await loadOperationView(db, existing.operation_id);
           return { operation: op, replayed: true, correlationId };
         }
@@ -786,20 +1698,40 @@ export function createSubmissionService(
       // T-SUB-02 note: the same call that authorizes the profile also returns
       // the whole effective policy, so the snapshot below is a value we already
       // hold rather than a second read that could disagree with the decision.
-      const profile = await profiles.resolveEffectiveProfile(
-        ctx.apiKeyId,
-        ctx.businessId,
-        version,
-        canonicalAction,
-        submission.input as Record<string, unknown>,
-        declaredParameterKeys(actionDef.inputSchema as object).filter((key) =>
-          ctx.legacyProjection === undefined || key !== 'legacyWorkflow'
-        ),
-        ctx.legacyEndpointSlug ?? ctx.legacyProjection?.endpointSlug ?? ctx.profileEndpointSlug
+      //
+      // PC-05: the front resolver branches on `api_keys.key_mode`. A
+      // GROUP_MANAGED key resolves ONLY through its root grant (no child
+      // membership fallback); every other mode delegates to the v1 resolver
+      // unchanged. A v2 caller passes `resolvedAdmission` so the refs the
+      // fingerprint was computed over are the refs this write persists.
+      const admission = ctx.resolvedAdmission ?? await resolveAdmission(
+        db as unknown as Queryable,
+        profiles,
+        cryptoEnv,
+        {
+          apiKeyId: ctx.apiKeyId,
+          tenantId: ctx.tenantId,
+          selector: {
+            businessId: ctx.businessId,
+            businessVersion: version,
+            action: canonicalAction,
+            ...(ctx.legacyEndpointSlug ?? ctx.legacyProjection?.endpointSlug ?? ctx.profileEndpointSlug
+              ? { endpointSlug: (ctx.legacyEndpointSlug ?? ctx.legacyProjection?.endpointSlug ?? ctx.profileEndpointSlug)! }
+              : {}),
+          },
+          action: actionDef,
+          clientInput: submission.input as Record<string, unknown>,
+          declaredKeys: declaredParameterKeys(actionDef.inputSchema as object).filter((key) =>
+            ctx.legacyProjection === undefined || key !== 'legacyWorkflow'
+          ),
+        },
       );
-      const tenantDefaults = options.globalSettings
-        ? await options.globalSettings.getTenantDefaultsSnapshot(ctx.tenantId)
-        : null;
+      const profile = admission.profile;
+      const tenantDefaults = ctx.resolvedAdmission?.tenantDefaults !== undefined
+        ? ctx.resolvedAdmission.tenantDefaults
+        : options.globalSettings
+          ? await options.globalSettings.getTenantDefaultsSnapshot(ctx.tenantId)
+          : null;
       const admittedBindings = await resolveAdmittedConnectorBindings(
         ctx.tenantId,
         profile,
@@ -916,8 +1848,16 @@ export function createSubmissionService(
       // to re-derive (or ignore) the merge. The idempotency hash above is the
       // deliberate exception: it stays on the raw body so an admin edit cannot
       // turn a retry into IDEMPOTENCY_CONFLICT.
-      const taskPayloadValue = workflowPin !== undefined
-        ? { input: effectiveInput, legacyWorkflowSchema: workflowPin }
+      // Finding 1: the `{ input, legacyWorkflowSchema }` carrier is consumed by
+      // the LEGACY workflow engine only — it is a legacy-route artifact. A v2
+      // workflow member now also carries a compiled pin (PC-R02), but its
+      // business action may be a plain handler (example-review and every other
+      // non-Core business catalogues its actions as `workflow`); wrapping their
+      // payload would hand the worker a carrier it never reads. The route, not
+      // the presence of a pin, decides.
+      const legacyWorkflowCarrier = ctx.legacyProjection !== undefined ? workflowPin : undefined;
+      const taskPayloadValue = legacyWorkflowCarrier !== undefined
+        ? { input: effectiveInput, legacyWorkflowSchema: legacyWorkflowCarrier }
         : submission.sourceUrl
           ? { input: effectiveInput, sourceUrl: submission.sourceUrl, ingestionState: 'PENDING' }
           : effectiveInput;
@@ -968,6 +1908,13 @@ export function createSubmissionService(
           });
         }
 
+        // PC-05 (plan §7 lock order): the group root is the FIRST profile lock,
+        // ahead of the business/version rows and the api-key row. A v1
+        // GROUP_MANAGED admission resolved here too, so `admission.groupPin`
+        // (not `ctx.v2`) is what decides.
+        const groupPin = admission.groupPin;
+        if (groupPin) await lockGroupRootForAdmission(client, groupPin);
+
         // Re-check idempotency inside the tx to close the concurrent-submit race
         // (unique constraint is the ultimate authority; this avoids a duplicate
         // operation row before the constraint fires).
@@ -975,15 +1922,27 @@ export function createSubmissionService(
           // Serialize the absent-row case too: SELECT FOR UPDATE cannot lock a key that does not exist yet.
           await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [JSON.stringify([ctx.tenantId, ctx.apiKeyId, routeAction, ctx.idempotencyKey])]);
           const dup = await client.query(
-            `SELECT operation_id, request_hash FROM submission_keys
+            `SELECT operation_id, request_hash, resolution_fingerprint FROM submission_keys
              WHERE tenant_id=$1 AND api_key_id=$2 AND route_action=$3 AND key=$4 FOR UPDATE`,
             [ctx.tenantId, ctx.apiKeyId, routeAction, ctx.idempotencyKey]
           );
           if (dup.rowCount && dup.rowCount > 0) {
-            const row = dup.rows[0] as { operation_id: string; request_hash: string };
+            const row = dup.rows[0] as { operation_id: string; request_hash: string; resolution_fingerprint: string | null };
             if (row.request_hash !== requestHash) {
               throw conflict('IDEMPOTENCY_CONFLICT', 'Idempotency-Key reused with a different request body');
             }
+            if (ctx.v2 && row.resolution_fingerprint !== ctx.v2.resolutionFingerprint) {
+              throw conflict('IDEMPOTENCY_CONFLICT', 'Idempotency-Key reused with a different resolution fingerprint');
+            }
+            // PC-R08: the in-tx replay answer is gated on current authority
+            // too. The group root is already held FOR SHARE above when this
+            // admission resolved a group pin, so a concurrent revoke cannot
+            // commit between this check and the answer.
+            await assertManagedReplayAuthorized(client, {
+              tenantId: ctx.tenantId,
+              apiKeyId: ctx.apiKeyId,
+              operationId: row.operation_id,
+            });
             return { operationId: row.operation_id, replayed: true };
           }
         }
@@ -1014,6 +1973,10 @@ export function createSubmissionService(
         if (!versionPin.rows[0].manifest.actions.some((candidate) => candidate.name === canonicalAction)) {
           throw badRequest(`action ${canonicalAction} is no longer offered by ${ctx.businessId}@${version}`);
         }
+
+        // PC-05: key row, then grant, then the child pin — the plan's steps
+        // 4-6. The preflight authorization is never trusted on its own.
+        if (groupPin) await lockGroupKeyAndGrant(client, ctx.apiKeyId, groupPin);
 
         // Recheck artifact state under row locks after idempotency and business
         // admission have been decided. This keeps the common lock order rooted
@@ -1160,9 +2123,11 @@ export function createSubmissionService(
 
         if (ctx.idempotencyKey) {
           await client.query(
-            `INSERT INTO submission_keys (tenant_id, api_key_id, route_action, key, request_hash, operation_id, expires_at)
-             VALUES ($1,$2,$3,$4,$5,$6, now() + ($7 || ' seconds')::interval)`,
-            [ctx.tenantId, ctx.apiKeyId, routeAction, ctx.idempotencyKey, requestHash, operationId, String(ttlSeconds)]
+            `INSERT INTO submission_keys (tenant_id, api_key_id, route_action, key, request_hash,
+                                         operation_id, expires_at, resolution_fingerprint)
+             VALUES ($1,$2,$3,$4,$5,$6, now() + ($7 || ' seconds')::interval, $8)`,
+            [ctx.tenantId, ctx.apiKeyId, routeAction, ctx.idempotencyKey, requestHash, operationId, String(ttlSeconds),
+              ctx.v2?.resolutionFingerprint ?? null]
           );
         }
 
@@ -1205,6 +2170,135 @@ export function createSubmissionService(
 
       const op = await loadOperationView(db, created.operationId);
       return { operation: op, replayed: created.replayed, correlationId };
+    },
+
+    /**
+     * PC-05 — the v2 preview behind `POST /api/v2/profile-groups/:groupId/preview`
+     * and `/api/internal/admin-workbench/v2/preview`.
+     *
+     * Resolves through the root grant only, computes the resolution fingerprint
+     * with the contract implementation (`computeResolutionFingerprint`), and
+     * returns the redacted effective parameters. It writes nothing.
+     */
+    async previewProfileV2(input: ProfileResolutionV2Request): Promise<ProfileResolutionV2Preview> {
+      const resolved = await buildProfileResolutionV2(input);
+      return {
+        groupId: resolved.pin.groupId,
+        refs: resolved.refs,
+        resolutionFingerprint: resolved.fingerprint,
+        effective: resolved.effective,
+      };
+    },
+
+    /**
+     * PC-05 — the v2 submit behind `POST /api/v2/profile-groups/:groupId/operations`
+     * and `/api/internal/admin-workbench/v2/submit`.
+     *
+     * Order is the plan's, and it is not interchangeable:
+     *   1. authenticate the presented key (401)
+     *   2. authorize the root grant + authority for the addressed group (403/409)
+     *   3. idempotency lookup — an exact replay returns the ORIGINAL operation
+     *      even after configuration drift (the stored fingerprint, not a
+     *      recomputed one, is what it is compared against)
+     *   4. resolve current refs and verify the client fingerprint (409 before
+     *      any durable write)
+     *   5. hand the resolved admission to `submit`, which re-verifies inside
+     *      the write transaction under the plan's lock order
+     */
+    async submitProfileV2(input: ProfileResolutionV2Request): Promise<SubmitResult> {
+      if (!input.idempotencyKey) {
+        throw unprocessable('INVALID_SCHEMA', 'v2 profile submission requires an Idempotency-Key');
+      }
+      const expectedFingerprint = input.resolutionFingerprint;
+      if (!expectedFingerprint) {
+        throw unprocessable('INVALID_SCHEMA', 'v2 profile submission requires resolutionFingerprint');
+      }
+      const correlationId = normalizeCorrelationId(input.correlationId);
+      const parsedSubmission = SubmissionSchema.safeParse(input.submission);
+      if (!parsedSubmission.success) {
+        throw unprocessable('INVALID_SCHEMA', 'submission validation failed', {
+          errors: parsedSubmission.error.issues.slice(0, 50).map((i) => ({
+            pointer: '/' + i.path.join('/'),
+            message: i.message,
+          })),
+        });
+      }
+      const submission = parsedSubmission.data;
+
+      // (1)+(2) authenticate, then authorize the grant. Deliberately does NOT
+      // resolve members/manifests yet: a replay must survive configuration
+      // drift, so anything that can drift waits until after the lookup.
+      await assertGroupKeyAuthorized(db as unknown as Queryable, input.apiKeyId, input.tenantId, input.groupId);
+
+      const routeAction = profileV2RouteAction(
+        input.groupId,
+        input.selector.businessId,
+        input.selector.action,
+        input.selector.functionId,
+      );
+      const requestHash = canonicalSubmissionHash(submission);
+
+      // (3) idempotency, now that authorization has passed.
+      const existing = await findSubmissionKey(db, input.tenantId, input.apiKeyId, routeAction, input.idempotencyKey);
+      if (existing) {
+        if (existing.request_hash !== requestHash) {
+          throw conflict('IDEMPOTENCY_CONFLICT', 'Idempotency-Key reused with a different request body');
+        }
+        if (existing.resolution_fingerprint === null
+            || existing.resolution_fingerprint !== expectedFingerprint) {
+          throw conflict('IDEMPOTENCY_CONFLICT', 'Idempotency-Key reused with a different resolution fingerprint');
+        }
+        // PC-R08: the grant was re-checked above, but the function may have
+        // been disabled since the original acceptance. A v2 replay must not
+        // acknowledge work the group no longer exposes.
+        await assertManagedReplayAuthorized(db, {
+          tenantId: input.tenantId,
+          apiKeyId: input.apiKeyId,
+          operationId: existing.operation_id,
+        });
+        return {
+          operation: await loadOperationView(db, existing.operation_id),
+          replayed: true,
+          correlationId,
+        };
+      }
+
+      // (4) current resolution and fingerprint verification, before any write.
+      const resolved = await buildProfileResolutionV2({
+        ...input,
+        selector: input.selector,
+        submission,
+      });
+      if (resolved.fingerprint !== expectedFingerprint) {
+        throw conflict(
+          'PROFILE_CHANGED',
+          'resolution fingerprint no longer matches the current profile configuration; re-run the preview',
+        );
+      }
+
+      // (5) the ordinary transaction, seeded with the refs the fingerprint was
+      // computed over. `submit` re-verifies them under row locks.
+      return this.submit({
+        tenantId: input.tenantId,
+        apiKeyId: input.apiKeyId,
+        businessId: input.selector.businessId,
+        action: input.selector.action,
+        idempotencyKey: input.idempotencyKey,
+        correlationId,
+        submission,
+        resolvedAdmission: {
+          profile: resolved.profile,
+          groupPin: resolved.pin,
+          // Finding 3: admission seals the snapshot the fingerprint covered.
+          tenantDefaults: resolved.tenantDefaults,
+        },
+        v2: { resolutionFingerprint: resolved.fingerprint, routeAction },
+        // PC-R02: the resolved registry snapshot flows into the same compiler the
+        // legacy workflow path uses, so the operation/task carry the slug,
+        // revision, digest and the sealed recipe carrier.
+        ...(resolved.workflowPin ? { workflowSchemaPin: resolved.workflowPin } : {}),
+        ...(input.selector.endpointSlug ? { profileEndpointSlug: input.selector.endpointSlug } : {}),
+      });
     },
   };
 }
@@ -1895,13 +2989,15 @@ async function findSubmissionKey(
   apiKeyId: string,
   routeAction: string,
   key: string
-): Promise<{ operation_id: string; request_hash: string } | null> {
+): Promise<{ operation_id: string; request_hash: string; resolution_fingerprint: string | null } | null> {
   const res = await db.query(
-    `SELECT operation_id, request_hash FROM submission_keys
+    `SELECT operation_id, request_hash, resolution_fingerprint FROM submission_keys
      WHERE tenant_id=$1 AND api_key_id=$2 AND route_action=$3 AND key=$4 AND expires_at > now()`,
     [tenantId, apiKeyId, routeAction, key]
   );
-  return res.rowCount ? (res.rows[0] as { operation_id: string; request_hash: string }) : null;
+  return res.rowCount
+    ? (res.rows[0] as { operation_id: string; request_hash: string; resolution_fingerprint: string | null })
+    : null;
 }
 
 export async function loadOperationView(db: Db, operationId: string): Promise<OperationView> {

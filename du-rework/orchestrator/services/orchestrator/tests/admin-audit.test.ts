@@ -101,8 +101,7 @@ beforeAll(async () => {
   // hashKey(raw) — POST /api/v1/admin/profile-bindings hashes the presented
   // raw key with the same function, then looks up hash+ACTIVE.
   await app.db.query(
-    `INSERT INTO api_keys (id, tenant_id, hash, prefix, status)
-     VALUES ($1, $2, $3, 'du_w48', 'ACTIVE'), ($4, $5, $6, 'du_w48', 'ACTIVE')
+    `INSERT INTO api_keys (id, tenant_id, hash, prefix, status, key_mode) VALUES ($1, $2, $3, 'du_w48', 'ACTIVE', 'LEGACY_STANDALONE'), ($4, $5, $6, 'du_w48', 'ACTIVE')
      ON CONFLICT (id) DO NOTHING`,
     [KEY_ID_A, TENANT_A, hashKey(RAW_KEY_A), KEY_ID_B, TENANT_B, hashKey(RAW_KEY_B)]
   );

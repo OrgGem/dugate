@@ -1,0 +1,46 @@
+[PACKET PC-03-EXECUTE: Implementation of Group Config Service V2]
+
+ROLE: DeepSeek Worker 1 (Service & Route Implementation)
+TASK ID: PC-03
+STATUS: APPROVED BY ANTIGRAVITY COORDINATOR (Cycle 8)
+COORDINATOR DECISIONS APPROVED:
+- All 9 decisions (D-1 through D-9) from prep-pc03-service-spec.md are formally APPROVED.
+- Lease Extensions Granted:
+  * L-1: `orchestrator/services/orchestrator/src/modules/profiles/self-service.ts` (cap nhat guard tra ve 409 PROFILE_GROUP_V2_REQUIRED).
+  * L-5: `orchestrator/services/orchestrator/jest.unit.config.cjs` (dang ky suite vao liveSuites).
+- L-2/L-3/L-4: Theo dung recommendation trong report (export helper cho PC-04, re-read manifest trong route v2).
+
+MASTER PLAN: du-rework/tasks/PLAN-PROFILE-CONTROL-PLANE-IMPLEMENTATION.md (PC-03 row)
+SPECIFICATION REFERENCE: du-rework/coordination/reports/prep-pc03-service-spec.md (§3-§8, §10 Test Plan)
+
+FILE LEASE (EXCLUSIVE):
+- orchestrator/services/orchestrator/src/modules/profiles/profile-groups.ts
+- orchestrator/services/orchestrator/src/modules/profiles/profiles.ts
+- orchestrator/services/orchestrator/src/modules/profiles/self-service.ts (lease extension granted)
+- orchestrator/services/orchestrator/src/modules/admin-actions/profile-actions.ts
+- orchestrator/services/orchestrator/src/http/routes/admin-profile-groups.ts
+- orchestrator/services/orchestrator/src/http/routes/admin-profile-groups-v2.ts (tao moi)
+- orchestrator/services/orchestrator/src/server.ts (dang ky route v2)
+- orchestrator/services/orchestrator/jest.unit.config.cjs (lease extension granted)
+- orchestrator/services/orchestrator/tests/profile-groups-v2-service.test.ts (tao moi)
+
+CHI THI THUC HIEN:
+1. modules/profiles/profile-groups.ts:
+   - Trien khai V2 Group Service: create / get / update / rollback hoan toan doc lap voi API key (ho tro group 0 key).
+   - Tra ve groupId, tenantId, name, authMode: 'API_KEY', authAuthority: 'GROUP_GRANT', revision, accessVersion, businesses, functions (kem policy.parameters va requestDefaults), apiKeyGrants[].
+   - Config append khong nhan apiKeyHash; lay tenant tu locked group va Admin principal.
+   - Rollback chi CAS config revision, khong lam thay doi grants hay accessVersion.
+   - Export cac helpers duoc thiet ke trong §8.3 cho PC-04/PC-05: assertLegacyGroupWriteAllowed, revokeAllGroupGrantsForApiKey, readGroupAuthority, resolveRootGrant, getProfileGroupV2.
+2. modules/profiles/profiles.ts & self-service.ts:
+   - Guard chan cac thao tac ghi legacy V1 tren nhom GROUP_GRANT bang 409 PROFILE_GROUP_V2_REQUIRED.
+   - Luu va carry forward `request_defaults jsonb`; ban ghi legacy V1 tra ve `{}`.
+3. http/routes/admin-profile-groups-v2.ts:
+   - Tao moi module route V2 cho Admin (/api/v2/admin/profile-groups...) theo dung thiet ke §5.
+   - Dang ky vao src/server.ts.
+4. http/routes/admin-profile-groups.ts:
+   - Cap nhat route V1 compat: PUT va rollback tren group da chuyen GROUP_GRANT tra ve 409 PROFILE_GROUP_V2_REQUIRED; read list/get chi project key khi co dung 1 grant duy nhat, 0 hoac >1 tra ve 409 PROFILE_GROUP_V2_REQUIRED.
+5. Tests:
+   - Tao tests/profile-groups-v2-service.test.ts chua cac offline assertions (§10.1-§10.6) va live tests (§10.7).
+   - Chay typecheck va jest dam bao pass 100%.
+6. Ghi receipt ket qua vao du-rework/coordination/reports/receipt-pc03-service.md.
+7. In ra dong: PC-03_EXECUTE_COMPLETE.

@@ -65,3 +65,53 @@ export * from './profile-groups';
 // the CommonJS barrel (runtime `__exportStar` is not discoverable by Rollup).
 import { isTenantUuid as tenantUuidPredicate } from './tenant-identity';
 export const isTenantUuid = tenantUuidPredicate;
+
+// PC-01 profile-group control-plane V2 surface. The `export *` lines above
+// already re-export these modules; this explicit value list repeats the reason
+// given at ConnectorRecipeSchema/isTenantUuid — browser bundlers that
+// statically scan the CommonJS barrel cannot see through `__exportStar`.
+export {
+  API_KEY_MODES,
+  ApiKeyModeSchema,
+  ProfileGroupAccessVersionSchema,
+  ProfileGroupAuthAuthoritySchema,
+  ProfileGroupAuthModeSchema,
+  ProfileGroupDigestPinSchema,
+  ProfileGroupDigestReadSchema,
+  ProfileGroupEffectiveParametersV2Schema,
+  ProfileGroupFunctionSelectorV2Schema,
+  ProfileGroupKeyGrantSchema,
+  ProfileGroupKeyIssueInputSchema,
+  ProfileGroupKeyIssueResultSchema,
+  ProfileGroupKeyRevokeInputSchema,
+  ProfileGroupKeyRevokeResultSchema,
+  ProfileGroupPreviewV2RequestSchema,
+  ProfileGroupPreviewV2ResponseSchema,
+  ProfileGroupRequestDefaultsReadSchema,
+  ProfileGroupRequestDefaultsSchema,
+  ProfileGroupResolutionRefsV2Schema,
+  ProfileGroupRevokedKeyGrantSchema,
+  ProfileGroupSubmitV2RequestSchema,
+  ProfileGroupV2BusinessInputSchema,
+  ProfileGroupV2BusinessSchema,
+  ProfileGroupV2FunctionInputSchema,
+  ProfileGroupV2FunctionSchema,
+  ProfileGroupV2ListSchema,
+  ProfileGroupV2RollbackSchema,
+  ProfileGroupV2SaveSchema,
+  ProfileGroupV2Schema,
+  PROFILE_GROUP_PROBLEM_CODES,
+  ResolutionFingerprintSchema,
+  computeResolutionFingerprint,
+} from './profile-groups';
+export {
+  ParameterResolutionCapabilitySchema,
+  ParameterResolutionSourceSchema,
+} from './manifest';
+export {
+  AdminWorkbenchProfilePreviewV2RequestSchema,
+  AdminWorkbenchProfilePreviewV2ResponseSchema,
+  AdminWorkbenchProfileSubmitV2RequestSchema,
+  AdminWorkbenchProfileSubmitV2ResponseSchema,
+  AdminWorkbenchProfileSelectorV2Schema,
+} from './admin-workbench';

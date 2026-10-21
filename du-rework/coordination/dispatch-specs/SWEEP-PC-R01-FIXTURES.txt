@@ -1,0 +1,38 @@
+# DISPATCH SPEC: SWEEP-PC-R01-FIXTURES (Harmonize mock DB fixtures for key_mode query)
+Owner: Antigravity Coordinator
+Assignee: DeepSeek Worker 2 (term_ca0ee85e-b746-4bec-aec3-9b0736595ca1)
+Priority: P2
+Affected Packages: PC-09 (Verification harness)
+
+## Objective
+Harmonize legacy test mock DB fixtures that fail because `selectActiveRow` in `profiles.ts` now runs:
+`SELECT key_mode FROM api_keys WHERE id=$1`
+before consulting profile memberships (PC-R01 authority before evidence).
+Older tests with hand-rolled `db.query` mocks either threw `unexpected SQL: SELECT key_mode...` or returned rows without `key_mode: 'LEGACY_STANDALONE'`, causing those mock tests to reject with 403 `PERMISSION_DENIED` instead of resolving the profile.
+
+## Scope & File Lease
+EXCLUSIVE LEASE FOR WORKER 2:
+- ONLY test files in `du-rework/orchestrator/services/orchestrator/tests/`:
+  1. `tests/profile-api-keys-membership-offline.test.ts`
+  2. `tests/p730-prof03-invariant1.test.ts`
+  3. `tests/rfx10-seed-gate.test.ts`
+  4. `tests/public-upload-encryption-gateway.test.ts`
+  5. `tests/br12-isolation-offline.test.ts`
+  6. `tests/submission-metadata-crypto-e2e.test.ts`
+  7. `tests/url-ingestion-offline.functional.test.ts`
+  8. `tests/p745-prompt-carrier-producer.test.ts`
+  9. `tests/enc-meta-sentinel-outbox-source-url.test.ts`
+  10. `tests/crx01-creatapp-metadata-seam.test.ts`
+  11. `tests/p745-prompt-producer-impl.test.ts`
+  12. `tests/w1-sub02-snapshot-secret.test.ts`
+  13. `tests/url-ingestion-backend-failclosed-offline.test.ts`
+  14. `tests/w1-sub03-sourceurl-extension.test.ts`
+  15. `tests/orv12-callback-owner.test.ts`
+
+DO NOT TOUCH ANY FILE IN `src/`! Only update the mock `db.query` pattern matchers in those test files so that when the query is `SELECT key_mode FROM api_keys`, it returns `{ rows: [{ key_mode: 'LEGACY_STANDALONE' }], rowCount: 1 }` (or `'UNMANAGED_LEGACY'` if the test specifically tests unmanaged legacy keys).
+
+## Acceptance Criteria
+1. Run each of the 15 suites individually: all pass.
+2. `node node_modules/typescript/bin/tsc --noEmit -p tsconfig.json` exits 0.
+3. Write receipt to `du-rework/coordination/reports/receipt-sweep-pcr01-fixtures.md`.
+4. Print completion token: `SWEEP_PCR01_FIXTURES_COMPLETE — du-rework/coordination/reports/receipt-sweep-pcr01-fixtures.md`.

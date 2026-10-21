@@ -4,7 +4,12 @@ import type { RouteContext } from '../../http/route-context';
 import type { AdminActionAuth, AdminPrincipal } from '../admin-actions/rbac';
 import { requireResourceTenant } from '../admin-actions/rbac';
 import { AdminWorkbenchEndpointTestRequestSchema, AdminWorkbenchPromptWizardRequestSchema, type AdminWorkbenchEndpointTestRequest } from '@du/contracts';
+import {
+  AdminWorkbenchProfilePreviewV2RequestSchema,
+  AdminWorkbenchProfileSubmitV2RequestSchema,
+} from '@du/contracts';
 import { isActiveConnectorPin } from '../profiles/connector-pin-validation';
+import { resolveRootGrant } from '../profiles/profile-groups';
 
 export const PROFILE_TEST_ENDPOINT_ACTIONS = ['ingest', 'extract', 'analyze', 'transform', 'generate', 'compare'] as const;
 
@@ -265,5 +270,141 @@ export async function submitPromptWizard(ctx: RouteContext, auth: AdminActionAut
   });
   const actor = adminWorkbenchActor(auth);
   await ctx.audit.record({ tenantId: p.tenantId, ...actor, action: 'admin-workbench.prompt-wizard', resource: `operation:${result.operation.id}`, severity: 'info', correlationId: ctx.correlationId });
+  return { operationId: result.operation.id, operation: result.operation, replayed: result.replayed };
+}
+
+/* ------------------------------------------------------------------ */
+/* PC-05: v2 profile-group workbench flow                             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The workbench selects a KEY, never a group. Its single ACTIVE root grant is
+ * the group under test; an empty grant set disables submit while leaving the
+ * configuration editor readable.
+ */
+async function resolveWorkbenchGroupId(
+  ctx: RouteContext,
+  tenantId: string,
+  apiKeyId: string,
+): Promise<string> {
+  const key = await ctx.db.query(
+    "SELECT id FROM api_keys WHERE id=$1 AND tenant_id=$2 AND status='ACTIVE'",
+    [apiKeyId, tenantId],
+  );
+  if (!key.rowCount) throw notFound('active API key not found in tenant');
+  const grant = await resolveRootGrant(ctx.db as never, apiKeyId, tenantId);
+  if (!grant) {
+    throw new HttpError(403, 'PROFILE_GROUP_UNAUTHORIZED', 'the selected API key holds no active profile-group grant');
+  }
+  return grant.groupId;
+}
+
+function v2Selector(
+  p: {
+    businessId: string;
+    businessVersion: string;
+    action: string;
+    functionId: string;
+    endpointSlug?: string | null;
+  },
+): {
+  businessId: string;
+  businessVersion: string;
+  action: string;
+  functionId: string;
+  endpointSlug?: string;
+} {
+  return {
+    businessId: p.businessId,
+    businessVersion: p.businessVersion,
+    action: p.action,
+    functionId: p.functionId,
+    // `endpointSlug: null` keeps the v1 meaning: an action-level profile.
+    ...(p.endpointSlug ? { endpointSlug: p.endpointSlug } : {}),
+  };
+}
+
+export async function previewProfileGroupV2(ctx: RouteContext, auth: AdminActionAuth, input: unknown) {
+  const parsed = AdminWorkbenchProfilePreviewV2RequestSchema.safeParse(input);
+  if (!parsed.success) {
+    throw new HttpError(422, 'INVALID_SCHEMA', 'Profile group v2 preview needs a tenant, active key, function selector and valid submission');
+  }
+  const p = parsed.data;
+  const principal = adminWorkbenchPrincipal(auth);
+  assertCallerTenant(principal, p.tenantId);
+  const groupId = await resolveWorkbenchGroupId(ctx, p.tenantId, p.apiKeyId);
+  const preview = await ctx.submission.previewProfileV2({
+    tenantId: p.tenantId,
+    apiKeyId: p.apiKeyId,
+    groupId,
+    selector: v2Selector(p),
+    submission: p.submission,
+    correlationId: ctx.correlationId,
+  });
+  // The local USER needs the exact key AND the resolved child profile, checked
+  // before any preview body leaves the process.
+  await assertAdminWorkbenchAdmissionScope(ctx.identity, auth, {
+    tenantId: p.tenantId,
+    apiKeyId: p.apiKeyId,
+    profileId: preview.refs.childProfileId,
+  });
+  return { ...preview, apiKeyId: p.apiKeyId };
+}
+
+export async function submitProfileGroupV2(
+  ctx: RouteContext,
+  auth: AdminActionAuth,
+  input: unknown,
+  idempotencyKey: string | undefined,
+) {
+  const parsed = AdminWorkbenchProfileSubmitV2RequestSchema.safeParse(input);
+  if (!parsed.success) {
+    throw new HttpError(422, 'INVALID_SCHEMA', 'Profile group v2 submit needs a tenant, active key, selector, submission and fingerprint');
+  }
+  if (!idempotencyKey) {
+    throw new HttpError(422, 'INVALID_SCHEMA', 'Profile group v2 submit requires an Idempotency-Key');
+  }
+  const p = parsed.data;
+  const principal = adminWorkbenchPrincipal(auth);
+  assertCallerTenant(principal, p.tenantId);
+  const groupId = await resolveWorkbenchGroupId(ctx, p.tenantId, p.apiKeyId);
+  const selector = v2Selector(p);
+
+  // Resolve first so the local-USER fence binds the exact child profile the
+  // submission will pin. The submit path repeats the full resolution and the
+  // fingerprint comparison under its own locks.
+  const preview = await ctx.submission.previewProfileV2({
+    tenantId: p.tenantId,
+    apiKeyId: p.apiKeyId,
+    groupId,
+    selector,
+    submission: p.submission,
+    correlationId: ctx.correlationId,
+  });
+  await assertAdminWorkbenchAdmissionScope(ctx.identity, auth, {
+    tenantId: p.tenantId,
+    apiKeyId: p.apiKeyId,
+    profileId: preview.refs.childProfileId,
+  });
+
+  const result = await ctx.submission.submitProfileV2({
+    tenantId: p.tenantId,
+    apiKeyId: p.apiKeyId,
+    groupId,
+    selector,
+    submission: p.submission,
+    resolutionFingerprint: p.resolutionFingerprint,
+    idempotencyKey,
+    correlationId: ctx.correlationId,
+  });
+  const actor = adminWorkbenchActor(auth);
+  await ctx.audit.record({
+    tenantId: p.tenantId,
+    ...actor,
+    action: 'admin-workbench.profile-group-v2-submit',
+    resource: `operation:${result.operation.id}`,
+    severity: 'info',
+    correlationId: ctx.correlationId,
+  });
   return { operationId: result.operation.id, operation: result.operation, replayed: result.replayed };
 }

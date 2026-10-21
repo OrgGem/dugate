@@ -27,6 +27,35 @@ export const ArtifactPolicySchema = z.object({
 });
 export type ArtifactPolicy = z.infer<typeof ArtifactPolicySchema>;
 
+/**
+ * PC-01 / plan §"Manifest parameter and lock resolution" item 2 — opt-in,
+ * immutable per-action capability declaring which source owns each parameter
+ * property. Absence means v1 semantics exactly: nothing is inferred from the
+ * intentional `inputSchema`/`profileSchema` overlap, and no schema default is
+ * applied.
+ *
+ * `version: 2` is a literal on purpose: a future semantic change must register
+ * a new manifest version rather than reinterpret stored configuration.
+ */
+export const ParameterResolutionSourceSchema = z.enum([
+  'requestDefaults',
+  'profileSettings',
+]);
+export type ParameterResolutionSource = z.infer<typeof ParameterResolutionSourceSchema>;
+
+export const ParameterResolutionCapabilitySchema = z
+  .object({
+    version: z.literal(2),
+    /** Declared property -> the single source that owns it. */
+    fields: z.record(z.string().min(1).max(128), ParameterResolutionSourceSchema),
+    /** When true, `inputSchema.properties.<name>.default` fills absent top-level fields. */
+    applyTopLevelDefaults: z.boolean(),
+  })
+  .strict();
+export type ParameterResolutionCapability = z.infer<
+  typeof ParameterResolutionCapabilitySchema
+>;
+
 export const ActionManifestSchema = z.object({
   name: z.string().min(1), // stable lowercase slug
   displayName: z.string().min(1),
@@ -42,6 +71,8 @@ export const ActionManifestSchema = z.object({
     maxParallelTasks: z.number().int().min(1).optional(),
     timeoutSeconds: z.number().int().min(1).optional(),
   }),
+  /** PC-01: opt-in parameter source mapping; absent = v1 semantics (§ above). */
+  parameterResolution: ParameterResolutionCapabilitySchema.optional(),
 });
 export type ActionManifest = z.infer<typeof ActionManifestSchema>;
 

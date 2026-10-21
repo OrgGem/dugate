@@ -1,9 +1,15 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type { PoolClient, QueryResultRow } from 'pg';
-import type { ApiKeyLifecyclePage, ApiKeyLifecycleRow } from '@du/contracts';
+import { ApiKeyModeSchema, type ApiKeyLifecyclePage, type ApiKeyLifecycleRow, type ApiKeyMode } from '@du/contracts';
 import type { Db } from '../../db/db';
 import type { AuditService } from '../audit/audit';
 import { HttpError } from '../../http/errors';
+import {
+  issueGroupKey,
+  resolveRootGrant,
+  revokeAllGroupGrantsForApiKey,
+  type ProfileGroupActor,
+} from '../profiles/profile-groups';
 
 interface KeyRow extends QueryResultRow {
   id: string;
@@ -15,6 +21,7 @@ interface KeyRow extends QueryResultRow {
   updated_at: Date | string;
   version: number;
   protected: boolean;
+  key_mode?: string | null;
 }
 
 interface Cursor { createdAt: string; id: string }
@@ -102,10 +109,38 @@ function protectGlobal(row: { name: string | null }): void {
 
 async function profilesExistForClient(client: Pick<PoolClient, 'query'>, tenantId: string, profileIds: string[]): Promise<void> {
   if (!profileIds.length) return;
-  const result = await client.query<{ profile_id: string }>(
-    'SELECT profile_id FROM profile_names WHERE tenant_id=$1 AND profile_id=ANY($2::uuid[]) FOR SHARE', [tenantId, profileIds],
+  const result = await client.query<{ profile_id: string; group_id: string | null }>(
+    'SELECT profile_id, group_id FROM profile_names WHERE tenant_id=$1 AND profile_id=ANY($2::uuid[]) FOR SHARE', [tenantId, profileIds],
   );
   if (result.rows.length !== profileIds.length) throw new HttpError(422, 'FOREIGN_GRANT', 'profile list contains a foreign or missing profile');
+  // PC-04: an issue may only attach STANDALONE profiles. A grouped child gets
+  // its authority from the group's root grant; attaching it here would create
+  // the child-membership fallback the control plane forbids.
+  if (result.rows.some((row) => row.group_id !== null)) {
+    throw new HttpError(
+      409,
+      'PROFILE_GROUP_V2_REQUIRED',
+      'grouped child profiles cannot be attached by an API-key issue; use the profile-group key operation',
+    );
+  }
+}
+
+/** 0070 has no DEFAULT: a NULL/unknown mode is a writer defect, never a permission. */
+function parseKeyMode(raw: string | null | undefined): ApiKeyMode {
+  const parsed = ApiKeyModeSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw new HttpError(409, 'STATE_CONFLICT', 'API-key authority mode is not declared');
+  }
+  return parsed.data;
+}
+
+function groupActorFor(actor: ApiKeyActor): ProfileGroupActor {
+  return {
+    actor: actor.actor,
+    role: actor.role,
+    ...(actor.issuer ? { issuer: actor.issuer } : {}),
+    ...(actor.sub ? { sub: actor.sub } : {}),
+  };
 }
 
 async function safeRow(db: Db, row: KeyRow, profileIds?: string[]): Promise<ApiKeyLifecycleRow> {
@@ -199,8 +234,8 @@ export function createApiKeyLifecycleService(deps: { db: Db; audit: AuditService
         }
         await profilesExistForClient(client, input.tenantId, profileIds);
         const inserted = await client.query<KeyRow>(
-          `INSERT INTO api_keys (id,tenant_id,hash,prefix,name,status,version,updated_at)
-           VALUES ($1,$2,$3,$4,$5,'ACTIVE',1,now())
+          `INSERT INTO api_keys (id,tenant_id,hash,prefix,name,status,version,key_mode,updated_at)
+           VALUES ($1,$2,$3,$4,$5,'ACTIVE',1,'LEGACY_STANDALONE',now())
            RETURNING id,tenant_id,prefix,name,status,created_at,updated_at,version,false AS protected`,
           [keyId, input.tenantId, keyHash, raw.slice(0, 4), note]);
         const row = inserted.rows[0];
@@ -251,6 +286,7 @@ export function createApiKeyLifecycleService(deps: { db: Db; audit: AuditService
       const raw = `du_${randomBytes(32).toString('base64url')}`;
       const newHash = hashKey(raw);
       const newId = randomUUID();
+      const groupActor = groupActorFor(actor);
       const outcome = await deps.db.tx(async (client) => {
         await client.query(`SELECT pg_advisory_xact_lock(hashtextextended('api-key-mutation:' || $1 || ':' || $2,0))`, [input.tenantId, idem]);
         const replay = await client.query<{ operation: string; request_hash: string; api_key_id: string }>(
@@ -261,8 +297,34 @@ export function createApiKeyLifecycleService(deps: { db: Db; audit: AuditService
             `SELECT id,tenant_id,prefix,name,status,created_at,updated_at,version,(lower(trim(coalesce(name,'')))='global') AS protected FROM api_keys WHERE tenant_id=$1 AND id=$2`,
             [input.tenantId, replay.rows[0].api_key_id]);
           if (!found.rows[0]) throw new HttpError(503, 'TEMPORARY_UNAVAILABLE', 'idempotent rotation result is unavailable');
-          return { row: found.rows[0], replayed: true, profileIds: [] as string[] };
+          return { kind: 'row' as const, row: found.rows[0], profileIds: [] as string[], replayed: true };
         }
+        // PC-04: the mode decides what may be inherited, and it must be read
+        // WITHOUT a key lock so a GROUP_MANAGED rotation can lock its group
+        // root first (plan lock order: group roots before key rows).
+        const pre = await client.query<{ id: string; name: string | null; key_mode: string | null }>(
+          'SELECT id, name, key_mode FROM api_keys WHERE tenant_id=$1 AND id=$2', [input.tenantId, input.keyId]);
+        const preRow = pre.rows[0];
+        if (!preRow) throw new HttpError(404, 'NOT_FOUND', 'API key was not found in this tenant');
+        const mode = parseKeyMode(preRow.key_mode);
+        const rotatedName = rotatedLabel(preRow.name);
+
+        if (mode === 'GROUP_MANAGED') {
+          const key = await rotateGroupManagedOn(client, {
+            tenantId: input.tenantId,
+            keyId: input.keyId,
+            expectedVersion: input.expectedVersion,
+            rawValue: raw,
+            rotatedName,
+            actor,
+            groupActor,
+            audit: deps.audit,
+            idemHash: idem,
+            requestHash: bodyHash,
+          });
+          return { kind: 'group' as const, key };
+        }
+
         const oldResult = await client.query<KeyRow>(
           `SELECT id,tenant_id,prefix,name,status,created_at,updated_at,version,(lower(trim(coalesce(name,'')))='global') AS protected
              FROM api_keys WHERE tenant_id=$1 AND id=$2 FOR UPDATE`, [input.tenantId, input.keyId]);
@@ -271,31 +333,27 @@ export function createApiKeyLifecycleService(deps: { db: Db; audit: AuditService
         protectGlobal(old);
         if (old.status !== 'ACTIVE') throw new HttpError(409, 'STATE_CONFLICT', 'API key is not active');
         if (old.version !== input.expectedVersion) throw new HttpError(409, 'IDENTITY_VERSION_CONFLICT', 'API-key version is stale');
-        const memberships = await client.query<{ profile_id: string }>(
-          `SELECT profile_id FROM profile_api_keys WHERE tenant_id=$1 AND api_key_id=$2 AND state='ACTIVE' ORDER BY profile_id FOR SHARE`,
-          [input.tenantId, input.keyId]);
-        const profileIds = memberships.rows.map((item) => item.profile_id);
+        // LEGACY_STANDALONE inherits the exact ACTIVE membership set; an
+        // UNMANAGED_LEGACY key inherits nothing by definition (plan item 5).
+        let profileIds: string[] = [];
+        if (mode === 'LEGACY_STANDALONE') {
+          const memberships = await client.query<{ profile_id: string }>(
+            `SELECT profile_id FROM profile_api_keys WHERE tenant_id=$1 AND api_key_id=$2 AND state='ACTIVE' ORDER BY profile_id FOR SHARE`,
+            [input.tenantId, input.keyId]);
+          profileIds = memberships.rows.map((item) => item.profile_id);
+        }
         const inserted = await client.query<KeyRow>(
-          `INSERT INTO api_keys (id,tenant_id,hash,prefix,name,status,version,updated_at)
-           VALUES ($1,$2,$3,$4,$5,'ACTIVE',1,now())
+          `INSERT INTO api_keys (id,tenant_id,hash,prefix,name,status,version,key_mode,updated_at)
+           VALUES ($1,$2,$3,$4,$5,'ACTIVE',1,$6,now())
            RETURNING id,tenant_id,prefix,name,status,created_at,updated_at,version,false AS protected`,
-          [newId, input.tenantId, newHash, raw.slice(0, 4), old.name?.trim() ? `${old.name.trim()} (rotated)`.slice(0, 200) : null]);
+          [newId, input.tenantId, newHash, raw.slice(0, 4), rotatedName, mode]);
         const next = inserted.rows[0];
         if (!next) throw new HttpError(500, 'INTERNAL', 'API-key rotation failed');
         if (profileIds.length) await client.query(
           `INSERT INTO profile_api_keys (profile_id,api_key_id,tenant_id,state)
            SELECT unnest($1::uuid[]),$2,$3,'ACTIVE'`, [profileIds, next.id, input.tenantId]);
         await client.query("UPDATE profile_api_keys SET state='REVOKED',revoked_at=now() WHERE tenant_id=$1 AND api_key_id=$2 AND state='ACTIVE'", [input.tenantId, input.keyId]);
-        const localUsers = await client.query<{ user_id: string }>(
-          'SELECT user_id FROM admin_local_user_api_key_grants WHERE tenant_id=$1 AND api_key_id=$2 FOR UPDATE', [input.tenantId, input.keyId]);
-        if (localUsers.rows.length) {
-          await client.query(
-            `INSERT INTO admin_local_user_api_key_grants (tenant_id,user_id,api_key_id)
-             SELECT tenant_id,user_id,$3 FROM admin_local_user_api_key_grants WHERE tenant_id=$1 AND api_key_id=$2
-             ON CONFLICT DO NOTHING`, [input.tenantId, input.keyId, next.id]);
-          await client.query('DELETE FROM admin_local_user_api_key_grants WHERE tenant_id=$1 AND api_key_id=$2', [input.tenantId, input.keyId]);
-          await client.query('UPDATE admin_local_users SET assignment_version=assignment_version+1,version=version+1,updated_at=now() WHERE tenant_id=$1 AND id=ANY($2::uuid[])', [input.tenantId, localUsers.rows.map((item) => item.user_id)]);
-        }
+        if (mode === 'LEGACY_STANDALONE') await copyLocalUserGrantsOn(client, input.tenantId, input.keyId, next.id);
         const revoked = await client.query<KeyRow>(
           `UPDATE api_keys SET status='REVOKED',version=version+1,updated_at=now() WHERE tenant_id=$1 AND id=$2 AND status='ACTIVE' AND version=$3
            RETURNING id,tenant_id,prefix,name,status,created_at,updated_at,version,false AS protected`, [input.tenantId, input.keyId, input.expectedVersion]);
@@ -305,8 +363,9 @@ export function createApiKeyLifecycleService(deps: { db: Db; audit: AuditService
            VALUES ($1,$2,'rotate',$3,$4)`, [input.tenantId, idem, bodyHash, next.id]);
         await deps.audit.record({ tenantId: input.tenantId, actor: actor.actor, actorIssuer: actor.issuer, actorSub: actor.sub,
           actorRole: actor.role, action: 'admin_api_key.rotate', resource: `apikey:${input.keyId}->${next.id}`, severity: 'warning', correlationId: actor.correlationId }, client);
-        return { row: next, replayed: false, profileIds };
+        return { kind: 'row' as const, row: next, profileIds, replayed: false };
       });
+      if (outcome.kind === 'group') return { key: outcome.key, secret: raw, secretAvailable: true };
       const safe = await safeRow(deps.db, outcome.row, outcome.profileIds.length ? outcome.profileIds : undefined);
       return { key: safe, ...(outcome.replayed ? { secretAvailable: false } : { secret: raw, secretAvailable: true }) };
     },
@@ -315,6 +374,10 @@ export function createApiKeyLifecycleService(deps: { db: Db; audit: AuditService
       requireAdmin(actor);
       if (!Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 1) throw new HttpError(422, 'INVALID_SCHEMA', 'expected version is invalid');
       const row = await deps.db.tx(async (client) => {
+        // PC-04 / plan item 7: the grant seam locks the affected group roots
+        // itself, so it MUST run before the key row is locked — a key lock
+        // followed by a group lock is the order the plan forbids.
+        const grants = await revokeAllGroupGrantsForApiKey(client, input.keyId, input.tenantId, groupActorFor(actor));
         const found = await client.query<KeyRow>(
           `SELECT id,tenant_id,prefix,name,status,created_at,updated_at,version,(lower(trim(coalesce(name,'')))='global') AS protected FROM api_keys WHERE tenant_id=$1 AND id=$2 FOR UPDATE`,
           [input.tenantId, input.keyId]);
@@ -336,12 +399,101 @@ export function createApiKeyLifecycleService(deps: { db: Db; audit: AuditService
         const next = updated.rows[0];
         if (!next) throw new HttpError(409, 'IDENTITY_VERSION_CONFLICT', 'API-key version is stale');
         await deps.audit.record({ tenantId: input.tenantId, actor: actor.actor, actorIssuer: actor.issuer, actorSub: actor.sub,
-          actorRole: actor.role, action: 'admin_api_key.revoke', resource: `apikey:${next.id}`, severity: 'warning', correlationId: actor.correlationId }, client);
+          actorRole: actor.role, action: 'admin_api_key.revoke',
+          resource: grants.groupIds.length ? `apikey:${next.id} groups:${grants.groupIds.join(',')}` : `apikey:${next.id}`,
+          severity: 'warning', correlationId: actor.correlationId }, client);
         return next;
       });
       return { key: await safeRow(deps.db, row, []), secretAvailable: false };
     },
   };
+}
+
+/**
+ * `GROUP_MANAGED` rotation (PC-04 / plan item 5): mint the replacement through
+ * the group-key operation with the caller-supplied raw value, tombstone the old
+ * grant, and revoke the old key — one transaction, no child memberships.
+ */
+async function rotateGroupManagedOn(
+  client: PoolClient,
+  input: {
+    tenantId: string;
+    keyId: string;
+    expectedVersion: number;
+    rawValue: string;
+    rotatedName: string | null;
+    actor: ApiKeyActor;
+    groupActor: ProfileGroupActor;
+    audit: AuditService;
+    idemHash: string;
+    requestHash: string;
+  },
+): Promise<ApiKeyLifecycleRow> {
+  const grant = await resolveRootGrant(client, input.keyId, input.tenantId);
+  if (!grant) throw new HttpError(409, 'STATE_CONFLICT', 'group-managed API key has no ACTIVE root grant');
+  // Locks the group root, bumps access_version, inserts the new GROUP_MANAGED
+  // key row and its grant. The injected minter keeps the caller's raw value.
+  const issued = await issueGroupKey(
+    client,
+    { hashApiKey: hashKey, mintRawKey: () => input.rawValue },
+    grant.groupId,
+    input.rotatedName ? { note: input.rotatedName } : {},
+    input.groupActor,
+    grant.accessVersion,
+  );
+  const oldResult = await client.query<KeyRow>(
+    `SELECT id,tenant_id,prefix,name,status,created_at,updated_at,version,(lower(trim(coalesce(name,'')))='global') AS protected
+       FROM api_keys WHERE tenant_id=$1 AND id=$2 FOR UPDATE`, [input.tenantId, input.keyId]);
+  const old = oldResult.rows[0];
+  if (!old) throw new HttpError(404, 'NOT_FOUND', 'API key was not found in this tenant');
+  protectGlobal(old);
+  if (old.status !== 'ACTIVE') throw new HttpError(409, 'STATE_CONFLICT', 'API key is not active');
+  if (old.version !== input.expectedVersion) throw new HttpError(409, 'IDENTITY_VERSION_CONFLICT', 'API-key version is stale');
+  // Tombstone the OLD grant: rotation never leaves two live grants, and the
+  // old key id stays permanently bound to this group (§0070 PK).
+  await revokeAllGroupGrantsForApiKey(client, input.keyId, input.tenantId, input.groupActor);
+  await copyLocalUserGrantsOn(client, input.tenantId, input.keyId, issued.grant.apiKeyId);
+  const revoked = await client.query(
+    `UPDATE api_keys SET status='REVOKED',version=version+1,updated_at=now() WHERE tenant_id=$1 AND id=$2 AND status='ACTIVE' AND version=$3`,
+    [input.tenantId, input.keyId, input.expectedVersion]);
+  if (!revoked.rowCount) throw new HttpError(409, 'IDENTITY_VERSION_CONFLICT', 'API-key version is stale');
+  await client.query(
+    `INSERT INTO admin_api_key_mutations (tenant_id,idempotency_hash,operation,request_hash,api_key_id)
+     VALUES ($1,$2,'rotate',$3,$4)`, [input.tenantId, input.idemHash, input.requestHash, issued.grant.apiKeyId]);
+  await input.audit.record({ tenantId: input.tenantId, actor: input.actor.actor, actorIssuer: input.actor.issuer, actorSub: input.actor.sub,
+    actorRole: input.actor.role, action: 'admin_api_key.rotate',
+    resource: `apikey:${input.keyId}->${issued.grant.apiKeyId} group:${grant.groupId}`,
+    severity: 'warning', correlationId: input.actor.correlationId }, client);
+  return {
+    id: issued.grant.apiKeyId,
+    tenantId: input.tenantId,
+    prefix: issued.grant.prefix,
+    note: input.rotatedName,
+    status: issued.grant.status as ApiKeyLifecycleRow['status'],
+    version: 1,
+    createdAt: issued.grant.grantedAt,
+    updatedAt: issued.grant.grantedAt,
+    profileIds: [],
+    protected: false,
+  };
+}
+
+/** Rotation label convention: an unnamed key stays unnamed. */
+function rotatedLabel(name: string | null): string | null {
+  return typeof name === 'string' && name.trim().length > 0 ? `${name.trim()} (rotated)`.slice(0, 200) : null;
+}
+
+/** Local-user key assignments follow the credential across a rotation. */
+async function copyLocalUserGrantsOn(client: PoolClient, tenantId: string, fromKeyId: string, toKeyId: string): Promise<void> {
+  const localUsers = await client.query<{ user_id: string }>(
+    'SELECT user_id FROM admin_local_user_api_key_grants WHERE tenant_id=$1 AND api_key_id=$2 FOR UPDATE', [tenantId, fromKeyId]);
+  if (!localUsers.rows.length) return;
+  await client.query(
+    `INSERT INTO admin_local_user_api_key_grants (tenant_id,user_id,api_key_id)
+     SELECT tenant_id,user_id,$3 FROM admin_local_user_api_key_grants WHERE tenant_id=$1 AND api_key_id=$2
+     ON CONFLICT DO NOTHING`, [tenantId, fromKeyId, toKeyId]);
+  await client.query('DELETE FROM admin_local_user_api_key_grants WHERE tenant_id=$1 AND api_key_id=$2', [tenantId, fromKeyId]);
+  await client.query('UPDATE admin_local_users SET assignment_version=assignment_version+1,version=version+1,updated_at=now() WHERE tenant_id=$1 AND id=ANY($2::uuid[])', [tenantId, localUsers.rows.map((item) => item.user_id)]);
 }
 
 function requireAdmin(actor: ApiKeyActor): void {

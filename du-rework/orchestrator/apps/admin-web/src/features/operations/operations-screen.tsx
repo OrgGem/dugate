@@ -58,6 +58,22 @@ const correlationFromRaw = (raw: unknown): string | null => {
   return typeof source.correlationId === 'string' && source.correlationId.length > 0 ? source.correlationId : null;
 };
 
+/**
+ * PC-08 / D-02(c): the admin detail projection does not yet expose a group pin
+ * or an admission-time access version. Render a "pinned resolution" block ONLY
+ * when the server actually sends a `resolution` object — never fabricate one.
+ */
+const resolutionFromRaw = (raw: unknown): Record<string, unknown> | null => {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const candidate = (raw as Record<string, unknown>).resolution;
+  return candidate && typeof candidate === 'object' && !Array.isArray(candidate)
+    ? candidate as Record<string, unknown>
+    : null;
+};
+
+const safeRefText = (value: unknown): string | null =>
+  typeof value === 'string' && value.length > 0 && value.length <= 256 ? value : null;
+
 export function OperationsScreen() {
   const { tenantId: globalTenantId } = useTenant();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -182,6 +198,7 @@ export function OperationsScreen() {
   }, [searchString]);
   const invalidSearchLabel = operationSearchFields.find(({ value }) => value.trim().length > 128 || /[\u0000-\u001f\u007f]/.test(value))?.label ?? null;
   const correlationId = currentDetail === null ? null : correlationFromRaw(currentDetail.raw);
+  const resolutionRefs = currentDetail === null ? null : resolutionFromRaw(currentDetail.raw);
   const selectedPopulation = operationsPopulation({
     state: stateFilter,
     sort,
@@ -1056,6 +1073,28 @@ export function OperationsScreen() {
                           <dd className="font-mono">{detail.operation.retryOf}</dd>
                         </>
                       )}
+
+                      {resolutionRefs ? (
+                        <>
+                          <dt className="text-[var(--text-sub)]">Pinned profile</dt>
+                          <dd className="break-all font-mono">
+                            {safeRefText(resolutionRefs['profileId']) ?? 'not reported'}
+                            {typeof resolutionRefs['profileRevision'] === 'number' ? ` · revision ${resolutionRefs['profileRevision']}` : ''}
+                          </dd>
+                          {safeRefText(resolutionRefs['endpointSlug']) ? (
+                            <>
+                              <dt className="text-[var(--text-sub)]">Endpoint selector</dt>
+                              <dd className="break-all font-mono">{safeRefText(resolutionRefs['endpointSlug'])}</dd>
+                            </>
+                          ) : null}
+                          {safeRefText(resolutionRefs['resolutionFingerprint']) ? (
+                            <>
+                              <dt className="text-[var(--text-sub)]">Resolution fingerprint</dt>
+                              <dd className="break-all font-mono">{safeRefText(resolutionRefs['resolutionFingerprint'])}</dd>
+                            </>
+                          ) : null}
+                        </>
+                      ) : null}
                     </dl>
                   ) : null}
                   <div

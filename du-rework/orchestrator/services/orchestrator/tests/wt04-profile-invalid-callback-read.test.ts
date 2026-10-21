@@ -34,7 +34,16 @@ describe('WT-04: invalid stored callback is visible and clearable without readba
     expect(ProfileEndpointPolicySchema.safeParse({ callbackPolicy: null, callbackPolicyInvalid: true }).success).toBe(false);
   });
   it('keeps admission fail-closed for a malformed stored pin', async () => {
-    const db = { query: async () => ({ rows: [{ ...row, callback_policy: {}, connector_bindings: {}, moved_at: new Date() }], rowCount: 1 }) } as unknown as Db;
+    // PC-R01: admission reads the key's explicit mode before consulting the
+    // profile row, so the fake has to answer that one query distinctly instead
+    // of returning the binding row for every statement.
+    const db = {
+      query: async (sql: string) => (
+        sql.includes('SELECT key_mode FROM api_keys')
+          ? { rows: [{ key_mode: 'LEGACY_STANDALONE' }], rowCount: 1 }
+          : { rows: [{ ...row, callback_policy: {}, connector_bindings: {}, moved_at: new Date() }], rowCount: 1 }
+      ),
+    } as unknown as Db;
     await expect(createProfileService(db).resolveEffectiveProfile(row.api_key_id, 'document-core', '1.0.0', 'extract'))
       .rejects.toMatchObject({ status: 500, code: 'INVALID_SCHEMA' });
   });

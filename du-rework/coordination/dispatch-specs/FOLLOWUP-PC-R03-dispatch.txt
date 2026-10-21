@@ -1,0 +1,57 @@
+# DISPATCH SPEC: PC-R03 (Serialize retry authorization and revocation)
+Owner: Antigravity Coordinator
+Assignee: DeepSeek Worker 3 (term_8469982b-916d-406a-bc4b-4889ba89ebe6)
+Priority: P1
+Affected Packages: PC-04, PC-07, PC-09
+
+## Objective
+Fix concurrency race condition PC-R03 identified in implementation review:
+Retry execution and grant revocation / key revocation / config updates must serialize cleanly according to the prescribed universal lock order:
+`sorted group root -> selector -> key -> grant -> operation/task`.
+Revocation must never commit between the final authorization check and the retry insert.
+
+## Evidence & Problem Analysis
+1. In `du-rework/orchestrator/services/orchestrator/src/modules/operations/retry.ts`:
+   - Lines 84-89: reads `api_keys WHERE id=$1` without holding a row lock.
+   - Lines 186-198: reads `profile_groups` and `profile_group_members` without holding group locks.
+   - Lines 360-398: locks `operations WHERE id=$1 FOR UPDATE`, then calls `authorizeRetry(client, lockedOp, tenantId)` and executes `INSERT INTO operations`.
+2. In `du-rework/orchestrator/services/orchestrator/src/modules/profiles/profile-groups.ts`:
+   - `revokeGroupGrant` (line 1861) acquires a group-root lock via `lockGroupRoot(client, groupId, tenantScope)`.
+3. Because retry does not acquire the group-root lock before locking the operation, and checks authorization before holding the required write locks:
+   - A concurrent `revokeGroupGrant` can execute and commit right after `authorizeRetry` read the grant as active, but right before the retry `INSERT INTO operations` executes!
+   - Adding a group lock *after* acquiring an operation lock would create deadlock (violating universal lock ordering).
+
+## Scope & File Lease
+EXCLUSIVE LEASE FOR WORKER 3:
+- `du-rework/orchestrator/services/orchestrator/src/modules/operations/retry.ts`
+- Tests: `du-rework/orchestrator/services/orchestrator/tests/profile-control-plane-retry.test.ts` or a new concurrency test suite `tests/profile-control-plane-retry-concurrency-pg.test.ts`.
+
+DO NOT touch `profiles.ts`, `api-keys.ts`, `submission.ts`, or `admin-web` files.
+
+## Fix Scope & Requirements
+1. Universal Lock Ordering in `retry.ts`:
+   - Pre-read identities (operation owner API key ID, profile group ID, selector) outside or in a pre-read phase.
+   - Acquire locks strictly in prescribed order:
+     1. Group root lock (`lockGroupRoot` or advisory lock matching group root).
+     2. Selector lock (if applicable).
+     3. Key row lock (`SELECT ... FROM api_keys WHERE id=$1 FOR SHARE` or `FOR UPDATE`).
+     4. Grant row lock (`SELECT ... FROM profile_group_api_keys WHERE group_id=$1 AND api_key_id=$2 FOR SHARE`).
+     5. Operation / task row locks (`SELECT ... FROM operations WHERE id=$1 FOR UPDATE`).
+   - Re-read ownership, current authorization, and original pinned execution after locks are acquired.
+   - Reauthorize before coalesced replay and hold the required locks until transaction commit.
+   - Maintain the unknown-provider-outcome guard (`uncertain(error_code)` / `UNKNOWN` state checks).
+   - Ensure zero deadlock risk and zero partial outbox/task writes.
+
+2. Regression Gate with Real PostgreSQL Concurrency:
+   - Use two real PostgreSQL client connections (`pg.PoolClient`) with deterministic synchronization barriers (e.g. Promises / barrier events, NOT sleeps).
+   - Test Case A: Revoke wins barrier. Retry must fail/deny with 403 / RETRY_DENIED, and create ZERO execution rows in `operations` and `tasks`.
+   - Test Case B: Retry wins barrier. Revoke must wait for the serialized retry admission to commit, and subsequent retries are denied.
+   - Repeat for global key revoke and endpoint disable.
+   - Test coalesced active-retry replay path.
+
+## Verification & Acceptance
+1. Typecheck: `npm exec tsc --noEmit` in `services/orchestrator` must pass with code 0.
+2. Offline tests: `npx jest --config jest.unit.config.cjs tests/profile-control-plane-retry.test.ts` passes.
+3. Live PG Concurrency suite passes with 0 failures when run with `DU_LIVE_INFRA=1`.
+4. Write receipt to `du-rework/coordination/reports/receipt-pc-r03.md`.
+5. Signal completion: `PC-R03_COMPLETE — du-rework/coordination/reports/receipt-pc-r03.md`.

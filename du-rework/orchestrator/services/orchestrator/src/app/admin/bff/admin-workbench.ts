@@ -3,6 +3,8 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { SESSION_COOKIE_NAME } from '../../../modules/auth/session-store';
 import {
   AdminWorkbenchEndpointTestRequestSchema,
+  AdminWorkbenchProfilePreviewV2RequestSchema,
+  AdminWorkbenchProfileSubmitV2RequestSchema,
   AdminWorkbenchPromptWizardRequestSchema,
 } from '@du/contracts';
 import type { AdminShellRequest } from '../shell-types';
@@ -11,11 +13,15 @@ import { resolveBffContext } from './context';
 import { readBoundedBody } from './body';
 import { callUpstream, credentialFor, firstHeaderValue, relayUpstream, writeProblem, type BffRuntimeConfig, type UpstreamCallOptions } from './upstream';
 
-export type AdminWorkbenchRoute = { kind: 'test-endpoint' | 'prompt-wizard' } | { kind: 'invalid' };
+export type AdminWorkbenchRoute =
+  | { kind: 'test-endpoint' | 'prompt-wizard' | 'preview-v2' | 'submit-v2' }
+  | { kind: 'invalid' };
 
 export function matchAdminWorkbenchRoute(relative: string): AdminWorkbenchRoute | null {
   if (relative === '/admin-workbench/test-endpoint') return { kind: 'test-endpoint' };
   if (relative === '/admin-workbench/prompt-wizard') return { kind: 'prompt-wizard' };
+  if (relative === '/admin-workbench/v2/preview') return { kind: 'preview-v2' };
+  if (relative === '/admin-workbench/v2/submit') return { kind: 'submit-v2' };
   return null;
 }
 
@@ -80,7 +86,9 @@ export async function handleAdminWorkbenchRoute(
     return;
   }
   const idempotencyKey = firstHeaderValue(req.headers['idempotency-key']);
-  if (!idempotencyKey || !/^[!-~]{8,200}$/.test(idempotencyKey)) {
+  // PC-08: preview resolves configuration only and is intentionally replayable;
+  // every mutating action (v1 test/wizard, v2 submit) requires the header.
+  if (route.kind !== 'preview-v2' && (!idempotencyKey || !/^[!-~]{8,200}$/.test(idempotencyKey))) {
     writeProblem(res, 422, 'INVALID_SCHEMA', 'Idempotency-Key is required for Admin workbench actions', correlationId);
     return;
   }
@@ -97,7 +105,11 @@ export async function handleAdminWorkbenchRoute(
   }
   const schema = route.kind === 'test-endpoint'
     ? AdminWorkbenchEndpointTestRequestSchema
-    : AdminWorkbenchPromptWizardRequestSchema;
+    : route.kind === 'prompt-wizard'
+      ? AdminWorkbenchPromptWizardRequestSchema
+      : route.kind === 'preview-v2'
+        ? AdminWorkbenchProfilePreviewV2RequestSchema
+        : AdminWorkbenchProfileSubmitV2RequestSchema;
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
     writeProblem(res, 422, 'INVALID_SCHEMA', 'Admin workbench request is invalid or exceeds its configured bounds', correlationId);
@@ -109,10 +121,15 @@ export async function handleAdminWorkbenchRoute(
   }
   const path = route.kind === 'test-endpoint'
     ? '/api/internal/admin-workbench/test-endpoint'
-    : '/api/internal/admin-workbench/prompt-wizard';
+    : route.kind === 'prompt-wizard'
+      ? '/api/internal/admin-workbench/prompt-wizard'
+      : route.kind === 'preview-v2'
+        ? '/api/internal/admin-workbench/v2/preview'
+        : '/api/internal/admin-workbench/v2/submit';
   const call: UpstreamCallOptions = {
     method: 'POST', ...(credential ? { credential } : {}), correlationId,
-    jsonBody: JSON.stringify(parsed.data), idempotencyKey,
+    jsonBody: JSON.stringify(parsed.data),
+    ...(idempotencyKey !== undefined ? { idempotencyKey } : {}),
     ...(sessionProof ? { sessionProof } : {}),
   } as UpstreamCallOptions;
   const response = await callUpstream(runtime, new URL(path, runtime.jsonBaseUrl), call);

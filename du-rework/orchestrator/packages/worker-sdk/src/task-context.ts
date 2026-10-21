@@ -90,8 +90,75 @@ export function applyPinnedModelDefault(
   return { ...(options ?? {}), model };
 }
 
-export class InputHashMismatchError extends Error {
-  constructor(readonly stepKey: string) {
+/**
+ * PC-06 — what admission resolved for this delivery, in one read.
+ *
+ * The orchestrator resolves every parameter source at admission (PC-05) and
+ * puts the resulting request `parameters` into the existing Runtime API v1 task
+ * input; `profileSettings` stays in the existing pinned profile snapshot. The
+ * SDK therefore needs **no new wire field** to opt in, and this view is derived
+ * only from fields a v1 claim already carries.
+ *
+ * Three properties matter and are asserted in
+ * `tests/task-context-model-resolution.test.ts`:
+ *
+ *  1. `parameters` is exactly what the handler must run — the admission-pinned
+ *     map, including values filled from `requestDefaults` and top-level schema
+ *     defaults. It is a frozen copy, so a handler cannot mutate the delivery.
+ *  2. `profileSettings` is the pinned profile policy's parameter values. It is
+ *     NEVER merged into `parameters`: under the `parameterResolution`
+ *     capability those two sources are partitioned at admission.
+ *  3. `providerModel` is the model the Connector will receive after the
+ *     precedence in `applyPinnedModelDefault` (explicit options, then the
+ *     pinned profile model, then the tenant AI default for its own Connector).
+ *     An action input property literally named `model` — including one filled
+ *     from `requestDefaults` — is action data and is never the provider model
+ *     unless the handler explicitly passes it as an invoke option.
+ */
+export interface ResolvedTaskParameterView {
+  /** The admission-resolved request parameters the handler must run. */
+  readonly parameters: Readonly<Record<string, unknown>>;
+  /** The pinned profile policy's parameter values, never request input. */
+  readonly profileSettings: Readonly<Record<string, unknown>>;
+  /** The effective provider model, or `undefined` when no source pins one. */
+  readonly providerModel: string | undefined;
+}
+
+/**
+ * Pure builder for `ResolvedTaskParameterView`; see the interface doc comment.
+ *
+ * Exported separately from the class so a handler, a test or a non-SDK worker
+ * port can derive the same view from a claim-shaped object without
+ * constructing a full `TaskContext`.
+ */
+export function describeResolvedParameters(
+  task: {
+    input: Record<string, unknown>;
+    profilePolicy?: PinnedProfilePolicy | null;
+    tenantDefaults?: TenantDefaultsSnapshot | null;
+  },
+  options?: Record<string, unknown>,
+  selectedConnectorBinding?: string,
+): ResolvedTaskParameterView {
+  const settings: Record<string, unknown> = {};
+  for (const [key, entry] of Object.entries(task.profilePolicy?.parameters ?? {})) {
+    settings[key] = (entry as { value?: unknown } | null | undefined)?.value;
+  }
+  const withModel = applyPinnedModelDefault(
+    options,
+    task.profilePolicy,
+    task.tenantDefaults,
+    selectedConnectorBinding,
+  );
+  const model = withModel?.model;
+  return {
+    parameters: Object.freeze({ ...task.input }),
+    profileSettings: Object.freeze(settings),
+    providerModel: typeof model === 'string' && model.trim().length > 0 ? model : undefined,
+  };
+}
+
+export class InputHashMismatchError extends Error {  constructor(readonly stepKey: string) {
     super(`checkpoint for step "${stepKey}" exists with a different inputHash`);
     this.name = 'InputHashMismatchError';
   }
@@ -265,6 +332,24 @@ export class DefaultTaskContext implements TaskContext {
    */
   public cryptoSeam(): WorkerCryptoSeam | undefined {
     return this.deps.crypto;
+  }
+
+  /**
+   * PC-06: the parameters admission resolved for this delivery.
+   *
+   * Deliberately a method on the concrete context and NOT a member of the
+   * public `TaskContext` interface — adding an interface member would break
+   * every other implementer (document-core ships its own `MockTaskContext`,
+   * which this packet may not touch). Same rationale as `cryptoSeam`.
+   *
+   * `options` / `selectedConnectorBinding` are the handler's own invoke inputs,
+   * so the reported `providerModel` is the one this call would actually send.
+   */
+  public resolvedParameters(
+    options?: Record<string, unknown>,
+    selectedConnectorBinding?: string,
+  ): ResolvedTaskParameterView {
+    return describeResolvedParameters(this.task, options, selectedConnectorBinding);
   }
 
   /**

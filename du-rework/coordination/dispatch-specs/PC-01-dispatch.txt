@@ -1,0 +1,51 @@
+[PACKET PC-01-EXECUTE: Implementation of Contracts V2 in @du/contracts]
+
+ROLE: DeepSeek Worker 2 (Contracts Implementation)
+TASK ID: PC-01
+STATUS: APPROVED BY ANTIGRAVITY COORDINATOR (Cycle 3/4)
+DECISIONS APPROVED: All 12 recommendations (D1 through D12) from report prep-pc01-contracts-spec.md are formally APPROVED.
+
+MASTER PLAN: du-rework/tasks/PLAN-PROFILE-CONTROL-PLANE-IMPLEMENTATION.md (PC-01 row)
+SPECIFICATION REFERENCE: du-rework/coordination/reports/prep-pc01-contracts-spec.md (§2 DTOs, §3 Fingerprint, §4 Tests)
+
+MUC TIEU:
+Thuc hien ghi cac thay doi da duoc verify vao ma nguon packages/contracts:
+1. orchestrator/packages/contracts/src/profile-groups.ts:
+   - Giu nguyen v1 schemas.
+   - Bo sung:
+     * PROFILE_GROUP_PROBLEM_CODES
+     * ProfileGroupAuthAuthoritySchema ('CHILD_PROJECTION' | 'GROUP_GRANT')
+     * ProfileGroupKeyGrantSchema (active grant DTO)
+     * ProfileGroupRevokedKeyGrantSchema
+     * ProfileGroupRequestDefaultsSchema (refuse credential-shaped keys)
+     * ProfileGroupV2FunctionInputSchema (with requestDefaults)
+     * ProfileGroupV2BusinessInputSchema
+     * ProfileGroupV2SaveSchema (strict, NO apiKey)
+     * ProfileGroupV2FunctionBindingSchema
+     * ProfileGroupV2BusinessSchema
+     * ProfileGroupV2Schema (with apiKeyGrants[], authMode: 'API_KEY', authAuthority, accessVersion)
+     * ProfileGroupKeyIssueInputSchema / ResultSchema
+     * ProfileGroupKeyRevokeInputSchema / ResultSchema
+     * ProfileGroupV2RollbackSchema
+     * ResolutionFingerprintSchema, canonicalRequestHash, computeResolutionFingerprint
+2. orchestrator/packages/contracts/src/manifest.ts:
+   - Bo sung ParameterResolutionCapabilitySchema (version: 2, fields, applyTopLevelDefaults: boolean)
+   - Mount parameterResolution optional tren ActionManifestSchema
+3. orchestrator/packages/contracts/src/public-api.ts:
+   - Bo sung ProfileGroupPreviewV2RequestSchema / ResponseSchema
+   - Bo sung ProfileGroupSubmitV2RequestSchema (resolutionFingerprint bat buoc)
+4. orchestrator/packages/contracts/src/admin-workbench.ts:
+   - Bo sung AdminWorkbenchProfilePreviewV2RequestSchema / ResponseSchema (bat buoc apiKeyId da chon)
+   - Bo sung AdminWorkbenchProfileSubmitV2RequestSchema (bat buoc resolutionFingerprint)
+5. orchestrator/packages/contracts/src/index.ts:
+   - Export cac schemas va types moi
+6. orchestrator/packages/contracts/tests/profile-groups-v2.test.ts:
+   - Tao moi file test voi toan bo 36 test cases tu Appendix A va report §4
+7. orchestrator/packages/contracts/tests/manifest.test.ts:
+   - Bo sung test cases cho parameterResolution capability
+
+TIEU CHI HOAN THANH:
+- Chay `pnpm --filter @du/contracts build` (hoac `node <contracts>/node_modules/typescript/bin/tsc -p tsconfig.json`) pass 100%, khong loi diagnostics.
+- Chay jest in-repo tren tests/profile-groups-v2.test.ts pass 36/36 tests.
+- Chay toan bo test suite cua @du/contracts (36 suites) pass 100%.
+- In ra: PC-01_IMPLEMENTATION_COMPLETE kem log ket qua test.

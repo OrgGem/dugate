@@ -4,8 +4,8 @@ import { handlePublicRoutes } from '../src/http/routes/public';
 describe('WFA workflow result ownership fence', () => {
   it('hides a same-tenant workflow result from a different API key before reading artifacts or resultRef', async () => {
     const query = jest.fn(async (sql: string, params: unknown[] = []) => {
-      if (sql.startsWith('SELECT id, tenant_id FROM api_keys')) {
-        return { rowCount: 1, rows: [{ id: 'other-key', tenant_id: 'tenant-a' }] };
+      if (sql.includes('FROM api_keys') && sql.includes('hash=')) {
+        return { rowCount: 1, rows: [{ id: 'other-key', tenant_id: 'tenant-a', key_mode: 'LEGACY_STANDALONE' }] };
       }
       if (/FROM operations/i.test(sql)) {
         expect(sql).toContain('tenant_id = $2 AND deleted_at IS NULL');

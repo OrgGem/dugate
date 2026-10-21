@@ -1,0 +1,51 @@
+# DISPATCH SPEC: PC-R07-UI (Render only declared parameter source in editor)
+Owner: Antigravity Coordinator
+Assignee: DeepSeek Worker 0 (term_ee18bc3a-0e81-4e67-9910-50d17bcfe970)
+Priority: P2
+Affected Packages: PC-08, PC-09
+
+## Objective
+Implement PC-R07 UI rendering in `admin-web`:
+Editor must inspect `descriptor.parameterResolution` (now exposed on `ProfileGroupFunction` in `@du/contracts`) and render each parameter ONLY in its declared effective source:
+- Profile settings renders properties declared as `profileSettings` (or not mapped to requestDefaults).
+- Request defaults renders ONLY properties declared as `requestDefaults`.
+- For v1 manifests (where `parameterResolution` is undefined / capability-free), hide or clearly disable request-default controls, since request defaults are inert on v1 manifests.
+
+## Evidence & Problem Analysis
+1. `du-rework/orchestrator/apps/admin-web/src/features/profiles/profile-group-editor.tsx`:
+   - Lines 604-612: renders all properties from `descriptor.profileSchema` into Profile settings.
+   - Lines 627-635: renders all properties from `descriptor.inputSchema` into Request defaults.
+2. For an opt-in manifest like `example-review` V3:
+   - `enableReasoning` is declared with source `requestDefaults`.
+   - Editing `Profile settings.enableReasoning` saves a value into `parameters` that the resolver ignores because its declared source is `requestDefaults`.
+3. For v1 manifests with no `parameterResolution` capability:
+   - The UI still displayed the request-defaults section, even though v1 functions ignore request defaults completely.
+
+## Scope & File Lease
+EXCLUSIVE LEASE FOR WORKER 0:
+- `du-rework/orchestrator/apps/admin-web/src/features/profiles/profile-group-editor.tsx`
+- `du-rework/orchestrator/apps/admin-web/src/features/profiles/profile-group-state.ts`
+- Tests: `du-rework/orchestrator/services/orchestrator/tests/aweb10-profile-group-v2-state.test.ts` or new UI regression tests.
+
+DO NOT touch any backend service modules or contracts files.
+
+## Detailed Requirements
+1. In `profile-group-editor.tsx`:
+   - Inspect `descriptor.parameterResolution` (type `Record<string, 'requestDefaults' | 'profileSettings'> | undefined`).
+   - If `descriptor.parameterResolution` is defined:
+     - Compute filtered schema for `Profile settings`: keep only properties that are declared as `profileSettings` (or where `parameterResolution[name] !== 'requestDefaults'`).
+     - Compute filtered schema for `Request defaults`: keep only properties declared as `requestDefaults` (`parameterResolution[name] === 'requestDefaults'`).
+     - If filtered request defaults schema has no properties, render a message explaining that no request defaults are declared for this function.
+   - If `descriptor.parameterResolution` is undefined (legacy / capability-free v1 manifest):
+     - Keep legacy behavior for profile settings.
+     - Hide or clearly disable request-defaults controls (with an informational notice that request defaults require an opt-in manifest capability).
+2. Author regression unit tests asserting:
+   - With an opt-in manifest (e.g. `example-review` v3 declaring `enableReasoning: requestDefaults`), `enableReasoning` appears in the filtered request defaults schema and is excluded from the profile settings schema.
+   - With a legacy v1 manifest (no `parameterResolution`), request defaults section is disabled or hidden, and profile settings retains all profileSchema properties.
+
+## Verification & Acceptance
+1. `npm exec tsc --noEmit` in `apps/admin-web` and `services/orchestrator` must pass with 0 errors.
+2. `vite build` in `apps/admin-web` passes (exit 0).
+3. All UI and state unit tests pass.
+4. Write receipt to `du-rework/coordination/reports/receipt-pc-r07-ui.md`.
+5. Signal completion: `PC-R07-UI_COMPLETE — du-rework/coordination/reports/receipt-pc-r07-ui.md`.

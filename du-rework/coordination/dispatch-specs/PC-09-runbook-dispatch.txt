@@ -1,0 +1,27 @@
+[PACKET PC-09-RUNBOOK: Phased Cutover Operational Runbook & Deployment Guide]
+
+ROLE: DeepSeek Worker 3 (System Integration & Verification Specialist)
+TASK ID: PC-09-RUNBOOK
+STATUS: RUNBOOK & DEPLOYMENT DOCUMENTATION
+MASTER PLAN: du-rework/tasks/PLAN-PROFILE-CONTROL-PLANE-IMPLEMENTATION.md (PC-09 row, "Verification and cutover")
+PRE-ANALYSIS: du-rework/coordination/reports/prep-pc09-cutover-spec.md §6 ("The six-phase runbook")
+
+EXCLUSIVE LEASE:
+- du-rework/coordination/reports/runbook-pc09-deployment.md (new operational runbook)
+
+PURPOSE:
+Synthesize the operational cutover runbook for operations and site reliability teams, translating the architectural findings and 6-phase sequence into an exact, step-by-step procedural runbook:
+1. Phase 1: Pre-deployment checks & schema migration application (0070, 0071).
+   - Reconciling the zero-downtime bridge window with `12b-deployment-guide.md` (why 0070/0071 additive migrations are safe for concurrent reader serving).
+2. Phase 2: Deploy readers and resolvers (`orchestrator` service) with dual-accept mode.
+3. Phase 3: Phased conversion of Profile Groups (`convertGroupToGrantAuthority` operational drill).
+   - Validation checks P1 through P7 before mutating group authority.
+4. Phase 4: Key migration & rotation verification.
+   - Managing `GROUP_MANAGED` keys, handling legacy standalone keys.
+5. Phase 5: Verification & Post-cutover monitoring (metrics, logs, audit trails, error codes).
+6. Phase 6: Rollback and disaster recovery procedures (safe revert windows vs post-conversion forward-fix).
+
+CRITERIA:
+- Clear, production-grade procedural runbook with exact SQL queries, curl examples, and verification steps.
+- Write to `du-rework/coordination/reports/runbook-pc09-deployment.md`.
+- Print: PC-09-RUNBOOK_COMPLETE kem duong dan runbook-pc09-deployment.md.

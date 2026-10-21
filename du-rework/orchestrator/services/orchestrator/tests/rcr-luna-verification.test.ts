@@ -494,7 +494,7 @@ describe('RCR Luna independent offline verification — legacy download bytes', 
       config: {},
       db: {
         query: async (sql: string) => {
-          if (sql.includes('FROM api_keys')) return result([{ id: API_KEY_ID, tenant_id: TENANT_ID }]);
+          if (sql.includes('FROM api_keys')) return result([{ id: API_KEY_ID, tenant_id: TENANT_ID, key_mode: 'LEGACY_STANDALONE' }]);
           if (sql.includes('SELECT * FROM operations')) {
             return result([{
               id: OPERATION_ID,

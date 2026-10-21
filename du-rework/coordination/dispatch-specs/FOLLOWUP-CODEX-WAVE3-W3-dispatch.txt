@@ -1,0 +1,23 @@
+# DISPATCH SPEC: FOLLOWUP-CODEX-WAVE3-W3 (Codex Review Follow-up: Findings 1, 3, 5)
+Owner: Antigravity Coordinator
+Assignee: DeepSeek Worker 3 (term_8469982b-916d-406a-bc4b-4889ba89ebe6)
+Priority: P1
+Affected Packages: PC-05, PC-07
+
+## Scope & Exclusive Lease
+- `du-rework/orchestrator/services/orchestrator/src/modules/operations/submission.ts`
+- `du-rework/orchestrator/services/orchestrator/src/modules/operations/retry.ts`
+- Tests in `tests/pc-r02-workflow-execution-pins.test.ts` and retry suites.
+
+## Objectives
+1. **Finding 1 [P1] (Workflow payload wrapping in `submission.ts:1806`):**
+   - In `submitProfileV2` around line 1806: when compiling task/operation input, distinguish a workflow action (which runs the workflow engine and expects the workflow schema carrier) from a direct business action (e.g. `example-review`). Standard business handlers must receive their direct input schema, not `{ input, legacyWorkflowSchema }`.
+2. **Finding 3 [P2] (Defaults snapshot in `submission.ts:1209, 1687`):**
+   - Ensure the resolved defaults snapshot used to compute the fingerprint in `buildProfileResolutionV2` is forwarded down to admission in `submitProfileV2`, avoiding a second out-of-band read that could diverge if tenant defaults changed concurrently. Verify settings revision at the transaction boundary.
+3. **Finding 5 [P2] (Replay fast-return in `retry.ts:380, 494`):**
+   - In `retryOperation`, after acquiring row locks and verifying authorization, if an existing in-flight retry execution is already found, return it immediately under lock BEFORE evaluating expired input/artifacts (avoiding returning `RETRY_INPUT_UNAVAILABLE` when a valid retry execution is already in flight). Revoked grants must still deny immediately.
+
+## Acceptance Criteria
+- `tsc --noEmit` exits 0.
+- `tests/pc-r02-workflow-execution-pins.test.ts` and retry regression suites pass.
+- Print token: `CODEX_WAVE3_W3_COMPLETE` and write brief summary.

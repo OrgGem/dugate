@@ -1,0 +1,26 @@
+# Dispatch Specification: Wave 3 Final Hardening — Worker 0 (Workflow Revision Pin Display Alignment)
+
+Target: Worker 0 (dsh_0, term_ee18bc3a-0e81-4e67-9910-50d17bcfe970)
+Priority: P2
+Leased Files:
+- du-rework/orchestrator/apps/admin-web/src/features/profiles/profile-group-editor.tsx
+- du-rework/orchestrator/apps/admin-web/src/features/profiles/profile-group-state.ts
+- du-rework/orchestrator/services/orchestrator/tests/aweb10-profile-group-v2-state.test.ts
+
+Context & Finding from Codex Audit:
+Finding: "Workflow revision hiển thị khác revision được lưu.
+Editor dòng 734 (profile-group-editor.tsx:734) hiển thị descriptor.workflowRevision, trong khi save builder dòng 564 (profile-group-state.ts:564) ưu tiên pin trong draft: config.workflowRevision ?? descriptor.workflowRevision.
+Ví dụ binding đang pin revision 2, catalog active là 5: màn hình 'Workflow revision' hiển thị 5, nhưng lưu vẫn là 2. Cần dùng cùng cách resolve revision cho cả hiển thị và save, kèm test tình huống này."
+
+Task:
+1. In `profile-group-state.ts`:
+   Export a helper function `resolveEffectiveWorkflowRevision(config: { workflowRevision?: number | null }, descriptor: { kind: 'action' | 'workflow'; workflowRevision?: number }): number | null` (or equivalent) that shares the exact same logic between display and save builder.
+2. In `profile-group-editor.tsx`:
+   Around line 734, use the effective resolved workflow revision so the UI displays what will actually be saved. If `config.workflowRevision` and `descriptor.workflowRevision` differ, show the effective pinned revision clearly (e.g. `{effectiveWorkflowRevision}` or `{effectiveWorkflowRevision} (catalog: {descriptor.workflowRevision})` or similar clean representation).
+3. In `tests/aweb10-profile-group-v2-state.test.ts`:
+   Add a unit test verifying that the effective workflow revision resolution helper correctly resolves `config.workflowRevision` when present, falling back to `descriptor.workflowRevision`, and returns `null` for non-workflow functions.
+4. Verify:
+   - `pnpm --filter @du/admin-web exec tsc --noEmit` exit 0.
+   - `pnpm --filter @du/orchestrator exec tsc --noEmit` exit 0.
+   - `jest tests/aweb10-profile-group-v2-state.test.ts` passes.
+5. Print completion token: `CODEX_WAVE3_W0_WORKFLOW_DISPLAY_COMPLETE`

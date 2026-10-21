@@ -1,0 +1,46 @@
+# DISPATCH SPEC: PC-R08 (Reauthorize managed v1 replay before idempotency returns)
+Owner: Antigravity Coordinator
+Assignee: DeepSeek Worker 3 (term_8469982b-916d-406a-bc4b-4889ba89ebe6)
+Priority: P2
+Affected Packages: PC-05, PC-09
+
+## Objective
+Fix defect PC-R08 identified in master plan:
+In `submission.ts`, idempotent replay currently returns an existing operation before managed admission authorization runs.
+For `GROUP_MANAGED` keys, if a root grant was revoked after the initial submission, an idempotent replay still succeeds.
+Reauthorize managed v1 requests against current root grant / active key authority before answering both fast-path and transactional replay.
+
+## Evidence & Problem Analysis
+1. `src/modules/operations/submission.ts:1440-1465`:
+   `findSubmissionKey` finds the existing submission key and returns `loadOperationView(...)` without verifying whether a `GROUP_MANAGED` key still holds an active root grant or is currently permitted.
+2. Global authentication on public v1 only checks ACTIVE key status in `api_keys`, so grant revocation alone does not invalidate key authentication at the HTTP layer.
+
+## Scope & File Lease
+EXCLUSIVE LEASE FOR WORKER 3:
+- `du-rework/orchestrator/services/orchestrator/src/modules/operations/submission.ts` (around lines 1420-1480 fast replay and 1530-1560 transactional replay)
+- Tests: `tests/profile-v2-http.test.ts` or a new regression test suite `tests/pc-r08-managed-replay-reauth.test.ts`.
+
+DO NOT edit `profiles.ts`, `api-keys.ts`, `retry.ts`, or frontend files.
+
+## Detailed Requirements
+1. In `submission.ts`:
+   - Before answering an idempotent replay for a request (both fast path and in-transaction path):
+     - Check if key mode is `GROUP_MANAGED` (read key mode / authority).
+     - For a `GROUP_MANAGED` key, verify that the key currently holds an ACTIVE root grant for the relevant group (or verify current managed admission authorization).
+     - If the root grant was revoked (or key is no longer active / endpoint disabled), REJECT the replay with 403 `GRANT_REVOKED` / `PERMISSION_DENIED`!
+   - Preserve exact same-owner replay across allowed configuration drift for authorized keys.
+   - Preserve historical read access: do not modify result/status/download read routes (an active key owner can still read past results even after grant revocation; global key revocation denies everywhere).
+
+2. Acceptance Tests:
+   - Accept a managed v1 submission with an Idempotency-Key.
+   - Revoke only its root grant.
+   - Repeat the submit with the same Idempotency-Key and body: MUST DENY (no rows created, no replay returned).
+   - Verify the original active owner key can still read historical operation results/status.
+   - Verify globally revoked key denies both replay and read.
+   - Verify authorized replay with allowed config drift succeeds with `replayed: true`.
+   - Verify changed-body replay conflicts with `IDEMPOTENCY_CONFLICT`.
+
+3. Verification:
+   - `tsc --noEmit` exits 0.
+   - All regression tests pass.
+   - Write receipt to `du-rework/coordination/reports/receipt-pc-r08.md`.

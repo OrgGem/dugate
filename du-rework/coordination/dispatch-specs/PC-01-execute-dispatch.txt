@@ -1,0 +1,29 @@
+[PACKET PC-01-EXECUTE: Apply V2 Contracts & Tests]
+
+ROLE: DeepSeek Worker 2 (Contracts Implementer)
+TASK ID: PC-01
+EXCLUSIVE FILE LEASE:
+- orchestrator/packages/contracts/src/profile-groups.ts
+- orchestrator/packages/contracts/src/manifest.ts
+- orchestrator/packages/contracts/src/public-api.ts
+- orchestrator/packages/contracts/src/admin-workbench.ts
+- orchestrator/packages/contracts/src/index.ts
+- orchestrator/packages/contracts/tests/profile-groups-v2.test.ts
+
+COORDINATOR DECISIONS CHO MUC 6 CUA REPORT:
+- D1: businesses.min(1) APPROVED.
+- D2: Chặn credential keys trong requestDefaults APPROVED (fail closed).
+- D5: DTO naming theo dung draft V2 (ProfileGroupV2Schema, ProfileGroupV2SaveSchema, v.v.).
+- D7/D8: Workbench businessId/endpointSlug co the null neu chi chon function qua kind.
+- D9: expectedAccessVersion ho tro ca If-Match header va body.
+
+CHI THI THUC HIEN:
+1. Ap dung chinh xac cac Zod schemas da duoc kiem chung 36/36 test vao 4 file src tuong ung duoi orchestrator/packages/contracts/src/.
+2. Export day du cac schema va types V2 moi tai orchestrator/packages/contracts/src/index.ts.
+3. Tao file test orchestrator/packages/contracts/tests/profile-groups-v2.test.ts chua day du 36 test cases tu Appendix A cua report.
+4. Chay kiem tra trong thu muc orchestrator/packages/contracts:
+   - Typecheck: node node_modules/typescript/bin/tsc --noEmit -p tsconfig.json (phai exit 0)
+   - Chay test suite moi: node node_modules/jest/bin/jest.js --runInBand tests/profile-groups-v2.test.ts
+   - Chay toan bo test suite cua contracts de dam bao khong regression: node node_modules/jest/bin/jest.js --runInBand
+5. Ghi receipt ket qua vao du-rework/coordination/reports/receipt-pc01-contracts.md bao gom exit code va so luong test passed.
+6. In ra dong: PC-01_EXECUTE_COMPLETE kem theo receipt.

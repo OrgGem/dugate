@@ -1,0 +1,43 @@
+[PACKET PC-05-EXECUTE: Resolution and V2 Admission Implementation]
+
+ROLE: DeepSeek Worker 3 (Resolution & Admission Specialist)
+TASK ID: PC-05
+STATUS: APPROVED BY ANTIGRAVITY COORDINATOR (Cycle 10)
+DECISIONS APPROVED: All 6 open questions (Q-1 through Q-6) from prep-pc05-admission-spec.md are formally APPROVED.
+LEASE EXTENSION GRANTED:
+- `orchestrator/services/orchestrator/migrations/0071_resolution_fingerprint.sql` (Option A approved for storing resolution_fingerprint on submission_keys).
+
+MASTER PLAN: du-rework/tasks/PLAN-PROFILE-CONTROL-PLANE-IMPLEMENTATION.md (PC-05 row, Manifest parameter and lock resolution)
+SPECIFICATION REFERENCE: du-rework/coordination/reports/prep-pc05-admission-spec.md (§3-§8)
+
+FILE LEASE (EXCLUSIVE):
+- orchestrator/services/orchestrator/src/modules/operations/submission.ts
+- orchestrator/services/orchestrator/src/modules/admin-workbench/service.ts
+- orchestrator/services/orchestrator/src/http/routes/public.ts
+- orchestrator/services/orchestrator/src/http/routes/internal-admin-workbench.ts
+- orchestrator/services/orchestrator/src/modules/profiles/policy.ts
+- orchestrator/packages/contracts/src/manifest-validator.ts
+- orchestrator/services/orchestrator/migrations/0071_resolution_fingerprint.sql (lease extension granted)
+- orchestrator/services/orchestrator/tests/profile-resolution-pg.test.ts (tao moi)
+- orchestrator/services/orchestrator/tests/profile-v2-http.test.ts (tao moi)
+
+CHI THI THUC HIEN:
+1. Migration 0071 (`0071_resolution_fingerprint.sql`):
+   - Thêm cột `resolution_fingerprint text` trên `submission_keys` kèm CHECK regex sha256 hex.
+2. Front Resolver:
+   - Thêm resolver mới phân nhánh trên `key_mode` (`legacy` | `standalone` | `group`).
+   - Nhánh `GROUP_MANAGED` chỉ giải quyết qua root grant và matching member, tuyệt đối không fallback sang child membership.
+   - Nhánh `standalone` giữ nguyên hành vi V1 cũ.
+3. V2 Submission & Inverted Idempotency:
+   - Kiểm tra quyền (auth) trước rồi mới replay idempotency (không được fast-path replay trước auth).
+   - Xác thực `resolutionFingerprint` trước khi ghi bất kỳ dữ liệu bền vững nào.
+4. Parameter Resolution & Semantic Validation:
+   - Triển khai phân vùng nguồn dữ liệu (`requestDefaults` vs `profileSettings`) cho manifest có khai báo capability.
+   - Chuẩn hóa `isLocked` (explicit ?? defaultLocked ?? false).
+   - Bổ sung 8 bước kiểm định ngữ nghĩa trong `manifest-validator.ts`.
+5. Public V2 & Workbench V2 Routes:
+   - Preview & Submit endpoint trên `public.ts` và `internal-admin-workbench.ts`.
+6. Tests:
+   - Chạy offline unit tests và PG live tests.
+   - Ghi receipt vào du-rework/coordination/reports/receipt-pc05-admission.md.
+   - In ra: PC-05_EXECUTE_COMPLETE.

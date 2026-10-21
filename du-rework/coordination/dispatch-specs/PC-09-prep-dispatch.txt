@@ -1,0 +1,35 @@
+[PACKET PREP-PC-09: End-to-End Verification & Phased Cutover Pre-Analysis]
+
+ROLE: DeepSeek Worker 3 (System Integration & Verification Specialist)
+TASK ID: PREP-PC-09
+STATUS: PRE-ANALYSIS / TEST MATRIX DESIGN (STRICTLY READ-ONLY ON SOURCE FILES)
+MASTER PLAN: du-rework/tasks/PLAN-PROFILE-CONTROL-PLANE-IMPLEMENTATION.md (PC-09 row, "Verification and cutover")
+PREREQUISITES: PC-01, PC-02, PC-03, PC-05, PC-06 ALL COMPLETED & ACCEPTED. PC-04 in final sweep, PC-07 in progress, PC-08 in prep.
+
+PURPOSE OF PREP-PC-09:
+Investigate and design the end-to-end test matrix, harness, and runbook for PC-09 (Verification and Cutover).
+Ensure zero guessing, zero unverified assumptions, and 100% testable criteria before execution.
+
+AREAS OF INVESTIGATION (READ-ONLY AUDIT):
+1. Existing test harnesses in `orchestrator/services/orchestrator/tests/`:
+   - Inspect existing integration / E2E suites: `profile-resolution-pg.test.ts`, `profile-groups-v2-pg.test.ts`, `profile-v2-http.test.ts`, `tests/e2e/*.e2e.test.ts`.
+   - Identify existing live PG test harness conventions (`getScratchClient`, `runAllMigrations`, teardown).
+2. End-to-End Matrix Coverage across all 6 core API Gateway endpoints:
+   - `ingest`, `extract`, `analyze`, `transform`, `generate`, `compare`.
+   - Four cohorts to test:
+     a. Legacy profiles (`LEGACY_STANDALONE` key, no profile group).
+     b. Standalone unmanaged profiles (`UNMANAGED_LEGACY`).
+     c. Single-key profile groups (`GROUP_MANAGED` with `CHILD_PROJECTION` vs `GROUP_GRANT`).
+     d. Multi-key profile groups (`GROUP_MANAGED` with multiple active root grants).
+3. Phased Cutover Plan & Conversion Proofs:
+   - Audit `convertGroupToGrantAuthority` in `modules/profiles/profile-groups.ts` and its 7 conversion proofs (P1 through P7).
+   - Verify requirement: readers/resolver deployed before writers/UI; zero downtime transition.
+   - Verify shadow compare role: purely diagnostic, never authorizes on mismatch.
+4. Prepare Comprehensive Report:
+   - Author `du-rework/coordination/reports/prep-pc09-cutover-spec.md`.
+   - Include test design, suite outline, step-by-step cutover verification runbook, and acceptance criteria.
+
+RULES:
+- STRICTLY READ-ONLY. Do NOT modify any existing source or test code during PREP phase.
+- Only create/write `du-rework/coordination/reports/prep-pc09-cutover-spec.md`.
+- When complete, print: PREP-PC-09_COMPLETE kem duong dan bao cao.

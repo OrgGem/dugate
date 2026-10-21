@@ -1,0 +1,20 @@
+[PACKET FOLLOWUP-PC04-SEED: Update Seed API Key in create-app.ts]
+
+ROLE: DeepSeek Worker 2 (API Key & Auth Specialist)
+TASK ID: FOLLOWUP-PC04-SEED
+STATUS: FOLLOW-UP (1-LINE FIX)
+EXCLUSIVE LEASE:
+- orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts
+
+PURPOSE:
+In `create-app.ts` line 520, the dev-fallback API key INSERT:
+```ts
+`INSERT INTO api_keys (id, tenant_id, hash, prefix, status, key_mode)
+ VALUES ('00000000-0000-0000-0000-000000000099',
+         '00000000-0000-0000-0000-000000000001',
+         'dev-fallback-placeholder', 'dev-fallback', 'ACTIVE', 'LEGACY_STANDALONE')
+ ON CONFLICT (id) DO NOTHING`
+```
+Add `key_mode` explicitly with `'LEGACY_STANDALONE'`.
+Verify with `npm exec tsc --noEmit` exit 0.
+Print: FOLLOWUP-PC04-SEED_COMPLETE

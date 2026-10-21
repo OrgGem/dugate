@@ -156,6 +156,14 @@ function makeStatefulDb(seed?: { apiKeys?: ApiKeySeed[] }) {
     if (/SELECT group_id FROM profile_names/.test(sql)) {
       return { rows: [], rowCount: 0 };
     }
+    // PC-03: the cross-scope group-ownership guard that runs before
+    // `ensureProfileId`. The real query carries `AND n.group_id IS NOT NULL`,
+    // so a standalone-only world answers with ZERO rows — returning a null-keyed
+    // row instead would be indistinguishable from a group-owned profile to the
+    // guard and would reject the write.
+    if (/SELECT n\.group_id, g\.auth_authority/.test(sql)) {
+      return { rows: [], rowCount: 0 };
+    }
     if (/SELECT api_key_id, tenant_id FROM profile_api_keys/.test(sql)) {
       const profileId = String(params[0]);
       const rows = state.names

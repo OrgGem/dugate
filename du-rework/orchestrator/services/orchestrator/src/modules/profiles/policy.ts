@@ -477,3 +477,176 @@ export function parseRequestRedactionRules(raw: unknown): RequestRedactionRule[]
   if (!parsed.success) throw new HttpError(422, 'INVALID_SCHEMA', 'Invalid request redaction rules');
   return parsed.data;
 }
+
+/* ------------------------------------------------------------------ */
+/* PC-05: parameterResolution partition and lock normalization         */
+/* ------------------------------------------------------------------ */
+
+export type ParameterResolutionSourceName = 'requestDefaults' | 'profileSettings';
+
+/** Property -> the single source that owns it (manifest `parameterResolution.fields`). */
+export type ParameterSourceFields = Readonly<Record<string, ParameterResolutionSourceName>>;
+
+export interface ResolveRequestParametersInput {
+  /** The raw `submission.input` the caller sent. Never mutated. */
+  clientInput: Readonly<Record<string, unknown>>;
+  /** `profile_bindings.request_defaults` of the pinned child revision. */
+  requestDefaults: Readonly<ProfileParameters>;
+  /** `profile_bindings.parameters` of the pinned child revision. */
+  profileSettings: Readonly<ProfileParameters>;
+  fields: ParameterSourceFields;
+  /** `parameterResolution.applyTopLevelDefaults`. */
+  applyTopLevelDefaults: boolean;
+  /** `action.inputSchema.properties`, for top-level defaults and `defaultLocked`. */
+  inputProperties: Readonly<Record<string, unknown>>;
+  /** `action.profileSchema.properties`, for `defaultLocked` on profile settings. */
+  profileProperties?: Readonly<Record<string, unknown>>;
+}
+
+export interface ResolvedRequestParameters {
+  /** The exact map the worker will run: client input plus filled defaults. */
+  parameters: Record<string, unknown>;
+  /** Property names filled from configured requestDefaults (not client input). */
+  appliedRequestDefaults: string[];
+  /** Property names filled from `inputSchema.properties.<name>.default`. */
+  appliedSchemaDefaults: string[];
+  /** Mapped properties whose effective lock is true. */
+  lockedParameters: string[];
+}
+
+/** The `defaultLocked` annotation a manifest may declare on a property schema. */
+export function declaredDefaultLocked(schema: unknown): boolean | undefined {
+  if (typeof schema !== 'object' || schema === null || Array.isArray(schema)) return undefined;
+  const value = (schema as Record<string, unknown>)['defaultLocked'];
+  return value === true ? true : value === false ? false : undefined;
+}
+
+/**
+ * Plan item 4: `explicit isLocked ?? mapped schema.defaultLocked ?? false`.
+ *
+ * The `??` chain is the contract, so `false` is a real value and only
+ * `undefined` falls through to the schema annotation.
+ */
+export function normalizeConfiguredLock(
+  config: Pick<ProfileParameterValue, 'isLocked'> | undefined,
+  schemaDefaultLocked: boolean | undefined,
+): boolean {
+  return config?.isLocked ?? schemaDefaultLocked ?? false;
+}
+
+function topLevelDefault(schema: unknown): { declared: boolean; value: unknown } {
+  if (typeof schema !== 'object' || schema === null || Array.isArray(schema)) {
+    return { declared: false, value: undefined };
+  }
+  const record = schema as Record<string, unknown>;
+  return Object.hasOwn(record, 'default')
+    ? { declared: true, value: record['default'] }
+    : { declared: false, value: undefined };
+}
+
+/**
+ * PC-05 — resolve request parameters for a manifest that declares the
+ * `parameterResolution` capability.
+ *
+ * Rules, in the order the plan states them:
+ *
+ *  1. `profileSettings` never reaches request input. A client value for such a
+ *     property is a locked-field violation when locked, and is dropped
+ *     otherwise (it is not request data).
+ *  2. `requestDefaults`: an explicit client value wins unless locked; a locked
+ *     property is refused on PRESENCE, even with an equal value.
+ *  3. An absent property is filled from the configured request default.
+ *  4. Failing that, `inputSchema.properties.<name>.default` fills it when
+ *     `applyTopLevelDefaults` is set.
+ *  5. Unmapped properties pass through untouched for AJV to judge.
+ *
+ * No deep merge anywhere, and every falsy value (`false`, `0`, `''`, `[]`, `{}`,
+ * `null`) is a value: absence is decided by `Object.hasOwn`, never by truthiness.
+ */
+export function resolveRequestParameters(
+  input: ResolveRequestParametersInput,
+): ResolvedRequestParameters {
+  const parameters: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(input.clientInput)) {
+    if (isReservedParameterKey(key)) {
+      throw new HttpError(400, 'PROFILE_UNKNOWN_FIELD', `parameter '${key}' is reserved and cannot be supplied`, {
+        errors: [{ pointer: `/${key}`, message: 'reserved key' }],
+      });
+    }
+    parameters[key] = value;
+  }
+
+  const appliedRequestDefaults: string[] = [];
+  const appliedSchemaDefaults: string[] = [];
+  const lockedParameters: string[] = [];
+
+  for (const [key, source] of Object.entries(input.fields)) {
+    const supplied = Object.hasOwn(input.clientInput, key);
+    const inputSchema = input.inputProperties[key];
+    const profileSchema = input.profileProperties?.[key];
+
+    if (source === 'profileSettings') {
+      const configured = input.profileSettings[key];
+      const locked = normalizeConfiguredLock(configured, declaredDefaultLocked(profileSchema));
+      if (locked) lockedParameters.push(key);
+      // Never request input, whether or not the administrator configured a
+      // value: the profile policy carries it.
+      delete parameters[key];
+      if (supplied) {
+        if (locked) {
+          throw new HttpError(400, 'PROFILE_LOCKED_FIELD', `parameter '${key}' is locked by the administrator`, {
+            errors: [{ pointer: `/${key}`, message: 'locked by the administrator' }],
+          });
+        }
+        throw new HttpError(400, 'PROFILE_UNKNOWN_FIELD', `parameter '${key}' is a profile setting, not request input`, {
+          errors: [{ pointer: `/${key}`, message: 'profile setting' }],
+        });
+      }
+      continue;
+    }
+
+    const configured = input.requestDefaults[key];
+    const locked = normalizeConfiguredLock(configured, declaredDefaultLocked(inputSchema));
+    if (locked) lockedParameters.push(key);
+    if (supplied) {
+      if (locked) {
+        throw new HttpError(400, 'PROFILE_LOCKED_FIELD', `parameter '${key}' is locked by the administrator`, {
+          errors: [{ pointer: `/${key}`, message: 'locked by the administrator' }],
+        });
+      }
+      continue; // explicit client input wins; value already copied above
+    }
+    if (configured !== undefined) {
+      parameters[key] = configured.value;
+      appliedRequestDefaults.push(key);
+      continue;
+    }
+    if (input.applyTopLevelDefaults) {
+      const fallback = topLevelDefault(inputSchema);
+      if (fallback.declared) {
+        parameters[key] = fallback.value;
+        appliedSchemaDefaults.push(key);
+      }
+    }
+  }
+
+  // `applyTopLevelDefaults` also covers properties the capability does not map:
+  // the opt-in promises that an absent top-level property with a declared
+  // schema default is filled. Mapped keys are already decided above, and a
+  // `profileSettings` mapping never enters request input, so both are skipped.
+  if (input.applyTopLevelDefaults) {
+    for (const [key, schema] of Object.entries(input.inputProperties)) {
+      if (Object.hasOwn(input.fields, key)) continue;
+      if (Object.hasOwn(parameters, key)) continue;
+      const fallback = topLevelDefault(schema);
+      if (!fallback.declared) continue;
+      parameters[key] = fallback.value;
+      appliedSchemaDefaults.push(key);
+    }
+  }
+
+  appliedRequestDefaults.sort();
+  appliedSchemaDefaults.sort();
+  lockedParameters.sort();
+  return { parameters, appliedRequestDefaults, appliedSchemaDefaults, lockedParameters };
+}

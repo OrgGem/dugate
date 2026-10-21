@@ -22,7 +22,7 @@ function issuingService() {
         created_at: new Date('2026-10-11T00:00:00Z'), updated_at: new Date('2026-10-11T00:00:00Z'), version: 1, protected: false };
       rows = [key];
     } else if (/SELECT id,tenant_id,prefix,name,status,created_at,updated_at,version,\(lower/.test(query)) rows = key ? [key] : [];
-    else if (/SELECT profile_id FROM profile_names/.test(query)) rows = (params[1] as string[]).map((profile_id) => ({ profile_id }));
+    else if (/SELECT profile_id, group_id FROM profile_names/.test(query)) rows = (params[1] as string[]).map((profile_id) => ({ profile_id, group_id: null }));
     else if (/SELECT profile_id FROM profile_api_keys/.test(query)) rows = memberships;
     else if (/INSERT INTO profile_api_keys/.test(query)) {
       const ids = params[0] as string[];

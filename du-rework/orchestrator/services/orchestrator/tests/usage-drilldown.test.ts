@@ -197,7 +197,7 @@ function routeContext(input: {
     db: {
       query: async () => ({
         rowCount: input.apiKey === undefined ? 0 : 1,
-        rows: input.apiKey === undefined ? [] : [{ id: 'key-1', tenant_id: input.apiKeyTenantId ?? TENANT_A }],
+        rows: input.apiKey === undefined ? [] : [{ id: 'key-1', tenant_id: input.apiKeyTenantId ?? TENANT_A, key_mode: 'LEGACY_STANDALONE' }],
       }),
     },
     usage: input.usage,

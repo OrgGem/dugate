@@ -1,0 +1,25 @@
+[PACKET SWEEP-PC05-FIXTURES: Sweep Residual Test Fakes for PC-05 & PC-02]
+
+ROLE: DeepSeek Worker 3 (System Integration & Verification Specialist)
+TASK ID: SWEEP-PC05-FIXTURES
+STATUS: FIXTURE HARMONIZATION (TEST FILES ONLY)
+PURPOSE:
+Update residual test fixtures for PC-05 queries and PC-02 migration sequence:
+1. `orchestrator/services/orchestrator/tests/profile-control-plane-migration-offline.test.ts`:
+   - Line 48 asserts `Math.max(...sequences)).toBe(70)`. Since migration `0071_resolution_fingerprint.sql` was added in PC-05, update expectation to check that 0070 exists and the max sequence is `>= 71` (or exactly 71).
+2. The 7 test suites where fake clients do not handle PC-05's `readApiKeyAuthorization` (`SELECT id, tenant_id, status, key_mode FROM api_keys WHERE id=$1`):
+   - `tests/submission-metadata-crypto-e2e.test.ts`
+   - `tests/w1-sub02-snapshot-secret.test.ts`
+   - `tests/p730-profile-snapshot.test.ts`
+   - `tests/enc-meta-sentinel-outbox-source-url.test.ts`
+   - `tests/crx01-creatapp-metadata-seam.test.ts`
+   - `tests/url-ingestion-offline.functional.test.ts`
+   - `tests/url-ingestion-backend-failclosed-offline.test.ts`
+
+EXCLUSIVE LEASE:
+- Exactly the 8 test files listed above.
+
+INSTRUCTIONS:
+In each fake client, when querying `api_keys` by id, return an active key with `key_mode: 'LEGACY_STANDALONE'` (e.g. `{ rows: [{ id: params[0], tenant_id: tenant, status: 'ACTIVE', key_mode: 'LEGACY_STANDALONE' }] }`).
+Verify with `jest --runInBand` across these suites.
+Print: SWEEP-PC05-FIXTURES_COMPLETE

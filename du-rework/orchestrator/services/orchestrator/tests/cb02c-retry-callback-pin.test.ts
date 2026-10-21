@@ -20,6 +20,8 @@ describe('CB-02c retry carries the original callback pin, never a current profil
     if (originalPin !== null) expect(ProfileCallbackPolicySnapshotSchema.safeParse(originalPin).success).toBe(true);
     const original: Record<string, unknown> = {
       id: operationId, tenant_id: tenantId, state: 'FAILED', root_task_id: taskId,
+      // PC-07: retry reauthorizes the recorded owner key before anything else.
+      api_key_id: '44444444-4444-4444-8444-444444444444',
       input_ref: { document: 'synthetic' }, submit_artifacts: [], callback_policy: originalPin,
       business_id: 'document-core', business_version: '1.0.0', action: 'extract',
       profile_policy_snapshot: { marker: 'original-profile' }, prompt_revisions_pin: { marker: 'original-prompts' },
@@ -29,6 +31,14 @@ describe('CB-02c retry carries the original callback pin, never a current profil
     const client = { query: async (sql: string, params: unknown[] = []) => {
       statements.push({ sql, params });
       if (sql.startsWith('SELECT * FROM operations')) return { rows: [original], rowCount: 1 };
+      // PC-07 reauthorization: the owner key must still be ACTIVE.
+      // PC-R03: it is read again under a row lock before the write.
+      if (sql.startsWith('SELECT status, key_mode FROM api_keys')) {
+        return { rows: [{ status: 'ACTIVE', key_mode: 'LEGACY_STANDALONE' }], rowCount: 1 };
+      }
+      if (sql.startsWith('SELECT id, tenant_id, status, key_mode FROM api_keys')) {
+        return { rows: [{ id: original.api_key_id, tenant_id: tenantId, status: 'ACTIVE', key_mode: 'LEGACY_STANDALONE' }], rowCount: 1 };
+      }
       if (sql.startsWith('SELECT k.name,k.spending_limit')) {
         return { rows: [{ name: 'key', spending_limit: '0', total_used: '0', tenant_id: tenantId }], rowCount: 1 };
       }

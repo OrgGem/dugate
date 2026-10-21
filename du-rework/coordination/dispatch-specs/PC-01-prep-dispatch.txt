@@ -1,0 +1,34 @@
+[PACKET PREP-PC-01: Contracts Pre-Analysis & V2 Schema Design]
+
+ROLE: DeepSeek Worker 2 (Contracts & Schema Specialist)
+TASK ID: PREP-PC-01
+MASTER PLAN: du-rework/tasks/PLAN-PROFILE-CONTROL-PLANE-IMPLEMENTATION.md (Doc muc PC-01 Contracts va DTO and route contract)
+
+MUC TIEU:
+Khao sat va lap ban thiet ke chi tiet cho goi PC-01 (Contracts v2) ma khong sua code tai thoi diem nay (READ-ONLY).
+
+FILE LEASE (READ-ONLY):
+- orchestrator/packages/contracts/src/profile-groups.ts
+- orchestrator/packages/contracts/src/manifest.ts
+- orchestrator/packages/contracts/src/runtime.ts
+- orchestrator/packages/contracts/src/admin-workbench.ts
+- orchestrator/packages/contracts/src/public-api.ts
+- orchestrator/packages/contracts/src/operations.ts
+- orchestrator/packages/contracts/tests/
+
+NOI DUNG CAN PHAN TICH:
+1. Danh gia ProfileGroupSaveSchema hien tai (dang bat buoc apiKey nhu the nao).
+2. Thiet ke chi tiet schema Zod cho v2 root DTOs:
+   - ProfileGroupV2SaveSchema (ho tro empty apiKeyGrants, khong co singular apiKey selector).
+   - ProfileGroupV2ResponseSchema (tra ve groupId, tenantId, authMode, authAuthority, revision, accessVersion, businesses, functions, requestDefaults, policy.parameters, apiKeyGrants[]).
+   - resolutionFingerprint (SHA-256 digest guard).
+   - ParameterResolution capability schema trong manifest.
+3. Chuan bi danh sach cac test cases can viet cho packages/contracts/tests/profile-groups-v2.test.ts.
+
+REPORT CAN GHI:
+Ghi vao file: du-rework/coordination/reports/prep-pc01-contracts-spec.md
+
+DONE CRITERIA:
+- Xuat file report day du cac Zod schema draft va contract test plan.
+- Khong sua file source code.
+- In ra: PREP-PC-01_COMPLETE kem duong dan file report.

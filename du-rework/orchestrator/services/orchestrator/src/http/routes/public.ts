@@ -22,6 +22,11 @@ import {
 import { readStreamBounded } from './public-bounded-body';
 import { resolveApiKey } from './api-key-auth';
 import { authorizeConnectorProbe } from '../../modules/connectors/probe-authorization';
+import { readIdempotencyKey } from '../../modules/idempotency/idempotency';
+import {
+  ProfileGroupPreviewV2RequestSchema,
+  ProfileGroupSubmitV2RequestSchema,
+} from '@du/contracts';
 import type { RouteContext, RouteResult } from '../route-context';
 
 /**
@@ -132,8 +137,102 @@ async function handlePublicCasResume(
   return { status: result.replayed ? 200 : 202, body: result };
 }
 
+/**
+ * PC-05 — public v2 profile-group resolution.
+ *
+ *   POST /api/v2/profile-groups/:groupId/preview
+ *   POST /api/v2/profile-groups/:groupId/operations
+ *
+ * The group is addressed by PATH only: the request DTOs are `.strict()` and
+ * carry no `groupId`, so a client cannot claim one group's selector while
+ * resolving another group's grant. Both routes authenticate with the presented
+ * `x-api-key`; the resolver decides whether that key is group-managed.
+ */
+async function handlePublicProfileGroupsV2(ctx: RouteContext): Promise<RouteResult> {
+  const match = /^\/api\/v2\/profile-groups\/([^/]+)\/(preview|operations)$/.exec(ctx.pathname);
+  if (!match) throw new HttpError(404, 'NOT_FOUND', 'Not Found');
+  if (ctx.method !== 'POST') {
+    throw new HttpError(405, 'METHOD_NOT_ALLOWED', 'profile group v2 routes require POST');
+  }
+  if ([...ctx.searchParams].length > 0) {
+    throw new HttpError(422, 'INVALID_SCHEMA', 'profile group v2 routes do not accept query parameters');
+  }
+  let groupId: string;
+  try {
+    groupId = decodeURIComponent(match[1]!);
+  } catch {
+    throw new HttpError(404, 'NOT_FOUND', 'Not Found');
+  }
+  if (!/^[0-9a-f-]{36}$/i.test(groupId)) throw new HttpError(404, 'NOT_FOUND', 'Not Found');
+  const apiKey = await resolveApiKey(ctx);
+
+  if (match[2] === 'preview') {
+    const parsed = ProfileGroupPreviewV2RequestSchema.safeParse(ctx.body);
+    if (!parsed.success) throw zodIssuesToProblem(parsed.error.issues);
+    const preview = await ctx.submission.previewProfileV2({
+      tenantId: apiKey.tenantId,
+      apiKeyId: apiKey.id,
+      groupId,
+      selector: {
+        businessId: parsed.data.businessId,
+        businessVersion: parsed.data.businessVersion,
+        action: parsed.data.action,
+        functionId: parsed.data.functionId,
+        ...(parsed.data.endpointSlug ? { endpointSlug: parsed.data.endpointSlug } : {}),
+      },
+      submission: parsed.data.submission,
+      correlationId: ctx.correlationId,
+    });
+    return { status: 200, body: preview };
+  }
+
+  const parsed = ProfileGroupSubmitV2RequestSchema.safeParse(ctx.body);
+  if (!parsed.success) throw zodIssuesToProblem(parsed.error.issues);
+  const idempotencyKey = readIdempotencyKey(ctx.headers);
+  if (!idempotencyKey) {
+    throw new HttpError(422, 'INVALID_SCHEMA', 'profile group v2 submission requires an Idempotency-Key');
+  }
+  const result = await ctx.submission.submitProfileV2({
+    tenantId: apiKey.tenantId,
+    apiKeyId: apiKey.id,
+    groupId,
+    selector: {
+      businessId: parsed.data.businessId,
+      businessVersion: parsed.data.businessVersion,
+      action: parsed.data.action,
+      functionId: parsed.data.functionId,
+      ...(parsed.data.endpointSlug ? { endpointSlug: parsed.data.endpointSlug } : {}),
+    },
+    submission: parsed.data.submission,
+    resolutionFingerprint: parsed.data.resolutionFingerprint,
+    idempotencyKey,
+    correlationId: ctx.correlationId,
+  });
+  if (ctx.config.autoDispatch !== false && result.operation.state !== 'PENDING_INGESTION') {
+    ctx.dispatcher.dispatchOnce().catch(() => undefined);
+  }
+  return {
+    status: result.replayed ? 200 : 202,
+    body: {
+      operationId: result.operation.id,
+      state: result.operation.state,
+      stateVersion: result.operation.stateVersion,
+      replayed: result.replayed,
+      correlationId: result.correlationId,
+      links: result.operation.links,
+    },
+  };
+}
+
 export async function handlePublicRoutes(ctx: RouteContext): Promise<RouteResult | null> {
   const { method, pathname } = ctx;
+
+  // PC-05: public v2 profile-group resolution. The `/api/v2` prefix is disjoint
+  // from every handler family tried before this one and from the legacy public
+  // regexes below, so claiming it here needs no `server.ts` registration.
+  if (pathname === '/api/v2/profile-groups' || pathname.startsWith('/api/v2/profile-groups/')) {
+    return handlePublicProfileGroupsV2(ctx);
+  }
 
   // Preserve the published API-key operation flow. Unsupported management
   // extensions (metrics/retry) remain absent; admin operations live under the

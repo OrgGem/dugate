@@ -1,0 +1,56 @@
+# DISPATCH SPEC: PC-R06 (Preserve locks during value edits)
+Owner: Antigravity Coordinator
+Assignee: DeepSeek Worker 0 (term_ee18bc3a-0e81-4e67-9910-50d17bcfe970)
+Priority: P2
+Affected Packages: PC-08, PC-09
+
+## Objective
+Fix request default lock dropping defect PC-R06 identified in implementation review:
+Editing a request default value must preserve its `isLocked` state and per-field metadata, and never silently unlock fields when saving changes.
+
+## Evidence & Problem Analysis
+1. `du-rework/orchestrator/apps/admin-web/src/features/profiles/profile-group-editor.tsx`:
+   Line 434:
+   ```typescript
+   function updateRequestDefault(member: ProfileGroupMemberDraft, functionId: string, parameter: string, value: unknown): void {
+     updateFunctionDraft(member, functionId, (current) => ({
+       ...current,
+       requestDefaults: { ...current.requestDefaults, [parameter]: { value } },
+     }));
+   }
+   ```
+   Notice that `updateRequestDefault` replaces the parameter entry with `{ value }`. This discards any existing explicit `isLocked: true`. When the schema does not default to locked, backend normalization subsequently unlocks the field, allowing unauthorized client overrides.
+2. In contrast, `updatePolicyParameter` at line 427 preserves `isLocked`.
+3. In addition, examine `profile-group-state.ts` and `profile-group-schema-fields.tsx` to ensure any toggle or edit controls for lock state and values preserve full per-field metadata (including `isLocked`, explicit null, false, and 0).
+
+## Scope & File Lease
+EXCLUSIVE LEASE FOR WORKER 0:
+- `du-rework/orchestrator/apps/admin-web/src/features/profiles/profile-group-editor.tsx`
+- `du-rework/orchestrator/apps/admin-web/src/features/profiles/profile-group-state.ts`
+- `du-rework/orchestrator/apps/admin-web/src/features/profiles/profile-group-schema-fields.tsx` (if relevant)
+- Tests: `du-rework/orchestrator/services/orchestrator/tests/aweb10-profile-group-v2-state.test.ts` or new UI / state regression tests.
+
+DO NOT touch any backend service modules or contracts files.
+
+## Detailed Requirements
+1. In `profile-group-editor.tsx`:
+   - In `updateRequestDefault`, preserve existing metadata:
+     `{ ...current.requestDefaults[parameter], value, isLocked: current.requestDefaults[parameter]?.isLocked ?? false }` (or schema default if applicable).
+   - If a dedicated lock toggle exists or is added for request defaults, ensure it toggles `isLocked` without mutating `value`.
+   - Preserve unset, explicit null, false, and zero semantics during load, edit, and save.
+2. In `profile-group-state.ts`:
+   - Verify serialization / deserialization roundtrip preserves `isLocked` on `requestDefaults`.
+3. Author UI / state regression tests covering:
+   - Loading a request default that is explicitly locked (`isLocked: true`, where schema has no `defaultLocked`).
+   - Editing ONLY the value of that default.
+   - Asserting that after editing the value and preparing the save payload, `isLocked` remains `true`.
+   - Test unlocked entries, schema-derived locks, and explicit false/null/zero values.
+
+## Verification & Acceptance
+1. Typecheck: `npm exec tsc --noEmit` in both service and `apps/admin-web` must pass with 0 errors.
+2. Build: `npm run build` or `vite build` in `apps/admin-web` must exit 0.
+3. Tests:
+   - Run `npx jest --config jest.unit.config.cjs tests/aweb10-profile-group-v2-state.test.ts`
+   - Run any new regression tests.
+4. Write receipt to `du-rework/coordination/reports/receipt-pc-r06.md`.
+5. Print completion signal: `PC-R06_COMPLETE — du-rework/coordination/reports/receipt-pc-r06.md`.

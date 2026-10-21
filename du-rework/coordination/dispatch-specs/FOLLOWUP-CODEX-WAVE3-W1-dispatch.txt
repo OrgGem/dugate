@@ -1,0 +1,22 @@
+# DISPATCH SPEC: FOLLOWUP-CODEX-WAVE3-W1 (Codex Review Follow-up: Finding 2)
+Owner: Antigravity Coordinator
+Assignee: DeepSeek Worker 1 (term_3bfff1da-026b-4520-8878-a4f841b11dff)
+Priority: P2
+Affected Packages: PC-05
+
+## Scope & Exclusive Lease
+- `du-rework/orchestrator/services/orchestrator/src/modules/connectors/provider-test.ts`
+- `du-rework/orchestrator/services/orchestrator/src/modules/connectors/probe-authorization.ts`
+- Tests in `tests/pc-r05-connector-probe-root-grant.test.ts`
+
+## Objectives
+**Finding 2 [P2] (Managed provider-test lock order & authority):**
+1. In `src/modules/connectors/provider-test.ts:365`:
+   - Harmonize lock ordering to `root -> key` (matching global revoke and universal lock order), rather than acquiring key first then root.
+   - Ensure `GROUP_MANAGED` keys resolve via root grant authority in provider test without failing on missing legacy child memberships.
+   - Revoked grant must strictly deny before provider invocation or rate limit evaluation.
+
+## Acceptance Criteria
+- `tsc --noEmit` exits 0.
+- `tests/pc-r05-connector-probe-root-grant.test.ts` passes.
+- Print token: `CODEX_WAVE3_W1_COMPLETE` and write brief summary.

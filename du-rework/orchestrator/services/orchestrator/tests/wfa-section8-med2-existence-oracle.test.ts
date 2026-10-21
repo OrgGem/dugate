@@ -39,9 +39,9 @@ function routeContext(options: {
     [hashKey(OTHER_SECRET), { id: 'other-key', tenant_id: TENANT_A }],
   ]);
   const query = jest.fn(async (sql: string, params: unknown[] = []) => {
-    if (sql.startsWith('SELECT id, tenant_id FROM api_keys')) {
+    if (sql.includes('FROM api_keys') && sql.includes('hash=')) {
       const key = keys.get(String(params[0]));
-      return key ? { rowCount: 1, rows: [key] } : { rowCount: 0, rows: [] };
+      return key ? { rowCount: 1, rows: [{ ...key, key_mode: 'LEGACY_STANDALONE' }] } : { rowCount: 0, rows: [] };
     }
     if (sql.startsWith('SELECT * FROM operations')) {
       const id = String(params[0] ?? '');

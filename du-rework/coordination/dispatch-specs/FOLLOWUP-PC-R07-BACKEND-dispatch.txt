@@ -1,0 +1,32 @@
+# DISPATCH SPEC: FOLLOWUP-PC-R07-BACKEND (Project descriptor parameterResolution into functions and validate misplaced values)
+Owner: Antigravity Coordinator
+Assignee: DeepSeek Worker 1 (term_3bfff1da-026b-4520-8878-a4f841b11dff)
+Priority: P2
+Affected Packages: PC-03, PC-08, PC-09
+
+## Objective
+Implement backend support for PC-R07:
+Carry the immutable capability/mapping (`descriptor.parameterResolution`) through profile-groups service and BFF:
+1. In `src/modules/profiles/profile-groups.ts`:
+   - When building function definitions for profile groups (reading from manifest / catalog), attach `descriptor.parameterResolution` to each `ProfileGroupFunction` (from `@du/contracts`).
+   - In save validation: if a manifest defines `parameterResolution`, reject misplaced v2 values (e.g. if a parameter is declared as `requestDefaults` but provided in policy parameters or vice versa, reject with 422 `INVALID_SCHEMA` rather than silently ignoring it).
+   - Preserve intentional v1 schema overlap and do not silently enable v2 semantics for old manifests (where `parameterResolution` is absent/inert).
+2. In `src/app/admin/bff/profile-groups-v2.ts`:
+   - Ensure `parameterResolution` flows through the function catalog and group responses to the frontend.
+
+## Scope & File Lease
+EXCLUSIVE LEASE FOR WORKER 1:
+- `du-rework/orchestrator/services/orchestrator/src/modules/profiles/profile-groups.ts`
+- `du-rework/orchestrator/services/orchestrator/src/app/admin/bff/profile-groups-v2.ts`
+- Tests: `tests/aweb10-bff-profile-groups-v2.test.ts`, `tests/profile-groups-v2-offline.test.ts` or new test suite `tests/pc-r07-backend-parameter-source.test.ts`.
+
+DO NOT touch `submission.ts`, `retry.ts`, `apps/admin-web`, or contracts.
+
+## Acceptance Criteria
+1. Functions returned in profile-group v2 reads and BFF catalog include `parameterResolution?: Record<string, 'profileSettings' | 'requestDefaults'>`.
+2. Saving a group with misplaced parameters against a manifest with `parameterResolution` is rejected (e.g. 422 `INVALID_SCHEMA`).
+3. Manifests without `parameterResolution` (v1) remain backward-compatible with legacy merge behavior.
+4. `tsc --noEmit` exits 0.
+5. All relevant unit/offline tests pass.
+6. Write receipt to `du-rework/coordination/reports/receipt-pc-r07-backend.md`.
+7. Print completion token: `PC-R07_BACKEND_COMPLETE — du-rework/coordination/reports/receipt-pc-r07-backend.md`.

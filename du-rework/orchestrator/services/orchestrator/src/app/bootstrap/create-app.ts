@@ -516,11 +516,15 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
          ON CONFLICT (id) DO NOTHING`
       );
       // Dev fallback key row so operations.api_key_id FK always resolves.
+      // PC-04: 0070 added `api_keys.key_mode` with no DEFAULT, so every writer
+      // must declare one. The placeholder hash never authenticates (fail-closed
+      // resolver), but leaving the column NULL would violate the "no NULL after
+      // 0070" invariant this seed is checked against.
       await db.query(
-        `INSERT INTO api_keys (id, tenant_id, hash, prefix, status)
+        `INSERT INTO api_keys (id, tenant_id, hash, prefix, status, key_mode)
          VALUES ('00000000-0000-0000-0000-000000000099',
                  '00000000-0000-0000-0000-000000000001',
-                 'dev-fallback-placeholder', 'dev-fallback', 'ACTIVE')
+                 'dev-fallback-placeholder', 'dev-fallback', 'ACTIVE', 'LEGACY_STANDALONE')
          ON CONFLICT (id) DO NOTHING`
       );
     }

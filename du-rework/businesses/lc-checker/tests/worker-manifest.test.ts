@@ -1,5 +1,6 @@
 import { lcCheckerHandlers, mainLcCheckerHandler, ocrChildHandler, visualChildHandler } from '../src/worker';
-import { LC_CHECKER_HANDLER_KINDS, lcCheckerManifest } from '../src/manifest';
+import { LC_CHECKER_HANDLER_KINDS, lcCheckerManifest, lcCheckerManifestV120 } from '../src/manifest';
+import { validateManifest } from '@du/contracts';
 import { LC_DEFAULT_RULE_SET_VERSION, LC_RULE_SET_STATUS } from '../src/rules/rule-registry';
 import { LC_CHECKER_INPUT_VERSION } from '../src/types';
 import {
@@ -254,5 +255,39 @@ describe('P9-02 worker adapter', () => {
   it('rejects an input that carries an identity field before touching anything', async () => {
     const harness = makeHarness({ input: validInput({ apiKeyId: 'dg_stolen' }) });
     await expect(mainLcCheckerHandler(harness.ctx)).rejects.toThrow('must not carry an identity field');
+  });
+});
+
+/**
+ * PC-06 — parameterResolution opt-in registration.
+ *
+ * `maxConcurrency` is declared by both `inputSchema` and `profileSchema`; the
+ * capability declares it a `requestDefaults` source because the worker reads it
+ * from the task input. 1.1.0 stays immutable.
+ */
+describe('PC-06 parameterResolution opt-in version (1.2.0)', () => {
+  it('keeps the registered 1.1.0 manifest free of the capability', () => {
+    expect(lcCheckerManifest.version).toBe('1.1.0');
+    expect(lcCheckerManifest.actions.every((action) => action.parameterResolution === undefined)).toBe(true);
+  });
+
+  it('validates 1.2.0 with one source per property', () => {
+    const result = validateManifest(lcCheckerManifestV120);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.queue).toBe('du-business-lc-checker-1.2.0');
+    const action = result.manifest.actions.find((candidate) => candidate.name === 'lc-checker');
+    expect(action?.parameterResolution).toEqual({
+      version: 2,
+      fields: {
+        maxConcurrency: 'requestDefaults',
+        ocrSlot: 'profileSettings',
+        crosscheckSlot: 'profileSettings',
+        reportSlot: 'profileSettings',
+      },
+      applyTopLevelDefaults: false,
+    });
+    const base = validateManifest(lcCheckerManifest);
+    if (base.ok) expect(result.digest).not.toBe(base.digest);
   });
 });

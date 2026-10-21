@@ -243,8 +243,7 @@ describe('WOC independent real-PostgreSQL profile invariants', () => {
     const raw = `du_vfy_${label}_${randomUUID().replaceAll('-', '')}`;
     const hash = createHash('sha256').update(raw).digest('hex');
     await app!.db.query(
-      `INSERT INTO api_keys (id, tenant_id, hash, prefix, status)
-       VALUES ($1,$2,$3,$4,'ACTIVE')`,
+      `INSERT INTO api_keys (id, tenant_id, hash, prefix, status, key_mode) VALUES ($1,$2,$3,$4,'ACTIVE', 'LEGACY_STANDALONE')`,
       [id, tenantId, hash, `vfy_${label}`],
     );
     return { id, raw };

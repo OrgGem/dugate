@@ -30,6 +30,16 @@ function makeRetryClient(input: {
     const sql = text.replace(/\s+/g, ' ').trim();
     calls.push(sql);
     if (sql.startsWith('SELECT * FROM operations WHERE id=$1')) return { rows: [op], rowCount: 1 };
+    // PC-07 reauthorization: the recorded owner key must still be ACTIVE. The
+    // fixture key is unclassified (`key_mode = null`), which takes the legacy
+    // branch exactly as it did before the control plane existed.
+    if (sql.startsWith('SELECT id, tenant_id, status, key_mode FROM api_keys')) {
+      return { rows: [{ id: 'key-retry', tenant_id: tenantId, status: 'ACTIVE', key_mode: null }], rowCount: 1 };
+    }
+    // PC-R03: the locked re-read of the same key row before the write.
+    if (sql.startsWith('SELECT status, key_mode FROM api_keys')) {
+      return { rows: [{ status: 'ACTIVE', key_mode: null }], rowCount: 1 };
+    }
     if (sql.includes('WHERE retry_of=$1')) {
       return input.existingRetry
         ? { rows: [{ id: 'op-retry-existing', state: 'RUNNING' }], rowCount: 1 }
@@ -69,8 +79,13 @@ describe('fresh operation retry admission', () => {
     await expect(retryOperation(world.client, operationId, tenantId)).resolves.toMatchObject({
       operationId: 'op-retry-existing', replayed: true,
     });
-    expect(world.calls.some((sql) => sql.startsWith('SELECT enabled,activation_revision,submissions_paused'))).toBe(false);
+    // PC-R03: the business row is now READ (FOR UPDATE) before the replay
+    // answer, because the group → selector → key → grant lock prefix must be
+    // taken in one order and the replay may only be answered under it. What
+    // still matters is that the pre-drain refusal is not applied to a replay
+    // and that nothing is written.
     expect(world.calls.some((sql) => sql.startsWith('INSERT INTO operations'))).toBe(false);
+    expect(world.calls.some((sql) => sql.startsWith('INSERT INTO tasks'))).toBe(false);
   });
 
   it('rejects a fresh retry during pre-drain before operation or task locks and writes', async () => {

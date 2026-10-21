@@ -62,6 +62,7 @@ import { handleCostControlRoute, matchCostControlRoute } from './cost-control';
 import { handleCostAdjustmentRoute, matchCostAdjustmentRoute } from './cost-adjustments';
 import { handleCostAlertsRoute, matchCostAlertsRoute } from './cost-alerts';
 import { handleProfileGroupsRoute, matchProfileGroupsRoute } from './profile-groups';
+import { handleProfileGroupsV2Route, matchProfileGroupsV2Route } from './profile-groups-v2';
 
 const logger = createLogger({ service: 'orchestrator', baseFields: { subsystem: 'admin-bff' } });
 
@@ -143,6 +144,13 @@ export async function handleBffRequest(
     const costAlertsRoute = matchCostAlertsRoute(relative);
     if (costAlertsRoute !== null) {
       return await handleCostAlertsRoute(req, res, request, costAlertsRoute, query, config, runtime, correlationId);
+    }
+    // PC-08: the V2 family MUST be matched before the v1 family — the v1
+    // matcher answers `{kind:'invalid'}` (404) for `/profile-groups/v2`, so a
+    // later position would make every V2 route unreachable.
+    const profileGroupsV2Route = matchProfileGroupsV2Route(relative);
+    if (profileGroupsV2Route !== null) {
+      return await handleProfileGroupsV2Route(req, res, request, profileGroupsV2Route, query, config, runtime, correlationId);
     }
     const profileGroupsRoute = matchProfileGroupsRoute(relative);
     if (profileGroupsRoute !== null) {

@@ -6,7 +6,7 @@ import type { AddressInfo } from 'node:net';
 import { createConnectorProxy } from '../src/modules/connectors/connectors';
 import { HttpError } from '../src/http/errors';
 
-const principal = { id: 'key-a', tenantId: 'tenant-a' };
+const principal = { id: 'key-a', tenantId: 'tenant-a', keyMode: 'LEGACY_STANDALONE' as const };
 const own = {
   api_key_id: principal.id,
   tenant_id: principal.tenantId,
@@ -52,7 +52,7 @@ describe('PLAT-MIG-02 published connector probe authorization', () => {
 describe('public readiness route before outbound probe', () => {
   function context(bindings: unknown[]) {
     const db = database(bindings);
-    db.query.mockResolvedValueOnce({ rows: [{ id: principal.id, tenant_id: principal.tenantId }], rowCount: 1 });
+    db.query.mockResolvedValueOnce({ rows: [{ id: principal.id, tenant_id: principal.tenantId, key_mode: 'LEGACY_STANDALONE' }], rowCount: 1 });
     const testConnector = jest.fn().mockResolvedValue({ connectorId: 'connector-a', ok: true, latencyMs: 1 });
     const ctx = {
       method: 'GET', pathname: '/api/v1/connectors/connector-a/test',
@@ -116,7 +116,7 @@ describe('HTTP readiness boundary with a real loopback Connector probe', () => {
     const connectorUrl = await listen(connector);
     const proxy = createConnectorProxy({ baseUrlFor: () => connectorUrl });
     const db = database(rows);
-    db.query.mockResolvedValueOnce({ rows: [{ id: principal.id, tenant_id: principal.tenantId }], rowCount: 1 });
+    db.query.mockResolvedValueOnce({ rows: [{ id: principal.id, tenant_id: principal.tenantId, key_mode: 'LEGACY_STANDALONE' }], rowCount: 1 });
     const api = createServer((request, response) => {
       const ctx = {
         method: request.method, pathname: request.url, headers: request.headers,

@@ -1,0 +1,48 @@
+[PACKET PC-03-EXECUTE: Group Config Service V2 Implementation]
+
+ROLE: DeepSeek Worker 1 (Service & Route Implementation)
+TASK ID: PC-03
+STATUS: IN EXECUTION (POST PC-01 / PC-02 / PREP-PC-03 APPROVED)
+MASTER PLAN: du-rework/tasks/PLAN-PROFILE-CONTROL-PLANE-IMPLEMENTATION.md (PC-03 row)
+APPROVED SPEC: du-rework/coordination/reports/prep-pc03-service-spec.md
+
+COORDINATOR RULINGS ON D-1..D-9 & LEASE EXTENSIONS:
+- D-1: APPROVED. No auto-conversion on v2 mutate. Return 409 PROFILE_GROUP_V2_REQUIRED.
+- D-2: APPROVED. Legacy v1 create POST /api/v1/admin/profile-groups continues writing CHILD_PROJECTION.
+- D-3: APPROVED. v1 list read fails with 409 if any converted group has 0 or >1 grants.
+- D-4: APPROVED. Reuse 409 STATE_CONFLICT + detail.check for conversion blockage in PC-03.
+- D-5: APPROVED. Redact secret in idempotency marker (secretAvailable: false, no raw secret on replay).
+- D-6: APPROVED. Workflow identity = functionId.
+- D-7: APPROVED. Grant mutations bump access_version, not profile_groups.updated_at.
+- D-8: APPROVED. Idempotency-Key required on grant issue/revoke (422 if missing).
+- D-9: APPROVED. P7 (no in-flight child operations) is a prerequisite proof for conversion.
+- LEASE EXTENSIONS GRANTED:
+  * modules/profiles/self-service.ts (L-1 firewall)
+  * jest.unit.config.cjs (L-5 liveSuites registration)
+
+FILE LEASE (EXCLUSIVE):
+- orchestrator/services/orchestrator/src/modules/profiles/profile-groups.ts
+- orchestrator/services/orchestrator/src/modules/profiles/profiles.ts
+- orchestrator/services/orchestrator/src/modules/profiles/self-service.ts
+- orchestrator/services/orchestrator/src/modules/admin-actions/profile-actions.ts
+- orchestrator/services/orchestrator/src/http/routes/admin-profile-groups.ts
+- orchestrator/services/orchestrator/src/http/routes/admin-profile-groups-v2.ts (new)
+- orchestrator/services/orchestrator/src/server.ts (v2 route registration)
+- orchestrator/services/orchestrator/jest.unit.config.cjs (register live suite in liveSuites)
+- orchestrator/services/orchestrator/tests/profile-groups-v2-*.test.ts (new offline & live suites)
+
+TASKS:
+1. Implement V2 Group Service & compatibility firewall in accordance with prep-pc03-service-spec.md:
+   - Create/Read/Update/Rollback with zero keys.
+   - Independent clocks: active_revision vs access_version.
+   - Fix shadow-profile fork (resolve across both scopes before create).
+   - Fix lock ordering (business availability lock before API key lock).
+   - Export seams for PC-04 and PC-05 (assertLegacyGroupWriteAllowed, revokeAllGroupGrantsForApiKey, readGroupAuthority, resolveRootGrant, getProfileGroupV2).
+2. Implement V2 Admin Routes in src/http/routes/admin-profile-groups-v2.ts and register in server.ts.
+3. Implement V1 firewall in src/http/routes/admin-profile-groups.ts and self-service.ts.
+4. Author and run test suites:
+   - tests/profile-groups-v2-offline.test.ts (V2-R, V2-W, V2-B, V2-G, V2-X)
+   - tests/profile-groups-v2-routes-offline.test.ts (V2-P)
+   - tests/profile-groups-v2-pg.test.ts (V2-L)
+5. Generate receipt at du-rework/coordination/reports/receipt-pc03-service.md.
+6. Print PC-03_EXECUTE_COMPLETE upon finish.

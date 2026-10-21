@@ -563,3 +563,34 @@ export const documentCoreManifest: BusinessManifest = {
     },
   ],
 };
+
+/**
+ * PC-06 — version 1.2.0, the first opt-in to the `parameterResolution`
+ * capability (plan §"Manifest parameter and lock resolution").
+ *
+ * 1.1.0 stays byte-identical on purpose: it is already registered and its
+ * digest is a pinned contract, and the plan forbids rewriting a registered
+ * manifest in place. This is an ADDITIVE, immutable version — activating it is
+ * a separate admin action, and until then nothing resolves differently.
+ *
+ * `outputFormat` is the only mapped source because `extract` declares no
+ * `profileSchema` properties; mapping a `profileSettings` source here would be
+ * unresolvable and PC-05's publication check rejects it.
+ */
+export const documentCoreManifestV120: BusinessManifest = {
+  ...documentCoreManifest,
+  version: '1.2.0',
+  imageDigest: 'sha256:placeholder-document-core-v1.2.0',
+  actions: documentCoreManifest.actions.map((action) =>
+    action.name === 'extract'
+      ? {
+          ...action,
+          parameterResolution: {
+            version: 2,
+            fields: { outputFormat: 'requestDefaults' },
+            applyTopLevelDefaults: false,
+          },
+        }
+      : action,
+  ),
+};

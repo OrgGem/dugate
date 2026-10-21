@@ -47,6 +47,12 @@ function makeDb() {
       if (/FROM business_catalog/i.test(statement)) {
         return result<T>([{ enabled: true, activation_revision: 1, submissions_paused: false, pre_drain_version: null }]);
       }
+      // PC-R01/PC-05: admission reads the key's explicit authority mode; this
+      // fixture models the legacy path, which only an unmanaged key may use.
+      if (/^SELECT key_mode FROM api_keys/i.test(statement)) return result<T>([{ key_mode: 'UNMANAGED_LEGACY' }]);
+      if (/SELECT id, tenant_id, status, key_mode FROM api_keys/i.test(statement)) {
+        return result<T>([{ id: 'offline-key', tenant_id: TENANT, status: 'ACTIVE', key_mode: 'UNMANAGED_LEGACY' }]);
+      }
       if (/business_versions/i.test(statement)) {
         return result<T>([{
           version: '1.0.0',

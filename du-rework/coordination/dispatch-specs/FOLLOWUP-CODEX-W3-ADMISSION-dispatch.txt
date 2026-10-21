@@ -1,0 +1,29 @@
+# Dispatch Specification: Wave 3 Follow-up — Worker 3 (Finding 2 Admission Seam)
+
+Target: Worker 3 (dsh_3, term_8469982b-916d-406a-bc4b-4889ba89ebe6)
+Leased Files:
+- du-rework/orchestrator/services/orchestrator/src/modules/operations/submission.ts
+- du-rework/orchestrator/services/orchestrator/tests/pc-r05-connector-probe-root-grant.test.ts
+
+Context & Finding from Codex Audit:
+Finding 2: runConnectorProviderTest calls admitProviderTest before reservation.
+At src/modules/operations/submission.ts:1378, admitProviderTest calls profiles.resolveEffectiveProfile, where it rejects GROUP_MANAGED because resolveEffectiveProfile only checks legacy child memberships.
+A GROUP_MANAGED key with a valid root grant is denied with 403 before it even reaches reserveProviderTestRun.
+
+Task:
+1. In `submission.ts`:
+   In `admitProviderTest` (lines ~1360-1410):
+   Read key mode from `SELECT id, key_mode FROM api_keys WHERE id=$1 AND tenant_id=$2 AND status='ACTIVE'`.
+   If `key_mode === 'GROUP_MANAGED'`:
+   - Resolve through `resolveGroupAdmission` (or equivalent root grant + member pin query) instead of `profiles.resolveEffectiveProfile`.
+   - Verify active root grant and matching groupPin for (businessId, businessVersion, action).
+   - Ensure `groupPin.profileId === input.profileId` and `groupPin.profileRevision === input.expectedProfileRevision` (or matching expected pin).
+   - Use `admission.bindings` and `admission.policy` for pinned model and candidate connector validation.
+   Else:
+   - Keep existing `profiles.resolveEffectiveProfile` call for legacy / standalone keys.
+2. In `tests/pc-r05-connector-probe-root-grant.test.ts`:
+   Add test proving that `admitProviderTest` succeeds for a GROUP_MANAGED key with active root grant and fails closed for a GROUP_MANAGED key without an active root grant.
+3. Verify:
+   - `npm exec tsc --noEmit` exit 0.
+   - Run tests/pc-r05-connector-probe-root-grant.test.ts.
+4. Output completion token: `CODEX_WAVE3_W3_FOLLOWUP_COMPLETE`

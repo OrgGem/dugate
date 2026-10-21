@@ -1,0 +1,51 @@
+# DISPATCH SPEC: PC-R07 (Render only the declared parameter source in Editor & BFF)
+Owner: Antigravity Coordinator
+Assignee: DeepSeek Worker 0 (term_ee18bc3a-0e81-4e67-9910-50d17bcfe970)
+Priority: P2
+Affected Packages: PC-03, PC-08, PC-09
+
+## Objective
+Implement PC-R07 UI & BFF side following completion of `@du/contracts` extension:
+Filter each editor section by the manifest's declared parameter source mapping (`parameterResolution: { [prop]: 'requestDefaults' | 'profileSettings' }`).
+Do not display properties under the wrong section, and hide/disable inert request-default controls for v1 manifests that lack the capability.
+
+## Context & Contracts Available
+`@du/contracts` has already delivered:
+- `parameterResolution?: Record<string, 'requestDefaults' | 'profileSettings'>` on `ProfileGroupFunctionSchema` (catalog item).
+- Canonical output literal is `'profileSettings'` (and `'policySettings'` is accepted and normalized).
+
+## Scope & File Lease
+EXCLUSIVE LEASE FOR WORKER 0:
+- `du-rework/orchestrator/apps/admin-web/src/features/profiles/profile-group-editor.tsx`
+- `du-rework/orchestrator/apps/admin-web/src/features/profiles/profile-group-schema-fields.tsx`
+- `du-rework/orchestrator/apps/admin-web/src/features/profiles/profile-group-state.ts`
+- `du-rework/orchestrator/services/orchestrator/src/app/admin/bff/profile-groups-v2.ts`
+- Relevant UI/BFF tests: `tests/aweb10-bff-profile-groups-v2.test.ts`, `tests/aweb10-profile-group-v2-state.test.ts`.
+
+DO NOT edit core service resolver files (`submission.ts`, `profiles.ts`, `retry.ts`).
+
+## Detailed Implementation Requirements
+1. **BFF Catalog Discovery (`bff/profile-groups-v2.ts`):**
+   - When serving `GET /api/v2/admin/profile-groups/catalog`, ensure each function descriptor passes through `parameterResolution` from the registered manifest capability (if declared in manifest).
+
+2. **Admin Web State & Editor Filtering:**
+   - In `profile-group-editor.tsx` / `profile-group-schema-fields.tsx`:
+     - Inspect `functionDescriptor.parameterResolution`.
+     - When `parameterResolution` is present:
+       - Fields mapped to `'requestDefaults'` appear ONLY in the Request Defaults section.
+       - Fields mapped to `'profileSettings'` appear ONLY in the Policy / Profile Settings section.
+       - Do not render properties in both sections even when `inputSchema` and `profileSchema` have overlapping property names (e.g. `enableReasoning` in `example-review@3.0.0`).
+     - When `parameterResolution` is absent (legacy v1 manifests):
+       - Keep legacy behavior for profile settings.
+       - Hide or clearly disable request-default controls, as request defaults are inert under v1.
+
+3. **Backend / BFF Save Validation:**
+   - Reject or warn if a client submits configuration placing a parameter in the wrong bag when `parameterResolution` is declared.
+
+## Acceptance Criteria
+1. For an opt-in manifest like `example-review@3.0.0`, `enableReasoning` renders strictly under Request Defaults, not Profile Settings.
+2. For legacy manifests without `parameterResolution`, Request Defaults controls are disabled/omitted.
+3. Tests pass:
+   - `npx jest --config jest.unit.config.cjs tests/aweb10-bff-profile-groups-v2.test.ts tests/aweb10-profile-group-v2-state.test.ts`
+4. Typecheck: `tsc --noEmit` clean on both orchestrator and `apps/admin-web`. `vite build` succeeds.
+5. Write receipt to `du-rework/coordination/reports/receipt-pc-r07-ui.md`.

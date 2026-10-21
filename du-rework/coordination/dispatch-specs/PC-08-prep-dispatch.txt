@@ -1,0 +1,35 @@
+[PACKET PREP-PC-08: Admin Workbench and Operations UI Pre-Analysis & Audit]
+
+ROLE: DeepSeek Worker 0 (Frontend & Admin Workbench Specialist)
+TASK ID: PREP-PC-08
+STATUS: PRE-ANALYSIS / DESIGN AUDIT (READ-ONLY ON PRODUCTION SOURCE)
+MASTER PLAN: du-rework/tasks/PLAN-PROFILE-CONTROL-PLANE-IMPLEMENTATION.md (PC-08 row, "Admin Workbench and operations UI")
+COORDINATION DECISION: PC-01, PC-02, PC-03, and PC-05 are officially complete and accepted. PC-04 is in final receipt authoring.
+
+TARGET OF INVESTIGATION (READ-ONLY AUDIT):
+1. BFF Routes & Handlers:
+   - orchestrator/services/orchestrator/src/app/admin/bff/profile-groups.ts (or corresponding bff paths)
+   - orchestrator/services/orchestrator/src/app/admin/bff/admin-workbench.ts
+   - orchestrator/services/orchestrator/src/app/admin/bff/operations.ts
+2. Canonical Admin Web UI:
+   - orchestrator/apps/admin-web/src/features/profiles/profiles-screen.tsx
+   - orchestrator/apps/admin-web/src/features/profiles/profile-group-editor.tsx
+   - orchestrator/apps/admin-web/src/features/profiles/profile-group-state.ts
+   - orchestrator/apps/admin-web/src/features/docs/docs-screen.tsx
+   - orchestrator/apps/admin-web/src/features/businesses/businesses-screen.tsx
+   - orchestrator/apps/admin-web/src/features/operations/operations-screen.tsx
+
+MUC TIEU PREP-PC-08:
+1. Khao sat giao dien Profile Group Editor & Workbench:
+   - Ho tro nhom V2 khong can API key (zero-key config CRUD).
+   - Hien thi tach biet giua `active_revision` (config) va `access_version` (danh sach root grants).
+   - Danh sach root grant cho phep issue va revoke grant co xac nhan `expectedAccessVersion`.
+   - Workbench submit bat buoc chon key va kem `resolutionFingerprint` tu preflight/preview.
+   - Giu giao dien cu (legacy admin UI) o che do safe v1 read projection, tu choi sua group da chuyen doi sang V2 voi `409 PROFILE_GROUP_V2_REQUIRED`.
+2. Soan thao bao cao danh gia kien truc UI tai:
+   `du-rework/coordination/reports/prep-pc08-ui-spec.md`.
+
+QUY TAC:
+- KHONG sua file source trong phase PREP nay.
+- Chi doc va ghi file bao cao `du-rework/coordination/reports/prep-pc08-ui-spec.md`.
+- In ra: PREP-PC-08_COMPLETE khi hoan thanh kem duong dan bao cao.

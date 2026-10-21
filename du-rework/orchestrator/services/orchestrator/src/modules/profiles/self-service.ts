@@ -313,7 +313,19 @@ async function findActiveProfileForEdit(client: PoolClient, input: ProfileSelfSe
   );
   const row = result.rows[0];
   if (!row) throw notFound('assigned active Profile endpoint was not found');
-  if (row.group_id) throw conflict('STATE_CONFLICT', 'this profile is owned by a profile group; edit it through the profile group');
+  if (row.group_id) {
+    // PC-03: a group-owned child is never edited through self-service. The
+    // refusal code depends on the group's authority so a client can tell
+    // "migrate to v2" apart from "still on the legacy projection".
+    const authority = await client.query<{ auth_authority: string | null }>(
+      'SELECT auth_authority FROM profile_groups WHERE group_id=$1',
+      [row.group_id],
+    );
+    if (authority.rows[0]?.auth_authority === 'GROUP_GRANT') {
+      throw conflict('PROFILE_GROUP_V2_REQUIRED', 'this profile is owned by a profile group that uses root grants; edit it through the profile group');
+    }
+    throw conflict('STATE_CONFLICT', 'this profile is owned by a profile group; edit it through the profile group');
+  }
   if (Number(row.user_version) !== actor.roleVersion) throw conflict('IDENTITY_VERSION_CONFLICT', 'local identity changed; sign in again before editing');
   if (row.business_id !== input.businessId || row.business_version !== input.businessVersion) {
     throw notFound('assigned active Profile endpoint was not found');

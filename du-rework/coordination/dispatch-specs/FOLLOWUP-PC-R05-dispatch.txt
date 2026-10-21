@@ -1,0 +1,63 @@
+# DISPATCH SPEC: PC-R05 (Use root grants throughout Connector tests and readiness probes)
+Owner: Antigravity Coordinator
+Assignee: DeepSeek Worker 2 (term_ca0ee85e-b746-4bec-aec3-9b0736595ca1)
+Priority: P2
+Affected Packages: PC-04, PC-05, PC-09
+
+## Objective
+Fix connector probe and provider test authorization defect PC-R05 identified in implementation review:
+Connector readiness probes and provider-test reservations must authorize managed keys via current active root grants (`profile_group_api_keys` & active profile group configuration) instead of joining `profile_api_keys` child memberships (which managed keys do not possess and which conversion tombstones).
+
+## Evidence & Problem Analysis
+1. `du-rework/orchestrator/services/orchestrator/src/modules/connectors/probe-authorization.ts`:
+   - Line 30: joins `profile_api_keys m ON m.profile_id = p.profile_id AND m.api_key_id = $1 AND m.state = 'ACTIVE'`.
+   - New `GROUP_MANAGED` keys lack child memberships, so probe authorization fails with 403 even for valid, active, granted group keys!
+2. `du-rework/orchestrator/services/orchestrator/src/modules/connectors/provider-test.ts`:
+   - Line 204 & Line 296: checks `SELECT 1 FROM profile_api_keys WHERE state='ACTIVE'`.
+   - This again denies all group-managed keys because their authority is at the group root level.
+3. Legacy standalone keys (`LEGACY_STANDALONE`):
+   - Must still check active `profile_api_keys` memberships, maintaining exact standalone behavior.
+4. Fail-closed:
+   - Revoked root grants, disabled endpoints, unbound connectors, and cross-tenant probes must deny.
+   - Denial must occur BEFORE provider invocation or reservation side effects.
+
+## Scope & File Lease
+EXCLUSIVE LEASE FOR WORKER 2:
+- `du-rework/orchestrator/services/orchestrator/src/modules/connectors/probe-authorization.ts`
+- `du-rework/orchestrator/services/orchestrator/src/modules/connectors/provider-test.ts`
+- Tests: `du-rework/orchestrator/services/orchestrator/tests/plat-mig-02-probe-authorization.test.ts` or new regression tests `tests/pc-r05-connector-probe-root-grant.test.ts`.
+
+DO NOT touch `retry.ts`, `apps/admin-web`, or `packages/contracts`. Note: do not edit `submission.ts` yet while Worker 1 finalizes PC-R01; isolate provider test reservation and probe authorization first.
+
+## Detailed Requirements
+1. In `probe-authorization.ts`:
+   - Check the key's `key_mode`.
+   - If `key_mode === 'GROUP_MANAGED'`:
+     - Resolve active root grant (`profile_group_api_keys` where state = 'ACTIVE' and access_version matches group).
+     - Check active group revision's child members and connector bindings (`profile_group_members` joined with `profile_bindings`).
+     - If the requested connector is bound in any active enabled function of the group -> probe allowed.
+   - If `key_mode === 'LEGACY_STANDALONE'`:
+     - Keep existing `profile_api_keys` active membership join.
+   - If `key_mode === 'UNMANAGED_LEGACY'`:
+     - Allow probe if connector exists in tenant (or legacy rule).
+   - Unknown/NULL key_mode -> deny 401/403.
+2. In `provider-test.ts`:
+   - In `validateLocalActorInTransaction` and in `reserve` / test acceptance:
+     - Check key authority mode.
+     - For `GROUP_MANAGED` keys: authorize via group root grant and group membership rather than `profile_api_keys`.
+     - Recheck that the selected function / action belongs to the active group revision, is enabled, and connector binding matches.
+     - For standalone keys: retain existing active `profile_api_keys` check.
+3. Author comprehensive unit tests exercising:
+   - Newly issued managed keys and converted groups with NO active child memberships: probe and provider test succeed.
+   - Revoked root grants: deny (403).
+   - Disabled functions / endpoints: deny (403).
+   - Unbound connector: deny (403).
+   - Cross-tenant: deny (403/404).
+
+## Verification & Acceptance
+1. `npm exec tsc --noEmit` in `services/orchestrator` exits with code 0.
+2. Run targeted test suites:
+   `npx jest --config jest.unit.config.cjs tests/plat-mig-02-probe-authorization.test.ts`
+   and the new PC-R05 test suite.
+3. Write receipt to `du-rework/coordination/reports/receipt-pc-r05.md`.
+4. Signal completion: `PC-R05_COMPLETE — du-rework/coordination/reports/receipt-pc-r05.md`.

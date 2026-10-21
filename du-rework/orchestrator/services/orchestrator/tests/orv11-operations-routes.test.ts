@@ -48,7 +48,7 @@ describe('operations audience contract', () => {
     const response = await handlePublicRoutes(context('/api/v1/operations/op', {
       method: 'DELETE',
       headers: { 'x-api-key': 'legacy' },
-      db: { ...db, query: jest.fn(async (sql: string) => sql.includes('UPDATE operations') ? { rowCount: 1, rows: [] } : { rowCount: 1, rows: [{ id: 'key-id', tenant_id: 'tenant-a' }] }) } as unknown as RouteContext['db'],
+      db: { ...db, query: jest.fn(async (sql: string) => sql.includes('UPDATE operations') ? { rowCount: 1, rows: [] } : { rowCount: 1, rows: [{ id: 'key-id', tenant_id: 'tenant-a', key_mode: 'LEGACY_STANDALONE' }] }) } as unknown as RouteContext['db'],
     }));
     expect(response?.status).toBe(204);
   });

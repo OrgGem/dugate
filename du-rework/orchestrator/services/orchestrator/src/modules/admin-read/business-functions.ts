@@ -57,6 +57,14 @@ function manifestActionFunction(
     inputSchema?: Record<string, unknown>;
     available?: boolean;
     unavailableReason?: string;
+    /**
+     * Wave3-F4: the tenant's ACTIVE workflow revision for this action, when the
+     * caller supplied a tenant. Workflow revisions live in the tenant-scoped
+     * `legacy_workflow_schemas` registry, so the catalog can only pin one when
+     * it is told which tenant to resolve for. Never fabricated: absent when the
+     * tenant is unknown or the action has no active revision.
+     */
+    workflowRevision?: number;
   },
 ): ProfileGroupFunction {
   return {
@@ -64,6 +72,10 @@ function manifestActionFunction(
     functionId: input.functionId,
     action: action.name,
     ...(input.endpointSlug ? { endpointSlug: input.endpointSlug } : {}),
+    // The v2 contract forbids `workflowRevision` on an endpoint selector.
+    ...(input.kind === 'workflow' && input.workflowRevision !== undefined
+      ? { workflowRevision: input.workflowRevision }
+      : {}),
     manifestDigest: input.manifestDigest,
     inputSchema: input.inputSchema ?? action.inputSchema,
     outputSchema: action.outputSchema,
@@ -72,7 +84,36 @@ function manifestActionFunction(
     available: input.available ?? true,
     ...(input.unavailableReason ? { unavailableReason: input.unavailableReason } : {}),
     connectorSlots: action.connectorSlots,
+    ...(action.parameterResolution?.fields ? { parameterResolution: action.parameterResolution.fields } : {}),
   };
+}
+
+/**
+ * Wave3-F4: resolve the tenant's ACTIVE revision for each workflow slug.
+ *
+ * `legacy_workflow_schemas` is keyed by `(tenant_id, slug)` with a partial
+ * unique index on `status='active'`, so at most one revision per slug comes
+ * back. A slug with no active revision is simply absent from the map — the
+ * catalog must not invent a pin the workflow engine could not resolve.
+ */
+async function activeWorkflowRevisions(
+  db: Pick<Db, 'query'>,
+  tenantId: string,
+  slugs: readonly string[],
+): Promise<Map<string, number>> {
+  const unique = [...new Set(slugs.filter((slug) => slug.length > 0))];
+  if (unique.length === 0) return new Map();
+  const result = await db.query<{ slug: string; revision: number | string }>(
+    `SELECT slug, revision FROM legacy_workflow_schemas
+      WHERE tenant_id=$1 AND slug = ANY($2::text[]) AND status='active'`,
+    [tenantId, unique],
+  );
+  const revisions = new Map<string, number>();
+  for (const row of result.rows) {
+    const revision = Number(row.revision);
+    if (Number.isSafeInteger(revision) && revision > 0) revisions.set(String(row.slug), revision);
+  }
+  return revisions;
 }
 
 /**
@@ -80,12 +121,18 @@ function manifestActionFunction(
  * Document Core, endpoint variants are narrowed from that version's declared
  * discriminator enums. Other actions, and every action on other businesses,
  * remain manifest-declared workflow functions with an exact action identity.
+ *
+ * `options.tenantId` (Wave3-F4) additionally pins each workflow function to that
+ * tenant's current ACTIVE revision, which is what the group editor needs to
+ * build a contract-valid `workflowRevision`. Without a tenant the descriptors
+ * carry no revision (the caller must preserve an existing pin; it must not
+ * guess one).
  */
 export async function getBusinessFunctionCatalog(
   db: Pick<Db, 'query'>,
   businessId: string,
   businessVersion: string,
-  options: { lockAvailability?: boolean } = {},
+  options: { lockAvailability?: boolean; tenantId?: string } = {},
 ): Promise<{
   businessId: string;
   businessVersion: string;
@@ -126,12 +173,27 @@ export async function getBusinessFunctionCatalog(
   }
 
   const functions: ProfileGroupFunction[] = [];
+  // Wave3-F4: resolve the tenant's active workflow revisions ONCE, only for the
+  // actions this manifest maps as workflow functions (endpoint variants on
+  // document-core are never workflows and must not carry a revision).
+  const workflowActionNames = parsedManifest.data.actions
+    .filter((action) => row.business_id !== 'document-core' || !CORE_VARIANT_PROPERTIES[action.name])
+    .map((action) => action.name);
+  const workflowRevisions = options.tenantId
+    ? await activeWorkflowRevisions(db, options.tenantId, workflowActionNames)
+    : new Map<string, number>();
+  const workflowPin = (name: string): { workflowRevision?: number } => {
+    const revision = workflowRevisions.get(name);
+    return revision === undefined ? {} : { workflowRevision: revision };
+  };
+
   for (const action of parsedManifest.data.actions) {
     if (row.business_id !== 'document-core') {
       functions.push(manifestActionFunction(action, {
         kind: 'workflow',
         functionId: action.name,
         manifestDigest: row.digest,
+        ...workflowPin(action.name),
       }));
       continue;
     }
@@ -142,6 +204,7 @@ export async function getBusinessFunctionCatalog(
         kind: 'workflow',
         functionId: action.name,
         manifestDigest: row.digest,
+        ...workflowPin(action.name),
       }));
       continue;
     }

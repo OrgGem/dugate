@@ -1,0 +1,50 @@
+================================================================================
+DISPATCH PACKET: PC-06-EXECUTE (Manifest and Worker Opt-in)
+================================================================================
+TO: Worker 3 (dsh_3, term_8469982b-916d-406a-bc4b-4889ba89ebe6)
+FROM: Antigravity Coordinator (gemini-3.8-flash)
+DATE: 2026-10-21 03:25 +07
+PACKET: PC-06-EXECUTE
+PREREQUISITES: PC-01 (Contracts V2) ACCEPTED, PC-05 (Admission & Resolution) ACCEPTED.
+TARGET RECEIPT: du-rework/coordination/reports/receipt-pc06-worker.md
+
+--------------------------------------------------------------------------------
+1. OBJECTIVE & SCOPE
+--------------------------------------------------------------------------------
+Implement PC-06 ("Manifest and worker opt-in") per PLAN-PROFILE-CONTROL-PLANE-IMPLEMENTATION.md:
+- Contract manifest/default resolver integration in the worker layer.
+- Update `packages/worker-sdk/src/task-context.ts` to support parameter-resolution-aware execution while preserving full backwards-compatibility.
+- Register new immutable manifest versions for opt-in behavior; DO NOT rewrite registered manifests in place.
+- Pin defaults and sources at admission. Old SDKs keep parsing old fields; verify unknown-field behavior and mixed rollout.
+- Runtime API v1 remains normative and SDK-free worker path remains supported.
+- Connector receives existing resolved model/bindings; no provider enforcement added.
+- Update/add worker-sdk tests covering opt-in manifests, parameter defaults handling, and mixed-version rollout.
+
+--------------------------------------------------------------------------------
+2. EXCLUSIVE FILE LEASE (PC-06)
+--------------------------------------------------------------------------------
+You have exclusive write leases on:
+- `orchestrator/packages/worker-sdk/src/task-context.ts`
+- `orchestrator/packages/worker-sdk/src/**`
+- `orchestrator/packages/worker-sdk/tests/**`
+- `du-rework/businesses/document-core/**` (manifest opt-in version registration only)
+- `du-rework/businesses/example-review/**` (manifest opt-in version registration only)
+- `du-rework/businesses/lc-checker/**` (manifest opt-in version registration only)
+- `du-rework/coordination/reports/receipt-pc06-worker.md`
+
+READ-ONLY access to:
+- `orchestrator/packages/contracts/**`
+- `orchestrator/services/orchestrator/**`
+
+DO NOT edit any files outside this lease without prior coordinator approval.
+
+--------------------------------------------------------------------------------
+3. ACCEPTANCE CRITERIA
+--------------------------------------------------------------------------------
+1. Pinned defaults and parameters resolved at admission flow correctly into worker TaskContext.
+2. Older worker SDK versions parse payloads without failure (unknown fields ignored/tolerated).
+3. Manifest versioning: existing registered manifests remain immutable; new versions register opt-in capabilities cleanly.
+4. All unit/integration tests in `packages/worker-sdk` PASS.
+5. Emitted receipt file `receipt-pc06-worker.md` with explicit test execution logs and exit codes.
+6. Print `PC-06_EXECUTE_COMPLETE — du-rework/coordination/reports/receipt-pc06-worker.md` upon completion.
+================================================================================

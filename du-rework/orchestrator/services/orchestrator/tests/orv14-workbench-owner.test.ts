@@ -187,6 +187,10 @@ describe('ORV14 workflow import and assigned Profile workbench', () => {
     const db = {
       query: jest.fn(async (sql: string) => {
         if (sql.includes('SELECT id FROM api_keys')) return { rowCount: 1, rows: [{ id: apiKeyId }] };
+        // PC-04/PC-05: the admission seam reads the explicit key mode.
+        if (sql.includes('SELECT id, tenant_id, status, key_mode FROM api_keys')) {
+          return { rowCount: 1, rows: [{ id: apiKeyId, tenant_id: tenantId, status: 'ACTIVE', key_mode: 'LEGACY_STANDALONE' }] };
+        }
         if (sql.includes('SELECT version,manifest FROM business_versions')) {
           return { rowCount: 1, rows: [{ version: '1.1.0', manifest: { actions: [{ name: 'analyze' }] } }] };
         }
@@ -239,6 +243,10 @@ describe('ORV14 workflow import and assigned Profile workbench', () => {
     const db = {
       query: jest.fn(async (sql: string) => {
         if (sql.includes('SELECT id FROM api_keys')) return { rowCount: 1, rows: [{ id: apiKeyId }] };
+        // PC-04/PC-05: the admission seam reads the explicit key mode.
+        if (sql.includes('SELECT id, tenant_id, status, key_mode FROM api_keys')) {
+          return { rowCount: 1, rows: [{ id: apiKeyId, tenant_id: tenantId, status: 'ACTIVE', key_mode: 'LEGACY_STANDALONE' }] };
+        }
         if (sql.includes('SELECT version,manifest FROM business_versions')) {
           return { rowCount: 1, rows: [{ version: '1.1.0', manifest: { actions: [{ name: 'analyze' }] } }] };
         }
@@ -282,6 +290,10 @@ describe('ORV14 workflow import and assigned Profile workbench', () => {
     const db = {
       query: jest.fn(async (sql: string) => {
         if (sql.includes('SELECT id FROM api_keys')) return { rowCount: 1, rows: [{ id: apiKeyId }] };
+        // PC-04/PC-05: the admission seam reads the explicit key mode.
+        if (sql.includes('SELECT id, tenant_id, status, key_mode FROM api_keys')) {
+          return { rowCount: 1, rows: [{ id: apiKeyId, tenant_id: tenantId, status: 'ACTIVE', key_mode: 'LEGACY_STANDALONE' }] };
+        }
         if (sql.includes('SELECT version,manifest FROM business_versions')) {
           return { rowCount: 1, rows: [{ version: '1.1.0', manifest: { actions: [{ name: 'analyze' }] } }] };
         }
@@ -347,6 +359,10 @@ describe('ORV14 workflow import and assigned Profile workbench', () => {
       query: jest.fn(async (sql: string) => {
         queries.push(sql);
         if (sql.includes('FROM submission_keys')) return { rowCount: 0, rows: [] };
+        // PC-04/PC-05: the admission seam reads the explicit key mode first.
+        if (sql.includes('FROM api_keys WHERE id=$1')) {
+          return { rowCount: 1, rows: [{ id: apiKeyId, tenant_id: tenantId, status: 'ACTIVE', key_mode: 'LEGACY_STANDALONE' }] };
+        }
         if (sql.includes('FROM business_catalog')) {
           return { rowCount: 1, rows: [{ enabled: true, activation_revision: 1, submissions_paused: false, pre_drain_version: null }] };
         }
@@ -414,6 +430,9 @@ describe('ORV14 workflow import and assigned Profile workbench', () => {
             action: 'analyze', state: 'ACCEPTED', state_version: 1,
             created_at: '2026-10-15T00:00:00.000Z', updated_at: '2026-10-15T00:00:00.000Z', deadline_at: null,
           }] };
+        }
+        if (sql.includes('FROM api_keys')) {
+          return { rowCount: 1, rows: [{ id: apiKeyId, tenant_id: tenantId, status: 'ACTIVE', key_mode: 'LEGACY_STANDALONE' }] };
         }
         throw new Error(`unexpected query: ${sql}`);
       }),

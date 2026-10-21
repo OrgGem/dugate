@@ -5,6 +5,7 @@ import {
   BusinessManifestSchema,
   ManifestValidationResult,
 } from './manifest';
+import { isSecretParameterKey } from './profile-policy';
 import { validateJsonSchema } from './json-schema-guard';
 
 /**
@@ -37,6 +38,184 @@ export function queueNameFor(businessId: string, version: string): string {
   return `du-business-${businessId}-${version}`;
 }
 
+/* ------------------------------------------------------------------ */
+/* PC-05: parameterResolution semantic validation                     */
+/* ------------------------------------------------------------------ */
+
+interface ManifestProblem {
+  pointer: string;
+  message: string;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function topLevelProperties(schema: unknown): Record<string, unknown> {
+  const record = asRecord(schema);
+  const properties = record ? asRecord(record['properties']) : null;
+  return properties ?? {};
+}
+
+/** Keys the schema object declares among `candidates`, in candidate order. */
+function declaredAmong(schema: Record<string, unknown>, candidates: readonly string[]): string[] {
+  return candidates.filter((key) => Object.hasOwn(schema, key));
+}
+
+const SOURCE_DECLARATION_CONFLICTS = [
+  '$ref',
+  'allOf',
+  'anyOf',
+  'oneOf',
+  'not',
+  'if',
+  'then',
+  'else',
+] as const;
+
+/**
+ * Bounded search for a `default` anywhere below the property's own top level.
+ *
+ * Only called when the property schema has no own `default`, so any hit is by
+ * definition nested. The walk is depth- and node-bounded because the schema is
+ * caller-supplied JSON: an unbounded recursion here would be a
+ * publication-time DoS. Inside a `properties` map the map's VALUES are schemas,
+ * which the generic recursion already visits.
+ */
+function hasNestedDefault(schema: unknown): boolean {
+  let visited = 0;
+  const walk = (node: unknown, depth: number): boolean => {
+    if (depth > 4 || visited > 200) return false;
+    if (Array.isArray(node)) {
+      for (const item of node) {
+        visited += 1;
+        if (walk(item, depth + 1)) return true;
+      }
+      return false;
+    }
+    const record = asRecord(node);
+    if (!record) return false;
+    for (const key of Object.keys(record)) {
+      visited += 1;
+      if (key === 'default') return true;
+      if (walk(record[key], depth + 1)) return true;
+    }
+    return false;
+  };
+  return walk(schema, 0);
+}
+
+/**
+ * PC-05 — the eight semantic checks the plan requires before a manifest may
+ * claim authoritative per-field source resolution.
+ *
+ * Absence of `parameterResolution` returns no problems: v1 manifests must stay
+ * registrable byte-for-byte, and the capability only changes the digest when it
+ * is actually declared (PC-01 case I2).
+ */
+function parameterResolutionProblems(
+  action: {
+    inputSchema: unknown;
+    profileSchema: unknown;
+    parameterResolution?: { fields: Record<string, 'requestDefaults' | 'profileSettings'>; applyTopLevelDefaults: boolean };
+  },
+  index: number,
+): ManifestProblem[] {
+  const capability = action.parameterResolution;
+  if (!capability) return [];
+
+  const problems: ManifestProblem[] = [];
+  const base = `$.actions[${index}].parameterResolution`;
+  const entries = Object.entries(capability.fields);
+  const inputProperties = topLevelProperties(action.inputSchema);
+  const profileProperties = topLevelProperties(action.profileSchema);
+
+  // (1) A declared capability that maps nothing cannot govern anything, and
+  // would silently behave like v1 while claiming v2 semantics.
+  if (entries.length === 0) {
+    problems.push({ pointer: `${base}.fields`, message: 'must map at least one property' });
+  }
+
+  for (const [name, source] of entries) {
+    const pointer = `${base}.fields.${name}`;
+    const properties = source === 'requestDefaults' ? inputProperties : profileProperties;
+    const schemaName = source === 'requestDefaults' ? 'inputSchema' : 'profileSchema';
+
+    // (2)/(3) The mapping must target the schema that owns that source. A typo
+    // or a mapping to the other schema would make the declaration a no-op.
+    if (!Object.hasOwn(properties, name)) {
+      problems.push({
+        pointer,
+        message: `property "${name}" is not declared by ${schemaName}.properties`,
+      });
+      continue;
+    }
+
+    const property = properties[name];
+
+    if (source === 'profileSettings') {
+      // profileSettings values live only in the profile policy, so a schema
+      // declaration conflict is the only structural risk here.
+      const profileRecord = asRecord(property);
+      const conflicts = profileRecord ? declaredAmong(profileRecord, SOURCE_DECLARATION_CONFLICTS) : [];
+      if (conflicts.length > 0) {
+        problems.push({
+          pointer,
+          message: `property "${name}" is declared by ${conflicts.join('/')}; its source cannot be resolved`,
+        });
+      }
+      continue;
+    }
+
+    // (4) requestDefaults fill request input, so they must never carry a
+    // credential. This is defense in depth beside ProfileGroupRequestDefaultsSchema.
+    if (isSecretParameterKey(name)) {
+      problems.push({
+        pointer,
+        message: `property "${name}" looks like a credential and cannot be a request default`,
+      });
+    }
+
+    const record = asRecord(property);
+
+    // (5)/(6) A $ref or combinator property has no single authoritative
+    // declaration to read a lock or a default from.
+    const conflicts = record ? declaredAmong(record, SOURCE_DECLARATION_CONFLICTS) : [];
+    if (conflicts.length > 0) {
+      problems.push({
+        pointer,
+        message: `property "${name}" is declared by ${conflicts.join('/')}; its source cannot be resolved`,
+      });
+      continue;
+    }
+
+    if (capability.applyTopLevelDefaults) {
+      // (7) A boolean JSON Schema (`true`) is legal JSON Schema but has no
+      // top-level default, so claiming default application is meaningless.
+      if (!record) {
+        problems.push({
+          pointer,
+          message: `property "${name}" must be an object schema so its top-level default can be applied`,
+        });
+        continue;
+      }
+      // (8) Only `properties.<name>.default` is supported. A default that lives
+      // under `items`/`properties`/`$defs` and nowhere else would be silently
+      // dropped, so the publication must fail instead.
+      if (!Object.hasOwn(record, 'default') && hasNestedDefault(record)) {
+        problems.push({
+          pointer,
+          message: `property "${name}" declares only nested defaults; only inputSchema.properties.<name>.default is supported`,
+        });
+      }
+    }
+  }
+
+  return problems;
+}
+
 /**
  * Full manifest validation (REG-01..04):
  * 1. Zod structural check
@@ -53,7 +232,7 @@ export function validateManifest(unknownInput: unknown): ManifestValidationResul
     return { ok: false, problems };
   }
 
-  const problems: { pointer: string; message: string }[] = [];
+  const problems: ManifestProblem[] = [];
   const manifest = zodResult.data;
 
   // unique action names
@@ -90,6 +269,11 @@ export function validateManifest(unknownInput: unknown): ManifestValidationResul
         pointer: `$.actions[${idx}].artifactPolicy`,
         message: 'minFiles must be <= maxFiles',
       });
+    }
+    // PC-05: parameterResolution semantic checks (only when the capability is
+    // declared; absence keeps v1 semantics and validation byte-identical).
+    for (const problem of parameterResolutionProblems(a, idx)) {
+      problems.push(problem);
     }
   });
 

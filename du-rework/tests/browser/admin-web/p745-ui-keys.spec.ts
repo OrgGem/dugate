@@ -47,7 +47,8 @@ interface FakedDetail {
   };
   manifest: { actions: { name?: string }[] };
   capabilities: never[];
-  apiKeyId?: string;
+  /** Required-but-possibly-undefined: mirrors `Pick<ProfileDetail, 'apiKeyId'>`. */
+  apiKeyId: string | undefined;
 }
 
 function makeDetail(apiKeyId?: string): FakedDetail {
@@ -67,7 +68,7 @@ function makeDetail(apiKeyId?: string): FakedDetail {
     },
     manifest: { actions: [{ name: 'extract' }] },
     capabilities: [],
-    ...(apiKeyId !== undefined ? { apiKeyId } : {}),
+    apiKeyId,
   };
 }
 
@@ -79,24 +80,27 @@ test.describe('P745-UI-KEYS — profile.* bodies carry the write identity from d
     expect(apiKeyRefFromDetail(null)).toBeUndefined();
   });
 
-  test('2. upsert body: CAS revision + policy + apiKey', () => {
-    const body = buildUpsertBody(makeDetail(KEY_ID) as never, { enabled: true, parameters: {} });
+  test('2. upsert body: CAS revision + policy + action + apiKey', () => {
+    const body = buildUpsertBody(makeDetail(KEY_ID) as never, { enabled: true, parameters: {} }, 'extract');
     expect(body).toEqual({
+      action: 'extract',
       expectedRevision: 2,
       policy: { enabled: true, parameters: {} },
       apiKey: { apiKeyId: KEY_ID },
     });
   });
 
-  test('3. publish body: expectedRevision + apiKey', () => {
-    expect(buildPublishBody(makeDetail(KEY_ID) as never)).toEqual({
+  test('3. publish body: expectedRevision + action + apiKey', () => {
+    expect(buildPublishBody(makeDetail(KEY_ID) as never, 'extract')).toEqual({
+      action: 'extract',
       expectedRevision: 2,
       apiKey: { apiKeyId: KEY_ID },
     });
   });
 
-  test('4. rollback body: target + unconditional expectedRevision parity + apiKey', () => {
-    expect(buildRollbackBody(makeDetail(KEY_ID) as never, 1)).toEqual({
+  test('4. rollback body: target + unconditional expectedRevision parity + action + apiKey', () => {
+    expect(buildRollbackBody(makeDetail(KEY_ID) as never, 1, 'extract')).toEqual({
+      action: 'extract',
       targetRevision: 1,
       expectedRevision: 2,
       apiKey: { apiKeyId: KEY_ID },
@@ -104,7 +108,8 @@ test.describe('P745-UI-KEYS — profile.* bodies carry the write identity from d
     // revision 0 (unstored view) still carries expectedRevision — parity with
     // the pre-Δ call site, stale views answer 409 instead of moving silently.
     const zero = { ...makeDetail(KEY_ID), revision: 0 };
-    expect(buildRollbackBody(zero as never, 1)).toEqual({
+    expect(buildRollbackBody(zero as never, 1, 'extract')).toEqual({
+      action: 'extract',
       targetRevision: 1,
       expectedRevision: 0,
       apiKey: { apiKeyId: KEY_ID },
@@ -112,9 +117,9 @@ test.describe('P745-UI-KEYS — profile.* bodies carry the write identity from d
   });
 
   test('5. honest absence: no apiKeyId → the body has NO apiKey key (backend 422s)', () => {
-    const upsert = buildUpsertBody(makeDetail() as never, {});
-    const publish = buildPublishBody(makeDetail() as never);
-    const rollback = buildRollbackBody(makeDetail() as never, 1);
+    const upsert = buildUpsertBody(makeDetail() as never, {}, 'extract');
+    const publish = buildPublishBody(makeDetail() as never, 'extract');
+    const rollback = buildRollbackBody(makeDetail() as never, 1, 'extract');
     expect('apiKey' in upsert).toBe(false);
     expect('apiKey' in publish).toBe(false);
     expect('apiKey' in rollback).toBe(false);
@@ -135,9 +140,11 @@ test.describe('P745-UI-KEYS — profile.* bodies carry the write identity from d
 
   test('7. static guard: the screen routes all three commands through the builders', () => {
     const src = readFileSync(SCREEN_PATH, 'utf8');
-    expect(src).toContain('buildUpsertBody(detail, buildPolicy(row))');
-    expect(src).toContain('buildPublishBody(detail)');
-    expect(src).toContain('buildRollbackBody(detail, target)');
+    // The builders gained an explicit `action` (the profile action is part of
+    // the command identity); the guard tracks the current call sites.
+    expect(src).toContain('buildUpsertBody(effectiveDetail, buildPolicy(row), action)');
+    expect(src).toContain('buildPublishBody(effectiveDetail, loadedAs.action)');
+    expect(src).toContain('buildRollbackBody(effectiveDetail, target, loadedAs.action)');
     // The old inline bodies must be gone (no raw detail.revision into publish/rollback).
     expect(src).not.toContain('{ expectedRevision: detail.revision, policy: buildPolicy(row) }');
   });
@@ -149,7 +156,12 @@ test.describe('P745-UI-KEYS — profile.* bodies carry the write identity from d
     // publish/rollback no longer rebuild a body from a bare expectedRevision.
     expect(src).not.toContain('body: { expectedRevision }');
     expect(src).not.toContain('body: { targetRevision,');
-    const publishCall = src.slice(src.indexOf('/publish`,'), src.indexOf('/publish`,') + 200);
-    expect(publishCall).toContain('{ body, csrf: true, idempotencyKey }');
+    // Scope the slice to the PROFILES publish call: an earlier global-settings
+    // `/publish` exists, so a bare indexOf would assert against the wrong call.
+    const profilesIdx = src.indexOf('/profiles/${encodeURIComponent(businessId)}');
+    const publishIdx = src.indexOf('/publish`,', profilesIdx);
+    expect(profilesIdx).toBeGreaterThan(-1);
+    expect(publishIdx).toBeGreaterThan(profilesIdx);
+    expect(src.slice(publishIdx, publishIdx + 160)).toContain('{ body, csrf: true, idempotencyKey }');
   });
 });

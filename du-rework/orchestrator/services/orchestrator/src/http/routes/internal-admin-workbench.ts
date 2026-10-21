@@ -1,5 +1,11 @@
 import { readIdempotencyKey } from '../../modules/idempotency/idempotency';
-import { adminWorkbenchPrincipal, submitProfileEndpointTest, submitPromptWizard } from '../../modules/admin-workbench/service';
+import {
+  adminWorkbenchPrincipal,
+  previewProfileGroupV2,
+  submitProfileGroupV2,
+  submitProfileEndpointTest,
+  submitPromptWizard,
+} from '../../modules/admin-workbench/service';
 import { resolveAdminActionAuthAsync } from '../../modules/admin-actions/rbac';
 import { HttpError } from '../errors';
 import type { RouteContext, RouteResult } from '../route-context';
@@ -23,6 +29,15 @@ export async function handleInternalAdminWorkbenchRoutes(ctx: RouteContext): Pro
   }
   if (suffix === '/prompt-wizard') {
     return { status: 202, body: await submitPromptWizard(ctx, auth, ctx.body, idempotencyKey) };
+  }
+  // PC-05: v2 profile-group preview/submit. Same admin session/CSRF/tenant
+  // gates as the v1 suffixes above; the group is derived from the explicitly
+  // selected key, never chosen from the group list.
+  if (suffix === '/v2/preview') {
+    return { status: 200, body: await previewProfileGroupV2(ctx, auth, ctx.body) };
+  }
+  if (suffix === '/v2/submit') {
+    return { status: 202, body: await submitProfileGroupV2(ctx, auth, ctx.body, idempotencyKey) };
   }
   throw new HttpError(404, 'NOT_FOUND', 'Admin workbench route was not found');
 }

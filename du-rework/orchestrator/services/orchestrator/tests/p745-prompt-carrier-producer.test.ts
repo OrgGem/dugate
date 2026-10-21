@@ -45,7 +45,7 @@ function makeDb() {
       // the operation. The isolated fixture has no prior usage and uses the
       // documented zero/unlimited limit for its synthetic tenant key.
       if (/FROM api_keys/i.test(statement)) {
-        return result<T>([{ name: 'synthetic', spending_limit: '0', total_used: '0', tenant_id: TENANT }]);
+        return result<T>([{ name: 'synthetic', spending_limit: '0', total_used: '0', tenant_id: TENANT, status: 'ACTIVE', key_mode: 'UNMANAGED_LEGACY' }]);
       }
       if (/FROM usage_events/i.test(statement)) return result<T>([]);
       if (/FROM business_catalog/i.test(statement)) {
@@ -88,7 +88,7 @@ function makeDb() {
         // Submission spend admission runs on the transaction client as well as
         // the outer reader, so mirror the same synthetic key and empty history.
         if (/FROM api_keys/i.test(statement)) {
-          return result([{ name: 'synthetic', spending_limit: '0', total_used: '0', tenant_id: TENANT }]);
+          return result([{ name: 'synthetic', spending_limit: '0', total_used: '0', tenant_id: TENANT, status: 'ACTIVE', key_mode: 'UNMANAGED_LEGACY' }]);
         }
         if (/FROM usage_events/i.test(statement)) return result([]);
         if (/FROM business_catalog/i.test(statement)) {

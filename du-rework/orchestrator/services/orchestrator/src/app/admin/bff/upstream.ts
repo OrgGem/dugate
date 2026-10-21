@@ -47,6 +47,11 @@ export interface UpstreamCallOptions {
   contentType?: string;
   contentLength?: string;
   idempotencyKey?: string;
+  /**
+   * PC-08: `If-Match` for access-version CAS. Forwarded verbatim after the
+   * caller's shape check — the BFF never interprets or rewrites the validator.
+   */
+  ifMatch?: string;
   /** Validated shell session proof used only by Compose's internal actor binding. */
   sessionProof?: { cookie: string; csrfToken: string };
 }
@@ -127,6 +132,7 @@ export async function callUpstream(
   if (options.contentType !== undefined) headers['content-type'] = options.contentType;
   if (options.contentLength !== undefined) headers['content-length'] = options.contentLength;
   if (options.idempotencyKey !== undefined) headers['idempotency-key'] = options.idempotencyKey;
+  if (options.ifMatch !== undefined) headers['if-match'] = options.ifMatch;
   if (options.sessionProof !== undefined) {
     headers.cookie = options.sessionProof.cookie;
     headers['x-csrf-token'] = options.sessionProof.csrfToken;
@@ -160,11 +166,15 @@ export class UpstreamUnavailableError extends Error {
   }
 }
 
+/** Response headers the BFF is allowed to relay; everything else is dropped. */
+export const RELAYABLE_UPSTREAM_HEADERS = ['etag', 'idempotent-replay'] as const;
+export type RelayableUpstreamHeader = (typeof RELAYABLE_UPSTREAM_HEADERS)[number];
+
 export async function relayUpstream(
   res: ServerResponse,
   response: Response,
   correlationId: string,
-  opts: { wrapInData?: boolean } = {},
+  opts: { wrapInData?: boolean; relayHeaders?: readonly RelayableUpstreamHeader[] } = {},
 ): Promise<void> {
   const text = await response.text().catch(() => '');
   let parsed: unknown = null;
@@ -194,6 +204,15 @@ export async function relayUpstream(
     });
     writeProblem(res, 502, 'UPSTREAM_ERROR', 'the admin API returned an unreadable response', correlationId);
     return;
+  }
+  // Relay allowlisted headers BEFORE the body writer ends the response.
+  for (const name of opts.relayHeaders ?? []) {
+    const value = response.headers.get(name);
+    // Bounded, control-character-free copy: never relay an upstream header the
+    // BFF did not ask for, and never an unbounded value.
+    if (value === null) continue;
+    const bounded = boundedMessage(value);
+    if (bounded !== undefined && bounded.length <= 2048) res.setHeader(name, bounded);
   }
   writeJson(res, response.status, opts.wrapInData === true ? { data: parsed } : parsed, correlationId);
 }

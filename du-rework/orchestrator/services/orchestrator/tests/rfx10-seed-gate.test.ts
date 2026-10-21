@@ -176,16 +176,28 @@ describe('RFX-10: dev fallback seed rows are gated off production boots', () => 
     expect(devFallbackRowCount()).toBe(before);
   });
 
-  it('a zero-config boot (autoMigrate=true) seeds even under NODE_ENV=production', async () => {
-    // This is the documented dev/test zero-config mode that every in-process
-    // live fixture uses; production composes default AUTO_MIGRATE=false, and
-    // a production operator running a one-shot AUTO_MIGRATE=true boot can
-    // still veto with DU_SEED_DEV_FALLBACK=false.
+  it('a production autoMigrate boot applies migrations but never seeds the fallback key', async () => {
+    // RFX-10: the zero-config seed signal is `autoMigrate:true` on a NON-production
+    // boot — create-app.ts:512 masks it under NODE_ENV=production, because "a
+    // production boot must not write them" (shouldSeedDevFallback docblock).
+    // A production operator running a one-shot AUTO_MIGRATE=true boot therefore
+    // gets no `dev-fallback` row unless they opt in explicitly (next test).
+    // The default-tenant row is NOT a seed signal here: a migration writes it
+    // itself, so only the api_keys write proves whether the fallback seed ran.
     const before = devFallbackRowCount();
     const { app, queries } = await boot(
       { NODE_ENV: 'production', DU_SEED_DEV_FALLBACK: undefined },
       { autoMigrate: true },
     );
+    apps.push(app);
+
+    expect(queries.filter((sql) => sql.includes('INSERT INTO api_keys'))).toEqual([]);
+    expect(devFallbackRowCount()).toBe(before);
+  });
+
+  it('DU_SEED_DEV_FALLBACK=true is the only way a production boot seeds', async () => {
+    const before = devFallbackRowCount();
+    const { app, queries } = await boot({ NODE_ENV: 'production', DU_SEED_DEV_FALLBACK: 'true' });
     apps.push(app);
 
     expect(queries.filter((sql) => sql.includes('INSERT INTO tenants'))).toHaveLength(1);

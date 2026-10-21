@@ -116,6 +116,12 @@ function harness(opts: { keyProvider?: KeyProvider; crypto?: boolean } = {}): Ha
   };
 
   const answer = (sql: string, params: unknown[], sink: Bound[]) => {
+    // PC-R01/PC-05: admission reads the key's explicit authority mode before
+    // consulting memberships; this fixture models a standalone key.
+    if (/^SELECT key_mode FROM api_keys/i.test(sql)) return result<Row>([{ key_mode: 'UNMANAGED_LEGACY' }]);
+    if (/SELECT id, tenant_id, status, key_mode FROM api_keys/i.test(sql)) {
+      return result<Row>([{ id: String(params[0]), tenant_id: TENANT, status: 'ACTIVE', key_mode: 'UNMANAGED_LEGACY' }]);
+    }
     if (sql.includes('FROM api_keys k')) return result<Row>([{ name: 'test', spending_limit: '0', total_used: '0', new_cost: '0' }]);
     if (/FROM business_catalog WHERE business_id=\$1/i.test(sql)) {
       return result<Row>([{ enabled: true, activation_revision: 1, submissions_paused: false, pre_drain_version: null }]);

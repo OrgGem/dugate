@@ -64,8 +64,7 @@ beforeAll(async () => {
 
   // Seed active API key
   await app.db.query(
-    `INSERT INTO api_keys (id, tenant_id, hash, prefix, status)
-     VALUES ($1, $2, $3, 'du_adm', 'ACTIVE')
+    `INSERT INTO api_keys (id, tenant_id, hash, prefix, status, key_mode) VALUES ($1, $2, $3, 'du_adm', 'ACTIVE', 'LEGACY_STANDALONE')
      ON CONFLICT (hash) DO NOTHING`,
     [TEST_KEY_ID, TEST_TENANT, 'hash-' + TEST_KEY_ID]
   );

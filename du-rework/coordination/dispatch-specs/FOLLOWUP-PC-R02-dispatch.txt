@@ -1,0 +1,48 @@
+# DISPATCH SPEC: FOLLOWUP-PC-R02 (Pin selected workflows into preview, admission, and execution)
+Owner: Antigravity Coordinator
+Assignee: DeepSeek Worker 3 (term_8469982b-916d-406a-bc4b-4889ba89ebe6)
+Priority: P1
+Affected Packages: PC-03, PC-05, PC-07, PC-09
+
+## Objective
+Implement PC-R02: V2 workflow execution pins in preview, admission, execution, and retry.
+
+## Problem & Evidence
+In `submission.ts`:
+1. Around lines 1162–1165, `previewProfileGroupFunction` currently passes `workflow: null` to `computeResolutionFingerprint`.
+2. In `submitProfileV2` (around lines 2054–2065), `workflowSchemaPin` is not resolved or forwarded to workflow compilation/admission.
+3. Save-time / admission validation does not supply the execution pin or recheck a subsequently retired workflow revision.
+
+## Scope & File Lease
+EXCLUSIVE LEASE FOR WORKER 3:
+- `du-rework/orchestrator/services/orchestrator/src/modules/operations/submission.ts`
+- `du-rework/orchestrator/services/orchestrator/src/modules/operations/retry.ts` (if any adjustments needed for workflow pin resealing)
+- Tests: `tests/pc-r02-workflow-execution-pins.test.ts` (new) or `tests/profile-v2-http.test.ts`.
+
+DO NOT touch `profiles.ts`, `profile-groups.ts`, `api-keys.ts`, or frontend files.
+
+## Detailed Requirements
+1. **Workflow Pin in Preview (`submission.ts`)**:
+   - When previewing a group function where `pin.kind === 'workflow'` and `pin.workflowRevision !== undefined`:
+     - Resolve the workflow from the workflow registry / schema catalog for the requested function/endpoint.
+     - Extract `slug`, `revision`, `digest` (and recipe pins if configured).
+     - Include `workflow: { slug, revision, digest }` in `computeResolutionFingerprint`!
+2. **Workflow Pin in Admission (`submission.ts`)**:
+   - In `submitProfileV2`:
+     - Recheck that the selected workflow revision is still active/published (not retired). If retired/changed, fail closed with 409 `PROFILE_CHANGED` (zero durable rows).
+     - Include the resolved `workflowSchemaPin` in the admission call so that `compileAdmittedWorkflowPin` compiles and persists the workflow identity (`workflow_schema_slug`, `workflow_schema_revision`, `workflow_schema_digest`) and sealed recipe carrier on `operations` and `tasks`.
+3. **Workflow Pin on Retry (`retry.ts`)**:
+   - Ensure `retryOperation` preserves the original `workflow_schema_slug`, `workflow_schema_revision`, `workflow_schema_digest`, and reseals the recipe carrier for the new IDs under the universal lock order.
+4. **Ordinary Functions Unchanged**:
+   - Ordinary action functions (non-workflow) must continue to have `workflow: null` and remain unaffected.
+
+## Acceptance Criteria
+1. `tests/pc-r02-workflow-execution-pins.test.ts`:
+   - Real v2 workflow preview/submit persists selected registry slug/revision/digest, producing expected compiled payload and recipe carrier.
+   - Retiring/changing the workflow revision between preview and submit denies fresh admission with 409 `PROFILE_CHANGED` and zero durable execution rows.
+   - Changing the selected workflow invalidates the preview (stale fingerprint).
+   - Retry of a workflow operation preserves original workflow/recipe pins and reseals under lock.
+2. `tsc --noEmit` exits 0.
+3. All regression tests pass.
+4. Write receipt to `du-rework/coordination/reports/receipt-pc-r02.md`.
+5. Print completion token: `PC-R02_COMPLETE — du-rework/coordination/reports/receipt-pc-r02.md`.

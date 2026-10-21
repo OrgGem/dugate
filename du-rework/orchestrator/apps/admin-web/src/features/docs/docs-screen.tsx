@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import { ExternalLink, RefreshCw } from 'lucide-react';
 import { AlertBanner, EmptyState, LoadingState } from '@/components/ui/state-panel';
@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/dialog';
 import { NativeSelect } from '@/components/ui/select';
-import { createAdminApiClient, type AdminApiProblem, type AdminWebSession, type ProfileApiKeyRow, type ProfileListRow, type ProfileSelfServiceAssignedPage, type OperationDetail, type AdminWorkbenchEndpointTestRequest, type AdminWorkbenchPromptWizardRequest } from '@/lib/api';
+import { createAdminApiClient, type AdminApiClient, type AdminApiProblem, type AdminWebSession, type ProfileApiKeyRow, type ProfileListRow, type ProfileSelfServiceAssignedPage, type OperationDetail, type AdminWorkbenchEndpointTestRequest, type AdminWorkbenchPromptWizardRequest, type AdminWorkbenchProfilePreviewV2Request, type AdminWorkbenchProfilePreviewV2Response, type ProfileGroupV2 } from '@/lib/api';
 import { parseProfileDetail, parseProfileListPage } from '@/features/profiles/state';
 import { useTenant } from '@/lib/tenant-context';
 import { acceptAttempt, createImmutableAttempt, markAttemptDispatched, retainAfterFailure, TenantAttemptRegistry, type ImmutableAttempt } from '@/features/submissions/immutable-attempt';
@@ -57,6 +57,10 @@ const ENDPOINTS = [
   ['Profiles', '/profiles', 'GET'],
   ['Profile Test Endpoint', '/admin-workbench/test-endpoint', 'POST'],
   ['Prompt Wizard', '/admin-workbench/prompt-wizard', 'POST'],
+  ['Profile Group V2', '/profile-groups/v2', 'GET/POST'],
+  ['Profile Group root grants', '/profile-groups/v2/:groupId/keys', 'POST'],
+  ['Group workbench preview', '/admin-workbench/v2/preview', 'POST'],
+  ['Group workbench submit', '/admin-workbench/v2/submit', 'POST'],
   ['Operation detail and result', '/operations/:id', 'GET'],
   ['Assigned Profile edits', '/profiles/:id/self-service', 'PATCH'],
   ['Workflow import preview', '/workflow-import/preview', 'POST'],
@@ -222,7 +226,7 @@ function safeDownloadHref(value: string | null): string | null {
   } catch { return null; }
 }
 function keyLabel(row: ProfileApiKeyRow): string {
-  return `${row.name ?? 'Unnamed key'} · ${row.prefix} · ${row.id}`;
+  return `${row.name ?? 'Unnamed key'} Â· ${row.prefix} Â· ${row.id}`;
 }
 
 export function DocsScreen() {
@@ -574,7 +578,7 @@ export function DocsScreen() {
           if (!active || generation !== selectionGeneration.current) return;
           if (!result.ok) { setSelectionError(result.problem); return; }
           if (result.data.profileId !== row.assigned.profileId || result.data.tenantId !== tenantId) { setSelectionError({ status: 502, code: 'SCOPE_MISMATCH', title: 'Assigned API keys did not match the selected Profile and tenant.' }); return; }
-          const keys = result.data.items.map((key) => ({ id: key.apiKeyId, label: `${key.name ?? 'Unnamed key'} · ${key.prefix} · ${key.apiKeyId}`, status: key.status }));
+          const keys = result.data.items.map((key) => ({ id: key.apiKeyId, label: `${key.name ?? 'Unnamed key'} Â· ${key.prefix} Â· ${key.apiKeyId}`, status: key.status }));
           installSelection({
             profile: row,
             connectorBindings: row.assigned.connectorBindings,
@@ -730,7 +734,7 @@ export function DocsScreen() {
         setSelectionError({ status: 502, code: 'SCOPE_MISMATCH', title: 'Assigned API keys did not match the selected Profile and tenant.' });
         return;
       }
-      const mapped = result.data.items.map((key) => ({ id: key.apiKeyId, label: `${key.name ?? 'Unnamed key'} · ${key.prefix} · ${key.apiKeyId}`, status: key.status }));
+      const mapped = result.data.items.map((key) => ({ id: key.apiKeyId, label: `${key.name ?? 'Unnamed key'} Â· ${key.prefix} Â· ${key.apiKeyId}`, status: key.status }));
       setSelection((current) => current?.profile.key === assigned.profileId
         ? { ...current, keys: cursor ? [...current.keys, ...mapped.filter((key) => !current.keys.some((existing) => existing.id === key.id))] : mapped }
         : current);
@@ -1157,12 +1161,12 @@ export function DocsScreen() {
             <div className="flex items-end gap-2"><Button variant="outline" onClick={() => setProfileRefresh((value) => value + 1)} disabled={profilesLoading} leftIcon={<RefreshCw className="size-4" />}>Refresh Profiles</Button></div>
           </div>
           {profilesLoading && profiles.length === 0 ? <LoadingState title="Loading authorized Profiles" description="The server is applying tenant and local assignment scope." /> : null}
-          {profilesError ? <AlertBanner variant="error" title={profilesError.title ?? 'Profile catalog unavailable'}>{profilesError.status} · {profilesError.code ?? 'ERROR'} <button className="ml-2 underline" onClick={() => setProfileRefresh((value) => value + 1)}>Retry</button></AlertBanner> : null}
+          {profilesError ? <AlertBanner variant="error" title={profilesError.title ?? 'Profile catalog unavailable'}>{profilesError.status} Â· {profilesError.code ?? 'ERROR'} <button className="ml-2 underline" onClick={() => setProfileRefresh((value) => value + 1)}>Retry</button></AlertBanner> : null}
           {!profilesLoading && !profilesError && filteredProfiles.length === 0 ? <EmptyState title="No active document-core Profiles" description="This tenant has no enabled assigned document-core endpoint in the current search. Profiles and key assignments must be configured first." /> : null}
           {filteredProfiles.length > 0 ? <div className="grid gap-3 md:grid-cols-2">
             <div><label htmlFor="workbench-profile" className="mb-1 block text-sm font-medium">Profile</label><NativeSelect id="workbench-profile" value={selectedProfileValue} onChange={(event) => void chooseProfile(event.target.value)} disabled={selectionLoading || testBusy || wizardBusy}>
               <option value="">Choose a Profile</option>
-              {filteredProfiles.map((profile) => <option key={profile.key} value={profile.key}>{profile.profileName} · rev {profile.revision} · {profile.businessVersion}{profile.actions.length ? ` · ${profile.actions.join(', ')}` : ' · no supported action'}</option>)}
+              {filteredProfiles.map((profile) => <option key={profile.key} value={profile.key}>{profile.profileName} Â· rev {profile.revision} Â· {profile.businessVersion}{profile.actions.length ? ` Â· ${profile.actions.join(', ')}` : ' Â· no supported action'}</option>)}
             </NativeSelect></div>
             <div><label htmlFor="workbench-key" className="mb-1 block text-sm font-medium">Active API key assigned to Profile</label><NativeSelect id="workbench-key" value={selectedKey} onChange={(event) => setSelectedKey(event.target.value)} disabled={!selection || selectionLoading || testBusy || wizardBusy || keysLoading}>
               <option value="">Choose an active key</option>
@@ -1176,14 +1180,14 @@ export function DocsScreen() {
             {keyCursor ? <Button size="sm" variant="outline" onClick={() => void searchAssignedKeys(keyCursor)} disabled={keysLoading || testBusy || wizardBusy}>Load more keys ({selection.keys.length} of {keyTotal})</Button> : null}
           </div> : null}
           {selectionLoading ? <LoadingState title="Loading Profile bindings and active keys" description="The workbench rechecks the exact Profile revision and membership before enabling execution." /> : null}
-          {selectionError ? <AlertBanner variant="error" title={selectionError.title ?? 'Profile details unavailable'}>{selectionError.status} · {selectionError.code ?? 'ERROR'} <button className="ml-2 underline" onClick={() => selectionError.code === 'PROFILE_CHANGED' ? setProfileRefresh((value) => value + 1) : setSelectionRefresh((value) => value + 1)}>Retry Profile and key details</button></AlertBanner> : null}
+          {selectionError ? <AlertBanner variant="error" title={selectionError.title ?? 'Profile details unavailable'}>{selectionError.status} Â· {selectionError.code ?? 'ERROR'} <button className="ml-2 underline" onClick={() => selectionError.code === 'PROFILE_CHANGED' ? setProfileRefresh((value) => value + 1) : setSelectionRefresh((value) => value + 1)}>Retry Profile and key details</button></AlertBanner> : null}
           {selection ? <>
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--text-sub)]"><span>Business <code>{selection.profile.businessId}</code></span><span>Revision <code>{selection.profile.revision}</code></span><span>Allowed actions <code>{selection.profile.actions.join(', ') || 'none'}</code></span></div>
             <div className="grid gap-3 md:grid-cols-2">
               <div><label htmlFor="workbench-action" className="mb-1 block text-sm font-medium">Action</label><NativeSelect id="workbench-action" value={action} onChange={(event) => requestActionChange(event.target.value as WorkbenchAction | '')} disabled={testBusy || wizardBusy}>
                 <option value="">Choose an allowed action</option>{ACTIONS.filter((candidate) => selection.profile.actions.includes(candidate)).map((candidate) => <option key={candidate} value={candidate}>{candidate}</option>)}
               </NativeSelect></div>
-              <div><label htmlFor="workbench-source-url" className="mb-1 block text-sm font-medium">Optional source URL</label><Input id="workbench-source-url" value={sourceUrl} onChange={(event) => setSourceUrl(event.target.value)} placeholder="https://… or tenant-authorized s3://…" disabled={testBusy || wizardBusy} /></div>
+              <div><label htmlFor="workbench-source-url" className="mb-1 block text-sm font-medium">Optional source URL</label><Input id="workbench-source-url" value={sourceUrl} onChange={(event) => setSourceUrl(event.target.value)} placeholder="https://â€¦ or tenant-authorized s3://â€¦" disabled={testBusy || wizardBusy} /></div>
             </div>
             <section aria-labelledby="workbench-parameter-title" className="space-y-3 rounded-[var(--radius-sm)] border border-[var(--border-subtle)] p-3">
               <div><h3 id="workbench-parameter-title" className="text-sm font-semibold">Action parameters</h3><p className="text-xs text-[var(--text-sub)]">Fields come from the active document-core manifest and selected Profile. Locked values remain server-managed and are omitted from the test override.</p></div>
@@ -1209,7 +1213,7 @@ export function DocsScreen() {
                     <label htmlFor={`workbench-param-${key}`} className="mb-1 block text-sm font-medium">{title}{actionRequired.includes(key) ? <span aria-hidden="true"> *</span> : null}</label>
                     {locked ? <Input id={`workbench-param-${key}`} value="Managed by this Profile" disabled aria-describedby={describedBy} />
                       : fieldType === 'boolean' ? <label className="flex h-9 items-center gap-2 text-sm"><input id={`workbench-param-${key}`} type="checkbox" checked={value === true} disabled={testBusy || wizardBusy} aria-describedby={describedBy} onChange={(event) => updateParameter(key, event.target.checked)} /><span>{value === true ? 'Enabled' : 'Disabled'}</span></label>
-                        : fieldType === 'enum' ? <NativeSelect id={`workbench-param-${key}`} value={enumIndex < 0 ? '' : String(enumIndex)} isError={Boolean(error)} aria-required={actionRequired.includes(key)} aria-invalid={error ? true : undefined} aria-describedby={describedBy} disabled={testBusy || wizardBusy} onChange={(event) => { const index = Number(event.target.value); updateParameter(key, Number.isInteger(index) && index >= 0 ? enumValues[index] : undefined); }}><option value="">Choose…</option>{enumValues.map((entry, index) => <option key={`${key}-${index}`} value={String(index)}>{entry === null ? 'null' : String(entry)}</option>)}</NativeSelect>
+                        : fieldType === 'enum' ? <NativeSelect id={`workbench-param-${key}`} value={enumIndex < 0 ? '' : String(enumIndex)} isError={Boolean(error)} aria-required={actionRequired.includes(key)} aria-invalid={error ? true : undefined} aria-describedby={describedBy} disabled={testBusy || wizardBusy} onChange={(event) => { const index = Number(event.target.value); updateParameter(key, Number.isInteger(index) && index >= 0 ? enumValues[index] : undefined); }}><option value="">Chooseâ€¦</option>{enumValues.map((entry, index) => <option key={`${key}-${index}`} value={String(index)}>{entry === null ? 'null' : String(entry)}</option>)}</NativeSelect>
                           : fieldType === 'object' || fieldType === 'array' ? <textarea id={`workbench-param-${key}`} aria-required={actionRequired.includes(key)} aria-invalid={error ? true : undefined} aria-describedby={describedBy} className="min-h-24 w-full rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg-card)] p-2 font-mono text-xs" value={parameterFieldDrafts[key] ?? JSON.stringify(value ?? (fieldType === 'array' ? [] : {}), null, 2)} disabled={testBusy || wizardBusy} spellCheck={false} onChange={(event) => { const text = event.target.value; setParameterFieldDrafts((current) => ({ ...current, [key]: text })); try { const parsed: unknown = JSON.parse(text); if ((fieldType === 'array' && !Array.isArray(parsed)) || (fieldType === 'object' && !isRecord(parsed))) throw new Error(`Enter a JSON ${fieldType}.`); updateParameter(key, parsed); } catch (parseError) { if (parseError instanceof SyntaxError || parseError instanceof Error && parseError.message.startsWith('Enter a JSON')) setParameterFieldErrors((current) => ({ ...current, [key]: parseError.message })); } }} />
                             : fieldType === 'number' || fieldType === 'integer' ? <Input id={`workbench-param-${key}`} type="number" step={fieldType === 'integer' ? '1' : 'any'} min={typeof definition['minimum'] === 'number' ? definition['minimum'] : undefined} max={typeof definition['maximum'] === 'number' ? definition['maximum'] : undefined} aria-required={actionRequired.includes(key)} aria-invalid={error ? true : undefined} aria-describedby={describedBy} value={parameterFieldDrafts[key] ?? (typeof value === 'number' ? String(value) : '')} disabled={testBusy || wizardBusy} onChange={(event) => { const text = event.target.value; setParameterFieldDrafts((current) => ({ ...current, [key]: text })); if (text === '') { updateParameter(key, undefined); return; } const numeric = Number(text); if (Number.isFinite(numeric) && (fieldType !== 'integer' || Number.isInteger(numeric))) updateParameter(key, numeric); else setParameterFieldErrors((current) => ({ ...current, [key]: `Enter a valid ${fieldType}.` })); }} />
                               : <Input id={`workbench-param-${key}`} type="text" minLength={typeof definition['minLength'] === 'number' ? definition['minLength'] : undefined} maxLength={typeof definition['maxLength'] === 'number' ? definition['maxLength'] : undefined} pattern={typeof definition['pattern'] === 'string' ? definition['pattern'] : undefined} aria-required={actionRequired.includes(key)} aria-invalid={error ? true : undefined} aria-describedby={describedBy} value={typeof value === 'string' ? value : ''} disabled={testBusy || wizardBusy} onChange={(event) => updateParameter(key, event.target.value)} />}
@@ -1218,7 +1222,7 @@ export function DocsScreen() {
                   </div>;
                 })}
               </div> : action ? <AlertBanner variant="warning" title="Action schema unavailable">This Profile read did not include input metadata for <code>{action}</code>. Use the advanced JSON fallback or refresh the Profile.</AlertBanner> : <p className="text-sm text-[var(--text-sub)]">Choose an allowed action to load its schema-driven form.</p>}
-              {lockedParametersOutsideSchema.length > 0 ? <fieldset className="space-y-2 border-t border-[var(--border-subtle)] pt-3"><legend className="px-1 text-xs font-medium">Other locked Profile values</legend>{lockedParametersOutsideSchema.map(([key]) => <label key={key} className="grid gap-1 text-xs text-[var(--text-sub)]">{key} · locked<input value="Managed by this Profile" disabled aria-label={`${key} locked by Profile`} className="h-9 rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg-muted)] px-2 text-sm" /></label>)}</fieldset> : null}
+              {lockedParametersOutsideSchema.length > 0 ? <fieldset className="space-y-2 border-t border-[var(--border-subtle)] pt-3"><legend className="px-1 text-xs font-medium">Other locked Profile values</legend>{lockedParametersOutsideSchema.map(([key]) => <label key={key} className="grid gap-1 text-xs text-[var(--text-sub)]">{key} Â· locked<input value="Managed by this Profile" disabled aria-label={`${key} locked by Profile`} className="h-9 rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg-muted)] px-2 text-sm" /></label>)}</fieldset> : null}
               {parametersError ? <p role="alert" className="text-xs text-[var(--badge-danger-text)]">{parametersError}</p> : null}
               {lockedOmittedNotice ? <AlertBanner variant="info" title="Locked values omitted">{lockedOmittedNotice}</AlertBanner> : null}
               <details><summary className="cursor-pointer text-sm font-medium">Advanced parameters JSON</summary><label htmlFor="workbench-parameters" className="mb-1 mt-2 block text-xs text-[var(--text-sub)]">Edit declared objects, arrays, or additional fields here.</label><textarea id="workbench-parameters" aria-invalid={parametersError ? true : undefined} className="min-h-36 w-full rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg-card)] p-3 font-mono text-xs" value={parametersText} onChange={(event) => { setParametersText(event.target.value); setParameterFieldDrafts({}); setParameterFieldErrors({}); setParametersError(null); }} disabled={testBusy || wizardBusy} spellCheck={false} /></details>
@@ -1226,12 +1230,12 @@ export function DocsScreen() {
               <p className="text-xs text-[var(--text-sub)]">Parameters are limited to 32 KiB. Files are attached separately.</p>
             </section>
             <div className="rounded-[var(--radius-sm)] border border-[var(--border-subtle)] p-3">
-              <div className="flex flex-wrap items-center justify-between gap-2"><label htmlFor="workbench-files" className="text-sm font-medium">Input files (up to 20)</label><Badge variant="neutral">{uploadedArtifacts.length} uploaded · {files.length} waiting</Badge></div>
+              <div className="flex flex-wrap items-center justify-between gap-2"><label htmlFor="workbench-files" className="text-sm font-medium">Input files (up to 20)</label><Badge variant="neutral">{uploadedArtifacts.length} uploaded Â· {files.length} waiting</Badge></div>
               <input ref={fileInputRef} id="workbench-files" type="file" multiple onChange={(event) => setFiles(Array.from(event.target.files ?? []))} disabled={!selectedKeyAllowed || testBusy || wizardBusy} className="mt-2 block w-full text-sm" />
               {files.length > 0 ? <p className="mt-2 text-xs text-[var(--text-sub)]">{files.map((file) => file.name).join(', ')}</p> : null}
               {uploadedArtifacts.length > 0 ? <div className="mt-2 flex flex-wrap items-center gap-2"><span className="text-xs text-[var(--text-sub)]">Files are attached to the current draft request.</span><Button size="sm" variant="ghost" disabled={testBusy || wizardBusy} onClick={() => { setUploadedArtifacts([]); setFiles([]); if (fileInputRef.current) fileInputRef.current.value = ''; }}>Clear files</Button></div> : null}
             </div>
-            {testProblem ? <AlertBanner variant="error" title={testProblem.title ?? 'Test could not be submitted'}>{testProblem.status} · {testProblem.code ?? 'ERROR'}{testProblem.correlationId ? ` · ${testProblem.correlationId}` : ''}</AlertBanner> : null}
+            {testProblem ? <AlertBanner variant="error" title={testProblem.title ?? 'Test could not be submitted'}>{testProblem.status} Â· {testProblem.code ?? 'ERROR'}{testProblem.correlationId ? ` Â· ${testProblem.correlationId}` : ''}</AlertBanner> : null}
             {testAttempt?.state === 'UNCERTAIN' || testAttempt?.state === 'SENDING' ? <AlertBanner variant="warning" title="Saved test request needs resolution">This exact request belongs to tenant <code>{testAttempt.tenantId}</code>. Replay keeps its original key and uploaded artifact references; form edits are not submitted.</AlertBanner> : null}
             {testAttempt?.state === 'ACCEPTED' && testAttempt.operationId ? <AlertBanner variant="info" title="Test operation already accepted">Operation <code>{testAttempt.operationId}</code> is being tracked. Check its status before starting another test.</AlertBanner> : null}
             <div className="flex flex-wrap items-center justify-between gap-3"><p className="max-w-2xl text-xs text-[var(--text-sub)]">Tests run through normal admission, assignment, profile, budget and workflow checks. No simulation is presented as a completed test.</p><div className="flex flex-wrap gap-2">{testAttempt && testAttempt.state !== 'ACCEPTED' ? <Button variant="outline" onClick={() => void retryTestAttempt()} disabled={testBusy || wizardBusy || uploading || testAttempt.tenantId !== tenantId}>Retry exact saved test</Button> : null}<Button onClick={() => openConfirmation('test')} disabled={testBusy || wizardBusy || uploading || Boolean(testAttempt) || !selectedActionAllowed || !selectedKeyAllowed}>Review real test</Button></div></div>
@@ -1239,19 +1243,21 @@ export function DocsScreen() {
         </CardContent>
       </Card> : null}
 
+      {canUseWorkbench && tenantId ? <GroupWorkbenchPanel client={client} tenantId={tenantId} /> : null}
+
       {canUseWorkbench && selection ? <Card>
         <CardHeader>
           <CardTitle>Prompt Wizard</CardTitle>
-          <CardDescription>Propose a prompt revision through the selected Profile’s actual reasoning Connector. The generated result stays a local draft; this screen never publishes a Profile.</CardDescription>
+          <CardDescription>Propose a prompt revision through the selected Profileâ€™s actual reasoning Connector. The generated result stays a local draft; this screen never publishes a Profile.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {!wizardAvailable ? <AlertBanner variant="warning" title="Prompt Wizard unavailable">This Profile must pin an active <code>ext-prompt-wizard</code> revision in its reasoning slot. The workbench does not invent a Connector mapping.</AlertBanner> : <AlertBanner variant="info" title="Pinned Wizard Connector">The Profile pins <code>{wizardBinding!.connectorId}</code> revision <code>{wizardBinding!.revision}</code>. The server verifies that exact active tenant-authorized revision on submit.</AlertBanner>}
           <div><label htmlFor="wizard-current-prompt" className="mb-1 block text-sm font-medium">Current prompt</label><textarea id="wizard-current-prompt" className="min-h-32 w-full rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg-card)] p-3 text-sm" maxLength={16_000} value={promptDraft} onChange={(event) => { setPromptDraft(event.target.value); setProposalBasePrompt(event.target.value); setProposalAccepted(false); }} disabled={wizardBusy || testBusy} placeholder="Enter or adjust the current prompt. Template placeholders are preserved and checked before using a proposal." /><p className="mt-1 text-xs text-[var(--text-sub)]">{promptDirty ? 'Unsaved prompt text is a local draft and will not change the Profile.' : 'A matching prompt parameter was prefilled when available; profile overrides remain untouched.'}</p></div>
           <div><label htmlFor="wizard-problem" className="mb-1 block text-sm font-medium">What should improve?</label><textarea id="wizard-problem" className="min-h-20 w-full rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg-card)] p-3 text-sm" maxLength={4_000} value={problemText} onChange={(event) => setProblemText(event.target.value)} disabled={wizardBusy || testBusy} placeholder="Optional: describe a specific issue with clarity, constraints, or output format." /></div>
-          {wizardProblem ? <AlertBanner variant="error" title={wizardProblem.title ?? 'Prompt proposal could not be submitted'}>{wizardProblem.status} · {wizardProblem.code ?? 'ERROR'}</AlertBanner> : null}
+          {wizardProblem ? <AlertBanner variant="error" title={wizardProblem.title ?? 'Prompt proposal could not be submitted'}>{wizardProblem.status} Â· {wizardProblem.code ?? 'ERROR'}</AlertBanner> : null}
           {wizardAttempt?.state === 'UNCERTAIN' || wizardAttempt?.state === 'SENDING' ? <AlertBanner variant="warning" title="Saved proposal request needs resolution">This exact request belongs to tenant <code>{wizardAttempt.tenantId}</code>. Replay uses the original prompt, Profile revision, Connector pin, key, and idempotency key.</AlertBanner> : null}
           {wizardAttempt?.state === 'ACCEPTED' && wizardAttempt.operationId ? <AlertBanner variant="info" title="Prompt proposal already accepted">Operation <code>{wizardAttempt.operationId}</code> is being tracked. Check its status before starting another proposal.</AlertBanner> : null}
-          {proposalDraft ? <div className="space-y-3"><div><label htmlFor="wizard-proposal" className="mb-1 block text-sm font-medium">Proposal draft</label><textarea id="wizard-proposal" className="min-h-40 w-full rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg-card)] p-3 text-sm" maxLength={16_000} value={proposalDraft} onChange={(event) => { setProposalDraft(event.target.value); setProposalAccepted(false); }} disabled={wizardBusy} /><p className="mt-1 text-xs text-[var(--text-sub)]">Review the change below. Accepting updates only this browser’s request draft; Profile edits remain a separate explicit save.</p>{placeholderDiffers ? <AlertBanner variant="error" title="Template placeholders changed">The proposal placeholder set differs from the current prompt. Review or correct it before accepting.</AlertBanner> : <p className="mt-1 text-xs text-[var(--text-sub)]">Template placeholders match the current prompt.</p>}</div>
+          {proposalDraft ? <div className="space-y-3"><div><label htmlFor="wizard-proposal" className="mb-1 block text-sm font-medium">Proposal draft</label><textarea id="wizard-proposal" className="min-h-40 w-full rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg-card)] p-3 text-sm" maxLength={16_000} value={proposalDraft} onChange={(event) => { setProposalDraft(event.target.value); setProposalAccepted(false); }} disabled={wizardBusy} /><p className="mt-1 text-xs text-[var(--text-sub)]">Review the change below. Accepting updates only this browserâ€™s request draft; Profile edits remain a separate explicit save.</p>{placeholderDiffers ? <AlertBanner variant="error" title="Template placeholders changed">The proposal placeholder set differs from the current prompt. Review or correct it before accepting.</AlertBanner> : <p className="mt-1 text-xs text-[var(--text-sub)]">Template placeholders match the current prompt.</p>}</div>
             <section aria-labelledby="wizard-diff-title" className="rounded-[var(--radius-sm)] border border-[var(--border-subtle)] p-3"><h3 id="wizard-diff-title" className="mb-2 text-sm font-semibold">Prompt diff</h3><pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words text-xs"><span>{diff.prefix}</span><del className="rounded bg-[var(--badge-danger-bg)] text-[var(--badge-danger-text)]">{diff.removed || (diff.added ? '' : 'No text changes')}</del><ins className="rounded bg-[var(--badge-success-bg)] text-[var(--badge-success-text)]">{diff.added}</ins><span>{diff.suffix}</span></pre></section>
             <div className="flex flex-wrap items-center gap-2"><Button variant="outline" onClick={acceptProposal} disabled={!placeholderSafe || wizardBusy || testBusy || Boolean(session?.localUser && !wizardPromptKey)}>Accept proposal to local draft</Button>{proposalAccepted ? <span role="status" className="text-sm text-[var(--text-sub)]">Accepted into the local prompt and parameter draft. Nothing has been saved or published.</span> : null}{canOpenProfileEditor && selection ? <Link className="inline-flex items-center gap-1 text-sm underline" to="/profiles" state={{ workbenchPromptProposal: { handoffId: proposalHandoffId, businessId: selection.profile.businessId, businessVersion: selection.profile.businessVersion, profileName: selection.profile.profileName, expectedRevision: selection.profile.revision, tenantId: session?.localUser ? undefined : tenantId, profileId: selection.profile.assigned?.profileId, parameterKey: wizardPromptKey, prompt: promptDraft } }}>Open Profile editor with this draft <ExternalLink className="size-3.5" /></Link> : null}</div>
             {session?.localUser && !wizardPromptKey ? <p className="text-xs text-[var(--text-sub)]">This assigned endpoint has no unlocked prompt parameter in its active schema, so a generated proposal cannot be applied to the assigned Profile.</p> : null}
@@ -1271,16 +1277,342 @@ export function DocsScreen() {
           {operation.detail?.resultSummary ? <details className="rounded-[var(--radius-sm)] border border-[var(--border-subtle)] p-3"><summary className="cursor-pointer text-sm font-medium">Result and usage details</summary><pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-words text-xs">{operation.detail.resultSummary}</pre></details> : null}
           {operation.detail?.artifacts.length ? <div><h4 className="mb-2 text-sm font-semibold">Operation artifacts</h4><ul className="space-y-2">{operation.detail.artifacts.map((artifact, index) => {
             const href = safeDownloadHref(artifact.downloadUrl);
-            return <li key={`${artifact.role}-${index}`} className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-sm)] border border-[var(--border-subtle)] p-2 text-sm"><span>{artifact.role} · {artifact.status}</span>{href ? <a className="underline" href={href} target="_blank" rel="noreferrer">Download result</a> : <span className="text-xs text-[var(--text-sub)]">No safe download link available</span>}</li>;
+            return <li key={`${artifact.role}-${index}`} className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-sm)] border border-[var(--border-subtle)] p-2 text-sm"><span>{artifact.role} Â· {artifact.status}</span>{href ? <a className="underline" href={href} target="_blank" rel="noreferrer">Download result</a> : <span className="text-xs text-[var(--text-sub)]">No safe download link available</span>}</li>;
           })}</ul></div> : null}
         </CardContent>
       </Card> : null}
 
-      <Modal open={confirmAction !== null} onOpenChange={(open) => { if (!open && !testBusy && !wizardBusy) setConfirmAction(null); }} title={confirmAction === 'wizard' ? 'Confirm real prompt proposal' : 'Confirm real Test Endpoint'} description="This submits through normal workflow admission and can call an external provider." footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="secondary" disabled={testBusy || wizardBusy} onClick={() => setConfirmAction(null)}>Go back</Button><Button disabled={testBusy || wizardBusy || uploading} onClick={() => confirmAction === 'wizard' ? void submitWizard() : void submitTest()}>{testBusy || wizardBusy || uploading ? 'Submitting…' : confirmAction === 'wizard' ? 'Submit prompt proposal' : 'Submit test operation'}</Button></div>}>
-        <div className="space-y-3"><AlertBanner variant="warning" title="Provider request and possible charges">The operation will use the selected tenant, active key, Profile revision and server-side policies. It may contact the real provider and incur cost.</AlertBanner><dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm"><dt>Tenant</dt><dd className="break-all font-mono">{tenantId ?? '—'}</dd><dt>Profile</dt><dd>{selection?.profile.profileName ?? '—'} · revision {selection?.profile.revision ?? '—'}</dd><dt>Key</dt><dd className="break-all font-mono">{selection?.keys.find((key) => key.id === selectedKey)?.label ?? '—'}</dd><dt>Operation</dt><dd>{confirmAction === 'wizard' ? 'Prompt Wizard proposal' : `${action} Test Endpoint`}</dd><dt>Files</dt><dd>{uploadedArtifacts.length + files.length}</dd></dl><p className="text-xs text-[var(--text-sub)]">No provider call is made until you press the submission button. The resulting operation remains visible in Operations.</p></div>
+      <Modal open={confirmAction !== null} onOpenChange={(open) => { if (!open && !testBusy && !wizardBusy) setConfirmAction(null); }} title={confirmAction === 'wizard' ? 'Confirm real prompt proposal' : 'Confirm real Test Endpoint'} description="This submits through normal workflow admission and can call an external provider." footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="secondary" disabled={testBusy || wizardBusy} onClick={() => setConfirmAction(null)}>Go back</Button><Button disabled={testBusy || wizardBusy || uploading} onClick={() => confirmAction === 'wizard' ? void submitWizard() : void submitTest()}>{testBusy || wizardBusy || uploading ? 'Submittingâ€¦' : confirmAction === 'wizard' ? 'Submit prompt proposal' : 'Submit test operation'}</Button></div>}>
+        <div className="space-y-3"><AlertBanner variant="warning" title="Provider request and possible charges">The operation will use the selected tenant, active key, Profile revision and server-side policies. It may contact the real provider and incur cost.</AlertBanner><dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm"><dt>Tenant</dt><dd className="break-all font-mono">{tenantId ?? 'â€”'}</dd><dt>Profile</dt><dd>{selection?.profile.profileName ?? 'â€”'} Â· revision {selection?.profile.revision ?? 'â€”'}</dd><dt>Key</dt><dd className="break-all font-mono">{selection?.keys.find((key) => key.id === selectedKey)?.label ?? 'â€”'}</dd><dt>Operation</dt><dd>{confirmAction === 'wizard' ? 'Prompt Wizard proposal' : `${action} Test Endpoint`}</dd><dt>Files</dt><dd>{uploadedArtifacts.length + files.length}</dd></dl><p className="text-xs text-[var(--text-sub)]">No provider call is made until you press the submission button. The resulting operation remains visible in Operations.</p></div>
       </Modal>
 
-      <Modal open={switchConfirmOpen} onOpenChange={(open) => { if (!open) { setSwitchConfirmOpen(false); setSwitchTarget(null); } }} title={switchTarget?.kind === 'action' ? 'Discard action parameter draft?' : 'Discard this local workbench draft?'} description={switchTarget?.kind === 'action' ? `Changing action to ${switchTarget.action || 'no action'} resets only the parameter fields.` : 'Changing Profiles clears the current prompt and request inputs; no Profile revision has been changed.'} footer={<div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => { setSwitchConfirmOpen(false); setSwitchTarget(null); }}>Keep current draft</Button><Button onClick={commitDraftSwitch}>{switchTarget?.kind === 'action' ? 'Discard parameters and change action' : 'Discard draft and switch'}</Button></div>}><p className="text-sm">{switchTarget?.kind === 'action' ? 'Your current action parameter values will be reset to the new action’s Profile values and schema defaults. Other request and prompt drafts stay intact.' : 'Unsaved prompt text, parameters, source URL, selected files and unsubmitted artifact references will be cleared.'}</p></Modal>
+      <Modal open={switchConfirmOpen} onOpenChange={(open) => { if (!open) { setSwitchConfirmOpen(false); setSwitchTarget(null); } }} title={switchTarget?.kind === 'action' ? 'Discard action parameter draft?' : 'Discard this local workbench draft?'} description={switchTarget?.kind === 'action' ? `Changing action to ${switchTarget.action || 'no action'} resets only the parameter fields.` : 'Changing Profiles clears the current prompt and request inputs; no Profile revision has been changed.'} footer={<div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => { setSwitchConfirmOpen(false); setSwitchTarget(null); }}>Keep current draft</Button><Button onClick={commitDraftSwitch}>{switchTarget?.kind === 'action' ? 'Discard parameters and change action' : 'Discard draft and switch'}</Button></div>}><p className="text-sm">{switchTarget?.kind === 'action' ? 'Your current action parameter values will be reset to the new actionâ€™s Profile values and schema defaults. Other request and prompt drafts stay intact.' : 'Unsaved prompt text, parameters, source URL, selected files and unsubmitted artifact references will be cleared.'}</p></Modal>
     </div>
   );
 }
+
+/* --------------------------------------------------------------------------
+ * PC-08 — Profile Group (V2) workbench.
+ *
+ * A group function is resolved from the explicitly selected key: the panel
+ * filters the tenant's V2 groups by that key's active grants, calls the
+ * preflight preview, renders the resolved refs + effective request, and submits
+ * with the EXACT preview fingerprint. It never picks a key and never re-uses a
+ * fingerprint after the preview went stale.
+ * ------------------------------------------------------------------------ */
+
+interface GroupWorkbenchOption {
+  key: string;
+  groupId: string;
+  groupName: string;
+  businessId: string;
+  businessVersion: string;
+  functionId: string;
+  action: string;
+  kind: 'endpoint' | 'workflow';
+  endpointSlug?: string;
+  label: string;
+}
+
+function groupFunctionOptions(groups: ProfileGroupV2[], apiKeyId: string): GroupWorkbenchOption[] {
+  if (!apiKeyId) return [];
+  const options: GroupWorkbenchOption[] = [];
+  for (const group of groups) {
+    const granted = group.apiKeyGrants.some((grant) => grant.apiKeyId === apiKeyId);
+    if (!granted) continue;
+    for (const business of group.businesses) {
+      for (const fn of business.functions) {
+        options.push({
+          key: JSON.stringify([group.groupId, business.businessId, business.businessVersion, fn.functionId]),
+          groupId: group.groupId,
+          groupName: group.name,
+          businessId: business.businessId,
+          businessVersion: business.businessVersion,
+          functionId: fn.functionId,
+          action: fn.action,
+          kind: fn.kind,
+          ...(fn.endpointSlug ? { endpointSlug: fn.endpointSlug } : {}),
+          label: `${group.name} · ${fn.functionId}`,
+        });
+      }
+    }
+  }
+  return options.sort((left, right) => left.label.localeCompare(right.label));
+}
+
+function ProblemBanner({ problem, title }: { problem: AdminApiProblem; title: string }) {
+  return (
+    <AlertBanner variant="error" title={problem.title ?? title}>
+      {problem.status} · {problem.code ?? 'ERROR'}
+    </AlertBanner>
+  );
+}
+
+function GroupWorkbenchPanel({ client, tenantId }: { client: AdminApiClient; tenantId: string }) {
+  const [keys, setKeys] = useState<Array<{ id: string; label: string }>>([]);
+  const [groups, setGroups] = useState<ProfileGroupV2[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadProblem, setLoadProblem] = useState<string | null>(null);
+  const [keyId, setKeyId] = useState('');
+  const [optionKey, setOptionKey] = useState('');
+  const [parametersText, setParametersText] = useState('{}');
+  const [sourceUrl, setSourceUrl] = useState('');
+  const [previewRequest, setPreviewRequest] = useState<AdminWorkbenchProfilePreviewV2Request | null>(null);
+  const [preview, setPreview] = useState<AdminWorkbenchProfilePreviewV2Response | null>(null);
+  const [previewProblem, setPreviewProblem] = useState<AdminApiProblem | null>(null);
+  const [previewBusy, setPreviewBusy] = useState(false);
+  const [submitProblem, setSubmitProblem] = useState<AdminApiProblem | null>(null);
+  const [submitBusy, setSubmitBusy] = useState(false);
+  const [acceptedOperationId, setAcceptedOperationId] = useState<string | null>(null);
+  const [staleNotice, setStaleNotice] = useState<string | null>(null);
+  const idempotencyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setLoadProblem(null);
+    void Promise.all([
+      client.listApiKeys({ tenantId, limit: '100' }),
+      client.listProfileGroupsV2(tenantId),
+    ]).then(([keysResult, groupsResult]) => {
+      if (!active) return;
+      if (!keysResult.ok) setLoadProblem(keysResult.problem.title ?? 'Active keys could not be read.');
+      else setKeys(keysResult.data.items.filter((key) => key.status === 'ACTIVE').map((key) => ({ id: key.id, label: `${key.name || 'Unnamed key'} · ${key.prefix}` })));
+      if (!groupsResult.ok) setLoadProblem(groupsResult.problem.title ?? 'Profile groups could not be read.');
+      else setGroups(groupsResult.data.groups);
+    }).catch(() => { if (active) setLoadProblem('The group workbench data could not be reached.'); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [client, tenantId]);
+
+  const options = useMemo(() => groupFunctionOptions(groups, keyId), [groups, keyId]);
+  const selected = options.find((option) => option.key === optionKey) ?? null;
+
+  function invalidatePreview(reason: string | null): void {
+    setPreview(null);
+    setPreviewRequest(null);
+    setSubmitProblem(null);
+    setAcceptedOperationId(null);
+    setStaleNotice(reason);
+    idempotencyRef.current = null;
+  }
+
+  async function previewResolution(): Promise<void> {
+    if (!selected) return;
+    let input: Record<string, unknown>;
+    try {
+      input = parseJsonObject(parametersText);
+    } catch (error) {
+      setPreviewProblem({ status: 422, code: 'INVALID_SCHEMA', title: error instanceof Error ? error.message : 'Parameters must be a JSON object.' });
+      return;
+    }
+    const trimmedUrl = sourceUrl.trim();
+    const body: AdminWorkbenchProfilePreviewV2Request = {
+      tenantId,
+      apiKeyId: keyId,
+      businessId: selected.businessId,
+      businessVersion: selected.businessVersion,
+      action: selected.action,
+      functionId: selected.functionId,
+      ...(selected.endpointSlug ? { endpointSlug: selected.endpointSlug } : {}),
+      submission: { input, ...(trimmedUrl ? { sourceUrl: trimmedUrl } : {}) },
+    };
+    setPreviewBusy(true);
+    setPreviewProblem(null);
+    setSubmitProblem(null);
+    setStaleNotice(null);
+    setAcceptedOperationId(null);
+    try {
+      const result = await client.previewAdminWorkbenchProfileV2(body);
+      if (!result.ok) {
+        setPreview(null);
+        setPreviewRequest(null);
+        setPreviewProblem({
+          ...result.problem,
+          title: result.problem.code === 'PROFILE_GROUP_UNAUTHORIZED'
+            ? 'The selected API key holds no current root grant for this group function.'
+            : result.problem.title,
+        });
+        return;
+      }
+      setPreviewRequest(body);
+      setPreview(result.data);
+      idempotencyRef.current = crypto.randomUUID();
+    } catch {
+      setPreviewProblem({ status: 0, code: 'NETWORK_ERROR', title: 'The preview could not be confirmed. Re-run it before submitting.' });
+    } finally {
+      setPreviewBusy(false);
+    }
+  }
+
+  async function submitResolved(): Promise<void> {
+    if (!previewRequest || !preview) return;
+    const idempotencyKey = idempotencyRef.current ?? crypto.randomUUID();
+    idempotencyRef.current = idempotencyKey;
+    setSubmitBusy(true);
+    setSubmitProblem(null);
+    try {
+      const result = await client.submitAdminWorkbenchProfileV2(
+        { ...previewRequest, resolutionFingerprint: preview.resolutionFingerprint },
+        idempotencyKey,
+      );
+      if (!result.ok) {
+        if (result.problem.code === 'PROFILE_CHANGED') {
+          invalidatePreview('The pinned resolution changed since this preview. Preview again before submitting.');
+          return;
+        }
+        setSubmitProblem({
+          ...result.problem,
+          title: result.problem.code === 'PROFILE_GROUP_UNAUTHORIZED'
+            ? 'The selected API key no longer holds a current root grant.'
+            : result.problem.title,
+        });
+        return;
+      }
+      setAcceptedOperationId(result.data.operationId);
+    } catch {
+      setSubmitProblem({ status: 0, code: 'NETWORK_ERROR', title: 'The submit outcome is unknown. Preview again before retrying.' });
+    } finally {
+      setSubmitBusy(false);
+    }
+  }
+
+  const busy = previewBusy || submitBusy;
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <CardTitle>Group workbench (V2)</CardTitle>
+            <CardDescription>
+              Select an active key first: the server derives the group from that key's root grant. Preview resolves the
+              pinned configuration and returns the fingerprint this screen must submit; no provider call is made by a preview.
+            </CardDescription>
+          </div>
+          <Badge variant="info">preflight → fingerprint → submit</Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {loading ? <LoadingState title="Loading keys, groups and grants" /> : null}
+        {loadProblem ? <AlertBanner variant="error" title="Group workbench data unavailable">{loadProblem}</AlertBanner> : null}
+
+        <div className="grid gap-3 md:grid-cols-2">
+          <div>
+            <label htmlFor="group-workbench-key" className="mb-1 block text-sm font-medium">Active API key (explicit)</label>
+            <NativeSelect
+              id="group-workbench-key"
+              value={keyId}
+              disabled={busy || loading || keys.length === 0}
+              onChange={(event) => { setKeyId(event.target.value); setOptionKey(''); invalidatePreview(null); }}
+            >
+              <option value="">{keys.length === 0 ? 'No active key in this tenant' : 'Choose an active key'}</option>
+              {keys.map((key) => <option key={key.id} value={key.id}>{key.label}</option>)}
+            </NativeSelect>
+            <p className="mt-1 text-xs text-[var(--text-sub)]">Only keys holding a current grant for a group are offered below. No key is selected for you.</p>
+          </div>
+          <div>
+            <label htmlFor="group-workbench-function" className="mb-1 block text-sm font-medium">Group function</label>
+            <NativeSelect
+              id="group-workbench-function"
+              value={optionKey}
+              disabled={busy || loading || !keyId || options.length === 0}
+              onChange={(event) => { setOptionKey(event.target.value); invalidatePreview(null); }}
+            >
+              <option value="">{!keyId ? 'Choose a key first' : options.length === 0 ? 'This key has no granted group function' : 'Choose a group function'}</option>
+              {options.map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}
+            </NativeSelect>
+          </div>
+        </div>
+
+        {keyId && options.length === 0 && !loading ? (
+          <AlertBanner variant="warning" title="No granted group function for this key">
+            The key holds no active root grant. Issuing a grant is a separate, explicit action in Profiles → Groups → Root access.
+          </AlertBanner>
+        ) : null}
+
+        <div>
+          <label htmlFor="group-workbench-parameters" className="mb-1 block text-sm font-medium">Submission input (JSON object)</label>
+          <textarea
+            id="group-workbench-parameters"
+            className="min-h-28 w-full rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg-card)] p-3 font-mono text-xs"
+            value={parametersText}
+            disabled={busy}
+            spellCheck={false}
+            onChange={(event) => { setParametersText(event.target.value); invalidatePreview(null); }}
+          />
+        </div>
+        <div>
+          <label htmlFor="group-workbench-source" className="mb-1 block text-sm font-medium">Optional source URL</label>
+          <Input
+            id="group-workbench-source"
+            value={sourceUrl}
+            disabled={busy}
+            placeholder="https://… or tenant-authorized s3://…"
+            onChange={(event) => { setSourceUrl(event.target.value); invalidatePreview(null); }}
+          />
+        </div>
+
+        {previewProblem ? <ProblemBanner problem={previewProblem} title="Preview failed" /> : null}
+        {submitProblem ? <ProblemBanner problem={submitProblem} title="Submit failed" /> : null}
+        {staleNotice ? <AlertBanner variant="warning" title="Preview is stale">{staleNotice}</AlertBanner> : null}
+        {acceptedOperationId ? (
+          <AlertBanner variant="success" title="Group submission accepted">
+            Operation <code>{acceptedOperationId}</code> was accepted with the previewed fingerprint.
+            <Link className="ml-2 underline" to={`/operations?operation=${encodeURIComponent(acceptedOperationId)}`}>Open Operations</Link>
+          </AlertBanner>
+        ) : null}
+
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="max-w-2xl text-xs text-[var(--text-sub)]">
+            Preview is configuration resolution only. Submit uses normal admission and can call a provider.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => void previewResolution()} disabled={busy || !selected}>{previewBusy ? 'Resolving…' : 'Preview resolution'}</Button>
+            <Button onClick={() => void submitResolved()} disabled={busy || !preview || !previewRequest}>{submitBusy ? 'Submitting…' : 'Submit with this fingerprint'}</Button>
+          </div>
+        </div>
+
+        {preview ? (
+          <div className="space-y-3 rounded-[var(--radius-sm)] border border-[var(--border-subtle)] p-3">
+            <h3 className="text-sm font-semibold">Resolved preview</h3>
+            <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-xs">
+              <dt className="text-[var(--text-sub)]">Group</dt>
+              <dd className="break-all font-mono">{preview.refs.groupId} · rev {preview.refs.groupRevision} · access v{preview.refs.accessVersion}</dd>
+              <dt className="text-[var(--text-sub)]">Function</dt>
+              <dd className="break-all font-mono">{preview.refs.businessId}@{preview.refs.businessVersion} · {preview.refs.functionId} · {preview.refs.action}</dd>
+              <dt className="text-[var(--text-sub)]">Manifest digest</dt>
+              <dd className="break-all font-mono">{preview.refs.manifestDigest}</dd>
+              <dt className="text-[var(--text-sub)]">Child profile</dt>
+              <dd className="break-all font-mono">{preview.refs.childProfileId} · revision {preview.refs.childRevision}</dd>
+              <dt className="text-[var(--text-sub)]">Tenant defaults</dt>
+              <dd className="font-mono">{preview.refs.tenantDefaultsRevision === null ? 'not pinned' : `revision ${preview.refs.tenantDefaultsRevision}`}</dd>
+              <dt className="text-[var(--text-sub)]">Connector pins</dt>
+              <dd className="break-all font-mono">{preview.refs.connectorBindings.length === 0 ? 'none' : preview.refs.connectorBindings.map((pin) => `${pin.slot}=${pin.connectorId}@${pin.revision}`).join(', ')}</dd>
+              <dt className="text-[var(--text-sub)]">Resolution fingerprint</dt>
+              <dd className="break-all font-mono">{preview.resolutionFingerprint}</dd>
+            </dl>
+            <div className="grid gap-3 md:grid-cols-2">
+              <section aria-label="Effective request parameters">
+                <h4 className="mb-1 text-xs font-semibold uppercase tracking-wider text-[var(--text-sub)]">Effective parameters</h4>
+                <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words rounded border border-[var(--border-subtle)] p-2 text-xs">{JSON.stringify(preview.effective.parameters, null, 2)}</pre>
+              </section>
+              <section aria-label="Applied defaults and locked fields">
+                <h4 className="mb-1 text-xs font-semibold uppercase tracking-wider text-[var(--text-sub)]">Defaults and locked fields</h4>
+                <dl className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1 text-xs">
+                  <dt className="text-[var(--text-sub)]">From request defaults</dt>
+                  <dd className="break-words">{preview.effective.appliedRequestDefaults.join(', ') || 'none'}</dd>
+                  <dt className="text-[var(--text-sub)]">From schema defaults</dt>
+                  <dd className="break-words">{preview.effective.appliedSchemaDefaults.join(', ') || 'none'}</dd>
+                  <dt className="text-[var(--text-sub)]">Locked (never submitted)</dt>
+                  <dd className="break-words">{preview.effective.lockedParameters.join(', ') || 'none'}</dd>
+                </dl>
+              </section>
+            </div>
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+

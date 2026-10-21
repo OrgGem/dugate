@@ -44,7 +44,7 @@ describe('profile group and business lifecycle API client', () => {
     assert.deepEqual(calls.map(({ method, url }) => [method, url]), [
       ['GET', '/admin/api/session'],
       ['PUT', '/admin/api/businesses/document-core/enabled'],
-      ['GET', '/admin/api/businesses/document-core/versions/1.4.0/functions'],
+      ['GET', '/admin/api/profile-groups/v2/catalog?businessId=document-core&businessVersion=1.4.0'],
       ['GET', '/admin/api/profile-groups?tenantId=11111111-1111-4111-8111-111111111111'],
       ['GET', '/admin/api/profile-groups/22222222-2222-4222-8222-222222222222'],
       ['POST', '/admin/api/profile-groups'],

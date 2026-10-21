@@ -1,0 +1,70 @@
+# DISPATCH SPEC: CONTRACTS EXTENSION FOR PC-R04 & PC-R07
+Owner: Antigravity Coordinator
+Assignee: DeepSeek Worker 2 (term_ca0ee85e-b746-4bec-aec3-9b0736595ca1)
+Priority: P2
+Affected Packages: PC-01, PC-03, PC-05, PC-08, PC-09
+
+## Objective
+Update `@du/contracts` to support:
+1. PC-R04: Fingerprint calculation covers both AI and prompt settings revisions, and defaults digest/snapshot identity.
+2. PC-R07: Add `parameterResolution` to `ProfileGroupFunctionSchema` and related DTO schemas so discovery and UI editor can inspect the parameter source mapping.
+
+## Scope & File Lease
+EXCLUSIVE LEASE FOR WORKER 2:
+- `du-rework/orchestrator/packages/contracts/src/profile-groups.ts`
+- `du-rework/orchestrator/packages/contracts/tests/profile-groups-v2.test.ts`
+- Any contract unit tests in `du-rework/orchestrator/packages/contracts/tests/`
+
+DO NOT edit any files in `services/orchestrator/src/modules/` or `apps/admin-web/`.
+
+## Detailed Requirements
+
+### 1. PC-R04: Fingerprint Contracts Extension
+In `du-rework/orchestrator/packages/contracts/src/profile-groups.ts`:
+- Extend `ResolutionFingerprintPartsV2`:
+  ```typescript
+  export interface ResolutionFingerprintPartsV2 {
+    tenantId: string;
+    apiKeyId: string;
+    groupId: string;
+    groupRevision: number;
+    accessVersion: number;
+    function: ProfileGroupResolutionFunctionRefV2;
+    children: readonly ProfileGroupChildPinV2[];
+    /** AI settings revision (legacy or partitioned). */
+    tenantDefaultsAiRevision: number | null;
+    /** Prompt settings revision. */
+    tenantDefaultsPromptRevision: number | null;
+    /** Snapshot / digest of tenant defaults if available. */
+    tenantDefaultsDigest?: string | null;
+    connectorBindings: readonly ProfileGroupConnectorBindingRefV2[];
+    workflow: { slug?: string; revision: number; digest: string } | null;
+    submission: Submission;
+    /** Backward compatibility: if tenantDefaultsRevision was provided, map it to tenantDefaultsAiRevision. */
+    tenantDefaultsRevision?: number | null;
+  }
+  ```
+- In `computeResolutionFingerprint(parts: ResolutionFingerprintPartsV2)`:
+  - Include `tenantDefaultsAiRevision` (or `parts.tenantDefaultsRevision ?? null`), `tenantDefaultsPromptRevision: parts.tenantDefaultsPromptRevision ?? null`, and `tenantDefaultsDigest: parts.tenantDefaultsDigest ?? null` in the hashed payload.
+  - If `workflow` is present, include `{ slug: parts.workflow.slug, revision: parts.workflow.revision, digest: parts.workflow.digest }`.
+- Ensure changing prompt revision produces a different fingerprint!
+
+### 2. PC-R07: Parameter Resolution in ProfileGroupFunctionSchema
+In `du-rework/orchestrator/packages/contracts/src/profile-groups.ts`:
+- Add `parameterResolution` to `ProfileGroupFunctionSchema`:
+  ```typescript
+  export const ParameterSourceSchema = z.enum(['policySettings', 'requestDefaults']);
+  export const ParameterResolutionSchema = z.record(z.string(), ParameterSourceSchema).optional();
+  ```
+  Add `parameterResolution: ParameterResolutionSchema` to `ProfileGroupFunctionSchema`.
+- Export relevant types `ParameterSource`, `ParameterResolution`.
+
+## Verification & Acceptance
+1. Typecheck: `npm exec tsc --noEmit` in `packages/contracts` passes cleanly (exit 0).
+2. Jest tests: `npm test` or `npx jest` in `packages/contracts` passes 100% (all suites pass).
+3. Author unit tests in `packages/contracts/tests/profile-groups-v2.test.ts` testing:
+   - Fingerprint changes when prompt revision changes, holding AI revision unchanged.
+   - Fingerprint changes when defaults digest changes.
+   - `ProfileGroupFunctionSchema` parses valid `parameterResolution`.
+4. Write receipt to `du-rework/coordination/reports/receipt-pc-r04-r07-contracts.md`.
+5. Signal completion: `CONTRACTS_PC_R04_R07_COMPLETE — du-rework/coordination/reports/receipt-pc-r04-r07-contracts.md`.

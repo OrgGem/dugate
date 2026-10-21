@@ -1,0 +1,34 @@
+[PACKET PC-09-HARNESS: Shared Live-PG & Profile Control Plane Test Harness]
+
+ROLE: DeepSeek Worker 3 (System Integration & Verification Specialist)
+TASK ID: PC-09-HARNESS
+STATUS: IMPLEMENTATION (TEST HELPERS ONLY)
+MASTER PLAN: du-rework/tasks/PLAN-PROFILE-CONTROL-PLANE-IMPLEMENTATION.md (PC-09 row, "Verification and cutover")
+PRE-ANALYSIS: du-rework/coordination/reports/prep-pc09-cutover-spec.md §4.1 and §4.2
+
+EXCLUSIVE LEASE:
+- orchestrator/services/orchestrator/tests/helpers/scratch-db.ts (new helper)
+- orchestrator/services/orchestrator/tests/helpers/profile-control-plane-harness.ts (new harness)
+- orchestrator/services/orchestrator/tests/profile-control-plane-harness.test.ts (smoke test for harness)
+
+PURPOSE:
+Implement the two shared test helper modules designed in prep-pc09-cutover-spec.md:
+1. `tests/helpers/scratch-db.ts`:
+   - `withScratchDatabase({ suite: string })` helper that allocates a unique test database using maintenance pool, verifies via `validateTestDatabaseTarget`, applies all migrations 0001..0071 cleanly, and drops in teardown.
+2. `tests/helpers/profile-control-plane-harness.ts`:
+   - 6-action connector-free business manifest: `PC09_BUSINESS = 'pc09-core'`, `PC09_ACTIONS = ['ingest','extract','analyze','transform','generate','compare']`.
+   - Cohort builder helpers:
+     * Cohort A (legacy standalone profile)
+     * Cohort B (unmanaged legacy key)
+     * Cohort C1 (pre-cutover group: `LEGACY_STANDALONE` + `CHILD_PROJECTION`)
+     * Cohort C2 (post-cutover group: `GROUP_MANAGED` + `GROUP_GRANT`)
+     * Cohort C3 (illegal mix defensive state: `GROUP_MANAGED` + `CHILD_PROJECTION`)
+     * Cohort D (multi-key group: >=2 ACTIVE root grants)
+3. Smoke test:
+   - Verify harness compiles and can seed cohorts without throwing errors in `tests/profile-control-plane-harness.test.ts`.
+
+RULES:
+- Do NOT modify any existing source or test files. Only create the new leased helper/test files.
+- Run typecheck and tests to confirm exit 0.
+- Write receipt to `du-rework/coordination/reports/receipt-pc09-harness.md`.
+- Print: PC-09-HARNESS_COMPLETE kem duong dan receipt-pc09-harness.md.

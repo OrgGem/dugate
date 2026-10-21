@@ -1,0 +1,56 @@
+# DISPATCH SPEC: FOLLOWUP-PC-R08-R04 (Reauthorize managed v1 replay + pass prompt/defaults into fingerprint)
+Owner: Antigravity Coordinator
+Assignee: DeepSeek Worker 3 (term_8469982b-916d-406a-bc4b-4889ba89ebe6)
+Priority: P2
+Affected Packages: PC-05, PC-09
+
+## Objective
+Fix defects PC-R08 and PC-R04 in `submission.ts`:
+1. **PC-R08 (Reauthorize managed v1 replay)**:
+   In `submission.ts`, idempotent replay currently returns an existing operation before managed admission authorization runs.
+   For `GROUP_MANAGED` keys, if a root grant was revoked after the initial submission, an idempotent replay still succeeds.
+   Reauthorize managed v1 requests against current root grant / active key authority before answering both fast-path and transactional replay.
+2. **PC-R04 (Submission fingerprint tenant defaults snapshot)**:
+   In `submission.ts:1124-1175` (and any related helper in `submission.ts`), load `tenantDefaults` and forward:
+   - `tenantDefaultsAiRevision: tenantDefaults?.aiRevision ?? null`
+   - `tenantDefaultsPromptRevision: tenantDefaults?.promptRevision ?? null`
+   - `tenantDefaultsDigest: tenantDefaults?.digest ?? null`
+   to `computeResolutionFingerprint`. If function is a workflow, pass `workflow: { slug, revision, digest }` when present.
+
+## Scope & File Lease
+EXCLUSIVE LEASE FOR WORKER 3:
+- `du-rework/orchestrator/services/orchestrator/src/modules/operations/submission.ts`
+- Tests: `tests/pc-r08-managed-replay-reauth.test.ts` (new) or `tests/profile-v2-http.test.ts`.
+
+DO NOT touch `profiles.ts`, `api-keys.ts`, `retry.ts`, or frontend files.
+
+## Detailed Requirements
+
+### 1. PC-R08 Replay Reauthorization in `submission.ts`
+- Fast replay path (around line 1440) and Transactional replay path (around line 1530):
+  - Check the caller's key mode.
+  - If `GROUP_MANAGED`:
+    - Before returning the existing operation via replay (`loadOperationView`), verify that the key currently holds an ACTIVE root grant for the relevant group (and that key is still ACTIVE and endpoint is not disabled).
+    - If the root grant is REVOKED (or key revoked/disabled), DENY the replay! (Throw 403 `PERMISSION_DENIED` or `409` matching PC-07/PC-05 standard, e.g. `GRANT_REVOKED`).
+  - Preserve exact same-owner replay across allowed configuration drift when authorized (`replayed: true`).
+  - Changed body/fingerprint must still throw `IDEMPOTENCY_CONFLICT`.
+  - Do NOT break historical query/result routes: an active key owner can still read historical operation results/status after root grant revocation. Global key revoke denies everywhere.
+
+### 2. PC-R04 Fingerprint in `submission.ts`
+- Lines 1124-1175:
+  - Query tenant defaults snapshot (`globalSettings.getTenantDefaultsSnapshot(tenantId)`).
+  - Pass `tenantDefaultsAiRevision`, `tenantDefaultsPromptRevision`, `tenantDefaultsDigest` to `computeResolutionFingerprint`.
+  - Revalidate on submit in `submitProfileV2`. Stale prompt revision must produce 409 `PROFILE_CHANGED`.
+
+## Acceptance Criteria
+1. `tests/pc-r08-managed-replay-reauth.test.ts`:
+   - Managed v1 submit succeeds.
+   - Revoke root grant only.
+   - Resubmit with same Idempotency-Key + body: DENIED.
+   - Active owner reads old result: SUCCEEDS.
+   - Globally revoked key: DENIED on both replay and read.
+   - Permitted config drift: SUCCEEDS (`replayed: true`).
+   - Changed body: 409 `IDEMPOTENCY_CONFLICT`.
+2. `tsc --noEmit` exits 0.
+3. Write receipt to `du-rework/coordination/reports/receipt-pc-r08.md`.
+4. Print completion token: `PC-R08_COMPLETE — du-rework/coordination/reports/receipt-pc-r08.md`.

@@ -46,6 +46,8 @@ describe('OR10-04 retry preserves the original legacy workflow schema snapshot',
       tenant_id: tenantId,
       state: 'FAILED',
       root_task_id: taskId,
+      // PC-07: retry reauthorizes the recorded owner key before anything else.
+      api_key_id: '55555555-5555-4555-8555-555555555555',
       input_ref: originalInput,
       submit_artifacts: [],
       prompt_overrides_ref: null,
@@ -60,6 +62,14 @@ describe('OR10-04 retry preserves the original legacy workflow schema snapshot',
       query: async (sql: string, params: unknown[] = []) => {
         queries.push(sql);
         if (sql.startsWith('SELECT * FROM operations')) return { rows: [originalOperation], rowCount: 1 };
+      // PC-07 reauthorization: the owner key must still be ACTIVE.
+      // PC-R03: it is read again under a row lock before the write.
+      if (sql.startsWith('SELECT status, key_mode FROM api_keys')) {
+        return { rows: [{ status: 'ACTIVE', key_mode: 'LEGACY_STANDALONE' }], rowCount: 1 };
+      }
+      if (sql.startsWith('SELECT id, tenant_id, status, key_mode FROM api_keys')) {
+        return { rows: [{ id: originalOperation.api_key_id, tenant_id: tenantId, status: 'ACTIVE', key_mode: 'LEGACY_STANDALONE' }], rowCount: 1 };
+      }
       if (sql.startsWith('SELECT k.name,k.spending_limit')) {
         return { rows: [{ name: 'key', spending_limit: '0', total_used: '0', tenant_id: tenantId }], rowCount: 1 };
       }

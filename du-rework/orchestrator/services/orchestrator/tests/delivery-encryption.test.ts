@@ -302,7 +302,7 @@ function harness(options: HarnessOptions = {}): RouteContext {
         // Only the hash this suite actually presents resolves, and it
         // resolves to the tenant the harness authenticated as.
         if (params[0] !== KEY_HASH) return pgResult([]);
-        return pgResult([{ id: 'api-key-1', tenant_id: tenant }]);
+        return pgResult([{ id: 'api-key-1', tenant_id: tenant, key_mode: 'LEGACY_STANDALONE' }]);
       }
       if (/FROM operations\s+WHERE id=\$1 AND tenant_id=\$2 AND api_key_id=\$3/i.test(sql)) {
         if (params[0] !== OP_ID || params[1] !== owner || params[2] !== ownerApiKeyId) return pgResult([]);

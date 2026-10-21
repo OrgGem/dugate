@@ -1,0 +1,38 @@
+[PACKET PC-00: Inventory and freeze for Profile Control Plane]
+
+ROLE: DeepSeek Worker (Analysis, Inventory and Dry-run Inspection)
+TASK ID: PC-00
+MASTER PLAN: du-rework/tasks/PLAN-PROFILE-CONTROL-PLANE-IMPLEMENTATION.md (Doc ky muc PC-00 va Current implementation seams)
+
+MUC TIEU:
+Thuc hien kiem ke (read-only inventory) toan bo cac route, resolver, mutation va consumer lien quan den key-auth va profile groups/children theo dung yeu cau cua PC-00 trong plan.
+
+FILE LEASE (READ-ONLY, KHONG SUA CODE NGUON O BUOC NAY):
+- orchestrator/services/orchestrator/src/http/routes/api-key-auth.ts
+- orchestrator/services/orchestrator/src/http/routes/public.ts
+- orchestrator/services/orchestrator/src/http/routes/internal-operations.ts
+- orchestrator/services/orchestrator/src/http/routes/admin-operation-upload.ts
+- orchestrator/services/orchestrator/src/http/routes/internal-parity.ts
+- orchestrator/services/orchestrator/src/modules/admin-actions/dispatcher.ts
+- orchestrator/services/orchestrator/src/modules/identity/api-keys.ts
+- orchestrator/services/orchestrator/src/modules/profiles/self-service.ts
+- orchestrator/services/orchestrator/src/modules/profiles/profile-groups.ts
+- orchestrator/services/orchestrator/src/modules/operations/retry.ts
+- orchestrator/services/orchestrator/src/app/admin/bff/ (identity, profile-groups, key-minting)
+- Toan bo bang route table trong orchestrator/services/orchestrator/src/http/routes/
+
+CAC NOI DUNG BAT BUOC TRONG BAO CAO INVENTORY:
+1. Liet ke toan bo route public action/catalog/preflight, connector/provider probe, workflow-test, settings/artifacts.
+2. Liet ke toan bo mutation key issue/rotate/revoke/attach action va profile mutation (self-service, admin actions, parity routes).
+3. Ghi ro voi tung route: Current authority source (dang check api_keys, profile_api_keys, profile_groups membership, hay gi) va Target resolver sau cutover (root grant resolver hay legacy standalone).
+4. Kiem tra va ghi nhan hien trang du lieu/code: cac truong hop shared keys giua cac group, group khong co key, key co membership revoked tombstones, va operation owner projection.
+5. Xac nhan quy tac: KHONG gom shared keys dua vao ten hay prefix; chi cac key deterministic never-member moi xep vao UNMANAGED_LEGACY.
+
+FILE REPORT / RECEIPT CAN GHI:
+Ghi bao cao hoan chinh vao file:
+du-rework/coordination/reports/inventory-pc00-profile-control-plane.md
+
+TIEU CHI HOAN THANH (DONE CRITERIA):
+- File report duoc tao voi day du cac muc inventory tren.
+- Khong co bat ky file source code nao bi sua doi ngoai tru file report.
+- In ra thong bao ket thuc voi dong: PC-00_INVENTORY_COMPLETE va duong dan report.

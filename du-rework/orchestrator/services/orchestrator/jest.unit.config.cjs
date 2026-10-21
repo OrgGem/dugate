@@ -17,6 +17,11 @@ const liveSuites = [
   'ingress-bounded\\.test\\.ts$',
   'migrations\\.test\\.ts$',
   'operation-tenant-fence\\.test\\.ts$',
+  'profile-control-plane-migration\\.test\\.ts$',
+  // PC-03: the v2 group-control-plane live suite creates/drops a scratch
+  // database, so it must never boot inside the offline unit run.
+  'profile-groups-v2-pg\\.test\\.ts$',
+  'profile-resolution-pg\\.test\\.ts$',
   'runtime\\.test\\.ts$',
   'usage-summary\\.test\\.ts$',
   'webhook-reclaim-fence\\.live\\.test\\.ts$',

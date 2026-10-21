@@ -1,0 +1,56 @@
+[PACKET PC-07: Retry and Operation Ownership]
+
+ROLE: DeepSeek Worker 1 (Backend & Profile Service Specialist)
+TASK ID: PC-07-EXECUTE
+STATUS: IMPLEMENTATION & VERIFICATION
+MASTER PLAN: du-rework/tasks/PLAN-PROFILE-CONTROL-PLANE-IMPLEMENTATION.md (PC-07 row, "Retry and operation ownership")
+PREREQUISITES: PC-01 (Contracts V2), PC-02 (Storage 0070), PC-03 (Group Config Service V2), PC-05 (Admission & Resolution), PC-06 (Worker Opt-in) ALL ACCEPTED.
+
+EXCLUSIVE FILE LEASE:
+- orchestrator/services/orchestrator/src/modules/operations/retry.ts
+- orchestrator/services/orchestrator/src/http/routes/internal-operations.ts
+- orchestrator/services/orchestrator/tests/profile-control-plane-retry.test.ts (new test suite)
+
+READ-ONLY REFERENCES (DO NOT MUTATE):
+- orchestrator/services/orchestrator/src/modules/profiles/profile-groups.ts
+- orchestrator/services/orchestrator/src/modules/profiles/profiles.ts
+- orchestrator/services/orchestrator/src/modules/api-keys/api-keys.ts
+- orchestrator/services/orchestrator/src/modules/operations/submission.ts
+- packages/contracts/src/contracts-v2.ts
+
+CORE REQUIREMENTS (from Plan §PC-07 and Security Rules):
+1. Admin-Only Fresh Execution & Ownership Preservation:
+   - Retry creates a fresh execution row with new UUID, but preserves the original `api_key_id`, idempotency owner, config snapshot (`profile_policy_snapshot`, `profile_id`, `profile_revision`), manifest/workflow revision, connector pins, callback policy, and prompt overrides.
+   - `retry_of` points to original operation id.
+
+2. Strict Reauthorization Before Coalesced Replay & Before Insert:
+   - For all operations, reauthorize before coalesced replay check AND before fresh insert.
+   - Verify `api_key_id` status: must be `ACTIVE`. If the original key was globally revoked or does not exist, reject retry with 409 conflict (`API_KEY_REVOKED` or `KEY_INACTIVE`).
+   - For `GROUP_MANAGED` keys:
+     * Check root grant for `(tenantId, groupId, apiKeyId)`: must exist, have state `ACTIVE`, not revoked.
+     * Verify the endpoint/function is enabled in the current profile group config. If disabled or removed, reject retry with 409 conflict (`ENDPOINT_DISABLED` or `GRANT_REVOKED`).
+   - For standalone/legacy profiles:
+     * Recheck profile / key spend admission.
+
+3. Cryptographic Carrier Re-encryption (Anti-tamper / AAD Isolation):
+   - Re-decrypt input (`operations.input_ref`), payload (`tasks.payload_ref`), prompt overrides (`operations.prompt_overrides_ref`), and sourceUrl with old AAD (`operationId` / old `taskId`).
+   - Re-seal each carrier against the NEW operation/task AAD (`newId` / `taskId`).
+   - NEVER copy ciphertext directly between operations/tasks.
+
+4. State & Replay Invariants:
+   - Unknown provider outcome (`INVOCATION_UNKNOWN`, `op.state === 'UNKNOWN'`, task `UNKNOWN`) stays strictly blocked.
+   - In-flight operations continue on pinned snapshots; completed operations can be replayed if concurrent.
+
+5. Verification & Tests:
+   - Author comprehensive unit/integration suite in `tests/profile-control-plane-retry.test.ts`.
+   - Cover:
+     * Successful retry under active key + active group grant.
+     * Deny retry when key is revoked.
+     * Deny retry when group root grant is revoked.
+     * Deny retry when function is disabled in profile group.
+     * Ensure carrier re-encryption binds to new AAD.
+     * Coalescing behavior re-authorizes.
+
+RECEIPT & COMPLETION:
+- Author receipt at `du-rework/coordination/reports/receipt-pc07-retry.md`.
+- Print: PC-07_EXECUTE_COMPLETE kem duong dan receipt-pc07-retry.md

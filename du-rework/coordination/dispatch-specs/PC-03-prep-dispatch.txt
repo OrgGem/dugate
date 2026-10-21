@@ -1,0 +1,32 @@
+[PACKET PREP-PC-03: Group Config Service V2 Architecture & Test Plan]
+
+ROLE: DeepSeek Worker 1 (Service Architecture & Implementation)
+TASK ID: PREP-PC-03
+STATUS: IN PROGRESS
+DEPENDENCIES: PC-01 (Contracts), PC-02 (Storage Migration)
+MASTER PLAN: du-rework/tasks/PLAN-PROFILE-CONTROL-PLANE-IMPLEMENTATION.md (PC-03 row, DTO and route contract)
+
+MUC TIEU:
+Khao sat va lap ban thiet ke chi tiet cho goi PC-03 (Group Config Service V2) trong khi PC-01 va PC-02 dang hoan tat:
+1. File lease cho PC-03:
+   - orchestrator/services/orchestrator/src/modules/profiles/profile-groups.ts
+   - orchestrator/services/orchestrator/src/modules/profiles/profiles.ts
+   - orchestrator/services/orchestrator/src/modules/admin-actions/profile-actions.ts
+   - orchestrator/services/orchestrator/src/http/routes/admin-profile-groups.ts
+   - file route moi cho v2 admin routes
+   - orchestrator/services/orchestrator/src/server.ts (dang ky route moi)
+2. Yeu cau chuc nang V2:
+   - CRUD group V2 ho tro zero keys (khong bat buoc key selector).
+   - Lay groupId, revision, accessVersion, businesses, functions, requestDefaults, policy.parameters, apiKeyGrants[].
+   - Config append derivation tu group lock va Admin principal (khong can apiKeyHash hay key author).
+   - Rollback config revision bang CAS khong lam thay doi grants hay accessVersion.
+   - Khi revoke key khoi group: increment accessVersion, retain tombstone row.
+   - V1 group/child mutation writes doi voi group da chuyen GROUP_GRANT phai tra ve 409 PROFILE_GROUP_V2_REQUIRED.
+   - V1 read projection chi tra ve key khi co dung 1 active grant duy nhat; 0 hoac >1 key tra ve 409.
+
+REPORT CAN GHI:
+Ghi vao: du-rework/coordination/reports/prep-pc03-service-spec.md
+
+TIEU CHI:
+- Xuat report day du spec phan tich va test plan.
+- In ra: PREP-PC-03_COMPLETE kem duong dan file report.

@@ -1,0 +1,41 @@
+[PACKET PC-08: Admin Workbench and Operations UI Implementation]
+
+ROLE: DeepSeek Worker 0 (Frontend & Admin Workbench Specialist)
+TASK ID: PC-08-EXECUTE
+STATUS: IMPLEMENTATION & VERIFICATION
+MASTER PLAN: du-rework/tasks/PLAN-PROFILE-CONTROL-PLANE-IMPLEMENTATION.md (PC-08 row, "Admin Workbench and operations UI")
+APPROVED SPEC: du-rework/coordination/reports/prep-pc08-ui-spec.md
+COORDINATOR RULINGS: D-01 through D-12 APPROVED as recommended in prep-pc08-ui-spec.md §9.
+
+EXCLUSIVE FILE LEASE:
+- orchestrator/services/orchestrator/src/app/admin/bff/profile-groups-v2.ts (new)
+- orchestrator/services/orchestrator/src/app/admin/bff/admin-workbench.ts
+- orchestrator/services/orchestrator/src/app/admin/bff/handle.ts
+- orchestrator/services/orchestrator/src/app/admin/bff/upstream.ts
+- orchestrator/apps/admin-web/src/lib/api/client.ts
+- orchestrator/apps/admin-web/src/lib/api/types.ts
+- orchestrator/apps/admin-web/src/features/profiles/**
+- orchestrator/apps/admin-web/src/features/docs/docs-screen.tsx
+- orchestrator/apps/admin-web/src/features/operations/operations-screen.tsx
+- orchestrator/apps/admin-web/src/features/businesses/businesses-screen.tsx
+- orchestrator/services/orchestrator/tests/aweb10-*.test.ts
+- tests/browser/admin-web/profile-groups-v2.spec.ts
+
+DO NOT TOUCH:
+- contracts/** (PC-01 accepted)
+- migrations/** (PC-02 accepted)
+- profile-groups.ts / profiles.ts service core (PC-03 accepted)
+- api-keys.ts / api-key-auth.ts (PC-04 lease)
+- submission.ts / policy.ts (PC-05 accepted)
+- worker-sdk/** (PC-06 accepted)
+- retry.ts (PC-07 lease)
+
+ACCEPTANCE CRITERIA:
+1. Zero-key V2 group CRUD in Profile Group Editor.
+2. Independent display of `active_revision` and `access_version`.
+3. Root grant list panel: issue and revoke root grants with `expectedAccessVersion` (forwarding `If-Match`).
+4. Workbench V2: Select key, display preflight preview, send `resolutionFingerprint` + `Idempotency-Key` on submit.
+5. CHILD_PROJECTION legacy group renders read-only inspection with banner explaining conversion required.
+6. Pure-module and BFF test suites pass.
+7. Author receipt at `du-rework/coordination/reports/receipt-pc08-ui.md`.
+8. Print: PC-08_EXECUTE_COMPLETE kem duong dan receipt-pc08-ui.md.

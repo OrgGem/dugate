@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { OperationViewSchema } from './operations';
+import { OperationViewSchema, SubmissionSchema } from './operations';
+import {
+  ProfileGroupFunctionSelectorV2Schema,
+  ProfileGroupPreviewV2ResponseSchema,
+  ResolutionFingerprintSchema,
+} from './profile-groups';
 
 export const ADMIN_WORKBENCH_CORE_ACTIONS = ['ingest', 'extract', 'analyze', 'transform', 'generate', 'compare'] as const;
 export const AdminWorkbenchCoreActionSchema = z.enum(ADMIN_WORKBENCH_CORE_ACTIONS);
@@ -62,3 +67,66 @@ export const AdminWorkbenchOperationAcceptedSchema = z.object({
   replayed: z.boolean(),
 }).strict();
 export type AdminWorkbenchOperationAccepted = z.infer<typeof AdminWorkbenchOperationAcceptedSchema>;
+
+/* ------------------------------------------------------------------ */
+/* V2 profile-group workbench flow (PC-01)                             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * `POST /api/internal/admin-workbench/v2/preview` — Admin-session/CSRF route
+ * reusing the same resolver as the public v2 preview.
+ *
+ * `apiKeyId` is REQUIRED: the Admin must choose a specific current key, and the
+ * server verifies that exact ACTIVE grant plus the local-user assignment. It
+ * never selects "the first active grant"; an empty grant set disables submit
+ * while leaving the config editor readable.
+ *
+ * `businessId` is a bounded string, not the v1 `z.literal('document-core')`,
+ * because a v2 group function can target any registered business. The shell
+ * still defaults to `document-core`.
+ *
+ * `endpointSlug: null` keeps the v1 meaning documented above: an action-level
+ * profile (no persisted endpoint selector).
+ */
+export const AdminWorkbenchProfileSelectorV2Schema = ProfileGroupFunctionSelectorV2Schema.extend({
+  tenantId: z.string().uuid(),
+  apiKeyId: z.string().uuid(),
+  endpointSlug: z.string().min(1).max(128).nullable().optional(),
+}).strict();
+export type AdminWorkbenchProfileSelectorV2 = z.infer<
+  typeof AdminWorkbenchProfileSelectorV2Schema
+>;
+
+/** `POST /api/internal/admin-workbench/v2/preview` request. */
+export const AdminWorkbenchProfilePreviewV2RequestSchema =
+  AdminWorkbenchProfileSelectorV2Schema.extend({
+    submission: SubmissionSchema,
+  }).strict();
+export type AdminWorkbenchProfilePreviewV2Request = z.infer<
+  typeof AdminWorkbenchProfilePreviewV2RequestSchema
+>;
+
+/**
+ * `POST /api/internal/admin-workbench/v2/submit` request — must carry the
+ * fingerprint returned by the matching preview (plan: "The submit request must
+ * carry the preview fingerprint"). `Idempotency-Key` stays a header.
+ */
+export const AdminWorkbenchProfileSubmitV2RequestSchema =
+  AdminWorkbenchProfilePreviewV2RequestSchema.extend({
+    resolutionFingerprint: ResolutionFingerprintSchema,
+  }).strict();
+export type AdminWorkbenchProfileSubmitV2Request = z.infer<
+  typeof AdminWorkbenchProfileSubmitV2RequestSchema
+>;
+
+/** Preview response: the shared resolution preview plus the selected key echo. */
+export const AdminWorkbenchProfilePreviewV2ResponseSchema = ProfileGroupPreviewV2ResponseSchema.extend({
+  /** Echo of the explicitly selected key the preview resolved. */
+  apiKeyId: z.string().uuid(),
+}).strict();
+export type AdminWorkbenchProfilePreviewV2Response = z.infer<
+  typeof AdminWorkbenchProfilePreviewV2ResponseSchema
+>;
+
+/** Submit reuses the accepted-operation envelope unchanged (stale ⇒ 409 before this shape). */
+export const AdminWorkbenchProfileSubmitV2ResponseSchema = AdminWorkbenchOperationAcceptedSchema;

@@ -7,6 +7,7 @@ import { auditedMutation } from '../../modules/audit/audit';
 import { authorizeAuditTenantRead, resolveAdminPrincipal } from '../../modules/admin-actions/rbac';
 import { getBusinessFunctionCatalog } from '../../modules/admin-read/business-functions';
 import {
+  assertLegacyGroupWriteAllowed,
   getProfileGroup,
   listProfileGroups,
   rollbackProfileGroup,
@@ -138,6 +139,10 @@ export async function handleAdminProfileGroupsRoute(ctx: RouteContext): Promise<
     if (method !== 'PUT') throw new HttpError(405, 'METHOD_NOT_ALLOWED', 'profile-group reads use GET and full replacement uses PUT');
     assertNoQuery(ctx);
     const principal = requirePlatform(ctx);
+    // PC-03 firewall: refuse a converted group BEFORE the strict v1 body parse,
+    // so a GROUP_GRANT cohort gets `409 PROFILE_GROUP_V2_REQUIRED` instead of a
+    // 422 about the mandatory singular `apiKey` the v2 client never sends.
+    await assertLegacyGroupWriteAllowed(ctx.db, { groupId: route.groupId });
     const input = parseBody(ProfileGroupSaveSchema, ctx.body);
     const saved = await auditedMutation(
       ctx.db,
@@ -160,6 +165,7 @@ export async function handleAdminProfileGroupsRoute(ctx: RouteContext): Promise<
     if (method !== 'POST') throw new HttpError(405, 'METHOD_NOT_ALLOWED', 'profile-group rollback accepts POST only');
     assertNoQuery(ctx);
     const principal = requirePlatform(ctx);
+    await assertLegacyGroupWriteAllowed(ctx.db, { groupId: route.groupId });
     const input = parseBody(ProfileGroupRollbackSchema, ctx.body);
     const rolledBack = await auditedMutation(
       ctx.db,

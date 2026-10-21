@@ -263,3 +263,38 @@ export const lcCheckerManifest: BusinessManifest = {
     },
   ],
 };
+
+/**
+ * PC-06 — version 1.2.0, the opt-in for the `parameterResolution` capability.
+ *
+ * 1.1.0 stays byte-identical (registered, digest-pinned, immutable).
+ *
+ * `maxConcurrency` is this manifest's INTENTIONAL overlap — it exists in both
+ * `inputSchema.properties` and `profileSchema.properties`. The capability
+ * declares it a `requestDefaults` source because the worker reads it from the
+ * task input at execution time; making it a `profileSettings` source would
+ * remove it from the map the worker actually consumes. The three slot-selection
+ * keys are profile-only and stay `profileSettings`.
+ */
+export const lcCheckerManifestV120: BusinessManifest = {
+  ...lcCheckerManifest,
+  version: '1.2.0',
+  imageDigest: 'sha256:placeholder-lc-checker-v1.2.0',
+  actions: lcCheckerManifest.actions.map((action) =>
+    action.name === 'lc-checker'
+      ? {
+          ...action,
+          parameterResolution: {
+            version: 2,
+            fields: {
+              maxConcurrency: 'requestDefaults',
+              ocrSlot: 'profileSettings',
+              crosscheckSlot: 'profileSettings',
+              reportSlot: 'profileSettings',
+            },
+            applyTopLevelDefaults: false,
+          },
+        }
+      : action,
+  ),
+};

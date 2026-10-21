@@ -132,7 +132,7 @@ jest.mock('pg', () => {
     }
     if (text.includes('FROM api_keys WHERE hash=')) {
       const hit = state.apiKeys.find((row) => row.hash === params[0] && row.status === params[1]);
-      return hit ? { rows: [{ id: hit.id, tenant_id: hit.tenant_id }], rowCount: 1 } : { rows: [], rowCount: 0 };
+      return hit ? { rows: [{ id: hit.id, tenant_id: hit.tenant_id, key_mode: 'LEGACY_STANDALONE' }], rowCount: 1 } : { rows: [], rowCount: 0 };
     }
     // RFX-15: the blob GET consumes the download grant; one live row wins.
     if (text.startsWith('UPDATE artifacts SET token_expires_at')) {

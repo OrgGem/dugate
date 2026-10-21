@@ -170,6 +170,16 @@ import type {
   WorkflowCatalogPage,
   WorkflowDetailResponse,
   WorkerInstanceList,
+  ProfileGroupV2,
+  ProfileGroupV2List,
+  ProfileGroupV2Save,
+  ProfileGroupKeyIssueInput,
+  ProfileGroupKeyIssueResult,
+  ProfileGroupKeyRevokeInput,
+  ProfileGroupKeyRevokeResult,
+  AdminWorkbenchProfilePreviewV2Request,
+  AdminWorkbenchProfilePreviewV2Response,
+  AdminWorkbenchProfileSubmitV2Request,
 } from './types';
 
 export interface AdminApiClientOptions {
@@ -369,6 +379,10 @@ export interface AdminApiClient {
   previewWorkflowImport(body: import('./types').WorkflowImportPreviewRequest): Promise<AdminApiResult<import('./types').WorkflowImportPreviewResponse>>;
   submitAdminWorkbenchEndpointTest(body: AdminWorkbenchEndpointTestRequest, idempotencyKey: string): Promise<AdminApiResult<AdminWorkbenchOperationAccepted>>;
   runPromptWizard(body: AdminWorkbenchPromptWizardRequest, idempotencyKey: string): Promise<AdminApiResult<AdminWorkbenchOperationAccepted>>;
+  /** PC-08: v2 preflight. Resolves configuration only; never submits work. */
+  previewAdminWorkbenchProfileV2(body: AdminWorkbenchProfilePreviewV2Request): Promise<AdminApiResult<AdminWorkbenchProfilePreviewV2Response>>;
+  /** PC-08: submits the exact preview fingerprint; Idempotency-Key is required. */
+  submitAdminWorkbenchProfileV2(body: AdminWorkbenchProfileSubmitV2Request, idempotencyKey: string): Promise<AdminApiResult<AdminWorkbenchOperationAccepted>>;
   getIdentitySnapshot(tenantId?: string): Promise<AdminApiResult<IdentitySnapshot>>;
   listIdentityUsers(query: Record<string, string>): Promise<AdminApiResult<IdentityUserPage>>;
   createIdentityUser(body: { username: string; password: string; role: 'ADMIN' | 'USER' | 'VIEWER' }, tenantId: string, idempotencyKey: string): Promise<AdminApiResult<ParityIdentityUserResponse>>;
@@ -410,12 +424,33 @@ export interface AdminApiClient {
   listBusinesses(query?: Record<string, string>): Promise<AdminApiResult<BusinessPage>>;
   getBusinessVersions(businessId: string): Promise<AdminApiResult<BusinessVersions>>;
   setBusinessEnabled(businessId: string, body: BusinessEnabledUpdate): Promise<AdminApiResult<BusinessEnabledResult>>;
-  getBusinessFunctionCatalog(businessId: string, businessVersion: string): Promise<AdminApiResult<ProfileGroupFunctionCatalog>>;
+  getBusinessFunctionCatalog(businessId: string, businessVersion: string, tenantId?: string): Promise<AdminApiResult<ProfileGroupFunctionCatalog>>;
   listProfileGroups(tenantId: string): Promise<AdminApiResult<ProfileGroupList>>;
   getProfileGroup(groupId: string): Promise<AdminApiResult<ProfileGroup>>;
   createProfileGroup(body: ProfileGroupSave): Promise<AdminApiResult<ProfileGroup>>;
   replaceProfileGroup(groupId: string, body: ProfileGroupSave): Promise<AdminApiResult<ProfileGroup>>;
   rollbackProfileGroup(groupId: string, body: ProfileGroupRollback): Promise<AdminApiResult<ProfileGroup>>;
+  /* PC-08: V2 control plane. Config revision and access version are separate
+   * server-owned counters; grant mutations carry the access version as If-Match
+   * and an Idempotency-Key, and the issue response is the only place a raw
+   * group key ever appears. */
+  listProfileGroupsV2(tenantId: string): Promise<AdminApiResult<ProfileGroupV2List>>;
+  getProfileGroupV2(groupId: string, tenantId?: string): Promise<AdminApiResult<ProfileGroupV2>>;
+  createProfileGroupV2(body: ProfileGroupV2Save): Promise<AdminApiResult<ProfileGroupV2>>;
+  replaceProfileGroupV2(groupId: string, body: ProfileGroupV2Save): Promise<AdminApiResult<ProfileGroupV2>>;
+  rollbackProfileGroupV2(groupId: string, body: ProfileGroupRollback): Promise<AdminApiResult<ProfileGroupV2>>;
+  issueProfileGroupKey(
+    groupId: string,
+    body: ProfileGroupKeyIssueInput,
+    accessVersion: number,
+    idempotencyKey: string,
+  ): Promise<AdminApiResult<ProfileGroupKeyIssueResult>>;
+  revokeProfileGroupKey(
+    groupId: string,
+    keyId: string,
+    body: ProfileGroupKeyRevokeInput,
+    idempotencyKey: string,
+  ): Promise<AdminApiResult<ProfileGroupKeyRevokeResult>>;
   listWorkerInstances(query?: Record<string, string>): Promise<AdminApiResult<WorkerInstanceList>>;
   businessVersionAction(
     businessId: string,
@@ -525,7 +560,7 @@ export function createAdminApiClient(options: AdminApiClientOptions = {}): Admin
   async function request<T>(
     method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
     path: string,
-    init: { query?: Record<string, string>; body?: unknown; rawBody?: File; csrf?: boolean; idempotencyKey?: string; authRecovery?: boolean },
+    init: { query?: Record<string, string>; body?: unknown; rawBody?: File; csrf?: boolean; idempotencyKey?: string; ifMatch?: string; authRecovery?: boolean },
   ): Promise<AdminApiResult<T>> {
     const requestEpoch = browserAuthEpoch;
     const authRecovery = init.authRecovery === true && method === 'GET' && path === '/session';
@@ -575,6 +610,9 @@ export function createAdminApiClient(options: AdminApiClientOptions = {}): Admin
       }
     }
     if (init.idempotencyKey !== undefined) headers['idempotency-key'] = init.idempotencyKey;
+    // PC-08: access-version CAS. The browser may send If-Match; the BFF relays
+    // it verbatim. Only a bare or quoted positive integer is ever sent.
+    if (init.ifMatch !== undefined && /^"?[1-9]\d*"?$/.test(init.ifMatch)) headers['if-match'] = init.ifMatch;
 
     let response: Response;
     try {
@@ -1083,6 +1121,12 @@ export function createAdminApiClient(options: AdminApiClientOptions = {}): Admin
     runPromptWizard(body, idempotencyKey) {
       return request<AdminWorkbenchOperationAccepted>('POST', '/admin-workbench/prompt-wizard', { body, csrf: true, idempotencyKey });
     },
+    previewAdminWorkbenchProfileV2(body) {
+      return request<AdminWorkbenchProfilePreviewV2Response>('POST', '/admin-workbench/v2/preview', { body, csrf: true });
+    },
+    submitAdminWorkbenchProfileV2(body, idempotencyKey) {
+      return request<AdminWorkbenchOperationAccepted>('POST', '/admin-workbench/v2/submit', { body, csrf: true, idempotencyKey });
+    },
     getIdentitySnapshot(tenantId) {
       return request<IdentitySnapshot>('GET', '/identity', { query: tenantId ? { tenantId } : {} });
     },
@@ -1220,11 +1264,14 @@ export function createAdminApiClient(options: AdminApiClientOptions = {}): Admin
     setBusinessEnabled(businessId, body) {
       return request<BusinessEnabledResult>('PUT', `/businesses/${encodeURIComponent(businessId)}/enabled`, { body, csrf: true });
     },
-    getBusinessFunctionCatalog(businessId, businessVersion) {
+    getBusinessFunctionCatalog(businessId, businessVersion, tenantId) {
+      // Wave3-F4 follow-up: the v2 catalog route is the one that understands the
+      // optional tenant scope used to pin ACTIVE workflow revisions. It returns
+      // the same `ProfileGroupFunctionCatalog` the v1 selector path returned.
       return request<ProfileGroupFunctionCatalog>(
         'GET',
-        `/businesses/${encodeURIComponent(businessId)}/versions/${encodeURIComponent(businessVersion)}/functions`,
-        {},
+        '/profile-groups/v2/catalog',
+        { query: { businessId, businessVersion, ...(tenantId ? { tenantId } : {}) } },
       );
     },
     listProfileGroups(tenantId) {
@@ -1241,6 +1288,35 @@ export function createAdminApiClient(options: AdminApiClientOptions = {}): Admin
     },
     rollbackProfileGroup(groupId, body) {
       return request<ProfileGroup>('POST', `/profile-groups/${encodeURIComponent(groupId)}/rollback`, { body, csrf: true });
+    },
+    listProfileGroupsV2(tenantId) {
+      return request<ProfileGroupV2List>('GET', '/profile-groups/v2', { query: { tenantId } });
+    },
+    getProfileGroupV2(groupId, tenantId) {
+      return request<ProfileGroupV2>('GET', `/profile-groups/v2/${encodeURIComponent(groupId)}`, {
+        ...(tenantId ? { query: { tenantId } } : {}),
+      });
+    },
+    createProfileGroupV2(body) {
+      return request<ProfileGroupV2>('POST', '/profile-groups/v2', { body, csrf: true });
+    },
+    replaceProfileGroupV2(groupId, body) {
+      return request<ProfileGroupV2>('PUT', `/profile-groups/v2/${encodeURIComponent(groupId)}`, { body, csrf: true });
+    },
+    rollbackProfileGroupV2(groupId, body) {
+      return request<ProfileGroupV2>('POST', `/profile-groups/v2/${encodeURIComponent(groupId)}/rollback`, { body, csrf: true });
+    },
+    issueProfileGroupKey(groupId, body, accessVersion, idempotencyKey) {
+      return request<ProfileGroupKeyIssueResult>('POST', `/profile-groups/v2/${encodeURIComponent(groupId)}/keys`, {
+        body, csrf: true, idempotencyKey, ifMatch: `"${accessVersion}"`,
+      });
+    },
+    revokeProfileGroupKey(groupId, keyId, body, idempotencyKey) {
+      return request<ProfileGroupKeyRevokeResult>(
+        'POST',
+        `/profile-groups/v2/${encodeURIComponent(groupId)}/keys/${encodeURIComponent(keyId)}/revoke`,
+        { body, csrf: true, idempotencyKey },
+      );
     },
     listWorkerInstances(query) {
       return request<WorkerInstanceList>('GET', '/worker-instances', { query });

@@ -53,6 +53,8 @@ interface Fixture {
   activeRows?: unknown[];
   orphanHits?: boolean;
   anyHits?: boolean;
+  /** PC-R01: explicit authority mode read before any membership evidence. */
+  keyMode?: 'LEGACY_STANDALONE' | 'UNMANAGED_LEGACY';
 }
 
 function world(fx: Fixture) {
@@ -60,12 +62,14 @@ function world(fx: Fixture) {
   const activeRows = fx.activeRows ?? [];
   const orphanHits = fx.orphanHits ?? false;
   const anyHits = fx.anyHits ?? false;
+  const keyMode = fx.keyMode ?? 'LEGACY_STANDALONE';
   const query = async <T extends QueryResultRow = QueryResultRow>(
     text: string,
     params: unknown[] = []
   ): Promise<QueryResult<T>> => {
     const sql = text.replace(/\s+/g, ' ').trim();
     queries.push({ sql, params });
+    if (sql.startsWith('SELECT key_mode FROM api_keys')) return result<T>([{ key_mode: keyMode } as unknown as T]);
     if (sql.startsWith('SELECT p.profile_id, p.revision')) return result<T>(activeRows);
     if (sql.includes(MEMBERSHIP_TABLE + ' m JOIN profile_bindings')) {
       return result<T>(orphanHits ? [{ probe: 1 }] : []);
@@ -96,29 +100,37 @@ describe('0039: the request path resolves membership, not the revision author', 
       revision: 3,
       bindings: { slotA: { connectorId: 'openai', revision: 1 } },
     });
-    // KEY_B is not the revision author — membership is what resolved it.
-    expect(queries[0]?.sql).toContain(MEMBERSHIP_TABLE);
-    expect(queries[0]?.params).toEqual([KEY_B, BUSINESS, VERSION, ACTION, null]);
-    expect(queries).toHaveLength(1);
+    // PC-R01: the explicit mode is authority and is read FIRST; the membership
+    // evidence resolves the profile afterwards. KEY_B is not the revision
+    // author — membership is what resolved it.
+    expect(queries).toHaveLength(2);
+    expect(queries[0]?.sql).toBe('SELECT key_mode FROM api_keys WHERE id=$1');
+    expect(queries[0]?.params).toEqual([KEY_B]);
+    expect(queries[1]?.sql).toContain(MEMBERSHIP_TABLE);
+    expect(queries[1]?.params).toEqual([KEY_B, BUSINESS, VERSION, ACTION, null]);
   });
 
-  it('no resolution query reads membership without an ACTIVE gate', async () => {
-    const { db, queries } = world({});
-    const svc = createProfileService(db);
-
-    // Legacy path walks all three queries: the active row, the pointer
-    // cross-check, then the historical-membership probe.
-    expect(await svc.resolveBinding(KEY_A, BUSINESS, VERSION, ACTION)).toEqual({ mode: 'legacy' });
-    expect(queries).toHaveLength(3);
-    for (const entry of queries.slice(0, 2)) {
-      expect(entry.sql).toContain(MEMBERSHIP_TABLE);
+  it('no resolution query joins membership without an ACTIVE gate', async () => {
+    // LEGACY_STANDALONE: the active-row join and the orphan probe both gate on
+    // ACTIVE; the resolution never falls back to a gate-less historical read.
+    const standalone = world({});
+    await expect(createProfileService(standalone.db).resolveBinding(KEY_A, BUSINESS, VERSION, ACTION))
+      .rejects.toMatchObject({ status: 403, code: 'PERMISSION_DENIED' });
+    expect(standalone.queries[0]?.sql).toContain('SELECT key_mode');
+    const gated = standalone.queries.filter((entry) => entry.sql.includes(MEMBERSHIP_TABLE));
+    expect(gated.length).toBeGreaterThanOrEqual(2);
+    for (const entry of gated) {
       expect(squeeze(entry.sql)).toContain(squeeze(ACTIVE_GATE));
     }
-    expect(queries[2]?.sql).toContain(MEMBERSHIP_TABLE);
-    expect(squeeze(queries[2]?.sql)).not.toContain(squeeze(ACTIVE_GATE));
-    // The pre-0038 author filter must be gone: a REVOKED or absent
-    // membership can no longer be bypassed by binding rows alone.
-    expect(queries[0]?.sql).not.toContain('p.api_key_id');
+
+    // UNMANAGED_LEGACY: its ONE membership read is the tombstone probe, which
+    // stays gate-less on purpose — a REVOKED row is still evidence that the key
+    // was once managed, which is exactly what revokes the unmanaged path.
+    const unmanaged = world({ keyMode: 'UNMANAGED_LEGACY' });
+    expect(await createProfileService(unmanaged.db).resolveBinding(KEY_A, BUSINESS, VERSION, ACTION)).toEqual({ mode: 'legacy' });
+    expect(unmanaged.queries).toHaveLength(2);
+    expect(unmanaged.queries[1]?.sql).toContain(MEMBERSHIP_TABLE);
+    expect(squeeze(unmanaged.queries[1]?.sql)).not.toContain(squeeze(ACTIVE_GATE));
   });
 
   it('membership without a pointer row fails closed (404, never MAX(revision))', async () => {
@@ -142,8 +154,8 @@ describe('0039: the request path resolves membership, not the revision author', 
 
   it('a key whose Profile membership was revoked stays out of legacy mode', async () => {
     // Historical rows remain after a group/key reassignment. The API key may
-    // still be ACTIVE for its independent key lifecycle, but no longer falls
-    // through to manifest/deployment legacy connector authorization.
+    // still be ACTIVE for its independent key lifecycle, but a LEGACY_STANDALONE
+    // key with no eligible membership is denied — never an unmanaged fallback.
     const { db, queries } = world({ anyHits: true });
     const svc = createProfileService(db);
 
@@ -151,20 +163,33 @@ describe('0039: the request path resolves membership, not the revision author', 
       status: 403,
       code: 'PERMISSION_DENIED',
     });
-    expect(queries[2]?.sql).toContain(MEMBERSHIP_TABLE);
-    expect(squeeze(queries[2]?.sql)).not.toContain(squeeze(ACTIVE_GATE));
+    const membershipJoins = queries.filter((entry) => entry.sql.includes(MEMBERSHIP_TABLE));
+    expect(membershipJoins.length).toBeGreaterThanOrEqual(1);
+    for (const entry of membershipJoins) {
+      expect(squeeze(entry.sql)).toContain(squeeze(ACTIVE_GATE));
+    }
   });
 
-  it('a key with no membership at all keeps the legacy path', async () => {
-    const { db } = world({});
+  it('a key with no membership at all keeps the legacy path only when it is explicitly unmanaged', async () => {
+    const { db } = world({ keyMode: 'UNMANAGED_LEGACY' });
     const svc = createProfileService(db);
 
     expect(await svc.resolveBinding(KEY_A, BUSINESS, VERSION, ACTION)).toEqual({ mode: 'legacy' });
   });
+
+  it('UNMANAGED_LEGACY with a REVOKED tombstone is not authorized', async () => {
+    // PC-R01: "zero ACTIVE memberships" is not proof of unmanaged; a tombstone
+    // still revokes the unmanaged path.
+    const { db } = world({ keyMode: 'UNMANAGED_LEGACY', anyHits: true });
+    await expect(createProfileService(db).resolveBinding(KEY_A, BUSINESS, VERSION, ACTION))
+      .rejects.toMatchObject({ status: 403, code: 'PERMISSION_DENIED' });
+  });
 });
 
 describe('0039: connector probe authorization reads membership too', () => {
-  const principal = { id: KEY_B, tenantId: TENANT };
+  // PC-R05: the probe principal now carries the explicit authority mode
+  // (resolveApiKey's output); this suite exercises the standalone path.
+  const principal = { id: KEY_B, tenantId: TENANT, keyMode: 'LEGACY_STANDALONE' as const };
 
   it('a mapped key may probe a connector pinned on the profile', async () => {
     const queries: string[] = [];

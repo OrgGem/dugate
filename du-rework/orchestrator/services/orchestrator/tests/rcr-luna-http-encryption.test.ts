@@ -41,7 +41,7 @@ function makeContext(options: TestOptions = {}) {
       calls.push({ sql, params });
       if (/FROM api_keys/i.test(sql)) {
         return apiKeyActive
-          ? { rowCount: 1, rows: [{ id: API_KEY_ID, tenant_id: TENANT }] }
+          ? { rowCount: 1, rows: [{ id: API_KEY_ID, tenant_id: TENANT, key_mode: 'LEGACY_STANDALONE' }] }
           : { rowCount: 0, rows: [] };
       }
       if (/SELECT \* FROM operations/i.test(sql)) {

@@ -1,0 +1,23 @@
+# DISPATCH SPEC: FOLLOWUP-CODEX-WAVE3-W0 (Codex Review Follow-up: Finding 4)
+Owner: Antigravity Coordinator
+Assignee: DeepSeek Worker 0 (term_ee18bc3a-0e81-4e67-9910-50d17bcfe970)
+Priority: P2
+Affected Packages: PC-03, PC-08
+
+## Scope & Exclusive Lease
+- `du-rework/orchestrator/apps/admin-web/src/features/profiles/profile-group-state.ts`
+- `du-rework/orchestrator/services/orchestrator/src/modules/admin-read/business-functions.ts`
+- Tests in `tests/aweb10-profile-group-v2-state.test.ts`
+
+## Objectives
+**Finding 4 [P2] (Workflow revision pin in catalog and group state):**
+1. In `src/modules/admin-read/business-functions.ts:132`:
+   - When mapping functions from manifest/catalog for workflow actions, ensure appropriate metadata and defaults are supplied so the caller/editor can identify valid workflow revisions.
+2. In `apps/admin-web/src/features/profiles/profile-group-state.ts`:
+   - Preserve `workflowRevision` when loading existing member bindings and when editing/saving workflow functions.
+   - Do not drop `workflowRevision` during draft state updates.
+
+## Acceptance Criteria
+- `tsc --noEmit` exits 0 on `@du/admin-web` and `@du/orchestrator`.
+- Unit tests in `tests/aweb10-profile-group-v2-state.test.ts` pass.
+- Print token: `CODEX_WAVE3_W0_COMPLETE` and write brief summary.

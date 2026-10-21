@@ -424,8 +424,10 @@ describe('BR-12 offline business isolation', () => {
           // business-b either (so this is 'not-authorized', not 'pointer-missing').
           return result<T>([]);
         }
-        if (/SELECT 1 FROM profile_api_keys WHERE api_key_id=\$1 LIMIT 1/i.test(sql)) {
-          return result<T>([{ '?column?': 1 }]);
+        // PC-04/PC-05: the admission seam reads the explicit key mode before it
+        // decides between the group-grant and legacy standalone resolvers.
+        if (/FROM api_keys WHERE id=\$1/i.test(sql)) {
+          return result<T>([{ id: API_KEY_ID, tenant_id: TENANT_ID, status: 'ACTIVE', key_mode: 'LEGACY_STANDALONE' }]);
         }
         throw new Error(`unexpected profile/submission SQL: ${sql}`);
       },
@@ -456,9 +458,11 @@ describe('BR-12 offline business isolation', () => {
     // selectActiveRow's pointer cross-check (business-b has no bindings)…
     expect(queries.find(({ sql }) => /SELECT 1 FROM profile_api_keys m/i.test(sql))?.params)
       .toEqual([API_KEY_ID, 'business-b', '1.0.0', 'extract', null]);
-    // …then the any-binding probe finds the FOREIGN binding → not-authorized.
-    expect(queries.find(({ sql }) => /SELECT 1 FROM profile_api_keys WHERE api_key_id/i.test(sql))?.params)
-      .toEqual([API_KEY_ID]);
+    // …and PC-R01 denies right there: a LEGACY_STANDALONE key never falls back to
+    // the any-binding heuristic (that probe belongs to UNMANAGED_LEGACY keys with
+    // no membership at all), so the FOREIGN business-a binding the key does hold
+    // is never consulted for entitlement.
+    expect(queries.some(({ sql }) => /SELECT 1 FROM profile_api_keys WHERE api_key_id/i.test(sql))).toBe(false);
     expect(tx).not.toHaveBeenCalled();
     expect(queries.some(({ sql }) => /INSERT INTO (operations|tasks|outbox)/i.test(sql))).toBe(false);
   });

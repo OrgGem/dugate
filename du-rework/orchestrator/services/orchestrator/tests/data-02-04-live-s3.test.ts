@@ -288,8 +288,7 @@ liveDescribe('T-DATA-LIVE-2 DATA-02/DATA-04 real PostgreSQL + private S3 pilot',
       [TENANT_A, `data-live2-a-${TENANT_A}`, TENANT_B, `data-live2-b-${TENANT_B}`],
     );
     await app.db.query(
-      `INSERT INTO api_keys (id,tenant_id,hash,prefix,status)
-       VALUES ($1,$2,$3,'du_data_l2','ACTIVE'),($4,$5,$6,'du_data_l2','ACTIVE')`,
+      `INSERT INTO api_keys (id,tenant_id,hash,prefix,status, key_mode) VALUES ($1,$2,$3,'du_data_l2','ACTIVE', 'LEGACY_STANDALONE'),($4,$5,$6,'du_data_l2','ACTIVE')`,
       [API_KEY_A, TENANT_A, hashKey(RAW_API_KEY_A), API_KEY_B, TENANT_B, hashKey(RAW_API_KEY_B)],
     );
     await seedBusiness(BUSINESS_A);

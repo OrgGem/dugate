@@ -19,10 +19,32 @@ test('callback refuses stale attempts, invalid pin, exhausted cap and absent dis
   }
 });
 test('fresh operation retry blocks unknown outcome on any child before write', async () => {
-  const query=jest.fn().mockResolvedValueOnce({rowCount:1,rows:[{id:'o',tenant_id:'t',state:'FAILED'}]}).mockResolvedValueOnce({rowCount:0,rows:[]}).mockResolvedValueOnce({rowCount:1,rows:[{id:'child',error_code:'INVOCATION_UNKNOWN'}]});
-  await expect(retryOperation({query} as any,'o','t')).rejects.toMatchObject({code:'INVOCATION_UNKNOWN'});expect(query).toHaveBeenCalledTimes(3);
+  // PC-07: reauthorization runs FIRST (api key lookup + spend admission).
+  // PC-R03: the unlocked coalescing read is gone, so the child scan is now the
+  // very next read and an uncertain child blocks the retry before any write.
+  const op = { id: 'o', tenant_id: 't', state: 'FAILED', api_key_id: 'k' };
+  const query=jest.fn()
+    .mockResolvedValueOnce({rowCount:1,rows:[op]})
+    .mockResolvedValueOnce({rowCount:1,rows:[{id:'k',tenant_id:'t',status:'ACTIVE',key_mode:'LEGACY_STANDALONE'}]})
+    // spend admission = billing row + usage-event scan (readKeySpend).
+    .mockResolvedValueOnce({rowCount:1,rows:[{name:'key',spending_limit:'0',total_used:'0',tenant_id:'t'}]})
+    .mockResolvedValueOnce({rowCount:0,rows:[]})
+    .mockResolvedValueOnce({rowCount:1,rows:[{id:'child',error_code:'INVOCATION_UNKNOWN'}]});
+  await expect(retryOperation({query} as any,'o','t')).rejects.toMatchObject({code:'INVOCATION_UNKNOWN'});
+  expect(query).toHaveBeenCalledTimes(5);
+  expect(query.mock.calls.some((call)=>String(call[0]).includes('INSERT INTO'))).toBe(false);
 });
-test('active child retry replay does not execute or recheck spent budget', async () => {
-  const query=jest.fn().mockResolvedValueOnce({rowCount:1,rows:[{id:'o',tenant_id:'t',state:'FAILED'}]}).mockResolvedValueOnce({rowCount:1,rows:[{id:'existing',state:'RUNNING'}]});
-  await expect(retryOperation({query} as any,'o','t')).resolves.toMatchObject({operationId:'existing',replayed:true});expect(query).toHaveBeenCalledTimes(2);
+test('reauthorizes before the coalesced replay read (PC-07/PC-R03)', async () => {
+  // Authority is rechecked BEFORE any coalesced-replay read, so a revoked key
+  // can never be acknowledged as "replayed" and cannot learn whether a sibling
+  // execution exists. Nothing is executed. (The success-path replay return —
+  // replayed:true after the locked reauthorization — is asserted in
+  // profile-control-plane-retry.test.ts, whose SQL-routing harness drives the
+  // full PC-R03 lock chain; this file only owns the ordering guarantee.)
+  const op = { id: 'o', tenant_id: 't', state: 'FAILED', api_key_id: 'k' };
+  const query=jest.fn()
+    .mockResolvedValueOnce({rowCount:1,rows:[op]})
+    .mockResolvedValueOnce({rowCount:1,rows:[{id:'k',tenant_id:'t',status:'REVOKED',key_mode:'LEGACY_STANDALONE'}]});
+  await expect(retryOperation({query} as any,'o','t')).rejects.toMatchObject({code:'API_KEY_REVOKED'});
+  expect(query.mock.calls.some((call)=>String(call[0]).includes('retry_of'))).toBe(false);
 });

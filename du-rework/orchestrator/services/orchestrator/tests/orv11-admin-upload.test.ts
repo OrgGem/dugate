@@ -62,11 +62,11 @@ test('public gateway initialization scopes replay tokens to authenticated key an
   const {handlePublicRoutes}=await import('../src/http/routes/public');
   const ctx=context();ctx.pathname='/api/v1/uploads';ctx.headers={'x-api-key':'key-one'};ctx.body={uploadToken:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',sizeBytes:4,mimeType:'text/plain'};
   ctx.publicUploadGateway={initSingle:jest.fn(async()=>({artifactId:artifact,replayed:false} as never)),upload:jest.fn(),completeReplay:jest.fn()};
-  jest.mocked(ctx.db.query).mockImplementation(async(sql)=>({rows:String(sql).includes('FROM api_keys')?[{id:key,tenant_id:tenant}]:[],rowCount:1}) as never);
+  jest.mocked(ctx.db.query).mockImplementation(async(sql)=>({rows:String(sql).includes('FROM api_keys')?[{id:key,tenant_id:tenant,key_mode: 'LEGACY_STANDALONE'}]:[],rowCount:1}) as never);
   await expect(handlePublicRoutes(ctx)).resolves.toMatchObject({status:201});
   const first=jest.mocked(ctx.publicUploadGateway.initSingle).mock.calls[0]![1] as {uploadToken:string};
   expect(ctx.db.query).toHaveBeenCalledWith(expect.stringContaining('upload_api_key_id=$3'),[artifact,tenant,key]);
-  jest.mocked(ctx.db.query).mockImplementation(async(sql)=>({rows:String(sql).includes('FROM api_keys')?[{id:'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',tenant_id:tenant}]:[],rowCount:1}) as never);
+  jest.mocked(ctx.db.query).mockImplementation(async(sql)=>({rows:String(sql).includes('FROM api_keys')?[{id:'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',tenant_id:tenant,key_mode: 'LEGACY_STANDALONE'}]:[],rowCount:1}) as never);
   await handlePublicRoutes(ctx);
   const second=jest.mocked(ctx.publicUploadGateway.initSingle).mock.calls[1]![1] as {uploadToken:string};
   expect(second.uploadToken).not.toBe(first.uploadToken);
@@ -75,6 +75,6 @@ test('public upload content rejects an orphan owned by another key before writin
   const {handlePublicRoutes}=await import('../src/http/routes/public');
   const ctx=context();ctx.pathname=`/api/v1/uploads/${artifact}/content`;ctx.method='PUT';ctx.headers={'x-api-key':'foreign'};
   ctx.publicUploadGateway={initSingle:jest.fn(),upload:jest.fn(),completeReplay:jest.fn()};
-  jest.mocked(ctx.db.query).mockImplementation(async(sql)=>(String(sql).includes('FROM api_keys')?{rows:[{id:key,tenant_id:tenant}],rowCount:1}:{rows:[],rowCount:0}) as never);
+  jest.mocked(ctx.db.query).mockImplementation(async(sql)=>(String(sql).includes('FROM api_keys')?{rows:[{id:key,tenant_id:tenant,key_mode: 'LEGACY_STANDALONE'}],rowCount:1}:{rows:[],rowCount:0}) as never);
   await expect(handlePublicRoutes(ctx)).rejects.toMatchObject({status:404});expect(ctx.publicUploadGateway.upload).not.toHaveBeenCalled();
 });

@@ -18,6 +18,12 @@ describe('DATA-03 URL ingestion offline slice', () => {
     const db = {
       query: async <T extends QueryResultRow = QueryResultRow>(statement: string) => {
         sql.push(statement);
+        // PC-R01/PC-05: admission reads the key's explicit authority mode; this
+        // fixture models the legacy path, which only an unmanaged key may use.
+        if (/^SELECT key_mode FROM api_keys/i.test(statement)) return result<T>([{ key_mode: 'UNMANAGED_LEGACY' }]);
+        if (/^SELECT id, tenant_id, status, key_mode FROM api_keys/i.test(statement)) {
+          return result<T>([{ id: 'offline-key', tenant_id: TENANT, status: 'ACTIVE', key_mode: 'UNMANAGED_LEGACY' }]);
+        }
         if (/FROM api_keys k/i.test(statement)) {
           return result<T>([{ name: 'offline', spending_limit: '0', total_used: '0', tenant_id: TENANT }]);
         }
@@ -36,6 +42,10 @@ describe('DATA-03 URL ingestion offline slice', () => {
       tx: async <T>(fn: (client: unknown) => Promise<T>) => fn({
         query: async (statement: string) => {
           sql.push(statement);
+          if (/^SELECT key_mode FROM api_keys/i.test(statement)) return result([{ key_mode: 'UNMANAGED_LEGACY' }]);
+          if (/^SELECT id, tenant_id, status, key_mode FROM api_keys/i.test(statement)) {
+            return result([{ id: 'offline-key', tenant_id: TENANT, status: 'ACTIVE', key_mode: 'UNMANAGED_LEGACY' }]);
+          }
           if (/FROM api_keys k/i.test(statement)) {
             return result([{ name: 'offline', spending_limit: '0', total_used: '0', tenant_id: TENANT }]);
           }

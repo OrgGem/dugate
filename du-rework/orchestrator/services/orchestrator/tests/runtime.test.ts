@@ -669,8 +669,7 @@ describe('runtime vertical slice (isolated PG/Redis)', () => {
     ]);
     const otherRaw = `du_other_${randomUUID().replace(/-/g, '')}`;
     await app.db.query(
-      `INSERT INTO api_keys (id, tenant_id, hash, prefix, status)
-       VALUES ($1,$2,$3,'other','ACTIVE') ON CONFLICT (hash) DO NOTHING`,
+      `INSERT INTO api_keys (id, tenant_id, hash, prefix, status, key_mode) VALUES ($1,$2,$3,'other','ACTIVE', 'LEGACY_STANDALONE') ON CONFLICT (hash) DO NOTHING`,
       [randomUUID(), otherTenant, hashKey(otherRaw)]
     );
     const cross = await http(baseUrl, `/api/v1/operations/${target.operationId}`, {
@@ -975,8 +974,7 @@ describe('runtime vertical slice (isolated PG/Redis)', () => {
   async function createProfileApiKey(): Promise<{ raw: string; id: string }> {
     const raw = 'du_test_' + randomUUID().replace(/-/g, '');
     const res = await app.db.query<{ id: string }>(
-      `INSERT INTO api_keys (id, tenant_id, hash, prefix, status)
-       VALUES ($1,$2,$3,'test','ACTIVE')
+      `INSERT INTO api_keys (id, tenant_id, hash, prefix, status, key_mode) VALUES ($1,$2,$3,'test','ACTIVE', 'LEGACY_STANDALONE')
        ON CONFLICT (hash) DO UPDATE SET status='ACTIVE' RETURNING id`,
       [randomUUID(), TENANT_ID, hashKey(raw)]
     );
@@ -1572,8 +1570,7 @@ describe('runtime vertical slice (isolated PG/Redis)', () => {
        ON CONFLICT (id) DO NOTHING`
     );
     await app.db.query(
-      `INSERT INTO api_keys (id, tenant_id, hash, prefix, status)
-       VALUES ($1,$2,$3,'test','ACTIVE')`,
+      `INSERT INTO api_keys (id, tenant_id, hash, prefix, status, key_mode) VALUES ($1,$2,$3,'test','ACTIVE', 'LEGACY_STANDALONE')`,
       [randomUUID(), '00000000-0000-0000-0000-000000000002', hashKey(otherRaw)]
     );
     const cross = await http(baseUrl, `/api/v1/operations/${root.operationId}/resume`, {

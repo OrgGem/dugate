@@ -219,6 +219,13 @@ function makeFake(opts: { pointer?: boolean; seedProfile?: boolean } = {}) {
       const hit = state.names.find((name) => name.profile_id === params[0]);
       return { rows: hit ? [{ group_id: null }] : [], rowCount: hit ? 1 : 0 };
     }
+    // PC-03: the cross-scope group-ownership guard that runs before
+    // `ensureProfileId`. The real query carries `AND n.group_id IS NOT NULL`,
+    // so a standalone-only world answers with ZERO rows. A null-keyed row would
+    // look like a group-owned profile to the guard and reject the write.
+    if (/SELECT n\.group_id, g\.auth_authority/.test(sql)) {
+      return { rows: [], rowCount: 0 };
+    }
     if (/SELECT b\.business_id, b\.business_version, b\.action, b\.endpoint_slug/.test(sql)) {
       const profileId = String(params[0]);
       const name = state.names.find((candidate) => candidate.profile_id === profileId);

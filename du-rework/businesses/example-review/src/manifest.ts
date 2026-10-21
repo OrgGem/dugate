@@ -121,3 +121,42 @@ export const exampleReviewManifestV2: BusinessManifest = {
   imageDigest:
     'sha256:e581cb2dcfe3119667f454fcb8983967ed5e2ff702fc58e18f3e5640de48541',
 };
+
+/**
+ * PC-06 — version 3.0.0, the opt-in for the `parameterResolution` capability.
+ *
+ * 1.0.0 and 2.0.0 stay byte-identical: they are registered immutable versions.
+ *
+ * `enableReasoning` is the manifest's INTENTIONAL overlap — declared in both
+ * `inputSchema.properties` and `profileSchema.properties` — and the capability
+ * assigns it exactly one source (`requestDefaults`) instead of inferring one
+ * from the overlap. The two profile-only knobs stay `profileSettings`, so they
+ * never leak into request input. `applyTopLevelDefaults` stays false: this
+ * action declares no top-level defaults, and claiming the capability would
+ * only widen what the server may fill.
+ */
+export const exampleReviewManifestV3: BusinessManifest = {
+  ...exampleReviewManifestV2,
+  version: '3.0.0',
+  displayName: 'Example Review Business v3',
+  description:
+    'Example Review v3: opt-in parameterResolution, with enableReasoning as an explicit requestDefaults source.',
+  imageDigest:
+    'sha256:9f2c41d7a0b8e6431d5c8f0a2b7e9d4c6a1f3b5e8c0d2a4f6b8c1e3d5a7f9b2c',
+  actions: exampleReviewManifest.actions.map((action) =>
+    action.name === 'review'
+      ? {
+          ...action,
+          parameterResolution: {
+            version: 2,
+            fields: {
+              enableReasoning: 'requestDefaults',
+              maxParallelItems: 'profileSettings',
+              autoApprovePassed: 'profileSettings',
+            },
+            applyTopLevelDefaults: false,
+          },
+        }
+      : action,
+  ),
+};

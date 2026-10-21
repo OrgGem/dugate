@@ -1,4 +1,4 @@
-import { documentCoreManifest } from '../src/manifest/document-core.manifest';
+import { documentCoreManifest, documentCoreManifestV120 } from '../src/manifest/document-core.manifest';
 import { RecipeRegistry } from '../src/recipes/recipe-definitions';
 import { validateManifest, hashManifest, WIRE_CONTRACT_VERSION, SCHEMA_LIMITS } from '@du/contracts';
 
@@ -190,5 +190,35 @@ describe('Document Core Manifest & Recipe Registry (P5-01)', () => {
         expect(step.timeoutSeconds).toBeGreaterThan(0);
       }
     }
+  });
+});
+
+/**
+ * PC-06 — parameterResolution opt-in registration.
+ *
+ * 1.1.0 must stay exactly as registered (a new capability is a NEW immutable
+ * version, never an in-place rewrite). 1.2.0 declares the capability on
+ * `extract` and therefore has a different digest and queue.
+ */
+describe('PC-06 parameterResolution opt-in version (1.2.0)', () => {
+  it('leaves the registered 1.1.0 manifest untouched', () => {
+    expect(documentCoreManifest.version).toBe('1.1.0');
+    expect(documentCoreManifest.actions.every((action) => action.parameterResolution === undefined)).toBe(true);
+  });
+
+  it('validates 1.2.0 with the capability and a distinct digest', () => {
+    const result = validateManifest(documentCoreManifestV120);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.queue).toBe('du-business-document-core-1.2.0');
+    const extract = result.manifest.actions.find((action) => action.name === 'extract');
+    expect(extract?.parameterResolution).toEqual({
+      version: 2,
+      fields: { outputFormat: 'requestDefaults' },
+      applyTopLevelDefaults: false,
+    });
+    const base = validateManifest(documentCoreManifest);
+    expect(base.ok).toBe(true);
+    if (base.ok) expect(result.digest).not.toBe(base.digest);
   });
 });

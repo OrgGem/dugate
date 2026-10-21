@@ -13,10 +13,16 @@ export {
   InputHashMismatchError,
   runWithStepKey,
   parseArtifactRef,
+  // PC-06: the admission-resolved parameter view, exported so a non-SDK worker
+  // port (or a handler test) can derive it from a claim-shaped object without
+  // constructing a full TaskContext.
+  applyPinnedModelDefault,
+  describeResolvedParameters,
 } from './task-context';
 export type {
   TaskContextDeps,
   ConnectorInvocationPayload,
+  ResolvedTaskParameterView,
 } from './task-context';
 export {
   ConnectorTransportError,

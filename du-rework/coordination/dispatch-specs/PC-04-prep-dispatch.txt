@@ -1,0 +1,34 @@
+[PACKET PREP-PC-04: Key and Auth Lifecycle Pre-Analysis & Design]
+
+ROLE: DeepSeek Worker 2 (Identity & Auth Subsystem Specialist)
+TASK ID: PREP-PC-04
+STATUS: PRE-ANALYSIS / SPECIFICATION (READ-ONLY ON PRODUCTION SOURCE)
+MASTER PLAN: du-rework/tasks/PLAN-PROFILE-CONTROL-PLANE-IMPLEMENTATION.md (PC-04 row, "Key and auth lifecycle", "Settled data and authorization model")
+COORDINATION DECISION: PC-01 is complete. PC-02 storage migration 0070 is landed and live-tested. PC-03 is currently executing under Worker 1.
+
+TARGET OF INVESTIGATION (READ-ONLY AUDIT):
+1. orchestrator/services/orchestrator/src/modules/identity/api-keys.ts
+2. orchestrator/services/orchestrator/src/modules/identity/service.ts
+3. orchestrator/services/orchestrator/src/modules/admin-actions/dispatcher.ts (action: apikey.issue, apikey.rotate, apikey.revoke, apikey.attach)
+4. orchestrator/services/orchestrator/src/http/routes/internal-parity.ts
+5. orchestrator/services/orchestrator/src/http/routes/api-key-auth.ts (or auth middleware)
+6. apps/admin-web/src/app/admin/bff/identity.ts (or corresponding BFF key minting routes)
+7. migrations/0070_profile_control_plane_storage.sql (schema for api_keys.key_mode and profile_group_api_keys)
+
+MUC TIEU PREP-PC-04:
+1. Khao sat toan bo cac vi tri insert vao bang `api_keys`:
+   - Dam bao moi duong mint key deu gan `key_mode` tuong minh: `GROUP_MANAGED` cho group keys, `LEGACY_STANDALONE` cho admin/standalone keys.
+   - Khong bao gio de `key_mode` la NULL (vi schema 0070 khong co DEFAULT).
+2. Khao sat hanh vi `apikey.revoke` (global revoke):
+   - Khi revoke key, phai thu hoi tat ca cac grant active trong `profile_group_api_keys` thuoc key do (thong qua helper `revokeAllGroupGrantsForApiKey` hoac tuong duong), va tang `access_version` cua tung group bi anh huong de lap tuc vo hieu hoa cac cached/in-flight token.
+3. Khao sat `apikey.attach`:
+   - Chan hoan toan viec attach key truc tiep vao mot child profile cua profile group (nem 409 PROFILE_GROUP_V2_REQUIRED).
+4. Khao sat co che replay idempotency cho `apikey.issue`:
+   - Dam bao replay khong tai phat raw secret neu secret khong con kha dung.
+5. Soan thao bao cao thiet ke va test plan chi tiet tai:
+   `du-rework/coordination/reports/prep-pc04-keys-spec.md`.
+
+QUY TAC:
+- KHONG sua cac file source production trong phase PREP nay (giu nguyen lease).
+- Chi ghi file bao cao `du-rework/coordination/reports/prep-pc04-keys-spec.md`.
+- In ra: PREP-PC-04_COMPLETE khi hoan thanh kem duong dan bao cao.

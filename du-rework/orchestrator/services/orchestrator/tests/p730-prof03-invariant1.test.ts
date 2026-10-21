@@ -79,6 +79,8 @@ interface TxDbOptions {
   failPin?: boolean;
   /** Bindings that exist but whose pointer row was never written. */
   orphanBindings?: boolean;
+  /** PC-R01: explicit authority mode; only UNMANAGED_LEGACY may resolve legacy. */
+  keyMode?: 'LEGACY_STANDALONE' | 'UNMANAGED_LEGACY';
 }
 
 function txDb(store: Store, opts: TxDbOptions = {}) {
@@ -113,7 +115,15 @@ function txDb(store: Store, opts: TxDbOptions = {}) {
         return result<T>([{ m: list.length === 0 ? null : Math.max(...list) } as unknown as T]);
       }
       if (/FROM api_keys/i.test(sql)) {
-        return result<T>([{ id: KEY_ID, tenant_id: TENANT, hash: KEY_HASH, prefix: 'test', status: 'ACTIVE' }] as unknown as T[]);
+        // PC-R01: selectActiveRow reads the key's explicit mode first.
+        return result<T>([{
+          id: KEY_ID,
+          tenant_id: TENANT,
+          hash: KEY_HASH,
+          prefix: 'test',
+          status: 'ACTIVE',
+          key_mode: opts.keyMode ?? 'LEGACY_STANDALONE',
+        }] as unknown as T[]);
       }
       if (/SELECT b\.profile_id[\s\S]*FROM profile_active_revisions a/i.test(sql)) {
         // The selector-overlap probe should only find a DIFFERENT profile;
@@ -329,7 +339,8 @@ describe('DD-05 / 0027 invariant #1: insert + pin in the SAME transaction', () =
 
   it('(c) a key with no bindings at all is LEGACY, not 404', async () => {
     const store = new Store();
-    const { db } = txDb(store);
+    // PC-R01: only an explicitly UNMANAGED_LEGACY key may resolve the legacy path.
+    const { db } = txDb(store, { keyMode: 'UNMANAGED_LEGACY' });
     const calls: string[] = [];
     const svc = createProfileService(db);
     const out = await svc.resolveEffectiveProfile(KEY_ID, 'demo', '1.0.0', 'ingest', {}, []);

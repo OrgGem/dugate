@@ -172,7 +172,7 @@ function harness(rows: KeyRow[]): Harness {
     async query(sql: string, params: unknown[] = []): Promise<QueryResult<QueryResultRow>> {
       if (/FROM api_keys WHERE hash/i.test(sql)) {
         if (params[0] !== KEY_HASH) return pgResult([]);
-        return pgResult([{ id: 'key-1', tenant_id: TENANT }]);
+        return pgResult([{ id: 'key-1', tenant_id: TENANT, key_mode: 'LEGACY_STANDALONE' }]);
       }
       if (/FROM operations\s+WHERE id=\$1 AND tenant_id=\$2 AND api_key_id=\$3/i.test(sql)) {
         if (params[0] !== OP_ID || params[1] !== TENANT || params[2] !== 'key-1') return pgResult([]);

@@ -62,6 +62,7 @@ import { handleInternalCostAdjustmentRoutes } from './http/routes/internal-cost-
 import { handleInternalServiceRuntimeRoutes } from './http/routes/internal-service-runtime';
 import { handlePublicRoutes } from './http/routes/public';
 import { handleAdminRoutes } from './http/routes/admin';
+import { handleAdminProfileGroupsV2Routes } from './http/routes/admin-profile-groups-v2';
 import type { RouteContext, RouteResult } from './http/route-context';
 export { allowHostDerivedGrantUrl, absoluteGrantUrl, type GrantUrlOptions } from './http/routes/runtime';
 export type { RouteContext, RouteResult } from './http/route-context';
@@ -463,6 +464,11 @@ export async function route(ctx: RouteContext): Promise<RouteResult> {
   if (internalCostAdjustmentResult) return internalCostAdjustmentResult;
   const publicResult = await handlePublicRoutes(ctx);
   if (publicResult) return publicResult;
+  // PC-03: the v2 profile-group plane is a disjoint `/api/v2/admin/` prefix and
+  // is matched BEFORE the v1 admin family, which owns `/api/v1/admin/` only and
+  // would otherwise 404 these paths.
+  const adminProfileGroupsV2Result = await handleAdminProfileGroupsV2Routes(ctx);
+  if (adminProfileGroupsV2Result) return adminProfileGroupsV2Result;
   const adminResult = await handleAdminRoutes(ctx);
   if (adminResult) return adminResult;
 

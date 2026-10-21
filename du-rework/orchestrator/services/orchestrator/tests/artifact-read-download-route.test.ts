@@ -144,7 +144,7 @@ function harness(o: { provider: KeyProvider; sealed: Sealed; getBlob: 'ciphertex
     async query(sql: string, params: unknown[] = []) {
       if (/FROM api_keys/.test(sql)) {
         if (params[0] === apiKeyHash && params[1] === 'ACTIVE') {
-          return { rows: [{ id: 'key-1', tenant_id: TENANT }], rowCount: 1 };
+          return { rows: [{ id: 'key-1', tenant_id: TENANT, key_mode: 'LEGACY_STANDALONE' }], rowCount: 1 };
         }
         return { rows: [], rowCount: 0 };
       }

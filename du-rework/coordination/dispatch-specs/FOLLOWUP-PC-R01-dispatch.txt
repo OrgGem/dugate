@@ -1,0 +1,62 @@
+# DISPATCH SPEC: PC-R01 (Explicit key mode controls fallback)
+Owner: Antigravity Coordinator
+Assignee: DeepSeek Worker 1 (term_3bfff1da-026b-4520-8878-a4f841b11dff)
+Priority: P1
+Affected Packages: PC-04, PC-05, PC-09
+
+## Objective
+Fix security and authorization defect PC-R01 identified in implementation review:
+`LEGACY_STANDALONE` keys with no assigned profiles (empty membership or tombstone-only after revocation/rotation) must be denied authorization rather than falling back to unmanaged legacy behavior via the no-membership heuristic.
+
+## Evidence & Problem Analysis
+1. `profiles.ts`: `selectActiveRow` (around lines 530–535) queries `SELECT 1 FROM profile_api_keys WHERE api_key_id=$1 LIMIT 1`. If no membership row exists, it returns `'legacy'`.
+2. Both key issue (`api-keys.ts:217`) and rotation (`api-keys.ts:339-344`) permit issuing or rotating a `LEGACY_STANDALONE` key that has zero active memberships.
+3. When such a key calls an endpoint, `submission.ts:454` (`resolveGroupAdmission`) returns `null` because `key.keyMode !== 'GROUP_MANAGED'`.
+4. Then `resolveAdmission` calls `profiles.resolveEffectiveProfile`, which hits `selectActiveRow`, sees 0 rows in `profile_api_keys`, and treats the key as `'legacy'` (unmanaged full access)!
+5. This violates the core invariant: explicit `key_mode` must be authoritative at every admission/discovery fallback. `LEGACY_STANDALONE` with no eligible membership MUST be denied; only a verified `UNMANAGED_LEGACY` key may use unmanaged legacy behavior.
+
+## Scope & File Lease
+EXCLUSIVE LEASE FOR WORKER 1:
+- `du-rework/orchestrator/services/orchestrator/src/modules/profiles/profiles.ts`
+- `du-rework/orchestrator/services/orchestrator/src/modules/identity/api-keys.ts`
+- `du-rework/orchestrator/services/orchestrator/src/modules/operations/submission.ts` (only admission fallback around lines 450-460 / 560-575)
+- Test files: new or existing unit tests covering this regression (e.g. `tests/admin-api-keys.test.ts`, `tests/profile-v2-http.test.ts`, or a dedicated regression suite `tests/pc-r01-key-mode-fallback.test.ts`).
+
+DO NOT edit any files outside this lease (do not edit `retry.ts`, `apps/admin-web`, `packages/contracts`, or other modules).
+
+## Detailed Implementation Requirements
+1. **`profiles.ts` (`selectActiveRow` / `resolveEffectiveProfile` / `resolveBinding`):**
+   - Check the key's declared `key_mode` from `api_keys` (or pass it in / query it).
+   - If `key_mode === 'LEGACY_STANDALONE'`:
+     - If active membership for the requested business/version/action exists -> return profile row.
+     - If no active membership exists (empty or tombstoned) -> return `'not-authorized'` (403/404 denial). It MUST NEVER return `'legacy'`.
+   - If `key_mode === 'GROUP_MANAGED'`:
+     - Must never be resolved via standalone child memberships -> return `'not-authorized'` (or fail closed).
+   - Only when `key_mode === 'UNMANAGED_LEGACY'` (and key is ACTIVE) can `'legacy'` fallback be returned.
+   - Any unknown, missing, or NULL `key_mode` must throw or fail closed.
+
+2. **`api-keys.ts` (issue & rotation):**
+   - When issuing a `LEGACY_STANDALONE` key without profiles or when rotating a `LEGACY_STANDALONE` key whose memberships are all revoked/tombstoned:
+     - Ensure mode is strictly preserved as `LEGACY_STANDALONE`.
+     - Do not infer new entitlement from missing membership history.
+     - Reconcile both issue and rotation APIs to ensure `key_mode` is always explicitly set and tracked.
+
+3. **`submission.ts` (`resolveAdmission`):**
+   - In `resolveAdmission`, verify that non-group admission checks `key.keyMode`.
+   - If `key.keyMode === 'LEGACY_STANDALONE'`, verify that `resolveEffectiveProfile` returns a valid profile binding, and deny if `'legacy'` is returned (or ensure `selectActiveRow` returned `'not-authorized'`).
+
+## Acceptance Criteria & Regression Gate
+1. Exercise both lifecycle entry points:
+   - Standalone key issued with empty profiles `[]`.
+   - Standalone key rotated from an existing key whose memberships are all revoked (tombstones only).
+2. For both keys:
+   - Public action admission and discovery must DENY unassigned functions (e.g. 403 or 404), and NO operation, task, or outbox record is created!
+3. Explicit `UNMANAGED_LEGACY` key retains only the intended legacy behavior.
+4. Assigned standalone keys and group-managed keys keep their scoped behavior.
+5. All existing tests pass:
+   - `npx jest --config jest.unit.config.cjs tests/admin-api-keys.test.ts`
+   - `npx jest --config jest.unit.config.cjs tests/profile-v2-http.test.ts`
+   - New regression test suite passes cleanly.
+   - `npm exec tsc --noEmit` exits with code 0.
+6. Write receipt to `du-rework/coordination/reports/receipt-pc-r01.md`.
+7. When complete, print: `PC-R01_COMPLETE — du-rework/coordination/reports/receipt-pc-r01.md`.

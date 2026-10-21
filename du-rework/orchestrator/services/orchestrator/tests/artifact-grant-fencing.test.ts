@@ -143,13 +143,11 @@ beforeAll(async () => {
     TENANT_B,
   ]);
   await app.db.query(
-    `INSERT INTO api_keys (id, tenant_id, hash, prefix, status)
-     VALUES ($1,$2,$3,'agf','ACTIVE') ON CONFLICT (hash) DO UPDATE SET status='ACTIVE'`,
+    `INSERT INTO api_keys (id, tenant_id, hash, prefix, status, key_mode) VALUES ($1,$2,$3,'agf','ACTIVE', 'LEGACY_STANDALONE') ON CONFLICT (hash) DO UPDATE SET status='ACTIVE'`,
     [randomUUID(), TENANT_A, hashKey(RAW_KEY_A)]
   );
   await app.db.query(
-    `INSERT INTO api_keys (id, tenant_id, hash, prefix, status)
-     VALUES ($1,$2,$3,'agf','ACTIVE') ON CONFLICT (hash) DO UPDATE SET status='ACTIVE'`,
+    `INSERT INTO api_keys (id, tenant_id, hash, prefix, status, key_mode) VALUES ($1,$2,$3,'agf','ACTIVE', 'LEGACY_STANDALONE') ON CONFLICT (hash) DO UPDATE SET status='ACTIVE'`,
     [randomUUID(), TENANT_B, hashKey(RAW_KEY_B)]
   );
   const server = await app.listen();

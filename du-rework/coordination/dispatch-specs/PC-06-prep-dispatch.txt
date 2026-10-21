@@ -1,0 +1,28 @@
+[PACKET PREP-PC-06: Manifest and Worker Opt-In Pre-Analysis & Design]
+
+ROLE: DeepSeek Worker 3 (Worker & Runtime Systems Specialist)
+TASK ID: PREP-PC-06
+STATUS: PRE-ANALYSIS / SPECIFICATION (READ-ONLY ON PRODUCTION SOURCE)
+MASTER PLAN: du-rework/tasks/PLAN-PROFILE-CONTROL-PLANE-IMPLEMENTATION.md (PC-06 row, "Manifest and worker opt-in", "Settled data and authorization model")
+COORDINATION DECISION: PC-01, PC-02, and PC-05 are officially complete and accepted. PC-03 and PC-04 are in final receipt authoring.
+
+TARGET OF INVESTIGATION (READ-ONLY AUDIT):
+1. orchestrator/packages/worker-sdk/src/task-context.ts (or corresponding task context files)
+2. orchestrator/packages/worker-sdk/ (structure, contracts, manifests)
+3. orchestrator/services/orchestrator/src/modules/operations/ (task dispatch, task context generation)
+4. Worker test suites and manifests declaring parameterResolution capability
+
+MUC TIEU PREP-PC-06:
+1. Khao sat kien truc Worker SDK:
+   - Dam bao Worker SDK KHONG bi bat buoc phu thuoc vao profile-group control plane (decoupled).
+   - Task context chi mang theo `effectiveParameters` da duoc resolve boi orchestrator va cac capability markers.
+2. Khao sat Manifest Opt-In:
+   - Kiem tra cach cac engine/worker khai bao opt-in capability `parameterResolution`.
+   - Voi cac worker/engine chua opt-in, giu nguyen 100% hanh vi V1 cu.
+3. Soan thao bao cao thiet ke va test plan chi tiet tai:
+   `du-rework/coordination/reports/prep-pc06-worker-spec.md`.
+
+QUY TAC:
+- KHONG sua file source trong phase PREP nay.
+- Chi ghi file bao cao `du-rework/coordination/reports/prep-pc06-worker-spec.md`.
+- In ra: PREP-PC-06_COMPLETE khi hoan thanh kem duong dan bao cao.

@@ -159,7 +159,7 @@ liveDescribe('WOC independent real PostgreSQL + Redis runtime/worker invariants'
     );
     const hash = createHash('sha256').update(rawApiKey).digest('hex');
     await appA.db.query(
-      `INSERT INTO api_keys (id,tenant_id,hash,prefix,status) VALUES ($1,$2,$3,'vfy_runtime','ACTIVE')`,
+      `INSERT INTO api_keys (id,tenant_id,hash,prefix,status, key_mode) VALUES ($1,$2,$3,'vfy_runtime','ACTIVE', 'LEGACY_STANDALONE')`,
       [keyId, tenantId, hash],
     );
   }, 60_000);

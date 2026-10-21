@@ -23,10 +23,13 @@ import type { AddressInfo } from 'node:net';
 import { createAdminShellServer } from '../../../orchestrator/services/orchestrator/src/app/admin/shell-server';
 import type { AdminSessionStore, AdminSessionView } from '../../../orchestrator/services/orchestrator/src/modules/admin-actions/rbac';
 
-const outFile = process.argv[2];
-if (!outFile) {
+const outFileArg = process.argv[2];
+if (!outFileArg) {
   throw new Error('usage: tsx harness.ts <outfile.json>');
 }
+// Explicit annotation: the narrowing above does not survive into the async
+// `main()` closure, and `writeFileSync` rejects `string | undefined`.
+const outFile: string = outFileArg;
 
 const TOKEN = 'aweb01b-browser-token';
 const SECRET = 'aweb01b-browser-secret';

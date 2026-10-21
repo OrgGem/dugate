@@ -130,9 +130,9 @@ class FakeDb {
     const low = norm.toLowerCase();
 
     // resolveApiKey: hash lookup, ACTIVE only.
-    if (low.startsWith('select id, tenant_id from api_keys where hash=')) {
+    if (low.startsWith('select id, tenant_id from api_keys where hash=') || low.startsWith('select id, tenant_id, key_mode from api_keys where hash=')) {
       const hit = this.apiKeys.find((k) => k.hash === params[0] && k.status === params[1]);
-      return pgResult(hit ? [{ id: hit.id, tenant_id: hit.tenant_id }] : []);
+      return pgResult(hit ? [{ id: hit.id, tenant_id: hit.tenant_id, key_mode: 'LEGACY_STANDALONE' }] : []);
     }
 
     // legacy billing: the key row supplies name + limits.

@@ -1,0 +1,28 @@
+# DISPATCH SPEC: FOLLOWUP-PC-R06-R07-BROWSER (Browser E2E coverage for lock preservation and parameter sources)
+Owner: Antigravity Coordinator
+Assignee: DeepSeek Worker 0 (term_ee18bc3a-0e81-4e67-9910-50d17bcfe970)
+Priority: P2
+Affected Packages: PC-08, PC-09
+
+## Objective
+Implement UI browser interaction tests required by Master Plan PC-R06 and PC-R07:
+1. **PC-R06 Browser Gate**:
+   "Include a UI interaction test, not only a handcrafted save-body test. Load a locked request default with no schema defaultLocked, edit only its value, save and reload: it remains locked."
+2. **PC-R07 Browser Gate**:
+   "Render only declared parameter source in editor: With the opt-in manifest capability, declared requestDefaults appear only in request-defaults editor; profile-only settings appear in profile settings."
+
+## Scope & File Lease
+EXCLUSIVE LEASE FOR WORKER 0:
+- `du-rework/tests/browser/admin-web/profile-groups-v2.spec.ts`
+- Tests / test helpers in `du-rework/tests/browser/`
+
+DO NOT touch any backend service file in `services/orchestrator/` or packages.
+
+## Acceptance Criteria
+1. Add test case 7 to `profile-groups-v2.spec.ts`:
+   - Edit a locked request-default value in the browser UI, assert posted body retains `isLocked: true`.
+2. Add test case 8 to `profile-groups-v2.spec.ts`:
+   - Assert editor partitions schema fields into Profile settings vs Request defaults based on `parameterResolution`, and displays capability notice when absent.
+3. `tsc --noEmit` on the browser test tsconfig (or repo check) passes.
+4. Write receipt to `du-rework/coordination/reports/receipt-pc-r06-r07-browser.md`.
+5. Print completion token: `PC-R06_R07_BROWSER_COMPLETE — du-rework/coordination/reports/receipt-pc-r06-r07-browser.md`.

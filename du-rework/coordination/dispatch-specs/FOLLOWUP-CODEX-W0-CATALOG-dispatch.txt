@@ -1,0 +1,36 @@
+# Dispatch Specification: Wave 3 Follow-up — Worker 0 (Finding 4 Catalog Tenant Wiring)
+
+Target: Worker 0 (dsh_0, term_ee18bc3a-0e81-4e67-9910-50d17bcfe970)
+Leased Files:
+- du-rework/orchestrator/services/orchestrator/src/http/routes/admin-profile-groups-v2.ts
+- du-rework/orchestrator/services/orchestrator/src/app/admin/bff/profile-groups-v2.ts
+- du-rework/orchestrator/apps/admin-web/src/lib/api/client.ts
+- du-rework/orchestrator/apps/admin-web/src/features/profiles/profile-group-editor.tsx
+- du-rework/orchestrator/services/orchestrator/tests/aweb10-bff-profile-groups-v2.test.ts
+
+Context & Finding from Codex Audit:
+Finding 4: The catalog producer (business-functions.ts) now accepts `{ tenantId }`, but callers do not pass it yet:
+1. In `src/http/routes/admin-profile-groups-v2.ts:200`: Currently rejects query parameter `tenantId` (`unsupported catalog query parameter: tenantId`) and calls `getBusinessFunctionCatalog` without tenantId at line 207.
+2. In `src/app/admin/bff/profile-groups-v2.ts:190-216`: Does not allow or forward `tenantId` in the catalog query.
+3. In `apps/admin-web/src/lib/api/client.ts:427, 1267`: `getBusinessFunctionCatalog(businessId, businessVersion)` doesn't take or pass `tenantId`.
+4. In `apps/admin-web/src/features/profiles/profile-group-editor.tsx`: When fetching the catalog for a group, `tenantId` is available from the group draft or query, but not passed.
+
+Task:
+1. In `admin-profile-groups-v2.ts`:
+   In `if (route.kind === 'catalog')`:
+   - Allow optional `tenantId` in query parameters (along with `businessId` and `businessVersion`).
+   - If `tenantId` is provided, validate that it's a non-empty string and authorize it if necessary via `authorizeAuditTenantRead(requirePrincipal(ctx), tenantId)`.
+   - Pass `{ tenantId }` to `getBusinessFunctionCatalog(ctx.db, businessId, businessVersion, tenantId ? { tenantId } : undefined)`.
+2. In `src/app/admin/bff/profile-groups-v2.ts`:
+   - In catalog handling, allow `['businessId', 'businessVersion', 'tenantId']`.
+   - If `tenantId` is provided, forward it in upstream URL query parameters.
+3. In `apps/admin-web/src/lib/api/client.ts`:
+   - Update `getBusinessFunctionCatalog(businessId: string, businessVersion: string, tenantId?: string)` to pass `tenantId` if provided.
+4. In `profile-group-editor.tsx`:
+   - When calling `client.getBusinessFunctionCatalog(businessId, businessVersion, ...)`, pass the current group's `tenantId`.
+5. In `tests/aweb10-bff-profile-groups-v2.test.ts`:
+   - Add/update tests verifying that `/profile-groups/v2/catalog` accepts and passes `tenantId`.
+6. Verify:
+   - `tsc` passes for both admin-web and orchestrator.
+   - Run tests for bff and state.
+7. Output completion token: `CODEX_WAVE3_W0_FOLLOWUP_COMPLETE`

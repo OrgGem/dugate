@@ -1,0 +1,43 @@
+[PACKET PC-09-MATRIX: Profile Control Plane 6x5 E2E Cutover Matrix Implementation]
+
+ROLE: DeepSeek Worker 3 (System Integration & Verification Specialist)
+TASK ID: PC-09-MATRIX
+STATUS: IMPLEMENTATION & VERIFICATION (TEST SUITE ONLY)
+MASTER PLAN: du-rework/tasks/PLAN-PROFILE-CONTROL-PLANE-IMPLEMENTATION.md (PC-09 row, "Verification and cutover")
+DESIGN & SPEC: du-rework/coordination/reports/prep-pc09-cutover-spec.md §3 and §4
+PRE-BUILT HARNESS: tests/helpers/scratch-db.ts and tests/helpers/profile-control-plane-harness.ts (delivered in PC-09-HARNESS)
+
+EXCLUSIVE LEASE:
+- orchestrator/services/orchestrator/tests/profile-control-plane-cutover.test.ts (new test suite)
+
+PURPOSE:
+Implement the 6 × 5 end-to-end matrix designed in prep-pc09-cutover-spec.md §3, proving the Gateway behavior across all 6 core endpoints:
+`ingest`, `extract`, `analyze`, `transform`, `generate`, `compare`.
+
+COVERAGE REQUIRED:
+1. Cohort A (Legacy Standalone):
+   - `api_keys.key_mode = 'LEGACY_STANDALONE'`, no profile group.
+   - Child profile membership resolution succeeds, pins legacy profile.
+2. Cohort B (Unmanaged Legacy):
+   - `api_keys.key_mode = 'UNMANAGED_LEGACY'`.
+   - Admitted in `mode: 'legacy'` without profile pin.
+3. Cohort C1 (Group Pre-cutover):
+   - `auth_authority = 'CHILD_PROJECTION'`, `key_mode = 'LEGACY_STANDALONE'`.
+   - Resolves through child membership, V1 behavior intact.
+4. Cohort C2 (Group Post-cutover):
+   - `auth_authority = 'GROUP_GRANT'`, `key_mode = 'GROUP_MANAGED'`.
+   - Zero child memberships in DB.
+   - Resolves strictly via active root grant + function selector. NO fallback to legacy.
+5. Cohort C3 (Defensive Illegal Mix):
+   - `auth_authority = 'CHILD_PROJECTION'`, `key_mode = 'GROUP_MANAGED'`.
+   - Must deny with 409 conflict, never fall back to legacy.
+6. Cohort D (Multi-Key Group):
+   - Multiple active root grants.
+   - Independent admissions with identical configuration pins.
+
+ACCEPTANCE CRITERIA:
+- All 6 actions tested across the cohorts.
+- Live scratch-DB test runs clean under `DU_LIVE_INFRA=1` (or self-guards when offline).
+- Typecheck `tsc --noEmit` exit 0.
+- Write receipt to `du-rework/coordination/reports/receipt-pc09-matrix.md`.
+- Print: PC-09-MATRIX_COMPLETE kem duong dan receipt-pc09-matrix.md.

@@ -1,0 +1,45 @@
+[PACKET PC-04-EXECUTE: Key and Auth Lifecycle Implementation]
+
+ROLE: DeepSeek Worker 2 (Identity & Auth Subsystem Specialist)
+TASK ID: PC-04
+STATUS: APPROVED BY ANTIGRAVITY COORDINATOR (Cycle 10)
+DECISIONS APPROVED: All 11 decisions (D-1 through D-11) from prep-pc04-keys-spec.md are formally APPROVED.
+LEASE EXTENSION GRANTED:
+- `orchestrator/services/orchestrator/tests/**` (strictly for key_mode fixtures and assertion updates needed by fail-closed auth).
+- `@du/contracts/src/profile-groups.ts` and `index.ts` (for exporting ApiKeyMode / KeyMode enum if needed).
+
+MASTER PLAN: du-rework/tasks/PLAN-PROFILE-CONTROL-PLANE-IMPLEMENTATION.md (PC-04 row, Key state transitions)
+SPECIFICATION REFERENCE: du-rework/coordination/reports/prep-pc04-keys-spec.md (§5 Implementation Design, §6 Test Plan, §7 Waves)
+
+FILE LEASE (EXCLUSIVE):
+- orchestrator/services/orchestrator/src/modules/identity/api-keys.ts
+- orchestrator/services/orchestrator/src/modules/identity/service.ts
+- orchestrator/services/orchestrator/src/modules/admin-actions/dispatcher.ts
+- orchestrator/services/orchestrator/src/http/routes/internal-parity.ts
+- orchestrator/services/orchestrator/src/http/routes/api-key-auth.ts
+- orchestrator/services/orchestrator/src/modules/connectors/probe-authorization.ts
+- orchestrator/services/orchestrator/src/modules/connectors/provider-test.ts
+- orchestrator/services/orchestrator/src/modules/workflow-test/workflow-test.ts
+- orchestrator/services/orchestrator/src/app/admin/bff/key-minting.ts
+- orchestrator/services/orchestrator/tests/ (fixture updates for key_mode)
+
+CHI THI THUC HIEN THEO 3 WAVES (§7):
+1. Wave A (no new cross-lane dependencies):
+   - M1-M5 writer modes: Ensure every INSERT INTO api_keys explicitly sets key_mode (never NULL).
+   - apikey.attach: return 409 PROFILE_GROUP_V2_REQUIRED for group children and GROUP_MANAGED keys.
+   - Parity issue: reject grouped child profileIds with 409 PROFILE_GROUP_V2_REQUIRED.
+   - Idempotency redaction: marker body stores rawKey: null and secretAvailable: false (never persist rawKey in admin_idempotency).
+   - Global revoke: set api_keys.status='REVOKED', bump version, clean memberships and local-user grants.
+   - Rotation: inherit key_mode for standalone and unmanaged modes (drop "nothing to inherit" 409 guard for valid modes).
+2. Wave B (consume PC-03 root grant helpers):
+   - Global revoke: call revokeAllGroupGrantsForApiKey from PC-03 to revoke all active root grants and bump access_version.
+   - Rotation: call PC-03 helper to copy group grant when key_mode is GROUP_MANAGED.
+3. Wave C (fail-closed auth resolver):
+   - Update resolveApiKey in api-key-auth.ts to select key_mode, return ResolvedApiKey, and fail closed (401) on missing/NULL mode.
+   - Update test fixtures in tests/ to supply key_mode.
+
+TIEU CHI HOAN THANH:
+- Typecheck clean trên services/orchestrator.
+- Test suite unit + live PG tests pass 100%.
+- Ghi receipt vào du-rework/coordination/reports/receipt-pc04-keys.md.
+- In ra: PC-04_EXECUTE_COMPLETE.

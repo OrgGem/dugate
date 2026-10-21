@@ -174,6 +174,17 @@ jest.mock('pg', () => {
         rowCount: 1,
       };
     }
+    // PC-R01/PC-05: admission reads the key's explicit authority mode before
+    // consulting memberships; this fixture models a standalone key.
+    if (/^SELECT key_mode FROM api_keys/i.test(text)) {
+      return { rows: [{ key_mode: 'UNMANAGED_LEGACY' }], rowCount: 1 };
+    }
+    if (/SELECT id, tenant_id, status, key_mode FROM api_keys/i.test(text)) {
+      return {
+        rows: [{ id: String(params[0]), tenant_id: TENANT, status: 'ACTIVE', key_mode: 'UNMANAGED_LEGACY' }],
+        rowCount: 1,
+      };
+    }
     if (/FROM api_keys k WHERE k\.id=\$1/i.test(text)) {
       return {
         rows: [{ name: 'enc-meta-test-key', spending_limit: '0', total_used: '0', tenant_id: String(params[1]) }],

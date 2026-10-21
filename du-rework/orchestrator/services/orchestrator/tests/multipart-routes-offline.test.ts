@@ -368,7 +368,7 @@ function publicContext(options: {
     query: jest.fn(async (sql: string) => {
       const query = String(sql).replace(/\s+/g, ' ').trim();
       if (query.includes('FROM api_keys') && options.validKey !== false) {
-        return { rowCount: 1, rows: [{ id: API_KEY_ID, tenant_id: PUBLIC_TENANT }] };
+        return { rowCount: 1, rows: [{ id: API_KEY_ID, tenant_id: PUBLIC_TENANT, key_mode: 'LEGACY_STANDALONE' }] };
       }
       if (
         options.ownsUpload !== false

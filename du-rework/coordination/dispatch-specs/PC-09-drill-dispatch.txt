@@ -1,0 +1,34 @@
+[PACKET PC-09-DRILL: Phased Cutover & Conversion Drill Test Suite]
+
+ROLE: DeepSeek Worker 1 (Backend & Profile Service Specialist)
+TASK ID: PC-09-DRILL
+STATUS: IMPLEMENTATION & VERIFICATION (TEST SUITE ONLY)
+MASTER PLAN: du-rework/tasks/PLAN-PROFILE-CONTROL-PLANE-IMPLEMENTATION.md (PC-09 row, "Verification and cutover")
+PRE-ANALYSIS: du-rework/coordination/reports/prep-pc09-cutover-spec.md §5 and §6
+HELPERS AVAILABLE: tests/helpers/scratch-db.ts and tests/helpers/profile-control-plane-harness.ts
+
+EXCLUSIVE LEASE:
+- orchestrator/services/orchestrator/tests/profile-control-plane-cutover-drill.test.ts (new test suite)
+
+PURPOSE:
+Implement the phased cutover and authority conversion drill test suite:
+1. Start with a pre-cutover group (Cohort C1: `CHILD_PROJECTION`, `LEGACY_STANDALONE` key, child memberships).
+2. Execute `convertGroupToGrantAuthority`:
+   - Verify all 7 conversion proofs (P1..P7) pass or block appropriately on dirty state.
+   - Verify group authority transitions from `CHILD_PROJECTION` to `GROUP_GRANT`.
+   - Verify child memberships are cleaned up.
+   - Verify root grant is created in state `ACTIVE` with monotonic `access_version`.
+3. Post-conversion verification:
+   - Group now behaves as Cohort C2 (`GROUP_MANAGED` + `GROUP_GRANT`).
+   - Old direct child write/mutation attempts fail with `409 PROFILE_GROUP_V2_REQUIRED`.
+   - Public submissions with `GROUP_MANAGED` key resolve strictly via root grant.
+4. Rollback drill:
+   - Roll back profile group config to revision 1.
+   - Verify `access_version` remains strictly monotonic (never decreased).
+   - Verify root grants remain intact and valid across config rollbacks.
+
+VERIFICATION:
+- Live test runs clean under `DU_LIVE_INFRA=1` using `withScratchDatabase`.
+- `tsc --noEmit` exit 0.
+- Write receipt to `du-rework/coordination/reports/receipt-pc09-drill.md`.
+- Print: PC-09-DRILL_COMPLETE kem duong dan receipt-pc09-drill.md.

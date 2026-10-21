@@ -61,7 +61,8 @@ export interface ProfileMutationOutcome {
   profileId: string;
   revision: number;
   tenantId: string;
-  apiKeyId: string;
+  /** PC-03: null when the revision was authored by an Admin actor, not a key. */
+  apiKeyId: string | null;
 }
 
 interface ApiKeyRow {
@@ -110,6 +111,50 @@ async function resolveProfileByName(
   );
   if (res.rows.length > 1) throw conflict('STATE_CONFLICT', 'multiple profiles match this API key and named function');
   return res.rows.length > 0 ? res.rows[0]!.profile_id : null;
+}
+
+/**
+ * PC-03 compatibility firewall — resolve the registry identity ACROSS BOTH
+ * SCOPES before any key-scoped work.
+ *
+ * `resolveProfileByName` below is deliberately key-scoped: it only matches a
+ * row whose `api_key_id` is the caller's key or which has an ACTIVE membership.
+ * A converted group child has neither, so a key-scoped lookup misses it and
+ * `profile.upsert` would fall through to `ensureProfileId`, minting a SECOND
+ * standalone registry row under the same name (the "shadow-profile fork").
+ *
+ * This guard runs first and refuses the mutation for any group-owned identity:
+ *   * `GROUP_GRANT`      ⇒ 409 PROFILE_GROUP_V2_REQUIRED
+ *   * `CHILD_PROJECTION` ⇒ 409 STATE_CONFLICT (today's wording, unchanged)
+ */
+async function assertProfileIdentityNotGroupOwned(
+  client: PoolClient,
+  tenantId: string,
+  businessId: string,
+  businessVersion: string,
+  action: string,
+  profileName: string,
+): Promise<void> {
+  const rows = await client.query<{ group_id: string | null; auth_authority: string | null }>(
+    `SELECT n.group_id, g.auth_authority
+       FROM profile_names n
+       LEFT JOIN profile_groups g ON g.group_id = n.group_id
+      WHERE n.tenant_id=$1 AND n.business_id=$2 AND n.business_version=$3
+        AND n.action=$4 AND n.profile_name=$5
+        AND n.group_id IS NOT NULL
+      LIMIT 1`,
+    [tenantId, businessId, businessVersion, action, profileName],
+  );
+  const grouped = rows.rows[0];
+  if (!grouped) return;
+  if (grouped.auth_authority === 'GROUP_GRANT') {
+    throw new HttpError(
+      409,
+      'PROFILE_GROUP_V2_REQUIRED',
+      'this profile is owned by a profile group that uses root grants; edit it through the profile group',
+    );
+  }
+  throw new HttpError(409, 'STATE_CONFLICT', 'this profile is owned by a profile group; edit it through the profile group');
 }
 
 /**
@@ -218,6 +263,10 @@ export async function runProfileUpsert(
   fence(candidate.tenant_id);
 
   const action = cmd.action ?? cmd.profileName;
+  // PC-03: refuse a group-owned identity BEFORE `ensureProfileId` can fork one.
+  await assertProfileIdentityNotGroupOwned(
+    client, candidate.tenant_id, cmd.businessId, cmd.businessVersion, action, cmd.profileName,
+  );
   const existingProfileId = await resolveProfileByName(
     client, candidate, cmd.businessId, cmd.businessVersion, action, cmd.profileName,
   );
@@ -286,13 +335,26 @@ async function resolveExistingProfile(
 
 /** Internal children are edited through their owning aggregate only. */
 async function assertProfileNotGroupOwned(client: PoolClient, profileId: string): Promise<void> {
+  // Shape kept from the pre-PC-03 guard; the authority lookup is an additional
+  // read that only runs once a group actually owns the profile.
   const result = await client.query<{ group_id: string | null }>(
     'SELECT group_id FROM profile_names WHERE profile_id=$1 FOR UPDATE',
     [profileId],
   );
-  if (result.rows[0]?.group_id) {
-    throw new HttpError(409, 'STATE_CONFLICT', 'this profile is owned by a profile group; edit it through the profile group');
+  const groupId = result.rows[0]?.group_id;
+  if (!groupId) return;
+  const authority = await client.query<{ auth_authority: string | null }>(
+    'SELECT auth_authority FROM profile_groups WHERE group_id=$1',
+    [groupId],
+  );
+  if (authority.rows[0]?.auth_authority === 'GROUP_GRANT') {
+    throw new HttpError(
+      409,
+      'PROFILE_GROUP_V2_REQUIRED',
+      'this profile is owned by a profile group that uses root grants; edit it through the profile group',
+    );
   }
+  throw new HttpError(409, 'STATE_CONFLICT', 'this profile is owned by a profile group; edit it through the profile group');
 }
 
 export async function runProfilePublish(
@@ -303,6 +365,10 @@ export async function runProfilePublish(
 ): Promise<ProfileMutationOutcome> {
   const candidate = await resolveApiKey(client, cmd.apiKey);
   fence(candidate.tenant_id);
+  const publishAction = cmd.action ?? cmd.profileName;
+  await assertProfileIdentityNotGroupOwned(
+    client, candidate.tenant_id, cmd.businessId, cmd.businessVersion, publishAction, cmd.profileName,
+  );
   const profileId = await resolveExistingProfile(client, candidate, cmd);
   const target = await deps.profiles.getLatestRevisionSelector(profileId, client);
   if (!target) throw notFound('profile has no revisions to activate');
@@ -344,6 +410,10 @@ export async function runProfileRollback(
 ): Promise<ProfileMutationOutcome> {
   const candidate = await resolveApiKey(client, cmd.apiKey);
   fence(candidate.tenant_id);
+  const rollbackAction = cmd.action ?? cmd.profileName;
+  await assertProfileIdentityNotGroupOwned(
+    client, candidate.tenant_id, cmd.businessId, cmd.businessVersion, rollbackAction, cmd.profileName,
+  );
   const profileId = await resolveExistingProfile(client, candidate, cmd);
   const targetSelector = await deps.profiles.getRevisionSelector(profileId, cmd.targetRevision, client);
   if (!targetSelector) throw notFound('rollback target revision does not exist for this profile');

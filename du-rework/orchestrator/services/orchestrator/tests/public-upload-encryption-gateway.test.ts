@@ -362,7 +362,8 @@ function createDb(initialSize: number, initiallyExists = true): {
     if (query.startsWith('SELECT') && query.includes('FROM api_keys')) {
       return {
         rowCount: 1,
-        rows: [{ id: API_KEY_ID, tenant_id: row.tenantId, name: 'offline', spending_limit: '0.00', total_used: '0.00' }],
+        // PC-R01: the route stub models the legacy path, which is reachable only for an explicitly unmanaged key.
+        rows: [{ id: API_KEY_ID, tenant_id: row.tenantId, name: 'offline', spending_limit: '0.00', total_used: '0.00', status: 'ACTIVE', key_mode: 'UNMANAGED_LEGACY' }],
       };
     }
     if (query.startsWith('UPDATE artifacts SET upload_api_key_id=$3')) {

@@ -27,6 +27,9 @@ function harness(stored: unknown = policy, hasPrevious = true) {
   const client = { query: async (sql: string, params: unknown[] = []) => {
     statements.push({ sql, params });
     if (sql.includes('SELECT id, tenant_id FROM api_keys')) return { rows: [{ id: apiKeyId, tenant_id: tenantId }], rowCount: 1 };
+    // PC-R01: admission reads the explicit key mode before consulting any
+    // membership. This suite's profile is standalone (child-projection cohort).
+    if (sql.includes('SELECT key_mode FROM api_keys')) return { rows: [{ key_mode: 'LEGACY_STANDALONE' }], rowCount: 1 };
     if (sql.includes('SELECT id, tenant_id, hash, prefix, status FROM api_keys WHERE id=$1 FOR SHARE')) {
       return { rows: [{ id: apiKeyId, tenant_id: tenantId, hash: 'a'.repeat(64), prefix: 'synthetic', status: 'ACTIVE' }], rowCount: 1 };
     }
@@ -118,7 +121,10 @@ describe('CB-02b profile publish callback write boundary', () => {
     expect(effective.mode).toBe('pinned');
     if (effective.mode !== 'pinned') throw new Error('Expected a pinned profile');
     expect(effective.policy.callbackPolicy).toEqual(policy);
-    expect(h.statements[0]?.sql).toContain('p.callback_policy');
-    expect(h.statements[0]?.params).toEqual([apiKeyId, 'document-core', '1.0.0', 'extract', null]);
+    // PC-R01: admission first reads the key's explicit mode, so the profile
+    // SELECT is no longer statement #0. Locate it instead of assuming a slot.
+    const profileSelect = h.statements.find((s) => s.sql.includes('p.callback_policy'));
+    expect(profileSelect).toBeDefined();
+    expect(profileSelect?.params).toEqual([apiKeyId, 'document-core', '1.0.0', 'extract', null]);
   });
 });

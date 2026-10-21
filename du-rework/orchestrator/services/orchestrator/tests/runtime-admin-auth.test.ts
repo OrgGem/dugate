@@ -126,8 +126,7 @@ describe('W29-C: Admin authorization negative tests', () => {
     );
     const otherRaw = `du_w29other_${randomUUID().replace(/-/g, '')}`;
     await app.db.query(
-      `INSERT INTO api_keys (id, tenant_id, hash, prefix, status)
-       VALUES ($1,$2,$3,'w29o','ACTIVE') ON CONFLICT (hash) DO NOTHING`,
+      `INSERT INTO api_keys (id, tenant_id, hash, prefix, status, key_mode) VALUES ($1,$2,$3,'w29o','ACTIVE', 'LEGACY_STANDALONE') ON CONFLICT (hash) DO NOTHING`,
       [randomUUID(), otherTenant, hashKey(otherRaw)]
     );
 
@@ -162,8 +161,7 @@ describe('W29-C: Admin authorization negative tests', () => {
     const otherRaw = `du_w29resume_${randomUUID().replace(/-/g, '')}`;
     const otherKeyId = randomUUID();
     await app.db.query(
-      `INSERT INTO api_keys (id, tenant_id, hash, prefix, status)
-       VALUES ($1,$2,$3,'w29r','ACTIVE') ON CONFLICT (hash) DO NOTHING`,
+      `INSERT INTO api_keys (id, tenant_id, hash, prefix, status, key_mode) VALUES ($1,$2,$3,'w29r','ACTIVE', 'LEGACY_STANDALONE') ON CONFLICT (hash) DO NOTHING`,
       [otherKeyId, otherTenant, hashKey(otherRaw)]
     );
 

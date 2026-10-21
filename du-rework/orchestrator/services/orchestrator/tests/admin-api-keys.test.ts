@@ -58,7 +58,9 @@ function cookie(
 
 interface WorldOptions {
   /** Row the revoke path will find. undefined => the SELECT returns nothing. */
-  keyRow?: { id: string; tenant_id: string; status: string; name?: string | null } | null;
+  keyRow?: { id: string; tenant_id: string; status: string; name?: string | null; key_mode?: string | null } | null;
+  /** PC-04: authority mode the key row carries (default LEGACY_STANDALONE). */
+  keyMode?: string | null;
   /** 0039: ACTIVE memberships the rotate lookup inherits. */
   memberships?: Array<{ profile_id: string; tenant_id: string }>;
   /** 0039: id the INSERT INTO api_keys fake hands back (the replacement key). */
@@ -67,6 +69,10 @@ interface WorldOptions {
   profileExists?: boolean;
   /** 0039: false makes the membership insert report created=false (already a member). */
   membershipCreated?: boolean;
+  /** PC-04: ACTIVE root grants the global-revoke seam finds for this key. */
+  groupGrants?: string[];
+  /** PC-04: group that owns the attach target profile (null = standalone). */
+  profileGroupId?: string | null;
 }
 
 interface QueryLog {
@@ -78,20 +84,31 @@ function makeWorld(opts: WorldOptions = {}) {
   const queries: QueryLog[] = [];
   const auditRows: AuditRecordInput[] = [];
   const keyRow = opts.keyRow === undefined ? { id: KEY_ID, tenant_id: TENANT_A, status: 'ACTIVE' } : opts.keyRow;
+  // PC-04: every fixture key carries an explicit authority mode unless a test
+  // deliberately drives the NULL/unknown case.
+  const keyMode = opts.keyMode === undefined ? 'LEGACY_STANDALONE' : opts.keyMode;
 
   const client = {
     query: async (text: string, params: unknown[] = []) => {
       const sql = text.replace(/\s+/g, ' ').trim();
       queries.push({ sql, params });
+      if (/SELECT id, name, key_mode FROM api_keys/i.test(sql)) {
+        return keyRow ? { rows: [{ id: keyRow.id, name: keyRow.name ?? null, key_mode: keyMode }], rowCount: 1 } : { rows: [], rowCount: 0 };
+      }
+      if (/SELECT id, tenant_id, name, status FROM api_keys/i.test(sql)) {
+        return keyRow
+          ? { rows: [{ id: keyRow.id, tenant_id: keyRow.tenant_id, name: keyRow.name ?? null, status: keyRow.status }], rowCount: 1 }
+          : { rows: [], rowCount: 0 };
+      }
       if (/SELECT id, tenant_id, hash, prefix, status FROM api_keys/i.test(sql)) {
         return keyRow ? { rows: [{ ...keyRow, hash: HASH, prefix: RAW.slice(0, 4) }], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
       if (/SELECT id, tenant_id, status.* FROM api_keys/i.test(sql)) {
-        return keyRow ? { rows: [keyRow], rowCount: 1 } : { rows: [], rowCount: 0 };
+        return keyRow ? { rows: [{ ...keyRow, key_mode: keyMode }], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
       if (/UPDATE api_keys SET status='REVOKED'/i.test(sql)) {
         return {
-          rows: [{ id: params[0], tenant_id: keyRow!.tenant_id }],
+          rows: [{ id: params[0] ?? params[1], tenant_id: keyRow!.tenant_id, version: 2 }],
           rowCount: 1,
         };
       }
@@ -105,11 +122,25 @@ function makeWorld(opts: WorldOptions = {}) {
           rowCount: 1,
         };
       }
+      // PC-04 root-grant seam (revokeAllGroupGrantsForApiKey).
+      if (/SELECT group_id FROM profile_group_api_keys/i.test(sql)) {
+        const ids = opts.groupGrants ?? [];
+        return { rows: ids.map((groupId) => ({ group_id: groupId })), rowCount: ids.length };
+      }
+      if (/SELECT group_id FROM profile_groups WHERE group_id=\$1 FOR UPDATE/i.test(sql)) {
+        return { rows: [{ group_id: params[0] }], rowCount: 1 };
+      }
+      if (/UPDATE profile_group_api_keys/i.test(sql)) {
+        return { rows: [], rowCount: (opts.groupGrants ?? []).length };
+      }
+      if (/UPDATE profile_groups SET access_version/i.test(sql)) {
+        return { rows: [{ group_id: params[0], access_version: 2 }], rowCount: 1 };
+      }
       // 0039 membership seams.
       if (/FROM profile_active_revisions a/i.test(sql) && /LEFT JOIN profile_names n/i.test(sql)) {
         return opts.profileExists === false
           ? { rows: [], rowCount: 0 }
-          : { rows: [{ group_id: null, business_id: 'document-core', business_version: '1.0.0', action: 'extract', endpoint_slug: null }], rowCount: 1 };
+          : { rows: [{ group_id: opts.profileGroupId ?? null, business_id: 'document-core', business_version: '1.0.0', action: 'extract', endpoint_slug: null }], rowCount: 1 };
       }
       if (/FROM profile_api_keys m/i.test(sql)) {
         const rows = (opts.memberships ?? []).map((membership) => ({
@@ -305,7 +336,9 @@ describe('ORCH-PAR-01: apikey.issue writes a real row', () => {
     expect(out.status).toBe(201);
     expect(out.body).toMatchObject({ name: 'ci-runner' });
     const named = w.writes()[0]!;
-    expect(named.sql).toMatch(/INSERT INTO api_keys \(tenant_id, hash, prefix, name\)/i);
+    // PC-04: every mint declares its authority mode; no INSERT leaves it NULL.
+    expect(named.sql).toMatch(/INSERT INTO api_keys \(tenant_id, hash, prefix, name, key_mode\)/i);
+    expect(named.sql).toMatch(/'LEGACY_STANDALONE'/i);
     expect(named.params).toContain('ci-runner');
 
     const d = makeWorld();
@@ -315,7 +348,7 @@ describe('ORCH-PAR-01: apikey.issue writes a real row', () => {
     });
     // No invented default label: the column is NULL when the caller named nothing.
     expect(d.writes()[0]!.params).toContain(null);
-    expect(d.writes()[0]!.sql).toMatch(/INSERT INTO api_keys \(tenant_id, hash, prefix, name\)/i);
+    expect(d.writes()[0]!.sql).toMatch(/INSERT INTO api_keys \(tenant_id, hash, prefix, name, key_mode\)/i);
   });
 
   test('the audit row is written in the same transaction, scoped to the target tenant', async () => {
@@ -718,19 +751,18 @@ describe('0039: apikey.rotate replaces a key across every profile it belongs to'
     expect(out.body).toMatchObject({ name: null });
   });
 
-  test('a key with no ACTIVE membership is 409 — nothing to inherit, so nothing is revoked', async () => {
-    const w = makeWorld({ memberships: [] });
-    await expectDenied(
-      dispatchAdminAction(w.deps, bearerPlatform(), {
-        action: 'apikey.rotate',
-        params: { apiKeyId: KEY_ID, apiKey: 'du_live_ROTATED_0123456789' },
-      }),
-      409,
-      'STATE_CONFLICT'
-    );
-    expect(w.queries.some((q) => /INSERT INTO (api_keys|profile_api_keys)/i.test(q.sql))).toBe(false);
-    expect(w.queries.some((q) => /UPDATE api_keys SET status='REVOKED'/i.test(q.sql))).toBe(false);
-    expect(w.auditRows).toHaveLength(0);
+  // D-6: an empty inheritance set is legal for a KNOWN mode — a tombstone-only
+  // LEGACY_STANDALONE key or an UNMANAGED_LEGACY key rotates with no memberships.
+  test('a key with no ACTIVE membership still rotates, inheriting nothing', async () => {
+    const w = makeWorld({ memberships: [], insertedKeyId: NEXT_KEY_ID });
+    const out = await dispatchAdminAction(w.deps, bearerPlatform(), {
+      action: 'apikey.rotate',
+      params: { apiKeyId: KEY_ID, apiKey: 'du_live_ROTATED_0123456789' },
+    });
+    expect(out.status).toBe(201);
+    expect(out.body).toMatchObject({ apiKeyId: NEXT_KEY_ID, revokedId: KEY_ID, profiles: [] });
+    expect(w.queries.some((q) => /INSERT INTO profile_api_keys/i.test(q.sql))).toBe(false);
+    expect(w.queries.some((q) => /UPDATE api_keys SET status='REVOKED'/i.test(q.sql))).toBe(true);
   });
 
   test('a missing raw value is 422 before any query runs', async () => {
@@ -774,6 +806,170 @@ describe('0039: apikey.rotate replaces a key across every profile it belongs to'
       'PERMISSION_DENIED'
     );
     expect(w.queries).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 6. PC-04 — explicit key modes, secret-once markers, grant-aware revoke
+// ---------------------------------------------------------------------------
+
+const GROUP_ID = 'dddddddd-4444-4444-8444-dddddddddddd';
+
+describe('PC-04: apikey.issue mints STANDALONE only and never persists the secret', () => {
+  test('a caller asking for GROUP_MANAGED is pointed at the group operation, zero writes', async () => {
+    const w = makeWorld();
+    await expectDenied(
+      dispatchAdminAction(w.deps, bearerPlatform(), {
+        action: 'apikey.issue',
+        params: { tenantId: TENANT_A, apiKey: RAW, keyMode: 'GROUP_MANAGED' },
+      }),
+      409,
+      'PROFILE_GROUP_V2_REQUIRED'
+    );
+    expect(w.queries).toHaveLength(0);
+    expect(w.auditRows).toHaveLength(0);
+  });
+
+  test('the marker stores metadata only; the first 201 still carries the raw value', async () => {
+    const w = makeWorld();
+    const out = await dispatchAdminAction(w.deps, bearerPlatform(), {
+      action: 'apikey.issue',
+      params: { tenantId: TENANT_A, apiKey: RAW },
+      idempotencyKey: 'idem-issue-secret-once-1',
+    });
+    expect(out.body).toMatchObject({ rawKey: RAW, secretAvailable: true });
+    const marker = w.queries.find((q) => /INSERT INTO admin_idempotency/i.test(q.sql));
+    expect(marker).toBeDefined();
+    const storedBody = String(marker!.params[4]);
+    expect(storedBody).not.toContain(RAW);
+    expect(storedBody).toContain('"rawKey":null');
+    expect(storedBody).toContain('"secretAvailable":false');
+    // Still no raw value anywhere else either.
+    expect(JSON.stringify(w.auditRows)).not.toContain(RAW);
+  });
+});
+
+describe('PC-04: apikey.rotate is mode-aware', () => {
+  test('a NULL authority mode is 409 STATE_CONFLICT with zero writes', async () => {
+    const w = makeWorld({ keyMode: null });
+    await expectDenied(
+      dispatchAdminAction(w.deps, bearerPlatform(), {
+        action: 'apikey.rotate',
+        params: { apiKeyId: KEY_ID, apiKey: 'du_live_ROTATED_0123456789' },
+      }),
+      409,
+      'STATE_CONFLICT'
+    );
+    expect(w.queries.some((q) => /INSERT INTO api_keys/i.test(q.sql))).toBe(false);
+    expect(w.auditRows).toHaveLength(0);
+  });
+
+  test('a GROUP_MANAGED key without an ACTIVE grant is 409 and writes nothing', async () => {
+    const w = makeWorld({ keyMode: 'GROUP_MANAGED' });
+    await expectDenied(
+      dispatchAdminAction(w.deps, bearerPlatform(), {
+        action: 'apikey.rotate',
+        params: { apiKeyId: KEY_ID, apiKey: 'du_live_ROTATED_0123456789' },
+      }),
+      409,
+      'STATE_CONFLICT'
+    );
+    expect(w.queries.some((q) => /INSERT INTO api_keys/i.test(q.sql))).toBe(false);
+    expect(w.queries.some((q) => /UPDATE api_keys SET status='REVOKED'/i.test(q.sql))).toBe(false);
+  });
+
+  test('the rotate marker is redacted as well', async () => {
+    const raw = 'du_live_ROTATED_0123456789';
+    const w = makeWorld({ memberships: [], insertedKeyId: NEXT_KEY_ID });
+    const out = await dispatchAdminAction(w.deps, bearerPlatform(), {
+      action: 'apikey.rotate',
+      params: { apiKeyId: KEY_ID, apiKey: raw },
+      idempotencyKey: 'idem-rotate-secret-once-1',
+    });
+    expect(out.body).toMatchObject({ rawKey: raw, secretAvailable: true });
+    const marker = w.queries.find((q) => /INSERT INTO admin_idempotency/i.test(q.sql));
+    expect(marker).toBeDefined();
+    expect(String(marker!.params[4])).not.toContain(raw);
+    expect(String(marker!.params[4])).toContain('"secretAvailable":false');
+  });
+});
+
+describe('PC-04: apikey.attach refuses group-scoped keys and group children', () => {
+  test('a GROUP_MANAGED key cannot gain child memberships', async () => {
+    const w = makeWorld({ keyMode: 'GROUP_MANAGED' });
+    await expectDenied(
+      dispatchAdminAction(w.deps, bearerPlatform(), {
+        action: 'apikey.attach',
+        params: { apiKeyId: KEY_ID, profileId: PROFILE_A },
+      }),
+      409,
+      'PROFILE_GROUP_V2_REQUIRED'
+    );
+    expect(w.queries.some((q) => /INSERT INTO profile_api_keys/i.test(q.sql))).toBe(false);
+  });
+
+  test('a NULL-mode key is a conflict, not an attach', async () => {
+    const w = makeWorld({ keyMode: null });
+    await expectDenied(
+      dispatchAdminAction(w.deps, bearerPlatform(), {
+        action: 'apikey.attach',
+        params: { apiKeyId: KEY_ID, profileId: PROFILE_A },
+      }),
+      409,
+      'STATE_CONFLICT'
+    );
+    expect(w.queries.some((q) => /INSERT INTO profile_api_keys/i.test(q.sql))).toBe(false);
+  });
+
+  test('a group child profile is 409 PROFILE_GROUP_V2_REQUIRED at the fence', async () => {
+    const w = makeWorld({ profileGroupId: GROUP_ID });
+    await expectDenied(
+      dispatchAdminAction(w.deps, bearerPlatform(), {
+        action: 'apikey.attach',
+        params: { apiKeyId: KEY_ID, profileId: PROFILE_A },
+      }),
+      409,
+      'PROFILE_GROUP_V2_REQUIRED'
+    );
+    expect(w.queries.some((q) => /INSERT INTO profile_api_keys/i.test(q.sql))).toBe(false);
+    expect(w.auditRows).toHaveLength(0);
+  });
+});
+
+describe('PC-04: global revoke tombstones root grants before locking the key', () => {
+  test('grant revoke + access_version bump precede the key row lock', async () => {
+    const w = makeWorld({ groupGrants: [GROUP_ID] });
+    const out = await dispatchAdminAction(w.deps, bearerPlatform(), {
+      action: 'apikey.revoke',
+      params: { apiKeyId: KEY_ID },
+    });
+    expect(out.body).toEqual({ id: KEY_ID, status: 'REVOKED' });
+    const groupLock = w.queries.findIndex((q) => /SELECT group_id FROM profile_groups WHERE group_id=\$1 FOR UPDATE/i.test(q.sql));
+    const grantRevoke = w.queries.findIndex((q) => /UPDATE profile_group_api_keys/i.test(q.sql));
+    const versionBump = w.queries.findIndex((q) => /UPDATE profile_groups SET access_version/i.test(q.sql));
+    const keyLock = w.queries.findIndex((q) => /SELECT id, tenant_id, name, status FROM api_keys/i.test(q.sql));
+    expect(groupLock).toBeGreaterThanOrEqual(0);
+    expect(keyLock).toBeGreaterThan(groupLock);
+    expect(grantRevoke).toBeGreaterThan(groupLock);
+    expect(versionBump).toBeGreaterThan(grantRevoke);
+    expect(keyLock).toBeGreaterThan(versionBump);
+    expect(w.auditRows[0]).toMatchObject({
+      action: 'apikey.revoke',
+      resource: 'apikey:' + KEY_ID + ' groups:' + GROUP_ID,
+    });
+    // The old key row is version-bumped on revoke (both surfaces now agree).
+    const keyUpdate = w.writes().find((q) => /UPDATE api_keys SET status='REVOKED'/i.test(q.sql));
+    expect(keyUpdate?.sql).toMatch(/version=version\+1/i);
+  });
+
+  test('a key with no grants issues no grant write', async () => {
+    const w = makeWorld();
+    await dispatchAdminAction(w.deps, bearerPlatform(), {
+      action: 'apikey.revoke',
+      params: { apiKeyId: KEY_ID },
+    });
+    expect(w.queries.some((q) => /UPDATE profile_group_api_keys/i.test(q.sql))).toBe(false);
+    expect(w.queries.some((q) => /UPDATE profile_groups SET access_version/i.test(q.sql))).toBe(false);
   });
 });
 

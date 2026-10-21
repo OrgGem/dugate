@@ -1,0 +1,37 @@
+[PACKET PREP-PC-05: Resolution and V2 Admission Pre-Analysis & Design]
+
+ROLE: DeepSeek Worker 3 (Resolution & Admission Specialist)
+TASK ID: PREP-PC-05
+STATUS: PRE-ANALYSIS / SPECIFICATION (READ-ONLY ON PRODUCTION SOURCE)
+MASTER PLAN: du-rework/tasks/PLAN-PROFILE-CONTROL-PLANE-IMPLEMENTATION.md (PC-05 row, "Resolution and v2 admission", "Settled data and authorization model")
+COORDINATION DECISION: PC-01 is complete. PC-02 is verified and closed. PC-03 and PC-04 are in progress under Workers 1 & 2.
+
+TARGET OF INVESTIGATION (READ-ONLY AUDIT):
+1. orchestrator/services/orchestrator/src/modules/operations/submission.ts
+2. orchestrator/services/orchestrator/src/http/routes/public.ts (v1 execute/submit routes)
+3. orchestrator/services/orchestrator/src/modules/admin-workbench/service.ts
+4. orchestrator/services/orchestrator/src/http/routes/internal-admin-workbench.ts
+5. orchestrator/services/orchestrator/src/modules/profiles/policy.ts (profile resolution logic)
+6. orchestrator/services/orchestrator/src/modules/profiles/manifest-validator.ts
+7. orchestrator/packages/contracts/src/profile-groups.ts (V2 DTOs: Preview, Submit, ResolutionFingerprint)
+
+MUC TIEU PREP-PC-05:
+1. Khao sat bo phan giai Root-Grant Resolver:
+   - Thay the viec tim kiem profile truc tiep qua `profile_api_keys` bang co che phan giai da tang:
+     * Neu key thuoc group (`GROUP_GRANT`): phan giai root grant cua group do, kiem tra grant con ACTIVE khong, lay group revision va child profile tuong ung.
+     * Neu key la standalone (`LEGACY_STANDALONE`): giu nguyen co che v1 cu.
+   - Dam bao request mang vao key bi revoke se bi tu choi 401/403 ngay lap tuc.
+2. Khao sat V2 Preview-backed Submit:
+   - Ho tro tuy chon preview truoc khi submit.
+   - Luu resolution fingerprint va validate fingerprint khi submit khong bi drift.
+   - Re-auth tuong minh khi replay submit idempotent.
+3. Khao sat Parameter Resolution (`parameterResolution` capability):
+   - Kiem tra cach request parameters duoc resolve voi group defaults va policy override.
+   - Tu choi cac injection credential trong request defaults theo DTO schema.
+4. Soan thao bao cao thiet ke va test plan chi tiet tai:
+   `du-rework/coordination/reports/prep-pc05-admission-spec.md`.
+
+QUY TAC:
+- KHONG sua cac file source production trong phase PREP nay (giu nguyen lease).
+- Chi ghi file bao cao `du-rework/coordination/reports/prep-pc05-admission-spec.md`.
+- In ra: PREP-PC-05_COMPLETE khi hoan thanh kem duong dan bao cao.

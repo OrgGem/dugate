@@ -1,0 +1,18 @@
+[PACKET SWEEP-PC03-FIXTURES: Sweep Residual Test Fakes for PC-03]
+
+ROLE: DeepSeek Worker 1 (Backend & Profile Service Specialist)
+TASK ID: SWEEP-PC03-FIXTURES
+STATUS: FIXTURE HARMONIZATION (TEST FILES ONLY)
+PURPOSE:
+Update the fake database mock handlers in two test suites where PC-03's `assertProfileIdentityNotGroupOwned` (`SELECT n.group_id, g.auth_authority`) is unhandled:
+1. `orchestrator/services/orchestrator/tests/p730-admin-mutate-offline.test.ts`
+2. `orchestrator/services/orchestrator/tests/tapi01-closure-offline.test.ts`
+
+EXCLUSIVE LEASE:
+- orchestrator/services/orchestrator/tests/p730-admin-mutate-offline.test.ts
+- orchestrator/services/orchestrator/tests/tapi01-closure-offline.test.ts
+
+INSTRUCTIONS:
+In each test suite's fake client query router, when SQL matches `SELECT .*group_id.*auth_authority` from `profile_names`, return `{ rows: [] }` (or `{ rows: [{ group_id: null, auth_authority: null }] }`) so the profile is treated as standalone rather than throwing "unhandled SQL".
+Verify both suites pass with exit 0.
+Print: SWEEP-PC03-FIXTURES_COMPLETE
